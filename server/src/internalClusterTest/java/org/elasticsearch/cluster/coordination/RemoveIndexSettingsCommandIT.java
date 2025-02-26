@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -98,14 +99,18 @@ public class RemoveIndexSettingsCommandIT extends ESIntegTestCase {
         Settings nodeSettings = Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build();
         internalCluster().startNode(nodeSettings);
 
-        Map<String, Settings> getIndexSettings = client().admin().indices().prepareGetSettings("test-index-*").get().getIndexToSettings();
+        Map<String, Settings> getIndexSettings = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, "test-index-*")
+            .get()
+            .getIndexToSettings();
         for (int i = 0; i < numIndices; i++) {
             String index = "test-index-" + i;
             Settings indexSettings = getIndexSettings.get(index);
             assertFalse(indexSettings.hasValue("index.foo"));
             assertThat(indexSettings.get("index.bar"), equalTo(Integer.toString(barValues[i])));
         }
-        getIndexSettings = client().admin().indices().prepareGetSettings("more-index-*").get().getIndexToSettings();
+        getIndexSettings = client().admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, "more-index-*").get().getIndexToSettings();
         for (int i = 0; i < moreIndices; i++) {
             assertNotNull(getIndexSettings.get("more-index-" + i));
         }

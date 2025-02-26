@@ -2,6 +2,12 @@
 [[licensing-apis]]
 == Licensing APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-license[Licensing APIs].
+--
+
 You can use the following APIs to manage your licenses:
 
 * <<delete-license>>

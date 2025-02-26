@@ -1,9 +1,14 @@
 [[delete-synonym-rule]]
 === Delete synonym rule
-
 ++++
 <titleabbrev>Delete synonym rule</titleabbrev>
 ++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-synonyms[Synonyms APIs].
+--
 
 Deletes an individual synonym rule from a synonyms set.
 

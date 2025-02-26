@@ -14,11 +14,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -27,7 +28,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToUnsignedLong;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX_AS_DOUBLE;
 
-public class ToUnsignedLongTests extends AbstractFunctionTestCase {
+public class ToUnsignedLongTests extends AbstractScalarFunctionTestCase {
     public ToUnsignedLongTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -58,11 +59,12 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
         );
 
         // datetimes
-        TestCaseSupplier.forUnaryDatetime(
+        TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("Long"),
+            TestCaseSupplier.dateCases(),
             DataType.UNSIGNED_LONG,
-            instant -> BigInteger.valueOf(instant.toEpochMilli()),
+            instant -> BigInteger.valueOf(((Instant) instant).toEpochMilli()),
             List.of()
         );
         // random strings that don't look like an unsigned_long
@@ -72,8 +74,8 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             // this shortcut here.
             Exception e = expectThrows(NumberFormatException.class, () -> new BigDecimal(bytesRef.utf8ToString()));
             return List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.NumberFormatException: " + e.getMessage()
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.NumberFormatException: " + e.getMessage()
             );
         });
         // from doubles within unsigned_long's range
@@ -95,8 +97,8 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             Double.NEGATIVE_INFINITY,
             -1d,
             d -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [unsigned_long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [unsigned_long] range"
             )
         );
         // from doubles outside Long's range, positive
@@ -108,8 +110,8 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             UNSIGNED_LONG_MAX_AS_DOUBLE + 10e5,
             Double.POSITIVE_INFINITY,
             d -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [unsigned_long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [unsigned_long] range"
             )
         );
 
@@ -132,8 +134,8 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             Long.MIN_VALUE,
             -1L,
             l -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + l + "] out of [unsigned_long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + l + "] out of [unsigned_long] range"
             )
         );
 
@@ -156,8 +158,8 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             Integer.MIN_VALUE,
             -1,
             l -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + l + "] out of [unsigned_long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + l + "] out of [unsigned_long] range"
             )
         );
 
@@ -214,8 +216,8 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             DataType.UNSIGNED_LONG,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "] out of [unsigned_long] range"
             )
@@ -237,14 +239,14 @@ public class ToUnsignedLongTests extends AbstractFunctionTestCase {
             DataType.UNSIGNED_LONG,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "] out of [unsigned_long] range"
             )
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

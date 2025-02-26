@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -19,13 +20,13 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_BLOCKS_WRITE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -79,8 +80,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block1.run(); // release block
 
         // assert that the requests were acknowledged
-        assertAcked(future1.get());
-        assertAcked(future2.get());
+        assertAcked(future1, future2);
 
         // and assert that all the indices are open
         for (String index : List.of("test-1", "test-2", "test-3")) {
@@ -125,6 +125,9 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
 
         // wait for the queue to have the second close tasks (the close-indices tasks)
         assertBusy(() -> assertThat(findPendingTasks(masterService, "close-indices"), hasSize(2)));
+
+        // wait for all ongoing tasks to complete on GENERIC to ensure that the batch is fully-formed (see #109187)
+        flushThreadPoolExecutor(getInstanceFromNode(ThreadPool.class), ThreadPool.Names.GENERIC);
 
         block2.run(); // release block
 
@@ -208,14 +211,14 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
     private static CheckedRunnable<Exception> blockMasterService(MasterService masterService) {
         final var executionBarrier = new CyclicBarrier(2);
         masterService.createTaskQueue("block", Priority.URGENT, batchExecutionContext -> {
-            executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
-            executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
+            safeAwait(executionBarrier); // notify test thread that the master service is blocked
+            safeAwait(executionBarrier); // wait for test thread to release us
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 taskContext.success(() -> {});
             }
             return batchExecutionContext.initialState();
         }).submitTask("block", new ExpectSuccessTask(), null);
-        return () -> executionBarrier.await(10, TimeUnit.SECONDS);
+        return () -> safeAwait(executionBarrier);
     }
 
     private static ClusterStateListener closedIndexCountListener(int closedIndices) {

@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -41,6 +43,7 @@ public class ESPolicyUnitTests extends ESTestCase {
 
     @BeforeClass
     public static void setupPolicy() {
+        assumeTrue("test requires security manager to be supported", RuntimeVersionFeature.isSecurityManagerAvailable());
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         DEFAULT_POLICY = PolicyUtil.readPolicy(ESPolicy.class.getResource(POLICY_RESOURCE), TEST_CODEBASES);
     }

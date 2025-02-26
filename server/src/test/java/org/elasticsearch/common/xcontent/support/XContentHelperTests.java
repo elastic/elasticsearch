@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent.support;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -420,26 +420,5 @@ public class XContentHelperTests extends ESTestCase {
         }, new BytesArray(json), XContentType.JSON, null).v2();
 
         assertThat(names, equalTo(Set.of("a", "c")));
-    }
-
-    public void testDrainAndClose() throws IOException {
-        String json = """
-            { "a": "b", "c": "d", "e": {"f": "g"}, "h": ["i", "j", {"k": "l"}]}""";
-        var parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json);
-        var content = XContentBuilder.builder(XContentType.JSON.xContent());
-        XContentHelper.drainAndClose(parser, content);
-
-        assertEquals(json.replace(" ", ""), Strings.toString(content));
-        assertTrue(parser.isClosed());
-    }
-
-    public void testDrainAndCloseAlreadyClosed() throws IOException {
-        var parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, "{}");
-        parser.close();
-
-        assertThrows(
-            IllegalStateException.class,
-            () -> XContentHelper.drainAndClose(parser, XContentBuilder.builder(XContentType.JSON.xContent()))
-        );
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.netty4;
@@ -19,8 +20,12 @@ import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.handler.ssl.SslCloseCompletionEvent;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.PromiseCombiner;
@@ -29,8 +34,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -56,6 +63,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     private static final Logger logger = LogManager.getLogger(Netty4HttpPipeliningHandler.class);
 
     private final int maxEventsHeld;
+    private final ThreadWatchdog.ActivityTracker activityTracker;
     private final PriorityQueue<Tuple<? extends Netty4HttpResponse, ChannelPromise>> outboundHoldingQueue;
 
     private record ChunkedWrite(PromiseCombiner combiner, ChannelPromise onDone, ChunkedRestResponseBodyPart responseBodyPart) {}
@@ -65,6 +73,12 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
      */
     @Nullable
     private ChunkedWrite currentChunkedWrite;
+
+    /**
+     * HTTP request content stream for current request, it's null if there is no current request or request is fully-aggregated
+     */
+    @Nullable
+    private Netty4HttpRequestBodyStream currentRequestStream;
 
     /*
      * The current read and write sequence numbers. Read sequence numbers are attached to requests in the order they are read from the
@@ -90,31 +104,60 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
      * @param maxEventsHeld the maximum number of channel events that will be retained prior to aborting the channel connection; this is
      *                      required as events cannot queue up indefinitely
      */
-    public Netty4HttpPipeliningHandler(final int maxEventsHeld, final Netty4HttpServerTransport serverTransport) {
+    public Netty4HttpPipeliningHandler(
+        final int maxEventsHeld,
+        final Netty4HttpServerTransport serverTransport,
+        final ThreadWatchdog.ActivityTracker activityTracker
+    ) {
         this.maxEventsHeld = maxEventsHeld;
+        this.activityTracker = activityTracker;
         this.outboundHoldingQueue = new PriorityQueue<>(1, Comparator.comparingInt(t -> t.v1().getSequence()));
         this.serverTransport = serverTransport;
     }
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
-        assert msg instanceof FullHttpRequest : "Should have fully aggregated message already but saw [" + msg + "]";
-        final FullHttpRequest fullHttpRequest = (FullHttpRequest) msg;
-        final Netty4HttpRequest netty4HttpRequest;
-        if (fullHttpRequest.decoderResult().isFailure()) {
-            final Throwable cause = fullHttpRequest.decoderResult().cause();
-            final Exception nonError;
-            if (cause instanceof Error) {
-                ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                nonError = new Exception(cause);
+        activityTracker.startActivity();
+        try {
+            if (msg instanceof HttpRequest request) {
+                final Netty4HttpRequest netty4HttpRequest;
+                if (request.decoderResult().isFailure()) {
+                    final Throwable cause = request.decoderResult().cause();
+                    final Exception nonError;
+                    if (cause instanceof Error) {
+                        ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                        nonError = new Exception(cause);
+                    } else {
+                        nonError = (Exception) cause;
+                    }
+                    netty4HttpRequest = new Netty4HttpRequest(readSequence++, (FullHttpRequest) request, nonError);
+                } else {
+                    assert currentRequestStream == null : "current stream must be null for new request";
+                    if (request instanceof FullHttpRequest fullHttpRequest) {
+                        netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
+                        currentRequestStream = null;
+                    } else {
+                        var contentStream = new Netty4HttpRequestBodyStream(
+                            ctx.channel(),
+                            serverTransport.getThreadPool().getThreadContext(),
+                            activityTracker
+                        );
+                        currentRequestStream = contentStream;
+                        netty4HttpRequest = new Netty4HttpRequest(readSequence++, request, contentStream);
+                    }
+                }
+                handlePipelinedRequest(ctx, netty4HttpRequest);
             } else {
-                nonError = (Exception) cause;
+                assert msg instanceof HttpContent : "expect HttpContent got " + msg;
+                assert currentRequestStream != null : "current stream must exists before handling http content";
+                currentRequestStream.handleNettyContent((HttpContent) msg);
+                if (msg instanceof LastHttpContent) {
+                    currentRequestStream = null;
+                }
             }
-            netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest, nonError);
-        } else {
-            netty4HttpRequest = new Netty4HttpRequest(readSequence++, fullHttpRequest);
+        } finally {
+            activityTracker.stopActivity();
         }
-        handlePipelinedRequest(ctx, netty4HttpRequest);
     }
 
     // protected so tests can override it
@@ -259,45 +302,59 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             writeSequence++;
             finishingWrite.combiner().finish(finishingWrite.onDone());
         } else {
+            final var threadContext = serverTransport.getThreadPool().getThreadContext();
+            assert Transports.assertDefaultThreadContext(threadContext);
             final var channel = finishingWrite.onDone().channel();
-            ActionListener.run(ActionListener.assertOnce(new ActionListener<>() {
-                @Override
-                public void onResponse(ChunkedRestResponseBodyPart continuation) {
-                    channel.writeAndFlush(
-                        new Netty4ChunkedHttpContinuation(writeSequence, continuation, finishingWrite.combiner()),
-                        finishingWrite.onDone() // pass the terminal listener/promise along the line
-                    );
-                    checkShutdown();
-                }
+            ActionListener.run(
+                new ContextPreservingActionListener<>(
+                    threadContext.newRestorableContext(false),
+                    ActionListener.assertOnce(new ActionListener<>() {
+                        @Override
+                        public void onResponse(ChunkedRestResponseBodyPart continuation) {
+                            // always fork a fresh task to avoid stack overflow
+                            assert Transports.assertDefaultThreadContext(threadContext);
+                            channel.eventLoop()
+                                .execute(
+                                    () -> channel.writeAndFlush(
+                                        new Netty4ChunkedHttpContinuation(writeSequence, continuation, finishingWrite.combiner()),
+                                        finishingWrite.onDone() // pass the terminal listener/promise along the line
+                                    )
+                                );
+                            checkShutdown();
+                        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error(
-                        Strings.format("failed to get continuation of HTTP response body for [%s], closing connection", channel),
-                        e
-                    );
-                    channel.close().addListener(ignored -> {
-                        finishingWrite.combiner().add(channel.newFailedFuture(e));
-                        finishingWrite.combiner().finish(finishingWrite.onDone());
-                    });
-                    checkShutdown();
-                }
+                        @Override
+                        public void onFailure(Exception e) {
+                            assert Transports.assertDefaultThreadContext(threadContext);
+                            logger.error(
+                                Strings.format("failed to get continuation of HTTP response body for [%s], closing connection", channel),
+                                e
+                            );
+                            Netty4Utils.addListener(channel.close(), f -> {
+                                finishingWrite.combiner().add(f.channel().newFailedFuture(e));
+                                finishingWrite.combiner().finish(finishingWrite.onDone());
+                            });
+                            checkShutdown();
+                        }
 
-                private void checkShutdown() {
-                    if (channel.eventLoop().isShuttingDown()) {
-                        // The event loop is shutting down, and https://github.com/netty/netty/issues/8007 means that we cannot know if the
-                        // preceding activity made it onto its queue before shutdown or whether it will just vanish without a trace, so
-                        // to avoid a leak we must double-check that the final listener is completed once the event loop is terminated.
-                        // Note that the final listener came from Netty4Utils#safeWriteAndFlush so its executor is an ImmediateEventExecutor
-                        // which means this completion is not subject to the same issue, it still works even if the event loop has already
-                        // terminated.
-                        channel.eventLoop()
-                            .terminationFuture()
-                            .addListener(ignored -> finishingWrite.onDone().tryFailure(new ClosedChannelException()));
-                    }
-                }
+                        private void checkShutdown() {
+                            if (channel.eventLoop().isShuttingDown()) {
+                                // The event loop is shutting down, and https://github.com/netty/netty/issues/8007 means that we cannot know
+                                // if the preceding activity made it onto its queue before shutdown or whether it will just vanish without a
+                                // trace, so to avoid a leak we must double-check that the final listener is completed once the event loop
+                                // is terminated. Note that the final listener came from Netty4Utils#safeWriteAndFlush so its executor is an
+                                // ImmediateEventExecutor which means this completion is not subject to the same issue, it still works even
+                                // if the event loop has already terminated.
+                                channel.eventLoop()
+                                    .terminationFuture()
+                                    .addListener(ignored -> finishingWrite.onDone().tryFailure(new ClosedChannelException()));
+                            }
+                        }
 
-            }), finishingWriteBodyPart::getNextPart);
+                    })
+                ),
+                finishingWriteBodyPart::getNextPart
+            );
         }
     }
 
@@ -388,7 +445,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         final boolean isPartComplete = bodyPart.isPartComplete();
         final boolean isBodyComplete = isPartComplete && bodyPart.isLastPart();
         final ChannelFuture f = ctx.write(isBodyComplete ? new DefaultLastHttpContent(content) : new DefaultHttpContent(content));
-        f.addListener(ignored -> bytes.close());
+        Netty4Utils.addListener(f, ignored -> bytes.close());
         combiner.add(f);
         return isPartComplete;
     }
@@ -447,6 +504,16 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             serverTransport.onException(channel, new Exception(cause));
         } else {
             serverTransport.onException(channel, (Exception) cause);
+        }
+    }
+
+    @Override
+    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+        if (evt instanceof SslCloseCompletionEvent closeEvent) {
+            if (closeEvent.isSuccess() && ctx.channel().isActive()) {
+                logger.trace("received TLS close_notify, closing connection {}", ctx.channel());
+                ctx.channel().close();
+            }
         }
     }
 

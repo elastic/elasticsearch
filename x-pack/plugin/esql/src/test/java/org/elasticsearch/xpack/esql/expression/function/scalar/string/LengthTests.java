@@ -15,9 +15,8 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +24,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LengthTests extends AbstractFunctionTestCase {
+public class LengthTests extends AbstractScalarFunctionTestCase {
     public LengthTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -49,7 +48,7 @@ public class LengthTests extends AbstractFunctionTestCase {
         cases.addAll(makeTestCases("6 bytes, 2 code points", () -> "❗️", 2));
         cases.addAll(makeTestCases("100 random alpha", () -> randomAlphaOfLength(100), 100));
         cases.addAll(makeTestCases("100 random code points", () -> randomUnicodeOfCodepointLength(100), 100));
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, cases)));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, cases);
     }
 
     private static List<TestCaseSupplier> makeTestCases(String title, Supplier<String> text, int expectedLength) {
@@ -73,12 +72,18 @@ public class LengthTests extends AbstractFunctionTestCase {
                     DataType.INTEGER,
                     equalTo(expectedLength)
                 )
+            ),
+            new TestCaseSupplier(
+                title + " with semantic_text",
+                List.of(DataType.SEMANTIC_TEXT),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.SEMANTIC_TEXT, "f")),
+                    "LengthEvaluator[val=Attribute[channel=0]]",
+                    DataType.INTEGER,
+                    equalTo(expectedLength)
+                )
             )
         );
-    }
-
-    private Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
-        return equalTo(UnicodeUtil.codePointCount((BytesRef) typedData.get(0).data()));
     }
 
     @Override

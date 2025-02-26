@@ -2,7 +2,7 @@
 
 [[near-real-time]]
 === Near real-time search
-The overview of <<documents-indices,documents and indices>> indicates that when a document is stored in {es}, it is indexed and fully searchable in _near real-time_--within 1 second. What defines near real-time search?
+When a document is stored in {es}, it is indexed and fully searchable in _near real-time_--within 1 second. What defines near real-time search?
 
 Lucene, the Java libraries on which {es} is based, introduced the concept of per-segment search. A _segment_ is similar to an inverted index, but the word _index_ in Lucene means "a collection of segments plus a commit point". After a commit, a new segment is added to the commit point and the buffer is cleared.
 

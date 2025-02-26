@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.serialization;
@@ -36,6 +37,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -55,9 +58,44 @@ import static org.hamcrest.Matchers.nullValue;
 public class ClusterSerializationTests extends ESAllocationTestCase {
 
     public void testClusterStateSerialization() throws Exception {
-        Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(10).numberOfReplicas(1))
-            .build();
+        IndexLongFieldRange eventIngestedRangeInput = randomFrom(
+            IndexLongFieldRange.UNKNOWN,
+            IndexLongFieldRange.NO_SHARDS,
+            IndexLongFieldRange.EMPTY,
+            IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(100000, 200000))
+        );
+
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(10)
+            .numberOfReplicas(1)
+            .eventIngestedRange(eventIngestedRangeInput);
+
+        ClusterStateTestRecord result = createAndSerializeClusterState(indexMetadataBuilder, TransportVersion.current());
+
+        assertThat(result.serializedClusterState().getClusterName().value(), equalTo(result.clusterState().getClusterName().value()));
+        assertThat(result.serializedClusterState().routingTable().toString(), equalTo(result.clusterState().routingTable().toString()));
+
+        IndexLongFieldRange eventIngestedRangeOutput = result.serializedClusterState().getMetadata().index("test").getEventIngestedRange();
+        assertThat(eventIngestedRangeInput, equalTo(eventIngestedRangeOutput));
+
+        if (eventIngestedRangeInput.containsAllShardRanges() && eventIngestedRangeInput != IndexLongFieldRange.EMPTY) {
+            assertThat(eventIngestedRangeOutput.getMin(), equalTo(100000L));
+            assertThat(eventIngestedRangeOutput.getMax(), equalTo(200000L));
+        }
+    }
+
+    /**
+     * @param clusterState original ClusterState created by helper method
+     * @param serializedClusterState serialized version of the clusterState
+     */
+    private record ClusterStateTestRecord(ClusterState clusterState, ClusterState serializedClusterState) {}
+
+    private static ClusterStateTestRecord createAndSerializeClusterState(
+        IndexMetadata.Builder indexMetadataBuilder,
+        TransportVersion transportVersion
+    ) throws IOException {
+        Metadata metadata = Metadata.builder().put(indexMetadataBuilder).build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
@@ -82,15 +120,17 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .routingTable(strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable())
             .build();
 
-        ClusterState serializedClusterState = ClusterState.Builder.fromBytes(
-            ClusterState.Builder.toBytes(clusterState),
-            newNode("node1"),
+        BytesStreamOutput outStream = new BytesStreamOutput();
+        outStream.setTransportVersion(transportVersion);
+        clusterState.writeTo(outStream);
+        StreamInput inStream = new NamedWriteableAwareStreamInput(
+            outStream.bytes().streamInput(),
             new NamedWriteableRegistry(ClusterModule.getNamedWriteables())
         );
+        inStream.setTransportVersion(transportVersion);
+        ClusterState serializedClusterState = ClusterState.readFrom(inStream, null);
 
-        assertThat(serializedClusterState.getClusterName().value(), equalTo(clusterState.getClusterName().value()));
-
-        assertThat(serializedClusterState.routingTable().toString(), equalTo(clusterState.routingTable().toString()));
+        return new ClusterStateTestRecord(clusterState, serializedClusterState);
     }
 
     public void testRoutingTableSerialization() throws Exception {

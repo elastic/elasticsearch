@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.query;
@@ -26,24 +27,41 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.test.TestSearchContext;
+import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -131,7 +149,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             try (SearchContext context = createSearchContext(query, size)) {
                 QueryPhase.executeQuery(context);
                 assertFalse(context.queryResult().searchTimedOut());
-                assertEquals(numDocs, context.queryResult().topDocs().topDocs.totalHits.value);
+                assertEquals(numDocs, context.queryResult().topDocs().topDocs.totalHits.value());
                 assertEquals(size, context.queryResult().topDocs().topDocs.scoreDocs.length);
             }
         }
@@ -141,7 +159,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
                 QueryPhase.executeQuery(context);
                 assertTrue(context.queryResult().searchTimedOut());
                 int firstSegmentMaxDoc = reader.leaves().get(0).reader().maxDoc();
-                assertEquals(Math.min(2048, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.totalHits.value);
+                assertEquals(Math.min(2048, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.totalHits.value());
                 assertEquals(Math.min(size, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.scoreDocs.length);
             }
         }
@@ -158,14 +176,14 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
                     boolean firstSegment = true;
 
                     @Override
-                    public Scorer scorer(LeafReaderContext context) throws IOException {
+                    public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                         if (firstSegment == false && isTimeoutExpected) {
                             shouldTimeout = true;
                         }
                         timeoutTrigger.accept(context);
                         assert shouldTimeout == false : "should have already timed out";
                         firstSegment = false;
-                        return super.scorer(context);
+                        return super.scorerSupplier(context);
                     }
                 };
             }
@@ -179,7 +197,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             try (SearchContext context = createSearchContext(query, size)) {
                 QueryPhase.executeQuery(context);
                 assertFalse(context.queryResult().searchTimedOut());
-                assertEquals(numDocs, context.queryResult().topDocs().topDocs.totalHits.value);
+                assertEquals(numDocs, context.queryResult().topDocs().topDocs.totalHits.value());
                 assertEquals(size, context.queryResult().topDocs().topDocs.scoreDocs.length);
             }
         }
@@ -189,7 +207,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
                 QueryPhase.executeQuery(context);
                 assertTrue(context.queryResult().searchTimedOut());
                 int firstSegmentMaxDoc = reader.leaves().get(0).reader().maxDoc();
-                assertEquals(Math.min(2048, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.totalHits.value);
+                assertEquals(Math.min(2048, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.totalHits.value());
                 assertEquals(Math.min(size, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.scoreDocs.length);
             }
         }
@@ -201,33 +219,49 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
                 return new MatchAllWeight(this, boost, scoreMode) {
                     @Override
-                    public BulkScorer bulkScorer(LeafReaderContext context) {
-                        final float score = score();
-                        final int maxDoc = context.reader().maxDoc();
-                        return new BulkScorer() {
+                    public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                        ScorerSupplier inScorerSupplier = super.scorerSupplier(context);
+                        return new ScorerSupplier() {
                             @Override
-                            public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
-                                assert shouldTimeout == false : "should have already timed out";
-                                max = Math.min(max, maxDoc);
-                                ScoreAndDoc scorer = new ScoreAndDoc();
-                                scorer.score = score;
-                                collector.setScorer(scorer);
-                                for (int doc = min; doc < max; ++doc) {
-                                    scorer.doc = doc;
-                                    if (acceptDocs == null || acceptDocs.get(doc)) {
-                                        collector.collect(doc);
-                                    }
-                                }
-                                if (timeoutExpected) {
-                                    // timeout after collecting the first batch of documents from the 1st segment, or the entire 1st segment
-                                    shouldTimeout = true;
-                                }
-                                return max == maxDoc ? DocIdSetIterator.NO_MORE_DOCS : max;
+                            public Scorer get(long leadCost) throws IOException {
+                                return inScorerSupplier.get(leadCost);
                             }
 
                             @Override
                             public long cost() {
-                                return 0;
+                                return inScorerSupplier.cost();
+                            }
+
+                            @Override
+                            public BulkScorer bulkScorer() throws IOException {
+                                final float score = score();
+                                final int maxDoc = context.reader().maxDoc();
+                                return new BulkScorer() {
+                                    @Override
+                                    public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
+                                        assert shouldTimeout == false : "should have already timed out";
+                                        max = Math.min(max, maxDoc);
+                                        Score scorer = new Score();
+                                        scorer.score = score;
+                                        collector.setScorer(scorer);
+                                        for (int doc = min; doc < max; ++doc) {
+                                            if (acceptDocs == null || acceptDocs.get(doc)) {
+                                                collector.collect(doc);
+                                            }
+                                        }
+                                        if (timeoutExpected) {
+                                            // timeout after collecting the first batch of documents from the 1st segment, or the entire 1st
+                                            // segment
+                                            shouldTimeout = true;
+                                        }
+                                        return max == maxDoc ? DocIdSetIterator.NO_MORE_DOCS : max;
+                                    }
+
+                                    @Override
+                                    public long cost() {
+                                        return 0;
+                                    }
+                                };
                             }
                         };
                     }
@@ -257,14 +291,121 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         return context;
     }
 
-    private static class ScoreAndDoc extends Scorable {
-        float score;
-        int doc = -1;
+    public void testSuggestOnlyWithTimeout() throws Exception {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().suggest(new SuggestBuilder());
+        try (SearchContext context = createSearchContextWithSuggestTimeout(searchSourceBuilder)) {
+            assertTrue(context.hasOnlySuggest());
+            QueryPhase.execute(context);
+            assertTrue(context.queryResult().searchTimedOut());
+            assertEquals(1, context.queryResult().suggest().size());
+            assertEquals(0, context.queryResult().suggest().getSuggestion("suggestion").getEntries().size());
+            assertNotNull(context.queryResult().topDocs());
+            assertEquals(0, context.queryResult().topDocs().topDocs.totalHits.value());
+        }
+    }
+
+    public void testSuggestAndQueryWithSuggestTimeout() throws Exception {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().suggest(new SuggestBuilder()).query(new MatchAllQueryBuilder());
+        try (SearchContext context = createSearchContextWithSuggestTimeout(searchSourceBuilder)) {
+            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+            assertFalse(context.hasOnlySuggest());
+            QueryPhase.execute(context);
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.value(), Matchers.greaterThan(0L));
+            assertTrue(context.queryResult().searchTimedOut());
+            assertEquals(1, context.queryResult().suggest().size());
+            assertEquals(0, context.queryResult().suggest().getSuggestion("suggestion").getEntries().size());
+        }
+    }
+
+    private TestSearchContext createSearchContextWithSuggestTimeout(SearchSourceBuilder searchSourceBuilder) throws IOException {
+        ContextIndexSearcher contextIndexSearcher = newContextSearcher(reader);
+        SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
+        suggestionSearchContext.addSuggestion("suggestion", new TestSuggestionContext(new TestSuggester(contextIndexSearcher), null));
+        TestSearchContext context = new TestSearchContext(null, indexShard, contextIndexSearcher) {
+            @Override
+            public SuggestionSearchContext suggest() {
+                return suggestionSearchContext;
+            }
+
+            @Override
+            public ShardSearchRequest request() {
+                SearchRequest searchRequest = new SearchRequest();
+                searchRequest.allowPartialSearchResults(true);
+                searchRequest.source(searchSourceBuilder);
+                return new ShardSearchRequest(
+                    OriginalIndices.NONE,
+                    searchRequest,
+                    indexShard.shardId(),
+                    0,
+                    1,
+                    AliasFilter.EMPTY,
+                    1F,
+                    0,
+                    null
+                );
+            }
+        };
+        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+        return context;
+    }
+
+    private static final class TestSuggester extends Suggester<TestSuggestionContext> {
+        private final ContextIndexSearcher contextIndexSearcher;
+
+        TestSuggester(ContextIndexSearcher contextIndexSearcher) {
+            this.contextIndexSearcher = contextIndexSearcher;
+        }
 
         @Override
-        public int docID() {
-            return doc;
+        protected TestSuggestion innerExecute(
+            String name,
+            TestSuggestionContext suggestion,
+            IndexSearcher searcher,
+            CharsRefBuilder spare
+        ) {
+            contextIndexSearcher.throwTimeExceededException();
+            throw new AssertionError("should have thrown TimeExceededException");
         }
+
+        @Override
+        protected TestSuggestion emptySuggestion(String name, TestSuggestionContext suggestion, CharsRefBuilder spare) {
+            return new TestSuggestion();
+        }
+    }
+
+    private static final class TestSuggestionContext extends SuggestionSearchContext.SuggestionContext {
+        TestSuggestionContext(Suggester<?> suggester, SearchExecutionContext searchExecutionContext) {
+            super(suggester, searchExecutionContext);
+        }
+    }
+
+    private static final class TestSuggestion extends Suggest.Suggestion<
+        Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> {
+        TestSuggestion() {
+            super("suggestion", 10);
+        }
+
+        @Override
+        protected Entry<? extends Entry.Option> newEntry(StreamInput in) {
+            return new TestSuggestionEntry();
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "suggestion";
+        }
+    }
+
+    private static final class TestSuggestionEntry extends Suggest.Suggestion.Entry<Suggest.Suggestion.Entry.Option> {
+        @Override
+        protected Option newOption(StreamInput in) {
+            return new Option(new Text("text"), 1f) {
+            };
+        }
+    }
+
+    private static class Score extends Scorable {
+        float score;
 
         @Override
         public float score() {
@@ -314,8 +455,9 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
-            return new ConstantScoreScorer(this, score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+        public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+            Scorer scorer = new ConstantScoreScorer(score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+            return new DefaultScorerSupplier(scorer);
         }
 
         @Override

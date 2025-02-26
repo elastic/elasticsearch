@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.toolchain;
@@ -32,11 +33,15 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         String url(String os, String arch, String extension);
     }
 
-    record ReleasedJdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber, String hash) implements JdkBuild {
+    record ReleaseJdkBuild(JavaLanguageVersion languageVersion, String host, String version, String buildNumber, String hash)
+        implements
+            JdkBuild {
 
         @Override
         public String url(String os, String arch, String extension) {
-            return "https://download.oracle.com/java/GA/jdk"
+            return "https://"
+                + host
+                + "/java/GA/jdk"
                 + version
                 + "/"
                 + hash
@@ -53,16 +58,16 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         }
     }
 
-    record EarlyAccessJdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber) implements JdkBuild {
-
+    record EarlyAccessJdkBuild(JavaLanguageVersion languageVersion) implements JdkBuild {
         @Override
         public String url(String os, String arch, String extension) {
+            String buildNumber = resolveBuildNumber(languageVersion.asInt());
             return "https://download.java.net/java/early_access/jdk"
-                + version
+                + languageVersion.asInt()
                 + "/"
-                + version
+                + buildNumber
                 + "/GPL/openjdk-"
-                + version
+                + languageVersion.asInt()
                 + "-ea+"
                 + buildNumber
                 + "_"
@@ -71,6 +76,29 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
                 + arch
                 + "_bin."
                 + extension;
+        }
+
+        private static String resolveBuildNumber(int version) {
+            String buildNumber = System.getProperty("runtime.java." + version + ".build");
+            if (buildNumber != null) {
+                System.out.println("buildNumber = " + buildNumber);
+                return buildNumber;
+            }
+            buildNumber = System.getProperty("runtime.java.build");
+            if (buildNumber != null) {
+                System.out.println("buildNumber2 = " + buildNumber);
+                return buildNumber;
+            }
+
+            switch (version) {
+                case 24:
+                    // latest explicitly found build number for 24
+                    return "29";
+                case 25:
+                    return "3";
+                default:
+                    throw new IllegalArgumentException("Unsupported version " + version);
+            }
         }
     }
 
@@ -87,8 +115,9 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
     // package private so it can be replaced by tests
     List<JdkBuild> builds = List.of(
         getBundledJdkBuild(),
-        // 23 early access
-        new EarlyAccessJdkBuild(JavaLanguageVersion.of(23), "23", "23")
+        // release candidate of JDK 24
+        new ReleaseJdkBuild(JavaLanguageVersion.of(24), "download.java.net", "24", "36", "1f9ff9062db4449d8ca828c504ffae90"),
+        new EarlyAccessJdkBuild(JavaLanguageVersion.of(25))
     );
 
     private JdkBuild getBundledJdkBuild() {
@@ -101,7 +130,7 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         String baseVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
         String build = jdkVersionMatcher.group(3);
         String hash = jdkVersionMatcher.group(5);
-        return new ReleasedJdkBuild(bundledJdkMajorVersion, baseVersion, build, hash);
+        return new ReleaseJdkBuild(bundledJdkMajorVersion, "download.oracle.com", baseVersion, build, hash);
     }
 
     /**

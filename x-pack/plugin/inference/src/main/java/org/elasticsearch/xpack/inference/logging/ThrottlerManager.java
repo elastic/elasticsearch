@@ -102,7 +102,7 @@ public class ThrottlerManager implements Closeable {
         throttler.close();
     }
 
-    public static List<Setting<?>> getSettings() {
+    public static List<Setting<?>> getSettingsDefinitions() {
         return List.of(STATS_RESET_INTERVAL_SETTING, LOGGER_WAIT_DURATION_SETTING);
     }
 

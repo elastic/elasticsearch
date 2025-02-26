@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.collect.Iterators;
@@ -21,12 +23,15 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -45,25 +50,27 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
 public abstract class FieldMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(FieldMapper.class);
+    public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting("index.mapping.ignore_malformed", settings -> {
+        if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
+            && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_MALFORMED_LOGSDB)) {
+            return "true";
+        } else {
+            return "false";
+        }
+    }, Property.IndexScope, Property.ServerlessPublic);
 
-    public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting(
-        "index.mapping.ignore_malformed",
-        false,
-        Property.IndexScope,
-        Property.ServerlessPublic
-    );
     public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting(
         "index.mapping.coerce",
         false,
@@ -75,50 +82,46 @@ public abstract class FieldMapper extends Mapper {
     @SuppressWarnings("rawtypes")
     static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];
 
-    protected final MappedFieldType mappedFieldType;
-    protected final MultiFields multiFields;
-    protected final CopyTo copyTo;
-    protected final boolean hasScript;
-    protected final OnScriptError onScriptError;
-
     /**
-     * @param simpleName        the leaf name of the mapper
-     * @param mappedFieldType   the MappedFieldType associated with this mapper
      * @param multiFields       sub fields of this mapper
      * @param copyTo            copyTo fields of this mapper
-     */
-    protected FieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
-        this(simpleName, mappedFieldType, multiFields, copyTo, false, null);
-    }
-
-    /**
-     * @param simpleName        the leaf name of the mapper
-     * @param mappedFieldType   the MappedFieldType associated with this mapper
-     * @param multiFields       sub fields of this mapper
-     * @param copyTo            copyTo fields of this mapper
+     * @param sourceKeepMode   mode for storing the field source in synthetic source mode
      * @param hasScript         whether a script is defined for the field
      * @param onScriptError     the behaviour for when the defined script fails at runtime
      */
-    protected FieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
+    protected record BuilderParams(
         MultiFields multiFields,
         CopyTo copyTo,
+        Optional<SourceKeepMode> sourceKeepMode,
         boolean hasScript,
         OnScriptError onScriptError
     ) {
+        public static BuilderParams empty() {
+            return empty;
+        }
+
+        private static final BuilderParams empty = new BuilderParams(MultiFields.empty(), CopyTo.empty(), Optional.empty(), false, null);
+    }
+
+    protected final MappedFieldType mappedFieldType;
+    protected final BuilderParams builderParams;
+
+    /**
+     * @param simpleName        the leaf name of the mapper
+     * @param params            initialization params for this field mapper
+     */
+    protected FieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams params) {
         super(simpleName);
+        this.mappedFieldType = mappedFieldType;
+        this.builderParams = params;
+
         // could be blank but not empty on indices created < 8.6.0
         assert mappedFieldType.name().isEmpty() == false;
-        this.mappedFieldType = mappedFieldType;
-        this.multiFields = multiFields;
-        this.copyTo = Objects.requireNonNull(copyTo);
-        this.hasScript = hasScript;
-        this.onScriptError = onScriptError;
+        assert params.copyTo != null;
     }
 
     @Override
-    public String name() {
+    public String fullPath() {
         return fieldType().name();
     }
 
@@ -135,11 +138,15 @@ public abstract class FieldMapper extends Mapper {
      * List of fields where this field should be copied to
      */
     public CopyTo copyTo() {
-        return copyTo;
+        return builderParams.copyTo;
     }
 
     public MultiFields multiFields() {
-        return multiFields;
+        return builderParams.multiFields;
+    }
+
+    public Optional<SourceKeepMode> sourceKeepMode() {
+        return builderParams.sourceKeepMode;
     }
 
     /**
@@ -178,7 +185,7 @@ public abstract class FieldMapper extends Mapper {
      */
     public void parse(DocumentParserContext context) throws IOException {
         try {
-            if (hasScript) {
+            if (builderParams.hasScript) {
                 throwIndexingWithScriptParam();
             }
 
@@ -188,20 +195,20 @@ public abstract class FieldMapper extends Mapper {
         }
         // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
         // of the mappings
-        if (multiFields.mappers.length != 0) {
+        if (builderParams.multiFields.mappers.length != 0) {
             doParseMultiFields(context);
         }
     }
 
-    private void doParseMultiFields(DocumentParserContext context) throws IOException {
-        context.path().add(simpleName());
-        for (FieldMapper mapper : multiFields.mappers) {
+    protected void doParseMultiFields(DocumentParserContext context) throws IOException {
+        context.path().add(leafName());
+        for (FieldMapper mapper : builderParams.multiFields.mappers) {
             mapper.parse(context);
         }
         context.path().remove();
     }
 
-    private static void throwIndexingWithScriptParam() {
+    protected static void throwIndexingWithScriptParam() {
         throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
     }
 
@@ -255,7 +262,7 @@ public abstract class FieldMapper extends Mapper {
      * @return whether this field mapper uses a script to generate its values
      */
     public final boolean hasScript() {
-        return hasScript;
+        return builderParams.hasScript;
     }
 
     /**
@@ -276,10 +283,10 @@ public abstract class FieldMapper extends Mapper {
         try {
             indexScriptValues(searchLookup, readerContext, doc, documentParserContext);
         } catch (Exception e) {
-            if (onScriptError == OnScriptError.CONTINUE) {
-                documentParserContext.addIgnoredField(name());
+            if (builderParams.onScriptError == OnScriptError.CONTINUE) {
+                documentParserContext.addIgnoredField(fullPath());
             } else {
-                throw new DocumentParsingException(XContentLocation.UNKNOWN, "Error executing script on field [" + name() + "]", e);
+                throw new DocumentParsingException(XContentLocation.UNKNOWN, "Error executing script on field [" + fullPath() + "]", e);
             }
         }
     }
@@ -299,7 +306,7 @@ public abstract class FieldMapper extends Mapper {
         int doc,
         DocumentParserContext documentParserContext
     ) {
-        throw new UnsupportedOperationException("FieldMapper " + name() + " does not support [script]");
+        throw new UnsupportedOperationException("FieldMapper " + fullPath() + " does not support [script]");
     }
 
     @Override
@@ -308,7 +315,7 @@ public abstract class FieldMapper extends Mapper {
     }
 
     protected Iterator<Mapper> multiFieldsIterator() {
-        return Iterators.forArray(multiFields.mappers);
+        return Iterators.forArray(builderParams.multiFields.mappers);
     }
 
     /**
@@ -321,11 +328,11 @@ public abstract class FieldMapper extends Mapper {
     @Override
     public final void validate(MappingLookup mappers) {
         if (this.copyTo() != null && this.copyTo().copyToFields().isEmpty() == false) {
-            if (mappers.isMultiField(this.name())) {
-                throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + this.name() + "]");
+            if (mappers.isMultiField(this.fullPath())) {
+                throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + this.fullPath() + "]");
             }
 
-            final String sourceScope = mappers.nestedLookup().getNestedParent(this.name());
+            final String sourceScope = mappers.nestedLookup().getNestedParent(this.fullPath());
             for (String copyTo : this.copyTo().copyToFields()) {
                 if (mappers.isMultiField(copyTo)) {
                     throw new IllegalArgumentException("[copy_to] may not be used to copy to a multi-field: [" + copyTo + "]");
@@ -381,7 +388,7 @@ public abstract class FieldMapper extends Mapper {
         if (mergeWith instanceof FieldMapper == false) {
             throw new IllegalArgumentException(
                 "mapper ["
-                    + name()
+                    + fullPath()
                     + "] cannot be changed from type ["
                     + contentType()
                     + "] to ["
@@ -395,7 +402,7 @@ public abstract class FieldMapper extends Mapper {
         if (builder == null) {
             return (FieldMapper) mergeWith;
         }
-        Conflicts conflicts = new Conflicts(name());
+        Conflicts conflicts = new Conflicts(fullPath());
         builder.merge((FieldMapper) mergeWith, conflicts, mapperMergeContext);
         conflicts.check();
         return builder.build(mapperMergeContext.getMapperBuilderContext());
@@ -404,19 +411,19 @@ public abstract class FieldMapper extends Mapper {
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
         if (Objects.equals(this.getClass(), mergeWith.getClass()) == false) {
             throw new IllegalArgumentException(
-                "mapper [" + name() + "] cannot be changed from type [" + contentType() + "] to [" + mergeWith.contentType() + "]"
+                "mapper [" + fullPath() + "] cannot be changed from type [" + contentType() + "] to [" + mergeWith.contentType() + "]"
             );
         }
         if (Objects.equals(contentType(), mergeWith.contentType()) == false) {
             throw new IllegalArgumentException(
-                "mapper [" + name() + "] cannot be changed from type [" + contentType() + "] to [" + mergeWith.contentType() + "]"
+                "mapper [" + fullPath() + "] cannot be changed from type [" + contentType() + "] to [" + mergeWith.contentType() + "]"
             );
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(simpleName());
+        builder.startObject(leafName());
         doXContentBody(builder, params);
         return builder.endObject();
     }
@@ -424,15 +431,22 @@ public abstract class FieldMapper extends Mapper {
     protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("type", contentType());
         getMergeBuilder().toXContent(builder, params);
-        multiFields.toXContent(builder, params);
-        copyTo.toXContent(builder);
+        builderParams.multiFields.toXContent(builder, params);
+        builderParams.copyTo.toXContent(builder);
+        if (builderParams.sourceKeepMode.isPresent()) {
+            builderParams.sourceKeepMode.get().toXContent(builder);
+        }
     }
 
     protected abstract String contentType();
 
     @Override
     public int getTotalFieldsCount() {
-        return 1 + Stream.of(multiFields.mappers).mapToInt(FieldMapper::getTotalFieldsCount).sum();
+        int sum = 1;
+        for (FieldMapper mapper : builderParams.multiFields.mappers) {
+            sum += mapper.getTotalFieldsCount();
+        }
+        return sum;
     }
 
     public Map<String, NamedAnalyzer> indexAnalyzers() {
@@ -440,54 +454,137 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * <p>
+     * Specifies the mode of synthetic source support by the mapper.
+     * <br>
+     * This is used to determine if a field mapper has support for
+     * constructing synthetic source.
+     * In case it doesn't (meaning {@link SyntheticSourceMode#FALLBACK}),
+     * we will store raw source data for this field as is
+     * and then use it for synthetic source.
+     * </p>
+     * <p>
+     * This method is final in order to support common use cases like fallback synthetic source and copy_to.
+     * Mappers that need custom support of synthetic source should override {@link #syntheticSourceSupport()}.
+     * </p>
+     * @return {@link SyntheticSourceMode}
+     */
+    final SyntheticSourceMode syntheticSourceMode() {
+        if (hasScript()) {
+            return SyntheticSourceMode.NATIVE;
+        }
+
+        if (builderParams.copyTo.copyToFields().isEmpty() == false) {
+            // When copy_to is used, we need to use fallback logic to store source of the field exactly.
+            // Otherwise, due to possible differences between synthetic source and stored source,
+            // values of fields that are destinations of copy_to would be different after reindexing.
+            return SyntheticSourceMode.FALLBACK;
+        }
+
+        return syntheticSourceSupport().mode();
+    }
+
+    /**
+     * Returns synthetic field loader for the mapper.
+     * If mapper does not support synthetic source, it is handled using generic implementation
+     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader(SourceFilter)}.
+     * <br>
+     *
+     * This method is final in order to support common use cases like fallback synthetic source.
+     * Mappers that need custom support of synthetic source should override {@link #syntheticSourceSupport()}.
+     *
+     * @return implementation of {@link SourceLoader.SyntheticFieldLoader}
+     */
+    public final SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (hasScript()) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+
+        if (syntheticSourceMode() == SyntheticSourceMode.FALLBACK) {
+            // Nothing because it is handled at `DocumentParser/ObjectMapper` level.
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+
+        return syntheticSourceSupport().loader();
+    }
+
+    /**
+     * <p>
+     * Returns implementation of synthetic source support for the mapper.
+     * <br>
+     * By default (meaning {@link SyntheticSourceSupport.Fallback}),
+     * an exact full copy of parsed field value is stored separately
+     * and used for synthetic source.
+     * </p>
+     * <p>
+     * Field mappers must override this method if they provide
+     * a more efficient field-specific implementation of synthetic source.
+     * </p>
+     * @return {@link SyntheticSourceMode}
+     */
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return SyntheticSourceSupport.FALLBACK;
+    }
+
+    /**
      * Specifies the mode of synthetic source support by the mapper.
      *
      * <pre>
-     * {@link NATIVE} - mapper natively supports synthetic source, f.e. by constructing it from doc values.
+     * {@link SyntheticSourceMode#NATIVE} - mapper natively supports synthetic source, f.e. by constructing it from doc values.
      *
-     * {@link FALLBACK} - mapper does not have native support but uses fallback implementation.
-     * This is a temporary variant that exists in order to roll out fallback implementation on a per field basis.
-     *
-     * {@link NOT_SUPPORTED} - synthetic source is not supported.
+     * {@link SyntheticSourceMode#FALLBACK} - mapper does not have native support and uses generic fallback implementation
+     * that stores raw input source data as is.
      * </pre>
      */
     protected enum SyntheticSourceMode {
         NATIVE,
-        FALLBACK,
-        NOT_SUPPORTED
+        FALLBACK
     }
 
     /**
-     * Specifies the mode of synthetic source support by the mapper.
-     *
-     * @return {@link SyntheticSourceMode}
+     * Interface that defines how a field supports synthetic source.
      */
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NOT_SUPPORTED;
-    }
-
-    /**
-     * Mappers override this method with native synthetic source support.
-     * If mapper does not support synthetic source, it is generated using generic implementation
-     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader()}.
-     *
-     * @return implementation of {@link SourceLoader.SyntheticFieldLoader}
-     */
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        // If mapper supports synthetic source natively, it overrides this method,
-        // /so we won't see those here.
-        if (syntheticSourceMode() == SyntheticSourceMode.FALLBACK) {
-            if (copyTo.copyToFields().isEmpty() != true) {
-                throw new IllegalArgumentException(
-                    "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-                );
+    protected sealed interface SyntheticSourceSupport permits SyntheticSourceSupport.Fallback, SyntheticSourceSupport.Native {
+        final class Fallback implements SyntheticSourceSupport {
+            @Override
+            public SyntheticSourceMode mode() {
+                return SyntheticSourceMode.FALLBACK;
             }
-            // Nothing because it is handled at `ObjectMapper` level.
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
+
+            @Override
+            public SourceLoader.SyntheticFieldLoader loader() {
+                return null;
+            }
         }
 
-        return super.syntheticFieldLoader();
+        SyntheticSourceSupport FALLBACK = new Fallback();
+
+        final class Native implements SyntheticSourceSupport {
+            Supplier<SourceLoader.SyntheticFieldLoader> loaderSupplier;
+            private SourceLoader.SyntheticFieldLoader loader;
+
+            @SuppressWarnings("checkstyle:RedundantModifier")
+            public Native(Supplier<SourceLoader.SyntheticFieldLoader> loaderSupplier) {
+                this.loaderSupplier = loaderSupplier;
+            }
+
+            @Override
+            public SyntheticSourceMode mode() {
+                return SyntheticSourceMode.NATIVE;
+            }
+
+            @Override
+            public SourceLoader.SyntheticFieldLoader loader() {
+                if (loader == null) {
+                    loader = loaderSupplier.get();
+                }
+                return loader;
+            }
+        }
+
+        SyntheticSourceMode mode();
+
+        SourceLoader.SyntheticFieldLoader loader();
     }
 
     public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {
@@ -505,7 +602,7 @@ public abstract class FieldMapper extends Mapper {
             private boolean hasSyntheticSourceCompatibleKeywordField;
 
             public Builder add(FieldMapper.Builder builder) {
-                mapperBuilders.put(builder.name(), builder::build);
+                mapperBuilders.put(builder.leafName(), builder::build);
 
                 if (builder instanceof KeywordFieldMapper.Builder kwd) {
                     if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
@@ -517,7 +614,7 @@ public abstract class FieldMapper extends Mapper {
             }
 
             private void add(FieldMapper mapper) {
-                mapperBuilders.put(mapper.simpleName(), context -> mapper);
+                mapperBuilders.put(mapper.leafName(), context -> mapper);
 
                 if (mapper instanceof KeywordFieldMapper kwd) {
                     if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
@@ -527,12 +624,12 @@ public abstract class FieldMapper extends Mapper {
             }
 
             private void update(FieldMapper toMerge, MapperMergeContext context) {
-                if (mapperBuilders.containsKey(toMerge.simpleName()) == false) {
+                if (mapperBuilders.containsKey(toMerge.leafName()) == false) {
                     if (context.decrementFieldBudgetIfPossible(toMerge.getTotalFieldsCount())) {
                         add(toMerge);
                     }
                 } else {
-                    FieldMapper existing = mapperBuilders.get(toMerge.simpleName()).apply(context.getMapperBuilderContext());
+                    FieldMapper existing = mapperBuilders.get(toMerge.leafName()).apply(context.getMapperBuilderContext());
                     add(existing.merge(toMerge, context));
                 }
             }
@@ -550,7 +647,7 @@ public abstract class FieldMapper extends Mapper {
                     return empty();
                 } else {
                     FieldMapper[] mappers = new FieldMapper[mapperBuilders.size()];
-                    context = context.createChildContext(mainFieldBuilder.name(), null);
+                    context = context.createChildContext(mainFieldBuilder.leafName(), null);
                     int i = 0;
                     for (Map.Entry<String, Function<MapperBuilderContext, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
                         mappers[i++] = entry.getValue().apply(context);
@@ -565,7 +662,7 @@ public abstract class FieldMapper extends Mapper {
         private MultiFields(FieldMapper[] mappers) {
             this.mappers = mappers;
             // sort for consistent iteration order + serialization
-            Arrays.sort(this.mappers, Comparator.comparing(FieldMapper::name));
+            Arrays.sort(this.mappers, Comparator.comparing(FieldMapper::fullPath));
         }
 
         public void parse(FieldMapper mainField, DocumentParserContext context, Supplier<DocumentParserContext> multiFieldContextSupplier)
@@ -575,7 +672,7 @@ public abstract class FieldMapper extends Mapper {
             if (mappers.length == 0) {
                 return;
             }
-            context.path().add(mainField.simpleName());
+            context.path().add(mainField.leafName());
             for (FieldMapper mapper : mappers) {
                 mapper.parse(multiFieldContextSupplier.get());
             }
@@ -751,6 +848,10 @@ public abstract class FieldMapper extends Mapper {
 
         public boolean isConfigured() {
             return isSet && Objects.equals(value, getDefaultValue()) == false;
+        }
+
+        public boolean isSet() {
+            return isSet;
         }
 
         /**
@@ -1280,6 +1381,9 @@ public abstract class FieldMapper extends Mapper {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
         protected CopyTo copyTo = CopyTo.EMPTY;
+        protected Optional<SourceKeepMode> sourceKeepMode = Optional.empty();
+        protected boolean hasScript = false;
+        protected OnScriptError onScriptError = null;
 
         /**
          * Creates a new Builder with a field name
@@ -1295,21 +1399,31 @@ public abstract class FieldMapper extends Mapper {
             for (Parameter<?> param : getParameters()) {
                 param.init(initializer);
             }
-            for (FieldMapper subField : initializer.multiFields.mappers) {
+            for (FieldMapper subField : initializer.builderParams.multiFields.mappers) {
                 multiFieldsBuilder.add(subField);
             }
             return this;
+        }
+
+        public Builder addMultiField(FieldMapper.Builder builder) {
+            this.multiFieldsBuilder.add(builder);
+            return this;
+        }
+
+        protected BuilderParams builderParams(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
+            return new BuilderParams(multiFieldsBuilder.build(mainFieldBuilder, context), copyTo, sourceKeepMode, hasScript, onScriptError);
         }
 
         protected void merge(FieldMapper in, Conflicts conflicts, MapperMergeContext mapperMergeContext) {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
-            MapperMergeContext childContext = mapperMergeContext.createChildContext(in.simpleName(), null);
-            for (FieldMapper newSubField : in.multiFields.mappers) {
+            MapperMergeContext childContext = mapperMergeContext.createChildContext(in.leafName(), null);
+            for (FieldMapper newSubField : in.builderParams.multiFields.mappers) {
                 multiFieldsBuilder.update(newSubField, childContext);
             }
-            this.copyTo = in.copyTo;
+            this.copyTo = in.builderParams.copyTo;
+            this.sourceKeepMode = in.builderParams.sourceKeepMode;
             validate();
         }
 
@@ -1401,6 +1515,11 @@ public abstract class FieldMapper extends Mapper {
                             "Parameter [boost] on field [{}] is deprecated and has no effect",
                             name
                         );
+                        iterator.remove();
+                        continue;
+                    }
+                    case SYNTHETIC_SOURCE_KEEP_PARAM -> {
+                        sourceKeepMode = Optional.of(SourceKeepMode.from(XContentMapValues.nodeStringValue(propNode)));
                         iterator.remove();
                         continue;
                     }
@@ -1526,6 +1645,12 @@ public abstract class FieldMapper extends Mapper {
         };
     }
 
+    private static final IndexVersion MINIMUM_LEGACY_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
+
+    public static TypeParser createTypeParserWithLegacySupport(BiFunction<String, MappingParserContext, Builder> builderFunction) {
+        return new TypeParser(builderFunction, MINIMUM_LEGACY_COMPATIBILITY_VERSION);
+    }
+
     /**
      * TypeParser implementation that automatically handles parsing
      */
@@ -1540,14 +1665,14 @@ public abstract class FieldMapper extends Mapper {
          * @param builderFunction a function that produces a Builder from a name and parsercontext
          */
         public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction) {
-            this(builderFunction, (n, c) -> {}, IndexVersions.MINIMUM_COMPATIBLE);
+            this(builderFunction, (n, c) -> {}, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
         }
 
         /**
-         * Variant of {@link #TypeParser(BiFunction)} that allows to defining a minimumCompatibilityVersion to
+         * Variant of {@link #TypeParser(BiFunction)} that allows to define a minimumCompatibilityVersion to
          * allow parsing mapping definitions of legacy indices (see {@link Mapper.TypeParser#supportsVersion(IndexVersion)}).
          */
-        public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, IndexVersion minimumCompatibilityVersion) {
+        private TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, IndexVersion minimumCompatibilityVersion) {
             this(builderFunction, (n, c) -> {}, minimumCompatibilityVersion);
         }
 
@@ -1555,14 +1680,14 @@ public abstract class FieldMapper extends Mapper {
             BiFunction<String, MappingParserContext, Builder> builderFunction,
             BiConsumer<String, MappingParserContext> contextValidator
         ) {
-            this(builderFunction, contextValidator, IndexVersions.MINIMUM_COMPATIBLE);
+            this(builderFunction, contextValidator, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
         }
 
         public TypeParser(
             BiFunction<String, MappingParserContext, Builder> builderFunction,
             List<BiConsumer<String, MappingParserContext>> contextValidator
         ) {
-            this(builderFunction, (n, c) -> contextValidator.forEach(v -> v.accept(n, c)), IndexVersions.MINIMUM_COMPATIBLE);
+            this(builderFunction, (n, c) -> contextValidator.forEach(v -> v.accept(n, c)), IndexVersions.MINIMUM_READONLY_COMPATIBLE);
         }
 
         private TypeParser(

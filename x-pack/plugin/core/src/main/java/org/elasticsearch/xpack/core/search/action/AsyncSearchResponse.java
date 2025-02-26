@@ -234,26 +234,30 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(ChunkedToXContentHelper.singleChunk((builder, p) -> {
+        return Iterators.concat(ChunkedToXContentHelper.chunk((builder, p) -> {
             builder.startObject();
             if (id != null) {
                 builder.field("id", id);
             }
             builder.field("is_partial", isPartial);
             builder.field("is_running", isRunning);
-            builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
-            builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+            builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
+            builder.timestampFieldsFromUnixEpochMillis("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
             if (searchResponse != null) {
                 if (isRunning == false) {
                     TimeValue took = searchResponse.getTook();
-                    builder.timeField("completion_time_in_millis", "completion_time", startTimeMillis + took.millis());
+                    builder.timestampFieldsFromUnixEpochMillis(
+                        "completion_time_in_millis",
+                        "completion_time",
+                        startTimeMillis + took.millis()
+                    );
                 }
                 builder.field("response");
             }
             return builder;
         }),
             searchResponse == null ? Collections.emptyIterator() : searchResponse.toXContentChunked(params),
-            ChunkedToXContentHelper.singleChunk((builder, p) -> {
+            ChunkedToXContentHelper.chunk((builder, p) -> {
                 if (error != null) {
                     builder.startObject("error");
                     ElasticsearchException.generateThrowableXContent(builder, params, error);

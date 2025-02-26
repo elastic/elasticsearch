@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -108,15 +109,15 @@ class FieldCapabilitiesFetcher {
             null,
             runtimeFields
         );
-
+        var indexMode = searchExecutionContext.getIndexSettings().getMode();
         if (searcher != null && canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext) == false) {
-            return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), null, Collections.emptyMap(), false);
+            return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), null, Collections.emptyMap(), false, indexMode);
         }
 
         final MappingMetadata mapping = indexService.getMetadata().mapping();
         String indexMappingHash;
         if (includeEmptyFields || enableFieldHasValue == false) {
-            indexMappingHash = mapping != null ? mapping.getSha256() : null;
+            indexMappingHash = mapping != null ? mapping.getSha256() + indexMode : null;
         } else {
             // even if the mapping is the same if we return only fields with values we need
             // to make sure that we consider all the shard-mappings pair, that is why we
@@ -129,7 +130,7 @@ class FieldCapabilitiesFetcher {
             indexMappingHash = fieldPredicate.modifyHash(indexMappingHash);
             final Map<String, IndexFieldCapabilities> existing = indexMappingHashToResponses.get(indexMappingHash);
             if (existing != null) {
-                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, existing, true);
+                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, existing, true, indexMode);
             }
         }
         task.ensureNotCancelled();
@@ -145,7 +146,7 @@ class FieldCapabilitiesFetcher {
         if (indexMappingHash != null) {
             indexMappingHashToResponses.put(indexMappingHash, responseMap);
         }
-        return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true);
+        return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true, indexMode);
     }
 
     static Map<String, IndexFieldCapabilities> retrieveFieldCaps(

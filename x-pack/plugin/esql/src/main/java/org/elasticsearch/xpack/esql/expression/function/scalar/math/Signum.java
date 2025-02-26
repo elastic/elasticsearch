@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -20,10 +22,12 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
+import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 
 public class Signum extends UnaryScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Signum", Signum::new);
+
     @FunctionInfo(
         returnType = { "double" },
         description = "Returns the sign of the given number.\n"
@@ -41,10 +45,17 @@ public class Signum extends UnaryScalarFunction {
         super(source, n);
     }
 
+    private Signum(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var field = toEvaluator.apply(field());
         var fieldType = field().dataType();
 

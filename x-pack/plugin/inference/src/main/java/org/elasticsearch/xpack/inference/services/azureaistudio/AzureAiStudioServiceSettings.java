@@ -115,6 +115,11 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
     }
 
     @Override
+    public String modelId() {
+        return null;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(target);
         out.writeEnum(provider);

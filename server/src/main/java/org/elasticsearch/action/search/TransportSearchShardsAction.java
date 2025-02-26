@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
@@ -16,14 +18,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.Task;
@@ -87,6 +87,14 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
 
     @Override
     protected void doExecute(Task task, SearchShardsRequest searchShardsRequest, ActionListener<SearchShardsResponse> listener) {
+        searchShards(task, searchShardsRequest, listener);
+    }
+
+    /**
+     * Notes that this method does not perform authorization for the search shards action.
+     * Callers must ensure that the request was properly authorized before calling this method.
+     */
+    public void searchShards(Task task, SearchShardsRequest searchShardsRequest, ActionListener<SearchShardsResponse> listener) {
         final long relativeStartNanos = System.nanoTime();
         SearchRequest original = new SearchRequest(searchShardsRequest.indices()).indicesOptions(searchShardsRequest.indicesOptions())
             .routing(searchShardsRequest.routing())
@@ -115,29 +123,31 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
 
         Rewriteable.rewriteAndFetch(
             original,
-            searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices),
+            searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices, null),
             listener.delegateFailureAndWrap((delegate, searchRequest) -> {
                 Index[] concreteIndices = resolvedIndices.getConcreteLocalIndices();
-                final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, searchRequest.indices());
+                final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+                    clusterState,
+                    searchRequest.indices()
+                );
                 final Map<String, AliasFilter> aliasFilters = transportSearchAction.buildIndexAliasFilters(
                     clusterState,
                     indicesAndAliases,
                     concreteIndices
                 );
                 String[] concreteIndexNames = Arrays.stream(concreteIndices).map(Index::getName).toArray(String[]::new);
-                GroupShardsIterator<SearchShardIterator> shardIts = GroupShardsIterator.sortAndCreate(
-                    transportSearchAction.getLocalShardsIterator(
-                        clusterState,
-                        searchRequest,
-                        searchShardsRequest.clusterAlias(),
-                        indicesAndAliases,
-                        concreteIndexNames
-                    )
+                List<SearchShardIterator> shardIts = transportSearchAction.getLocalShardsIterator(
+                    clusterState,
+                    searchRequest,
+                    searchShardsRequest.clusterAlias(),
+                    indicesAndAliases,
+                    concreteIndexNames
                 );
+                CollectionUtil.timSort(shardIts);
                 if (SearchService.canRewriteToMatchNone(searchRequest.source()) == false) {
                     delegate.onResponse(new SearchShardsResponse(toGroups(shardIts), clusterState.nodes().getAllNodes(), aliasFilters));
                 } else {
-                    var canMatchPhase = new CanMatchPreFilterSearchPhase(logger, searchTransportService, (clusterAlias, node) -> {
+                    new CanMatchPreFilterSearchPhase(logger, searchTransportService, (clusterAlias, node) -> {
                         assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
                         return transportService.getConnection(clusterState.nodes().get(node));
                     },
@@ -151,25 +161,16 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         false,
                         searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                         delegate.map(its -> new SearchShardsResponse(toGroups(its), clusterState.nodes().getAllNodes(), aliasFilters))
-                    );
-                    canMatchPhase.start();
+                    ).start();
                 }
             })
         );
     }
 
-    private static List<SearchShardsGroup> toGroups(GroupShardsIterator<SearchShardIterator> shardIts) {
+    private static List<SearchShardsGroup> toGroups(List<SearchShardIterator> shardIts) {
         List<SearchShardsGroup> groups = new ArrayList<>(shardIts.size());
         for (SearchShardIterator shardIt : shardIts) {
-            boolean skip = shardIt.skip();
-            shardIt.reset();
-            List<String> targetNodes = new ArrayList<>();
-            SearchShardTarget target;
-            while ((target = shardIt.nextOrNull()) != null) {
-                targetNodes.add(target.getNodeId());
-            }
-            ShardId shardId = shardIt.shardId();
-            groups.add(new SearchShardsGroup(shardId, targetNodes, skip));
+            groups.add(new SearchShardsGroup(shardIt.shardId(), shardIt.getTargetNodeIds(), shardIt.skip()));
         }
         return groups;
     }

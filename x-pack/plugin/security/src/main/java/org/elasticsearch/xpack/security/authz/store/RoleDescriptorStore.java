@@ -108,19 +108,6 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             || (apiKeyRoleReference.getRoleType() == RoleReference.ApiKeyRoleType.LIMITED_BY
                 && rolesRetrievalResult.getRoleDescriptors().stream().noneMatch(RoleDescriptor::hasRestriction))
             : "there should be zero limited-by role descriptors with restriction and no more than one assigned";
-        // TODO we need unit tests for edge-cases here, for instance, we need to test the REST API keys are never checked for invalid legacy
-        // role descriptors
-        if (apiKeyRoleReference.checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess()) {
-            try {
-                CrossClusterApiKeyRoleDescriptorBuilder.checkForInvalidLegacyRoleDescriptors(
-                    apiKeyRoleReference.getApiKeyId(),
-                    roleDescriptors
-                );
-            } catch (IllegalArgumentException e) {
-                listener.onFailure(e);
-                return;
-            }
-        }
         listener.onResponse(rolesRetrievalResult);
     }
 
@@ -163,7 +150,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                     + "but other privileges found for subject ["
                     + crossClusterAccessRoleReference.getUserPrincipal()
                     + "]";
-                logger.debug("{}. Invalid role descriptor: [{}]", message, roleDescriptor);
+                logger.warn("{}. Invalid role descriptor: [{}]", message, roleDescriptor);
                 listener.onFailure(new IllegalArgumentException(message));
                 return;
             }
@@ -179,6 +166,32 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         }
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
+        listener.onResponse(rolesRetrievalResult);
+    }
+
+    @Override
+    public void resolveCrossClusterApiKeyRoleReference(
+        RoleReference.CrossClusterApiKeyRoleReference crossClusterApiKeyRoleReference,
+        ActionListener<RolesRetrievalResult> listener
+    ) {
+        final List<RoleDescriptor> roleDescriptors = apiKeyService.parseRoleDescriptorsBytes(
+            crossClusterApiKeyRoleReference.getApiKeyId(),
+            crossClusterApiKeyRoleReference.getRoleDescriptorsBytes(),
+            crossClusterApiKeyRoleReference.getRoleType()
+        );
+        final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
+        rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
+        assert rolesRetrievalResult.getRoleDescriptors().stream().noneMatch(RoleDescriptor::hasRestriction)
+            : "there should be no role descriptors with restriction";
+        try {
+            CrossClusterApiKeyRoleDescriptorBuilder.checkForInvalidLegacyRoleDescriptors(
+                crossClusterApiKeyRoleReference.getApiKeyId(),
+                roleDescriptors
+            );
+        } catch (IllegalArgumentException e) {
+            listener.onFailure(e);
+            return;
+        }
         listener.onResponse(rolesRetrievalResult);
     }
 

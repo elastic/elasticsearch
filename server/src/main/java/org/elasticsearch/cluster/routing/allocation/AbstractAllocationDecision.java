@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -11,7 +12,6 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -140,11 +140,7 @@ public abstract class AbstractAllocationDecision implements ChunkedToXContentObj
             return Collections.emptyIterator();
         }
 
-        return Iterators.concat(
-            ChunkedToXContentHelper.startArray("node_allocation_decisions"),
-            nodeDecisions.iterator(),
-            ChunkedToXContentHelper.endArray()
-        );
+        return ChunkedToXContentHelper.array("node_allocation_decisions", nodeDecisions.iterator());
     }
 
     /**

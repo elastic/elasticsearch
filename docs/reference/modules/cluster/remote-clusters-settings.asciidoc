@@ -6,7 +6,10 @@ mode are described separately.
 
 `cluster.remote.<cluster_alias>.mode`::
   The mode used for a remote cluster connection. The only supported modes are
-  `sniff` and `proxy`.
+  `sniff` and `proxy`. The default is `sniff`. See <<sniff-proxy-modes>> for
+  further information about these modes, and <<remote-cluster-sniff-settings>>
+  and <<remote-cluster-proxy-settings>> for further information about their
+  settings.
 
 `cluster.remote.initial_connect_timeout`::
 
@@ -97,6 +100,11 @@ you configure the remotes.
 [[remote-cluster-sniff-settings]]
 ==== Sniff mode remote cluster settings
 
+To use <<sniff-mode,sniff mode>> to connect to a remote cluster, set
+`cluster.remote.<cluster_alias>.mode: sniff` and then configure the following
+settings. You may also leave `cluster.remote.<cluster_alias>.mode` unset since
+`sniff` is the default mode.
+
 `cluster.remote.<cluster_alias>.seeds`::
 
   The list of seed nodes used to sniff the remote cluster state.
@@ -116,6 +124,10 @@ you configure the remotes.
 
 [[remote-cluster-proxy-settings]]
 ==== Proxy mode remote cluster settings
+
+To use <<proxy-mode,proxy mode>> to connect to a remote cluster, set
+`cluster.remote.<cluster_alias>.mode: proxy` and then configure the following
+settings.
 
 `cluster.remote.<cluster_alias>.proxy_address`::
 

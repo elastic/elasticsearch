@@ -47,6 +47,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
@@ -73,6 +74,8 @@ import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAct
 import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledRequest;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkDeleteRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
@@ -564,7 +567,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
             randomFrom((RoleDescriptor.ApplicationResourcePrivileges[]) null, new RoleDescriptor.ApplicationResourcePrivileges[0]),
             new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList("", "\""))),
-                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("\"")) },
+                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("\"")),
+                new ConfigurableClusterPrivileges.ManageRolesPrivilege(
+                    List.of(
+                        new ConfigurableClusterPrivileges.ManageRolesPrivilege.ManageRolesIndexPermissionGroup(
+                            new String[] { "test*" },
+                            new String[] { "read", "write" }
+                        )
+                    )
+                ) },
             new String[] { "\"[a]/" },
             Map.of(),
             Map.of()
@@ -772,20 +783,19 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.accessGranted(requestId, authentication, PutRoleAction.NAME, putRoleRequest, authorizationInfo);
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
-        String generatedPutRoleAuditEventString = output.get(1);
-        String expectedPutRoleAuditEventString = Strings.format("""
-            "put":{"role":{"name":"%s","role_descriptor":%s}}\
-            """, putRoleRequest.name(), auditedRolesMap.get(putRoleRequest.name()));
-        assertThat(generatedPutRoleAuditEventString, containsString(expectedPutRoleAuditEventString));
-        generatedPutRoleAuditEventString = generatedPutRoleAuditEventString.replace(", " + expectedPutRoleAuditEventString, "");
-        checkedFields = new HashMap<>(commonFields);
-        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
-        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
-        checkedFields.put("type", "audit");
-        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
-        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_role");
-        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
-        assertMsg(generatedPutRoleAuditEventString, checkedFields);
+        assertPutRoleAuditLogLine(putRoleRequest.name(), output.get(1), auditedRolesMap, requestId);
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        BulkPutRolesRequest bulkPutRolesRequest = new BulkPutRolesRequest(allTestRoleDescriptors);
+        bulkPutRolesRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        auditTrail.accessGranted(requestId, authentication, ActionTypes.BULK_PUT_ROLES.name(), bulkPutRolesRequest, authorizationInfo);
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(allTestRoleDescriptors.size() + 1));
+
+        for (int i = 0; i < allTestRoleDescriptors.size(); i++) {
+            assertPutRoleAuditLogLine(allTestRoleDescriptors.get(i).getName(), output.get(i + 1), auditedRolesMap, requestId);
+        }
         // clear log
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
@@ -795,25 +805,64 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.accessGranted(requestId, authentication, DeleteRoleAction.NAME, deleteRoleRequest, authorizationInfo);
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
-        String generatedDeleteRoleAuditEventString = output.get(1);
+        assertDeleteRoleAuditLogLine(putRoleRequest.name(), output.get(1), requestId);
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
+        BulkDeleteRolesRequest bulkDeleteRolesRequest = new BulkDeleteRolesRequest(
+            allTestRoleDescriptors.stream().map(RoleDescriptor::getName).toList()
+        );
+        bulkDeleteRolesRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        auditTrail.accessGranted(
+            requestId,
+            authentication,
+            ActionTypes.BULK_DELETE_ROLES.name(),
+            bulkDeleteRolesRequest,
+            authorizationInfo
+        );
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(allTestRoleDescriptors.size() + 1));
+        for (int i = 0; i < allTestRoleDescriptors.size(); i++) {
+            assertDeleteRoleAuditLogLine(allTestRoleDescriptors.get(i).getName(), output.get(i + 1), requestId);
+        }
+    }
+
+    private void assertPutRoleAuditLogLine(String roleName, String logLine, Map<String, String> expectedLogByRoleName, String requestId) {
+        String expectedPutRoleAuditEventString = Strings.format("""
+            "put":{"role":{"name":"%s","role_descriptor":%s}}\
+            """, roleName, expectedLogByRoleName.get(roleName));
+
+        assertThat(logLine, containsString(expectedPutRoleAuditEventString));
+        String reducedLogLine = logLine.replace(", " + expectedPutRoleAuditEventString, "");
+        Map<String, String> checkedFields = new HashMap<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit");
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "put_role");
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(reducedLogLine, checkedFields);
+    }
+
+    private void assertDeleteRoleAuditLogLine(String roleName, String logLine, String requestId) {
         StringBuilder deleteRoleStringBuilder = new StringBuilder().append("\"delete\":{\"role\":{\"name\":");
-        if (deleteRoleRequest.name() == null) {
+        if (roleName == null) {
             deleteRoleStringBuilder.append("null");
         } else {
-            deleteRoleStringBuilder.append("\"").append(deleteRoleRequest.name()).append("\"");
+            deleteRoleStringBuilder.append("\"").append(roleName).append("\"");
         }
         deleteRoleStringBuilder.append("}}");
         String expectedDeleteRoleAuditEventString = deleteRoleStringBuilder.toString();
-        assertThat(generatedDeleteRoleAuditEventString, containsString(expectedDeleteRoleAuditEventString));
-        generatedDeleteRoleAuditEventString = generatedDeleteRoleAuditEventString.replace(", " + expectedDeleteRoleAuditEventString, "");
-        checkedFields = new HashMap<>(commonFields);
+        assertThat(logLine, containsString(expectedDeleteRoleAuditEventString));
+        String reducedLogLine = logLine.replace(", " + expectedDeleteRoleAuditEventString, "");
+        Map<String, String> checkedFields = new HashMap<>(commonFields);
         checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
         checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
         checkedFields.put("type", "audit");
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
         checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_role");
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
-        assertMsg(generatedDeleteRoleAuditEventString, checkedFields);
+        assertMsg(reducedLogLine, checkedFields);
     }
 
     public void testSecurityConfigChangeEventForCrossClusterApiKeys() throws IOException {
@@ -1975,6 +2024,11 @@ public class LoggingAuditTrailTests extends ESTestCase {
         Tuple<String, TransportRequest> actionAndRequest = randomFrom(
             new Tuple<>(PutUserAction.NAME, new PutUserRequest()),
             new Tuple<>(PutRoleAction.NAME, new PutRoleRequest()),
+            new Tuple<>(
+                ActionTypes.BULK_PUT_ROLES.name(),
+                new BulkPutRolesRequest(List.of(new RoleDescriptor(randomAlphaOfLength(20), null, null, null)))
+            ),
+            new Tuple<>(ActionTypes.BULK_DELETE_ROLES.name(), new BulkDeleteRolesRequest(List.of(randomAlphaOfLength(20)))),
             new Tuple<>(PutRoleMappingAction.NAME, new PutRoleMappingRequest()),
             new Tuple<>(TransportSetEnabledAction.TYPE.name(), new SetEnabledRequest()),
             new Tuple<>(TransportChangePasswordAction.TYPE.name(), new ChangePasswordRequest()),
@@ -2560,7 +2614,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString());
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
-        if (includeRequestBody && Strings.hasLength(request.content())) {
+        if (includeRequestBody && request.hasContent()) {
             checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, request.content().utf8ToString());
         }
         if (params.isEmpty() == false) {
@@ -2589,8 +2643,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString());
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
-        if (includeRequestBody && Strings.hasLength(request.content())) {
-            checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, request.getHttpRequest().content().utf8ToString());
+        if (includeRequestBody && request.hasContent()) {
+            checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, request.content().utf8ToString());
         }
         if (params.isEmpty() == false) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "foo=bar&evac=true");
@@ -2618,7 +2672,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString());
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
-        if (includeRequestBody && Strings.hasLength(request.content().utf8ToString())) {
+        if (includeRequestBody && request.hasContent()) {
             checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, request.content().utf8ToString());
         }
         if (params.isEmpty() == false) {

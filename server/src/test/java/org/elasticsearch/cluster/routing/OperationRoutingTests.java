@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing;
 
@@ -161,7 +162,7 @@ public class OperationRoutingTests extends ESTestCase {
         for (int i = 0; i < numRepeatedSearches; i++) {
             List<ShardRouting> searchedShards = new ArrayList<>(numShards);
             Set<String> selectedNodes = Sets.newHashSetWithExpectedSize(numShards);
-            final GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, sessionKey);
+            final List<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, sessionKey);
 
             assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
             for (ShardIterator shardIterator : groupIterator) {
@@ -282,14 +283,7 @@ public class OperationRoutingTests extends ESTestCase {
         TestThreadPool threadPool = new TestThreadPool("test");
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
-        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
-            state,
-            indexNames,
-            null,
-            null,
-            collector,
-            new HashMap<>()
-        );
+        List<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, new HashMap<>());
 
         assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
 
@@ -368,14 +362,7 @@ public class OperationRoutingTests extends ESTestCase {
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
-        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
-            state,
-            indexNames,
-            null,
-            null,
-            collector,
-            new HashMap<>()
-        );
+        List<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, new HashMap<>());
         assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
 
         // We have two nodes, where the second has more load
@@ -434,14 +421,7 @@ public class OperationRoutingTests extends ESTestCase {
         Map<String, Long> outstandingRequests = new HashMap<>();
 
         // Check that we choose to search over both nodes
-        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
-            state,
-            indexNames,
-            null,
-            null,
-            collector,
-            outstandingRequests
-        );
+        List<ShardIterator> groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
 
         Set<String> nodeIds = new HashSet<>();
         nodeIds.add(groupIterator.get(0).nextOrNull().currentNodeId());

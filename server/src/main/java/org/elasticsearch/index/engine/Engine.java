@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -23,13 +24,15 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -55,26 +58,31 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentParser;
-import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
@@ -109,8 +117,6 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public abstract class Engine implements Closeable {
 
-    @UpdateForV9 // TODO: Remove sync_id in 9.0
-    public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
     public static final String FORCE_MERGE_UUID_KEY = "force_merge_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
@@ -122,6 +128,7 @@ public abstract class Engine implements Closeable {
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
     protected static final String DOC_STATS_SOURCE = "doc_stats";
     public static final long UNKNOWN_PRIMARY_TERM = -1L;
+    public static final String ROOT_DOC_FIELD_NAME = "__root_doc_for_nested";
 
     protected final ShardId shardId;
     protected final Logger logger;
@@ -132,6 +139,7 @@ public abstract class Engine implements Closeable {
     protected final EventListener eventListener;
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
+    protected final boolean enableRecoverySource;
 
     private final AtomicBoolean isClosing = new AtomicBoolean();
     private final SubscribableListener<Void> drainOnCloseListener = new SubscribableListener<>();
@@ -160,6 +168,9 @@ public abstract class Engine implements Closeable {
         // we use the engine class directly here to make sure all subclasses have the same logger name
         this.logger = Loggers.getLogger(Engine.class, engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
+        this.enableRecoverySource = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(
+            engineConfig.getIndexSettings().getSettings()
+        );
     }
 
     /**
@@ -235,19 +246,32 @@ public abstract class Engine implements Closeable {
     /**
      * Returns the {@link DenseVectorStats} for this engine
      */
-    public DenseVectorStats denseVectorStats() {
+    public DenseVectorStats denseVectorStats(MappingLookup mappingLookup) {
+        if (mappingLookup == null) {
+            return new DenseVectorStats(0);
+        }
+
+        List<String> fields = new ArrayList<>();
+        for (Mapper mapper : mappingLookup.fieldMappers()) {
+            if (mapper instanceof DenseVectorFieldMapper) {
+                fields.add(mapper.fullPath());
+            }
+        }
+        if (fields.isEmpty()) {
+            return new DenseVectorStats(0);
+        }
         try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL)) {
-            return denseVectorStats(searcher.getIndexReader());
+            return denseVectorStats(searcher.getIndexReader(), fields);
         }
     }
 
-    protected final DenseVectorStats denseVectorStats(IndexReader indexReader) {
+    protected final DenseVectorStats denseVectorStats(IndexReader indexReader, List<String> fields) {
         long valueCount = 0;
         // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
         // the next scheduled refresh to go through and refresh the stats as well
         for (LeafReaderContext readerContext : indexReader.leaves()) {
             try {
-                valueCount += getDenseVectorValueCount(readerContext.reader());
+                valueCount += getDenseVectorValueCount(readerContext.reader(), fields);
             } catch (IOException e) {
                 logger.trace(() -> "failed to get dense vector stats for [" + readerContext + "]", e);
             }
@@ -255,10 +279,11 @@ public abstract class Engine implements Closeable {
         return new DenseVectorStats(valueCount);
     }
 
-    private long getDenseVectorValueCount(final LeafReader atomicReader) throws IOException {
+    private long getDenseVectorValueCount(final LeafReader atomicReader, List<String> fields) throws IOException {
         long count = 0;
-        for (FieldInfo info : atomicReader.getFieldInfos()) {
-            if (info.getVectorDimension() > 0) {
+        for (var field : fields) {
+            var info = atomicReader.getFieldInfos().fieldInfo(field);
+            if (info != null && info.getVectorDimension() > 0) {
                 switch (info.getVectorEncoding()) {
                     case FLOAT32 -> {
                         FloatVectorValues values = atomicReader.getFloatVectorValues(info.name);
@@ -269,6 +294,57 @@ public abstract class Engine implements Closeable {
                         count += values != null ? values.size() : 0;
                     }
                 }
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Returns the {@link SparseVectorStats} for this engine
+     */
+    public SparseVectorStats sparseVectorStats(MappingLookup mappingLookup) {
+        if (mappingLookup == null) {
+            return new SparseVectorStats(0);
+        }
+        List<BytesRef> fields = new ArrayList<>();
+        for (Mapper mapper : mappingLookup.fieldMappers()) {
+            if (mapper instanceof SparseVectorFieldMapper) {
+                fields.add(new BytesRef(mapper.fullPath()));
+            }
+        }
+        if (fields.isEmpty()) {
+            return new SparseVectorStats(0);
+        }
+        Collections.sort(fields);
+        try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL)) {
+            return sparseVectorStats(searcher.getIndexReader(), fields);
+        }
+    }
+
+    protected final SparseVectorStats sparseVectorStats(IndexReader indexReader, List<BytesRef> fields) {
+        long valueCount = 0;
+        // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
+        // the next scheduled refresh to go through and refresh the stats as well
+        for (LeafReaderContext readerContext : indexReader.leaves()) {
+            try {
+                valueCount += getSparseVectorValueCount(readerContext.reader(), fields);
+            } catch (IOException e) {
+                logger.trace(() -> "failed to get sparse vector stats for [" + readerContext + "]", e);
+            }
+        }
+        return new SparseVectorStats(valueCount);
+    }
+
+    private long getSparseVectorValueCount(final LeafReader atomicReader, List<BytesRef> fields) throws IOException {
+        long count = 0;
+        Terms terms = atomicReader.terms(FieldNamesFieldMapper.NAME);
+        if (terms == null) {
+            return count;
+        }
+        TermsEnum termsEnum = terms.iterator();
+        for (var fieldName : fields) {
+            if (termsEnum.seekExact(fieldName)) {
+                count += termsEnum.docFreq();
             }
         }
         return count;
@@ -862,7 +938,7 @@ public abstract class Engine implements Closeable {
      * @param source    the source of the request
      * @param fromSeqNo the start sequence number (inclusive)
      * @param toSeqNo   the end sequence number (inclusive)
-     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean)
+     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean, long)
      */
     public abstract int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException;
 
@@ -876,7 +952,8 @@ public abstract class Engine implements Closeable {
         long toSeqNo,
         boolean requiredFullRange,
         boolean singleConsumer,
-        boolean accessStats
+        boolean accessStats,
+        long maxChunkSize
     ) throws IOException;
 
     /**
@@ -1137,25 +1214,29 @@ public abstract class Engine implements Closeable {
     public abstract List<Segment> segments(boolean includeVectorFormatsInfo);
 
     public boolean refreshNeeded() {
-        if (store.tryIncRef()) {
-            /*
-              we need to inc the store here since we acquire a searcher and that might keep a file open on the
-              store. this violates the assumption that all files are closed when
-              the store is closed so we need to make sure we increment it here
-             */
-            try {
-                try (Searcher searcher = acquireSearcher("refresh_needed", SearcherScope.EXTERNAL)) {
-                    return searcher.getDirectoryReader().isCurrent() == false;
-                }
-            } catch (IOException e) {
-                logger.error("failed to access searcher manager", e);
-                failEngine("failed to access searcher manager", e);
-                throw new EngineException(shardId, "failed to access searcher manager", e);
-            } finally {
-                store.decRef();
-            }
+        if (store.tryIncRef() == false) {
+            return false;
         }
-        return false;
+        /*
+          we need to inc the store here since we acquire a directory reader and that might open a file on the store.
+          This violates the assumption that all files are closed when the store is closed so we need to make
+          sure we increment it here.
+         */
+        try {
+            var refManager = getReferenceManager(SearcherScope.EXTERNAL);
+            var reader = refManager.acquire();
+            try {
+                return reader.isCurrent() == false;
+            } finally {
+                refManager.release(reader);
+            }
+        } catch (IOException e) {
+            logger.error("failed to access directory reader", e);
+            failEngine("failed to access directory reader", e);
+            throw new EngineException(shardId, "failed to access directory reader", e);
+        } finally {
+            store.decRef();
+        }
     }
 
     /**
@@ -1496,7 +1577,7 @@ public abstract class Engine implements Closeable {
             }
         }
 
-        private final Term uid;
+        private final BytesRef uid;
         private final long version;
         private final long seqNo;
         private final long primaryTerm;
@@ -1504,7 +1585,7 @@ public abstract class Engine implements Closeable {
         private final Origin origin;
         private final long startTime;
 
-        public Operation(Term uid, long seqNo, long primaryTerm, long version, VersionType versionType, Origin origin, long startTime) {
+        public Operation(BytesRef uid, long seqNo, long primaryTerm, long version, VersionType versionType, Origin origin, long startTime) {
             this.uid = uid;
             this.seqNo = seqNo;
             this.primaryTerm = primaryTerm;
@@ -1534,7 +1615,7 @@ public abstract class Engine implements Closeable {
             return this.origin;
         }
 
-        public Term uid() {
+        public BytesRef uid() {
             return this.uid;
         }
 
@@ -1577,7 +1658,7 @@ public abstract class Engine implements Closeable {
         private final long ifPrimaryTerm;
 
         public Index(
-            Term uid,
+            BytesRef uid,
             ParsedDocument doc,
             long seqNo,
             long primaryTerm,
@@ -1603,11 +1684,11 @@ public abstract class Engine implements Closeable {
             this.ifPrimaryTerm = ifPrimaryTerm;
         }
 
-        public Index(Term uid, long primaryTerm, ParsedDocument doc) {
+        public Index(BytesRef uid, long primaryTerm, ParsedDocument doc) {
             this(uid, primaryTerm, doc, Versions.MATCH_ANY);
         } // TEST ONLY
 
-        Index(Term uid, long primaryTerm, ParsedDocument doc, long version) {
+        Index(BytesRef uid, long primaryTerm, ParsedDocument doc, long version) {
             this(
                 uid,
                 doc,
@@ -1689,7 +1770,7 @@ public abstract class Engine implements Closeable {
 
         public Delete(
             String id,
-            Term uid,
+            BytesRef uid,
             long seqNo,
             long primaryTerm,
             long version,
@@ -1710,7 +1791,7 @@ public abstract class Engine implements Closeable {
             this.ifPrimaryTerm = ifPrimaryTerm;
         }
 
-        public Delete(String id, Term uid, long primaryTerm) {
+        public Delete(String id, BytesRef uid, long primaryTerm) {
             this(
                 id,
                 uid,
@@ -1720,21 +1801,6 @@ public abstract class Engine implements Closeable {
                 VersionType.INTERNAL,
                 Origin.PRIMARY,
                 System.nanoTime(),
-                UNASSIGNED_SEQ_NO,
-                0
-            );
-        }
-
-        public Delete(Delete template, VersionType versionType) {
-            this(
-                template.id(),
-                template.uid(),
-                template.seqNo(),
-                template.primaryTerm(),
-                template.version(),
-                versionType,
-                template.origin(),
-                template.startTime(),
                 UNASSIGNED_SEQ_NO,
                 0
             );
@@ -1752,7 +1818,7 @@ public abstract class Engine implements Closeable {
 
         @Override
         public int estimatedSizeInBytes() {
-            return (uid().field().length() + uid().text().length()) * 2 + 20;
+            return uid().length * 2 + 20;
         }
 
         public long getIfSeqNo() {
@@ -1778,7 +1844,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        public Term uid() {
+        public BytesRef uid() {
             throw new UnsupportedOperationException();
         }
 
@@ -1811,7 +1877,7 @@ public abstract class Engine implements Closeable {
 
     public static class Get {
         private final boolean realtime;
-        private final Term uid;
+        private final BytesRef uid;
         private final String id;
         private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
@@ -1822,7 +1888,7 @@ public abstract class Engine implements Closeable {
         public Get(boolean realtime, boolean readFromTranslog, String id) {
             this.realtime = realtime;
             this.id = id;
-            this.uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+            this.uid = Uid.encodeId(id);
             this.readFromTranslog = readFromTranslog;
         }
 
@@ -1834,7 +1900,7 @@ public abstract class Engine implements Closeable {
             return id;
         }
 
-        public Term uid() {
+        public BytesRef uid() {
             return uid;
         }
 
@@ -2272,5 +2338,20 @@ public abstract class Engine implements Closeable {
 
         public static final long UNKNOWN_GENERATION = -1L;
         public static final FlushResult NO_FLUSH = new FlushResult(false, UNKNOWN_GENERATION);
+    }
+
+    /**
+     * Ensures the engine is in a state that it can be closed by a call to {@link IndexShard#resetEngine()}.
+     *
+     * In general, resetting the engine should be done with care, to consider any
+     * in-progress operations and listeners (e.g., primary term and generation listeners).
+     * At the moment, this is implemented in serverless for a special case that ensures the engine is prepared for reset.
+     */
+    public void prepareForEngineReset() throws IOException {
+        throw new UnsupportedOperationException("does not support engine reset");
+    }
+
+    public long getLastUnsafeSegmentGenerationForGets() {
+        throw new UnsupportedOperationException("Doesn't support getting the latest segment generation");
     }
 }

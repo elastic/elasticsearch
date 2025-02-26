@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -20,7 +21,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
@@ -48,7 +48,8 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
     private final SearchType searchType;
     private final Boolean requestCache;
     private final boolean allowPartialSearchResults;
-    private final Scroll scroll;
+    @Nullable
+    private final TimeValue scroll;
     private final int numberOfShards;
     private final long nowInMillis;
     @Nullable
@@ -135,7 +136,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
     ) {
         this.source = getCanMatchSource(searchRequest);
         this.indicesOptions = indicesOptions;
-        this.shards = new ArrayList<>(shards);
+        this.shards = shards;
         this.searchType = searchRequest.searchType();
         this.requestCache = searchRequest.requestCache();
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
@@ -194,7 +195,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
                 );
             }
         }
-        scroll = in.readOptionalWriteable(Scroll::new);
+        scroll = in.readOptionalTimeValue();
         requestCache = in.readOptionalBoolean();
         allowPartialSearchResults = in.readBoolean();
         numberOfShards = in.readVInt();
@@ -215,7 +216,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
-        out.writeOptionalWriteable(scroll);
+        out.writeOptionalTimeValue(scroll);
         out.writeOptionalBoolean(requestCache);
         out.writeBoolean(allowPartialSearchResults);
         out.writeVInt(numberOfShards);
@@ -227,10 +228,6 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
 
     public List<Shard> getShardLevelRequests() {
         return shards;
-    }
-
-    public List<ShardSearchRequest> createShardSearchRequests() {
-        return shards.stream().map(this::createShardSearchRequest).toList();
     }
 
     public ShardSearchRequest createShardSearchRequest(Shard r) {

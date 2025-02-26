@@ -53,7 +53,7 @@ public class PutShutdownRequestTests extends AbstractWireSerializingTestCase<Put
     @Override
     protected Writeable.Reader<RequestWrapper> instanceReader() {
         return in -> {
-            final var request = PutShutdownNodeAction.Request.readFrom(in);
+            final var request = new PutShutdownNodeAction.Request(in);
             return new RequestWrapper(
                 request.getNodeId(),
                 request.getType(),

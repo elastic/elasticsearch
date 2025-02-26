@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.query;
@@ -22,7 +23,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -60,6 +60,13 @@ public class QueryPhase {
 
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.queryPhaseRankShardContext() == null) {
+            if (searchContext.request().source() != null && searchContext.request().source().rankBuilder() != null) {
+                // if we have a RankBuilder provided, we want to fetch all rankWindowSize results
+                // and rerank the documents as per the RankBuilder's instructions.
+                // Pagination will take place later once they're all (re)ranked.
+                searchContext.size(searchContext.request().source().rankBuilder().rankWindowSize());
+                searchContext.from(0);
+            }
             executeQuery(searchContext);
         } else {
             executeRank(searchContext);
@@ -76,11 +83,7 @@ public class QueryPhase {
             searchContext.size(0);
             QueryPhase.executeQuery(searchContext);
         } else {
-            searchContext.queryResult()
-                .topDocs(
-                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
-                    new DocValueFormat[0]
-                );
+            searchContext.queryResult().topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
         }
 
         List<TopDocs> rrfRankResults = new ArrayList<>();
@@ -124,11 +127,7 @@ public class QueryPhase {
     static void executeQuery(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
             SuggestPhase.execute(searchContext);
-            searchContext.queryResult()
-                .topDocs(
-                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
-                    new DocValueFormat[0]
-                );
+            searchContext.queryResult().topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
             return;
         }
 
@@ -145,7 +144,6 @@ public class QueryPhase {
 
         RescorePhase.execute(searchContext);
         SuggestPhase.execute(searchContext);
-
         if (searchContext.getProfilers() != null) {
             searchContext.queryResult().profileResults(searchContext.getProfilers().buildQueryPhaseResults());
         }
@@ -218,10 +216,11 @@ public class QueryPhase {
             queryResult.topDocs(queryPhaseResult.topDocsAndMaxScore(), queryPhaseResult.sortValueFormats());
             if (searcher.timeExceeded()) {
                 assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
-                if (searchContext.request().allowPartialSearchResults() == false) {
-                    throw new SearchTimeoutException(searchContext.shardTarget(), "Time exceeded");
-                }
-                queryResult.searchTimedOut(true);
+                SearchTimeoutException.handleTimeout(
+                    searchContext.request().allowPartialSearchResults(),
+                    searchContext.shardTarget(),
+                    searchContext.queryResult()
+                );
             }
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
                 queryResult.terminatedEarly(queryPhaseResult.terminatedAfter());
@@ -249,7 +248,7 @@ public class QueryPhase {
         }
         final Sort sort = sortAndFormats.sort;
         for (LeafReaderContext ctx : reader.leaves()) {
-            Sort indexSort = ctx.reader().getMetaData().getSort();
+            Sort indexSort = ctx.reader().getMetaData().sort();
             if (indexSort == null || Lucene.canEarlyTerminate(sort, indexSort) == false) {
                 return false;
             }

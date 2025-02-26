@@ -37,7 +37,6 @@ import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
@@ -57,11 +56,14 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
-import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.operator.ShuffleDocsOperator;
+import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -74,7 +76,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -84,12 +85,21 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
-import static org.elasticsearch.compute.operator.OperatorTestCase.randomPageSize;
+import static org.elasticsearch.compute.test.OperatorTestCase.randomPageSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
-// TODO: Move these tests to the right test classes.
+/**
+ * This venerable test builds {@link Driver}s by hand and runs them together, simulating
+ * whole runs without needing to involve ESQL-proper. It's a wonderful place to integration
+ * test new ideas, and it was the first tests the compute engine ever had. But as we plug
+ * these things into ESQL tests should leave here and just run in csv-spec tests. Or move
+ * into unit tests for the operators themselves.
+ * <p>
+ *     TODO move any of these we can to unit tests for the operator.
+ * </p>
+ */
 public class OperatorTests extends MapperServiceTestCase {
 
     public void testQueryOperator() throws IOException {
@@ -114,7 +124,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         }
                     });
                     DriverContext driverContext = driverContext();
-                    drivers.add(new Driver(driverContext, factory.get(driverContext), List.of(), docCollector, () -> {}));
+                    drivers.add(TestDriverFactory.create(driverContext, factory.get(driverContext), List.of(), docCollector));
                 }
                 OperatorTestCase.runDriver(drivers);
                 Set<Integer> expectedDocIds = searchForDocIds(reader, query);
@@ -164,93 +174,51 @@ public class OperatorTests extends MapperServiceTestCase {
             }
             writer.commit();
             Map<BytesRef, Long> actualCounts = new HashMap<>();
-            boolean shuffleDocs = randomBoolean();
-            Operator shuffleDocsOperator = new AbstractPageMappingOperator() {
-                @Override
-                protected Page process(Page page) {
-                    if (shuffleDocs == false) {
-                        return page;
-                    }
-                    DocVector docVector = (DocVector) page.getBlock(0).asVector();
-                    int positionCount = docVector.getPositionCount();
-                    IntVector shards = null;
-                    IntVector segments = null;
-                    IntVector docs = null;
-                    try (
-                        IntVector.Builder shardsBuilder = blockFactory.newIntVectorBuilder(positionCount);
-                        IntVector.Builder segmentsBuilder = blockFactory.newIntVectorBuilder(positionCount);
-                        IntVector.Builder docsBuilder = blockFactory.newIntVectorBuilder(positionCount);
-                    ) {
-                        List<Integer> docIds = new ArrayList<>(positionCount);
-                        for (int i = 0; i < positionCount; i++) {
-                            shardsBuilder.appendInt(docVector.shards().getInt(i));
-                            segmentsBuilder.appendInt(docVector.segments().getInt(i));
-                            docIds.add(docVector.docs().getInt(i));
-                        }
-                        shards = shardsBuilder.build();
-                        segments = segmentsBuilder.build();
-                        Collections.shuffle(docIds, random());
-                        for (Integer d : docIds) {
-                            docsBuilder.appendInt(d);
-                        }
-                        docs = docsBuilder.build();
-                    } finally {
-                        if (docs == null) {
-                            Releasables.closeExpectNoException(docVector, shards, segments);
-                        } else {
-                            Releasables.closeExpectNoException(docVector);
-                        }
-                    }
-                    Block[] blocks = new Block[page.getBlockCount()];
-                    blocks[0] = new DocVector(shards, segments, docs, false).asBlock();
-                    for (int i = 1; i < blocks.length; i++) {
-                        blocks[i] = page.getBlock(i);
-                    }
-                    return new Page(blocks);
-                }
-
-                @Override
-                public String toString() {
-                    return "ShuffleDocs";
-                }
-            };
 
             try (DirectoryReader reader = writer.getReader()) {
-                Driver driver = new Driver(
+                List<Operator> operators = new ArrayList<>();
+                if (randomBoolean()) {
+                    operators.add(new ShuffleDocsOperator(blockFactory));
+                }
+                operators.add(new AbstractPageMappingOperator() {
+                    @Override
+                    protected Page process(Page page) {
+                        return page.appendBlock(driverContext.blockFactory().newConstantIntBlockWith(1, page.getPositionCount()));
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "Add(1)";
+                    }
+                });
+                operators.add(
+                    new OrdinalsGroupingOperator(
+                        shardIdx -> new KeywordFieldMapper.KeywordFieldType("g").blockLoader(null),
+                        List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
+                        ElementType.BYTES_REF,
+                        0,
+                        gField,
+                        List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(INITIAL, List.of(1))),
+                        randomPageSize(),
+                        driverContext
+                    )
+                );
+                operators.add(
+                    new HashAggregationOperator(
+                        List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(FINAL, List.of(1, 2))),
+                        () -> BlockHash.build(
+                            List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF)),
+                            driverContext.blockFactory(),
+                            randomPageSize(),
+                            false
+                        ),
+                        driverContext
+                    )
+                );
+                Driver driver = TestDriverFactory.create(
                     driverContext,
                     luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT).get(driverContext),
-                    List.of(shuffleDocsOperator, new AbstractPageMappingOperator() {
-                        @Override
-                        protected Page process(Page page) {
-                            return page.appendBlock(driverContext.blockFactory().newConstantIntBlockWith(1, page.getPositionCount()));
-                        }
-
-                        @Override
-                        public String toString() {
-                            return "Add(1)";
-                        }
-                    },
-                        new OrdinalsGroupingOperator(
-                            shardIdx -> new KeywordFieldMapper.KeywordFieldType("g").blockLoader(null),
-                            List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
-                            ElementType.BYTES_REF,
-                            0,
-                            gField,
-                            List.of(CountAggregatorFunction.supplier(List.of(1)).groupingAggregatorFactory(INITIAL)),
-                            randomPageSize(),
-                            driverContext
-                        ),
-                        new HashAggregationOperator(
-                            List.of(CountAggregatorFunction.supplier(List.of(1, 2)).groupingAggregatorFactory(FINAL)),
-                            () -> BlockHash.build(
-                                List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF)),
-                                driverContext.blockFactory(),
-                                randomPageSize(),
-                                false
-                            ),
-                            driverContext
-                        )
-                    ),
+                    operators,
                     new PageConsumerOperator(page -> {
                         BytesRefBlock keys = page.getBlock(0);
                         LongBlock counts = page.getBlock(1);
@@ -260,8 +228,7 @@ public class OperatorTests extends MapperServiceTestCase {
                             actualCounts.put(BytesRef.deepCopyOf(spare), counts.getLong(i));
                         }
                         page.releaseBlocks();
-                    }),
-                    () -> {}
+                    })
                 );
                 OperatorTestCase.runDriver(driver);
                 assertThat(actualCounts, equalTo(expectedCounts));
@@ -280,7 +247,7 @@ public class OperatorTests extends MapperServiceTestCase {
         var results = new ArrayList<Long>();
         DriverContext driverContext = driverContext();
         try (
-            var driver = new Driver(
+            var driver = TestDriverFactory.create(
                 driverContext,
                 new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
                 List.of((new LimitOperator.Factory(limit)).get(driverContext)),
@@ -289,8 +256,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     for (int i = 0; i < page.getPositionCount(); i++) {
                         results.add(block.getLong(i));
                     }
-                }),
-                () -> {}
+                })
             )
         ) {
             OperatorTestCase.runDriver(driver);
@@ -367,7 +333,7 @@ public class OperatorTests extends MapperServiceTestCase {
             var actualValues = new ArrayList<>();
             var actualPrimeOrds = new ArrayList<>();
             try (
-                var driver = new Driver(
+                var driver = TestDriverFactory.create(
                     driverContext,
                     new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
                     List.of(
@@ -384,8 +350,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         } finally {
                             page.releaseBlocks();
                         }
-                    }),
-                    () -> {}
+                    })
                 )
             ) {
                 OperatorTestCase.runDriver(driver);
@@ -397,7 +362,6 @@ public class OperatorTests extends MapperServiceTestCase {
         } finally {
             primesBlock.close();
         }
-
     }
 
     /**
@@ -428,7 +392,8 @@ public class OperatorTests extends MapperServiceTestCase {
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),
             randomPageSize(),
-            limit
+            limit,
+            false // no scoring
         );
     }
 }

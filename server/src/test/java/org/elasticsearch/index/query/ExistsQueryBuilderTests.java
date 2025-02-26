@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -67,7 +68,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
                 Collection<String> childFields = context.getMatchingFieldNames(field + ".*");
                 assertThat(booleanQuery.clauses().size(), equalTo(childFields.size()));
                 for (BooleanClause booleanClause : booleanQuery) {
-                    assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+                    assertThat(booleanClause.occur(), equalTo(BooleanClause.Occur.SHOULD));
                 }
             } else if (context.getFieldType(field).hasDocValues() || context.getFieldType(field).getTextSearchInfo().hasNorms()) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(FieldExistsQuery.class));
@@ -86,7 +87,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
             assertThat(booleanQuery.clauses().size(), equalTo(fields.size()));
             for (int i = 0; i < fields.size(); i++) {
                 BooleanClause booleanClause = booleanQuery.clauses().get(i);
-                assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+                assertThat(booleanClause.occur(), equalTo(BooleanClause.Occur.SHOULD));
             }
         }
     }

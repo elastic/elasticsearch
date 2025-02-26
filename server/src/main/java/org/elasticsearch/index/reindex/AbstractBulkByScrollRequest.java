@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -16,7 +17,6 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -24,6 +24,7 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -248,7 +249,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Timeout to wait for the shards on to be available for each bulk request?
      */
     public Self setTimeout(TimeValue timeout) {
-        this.timeout = timeout;
+        this.timeout = Objects.requireNonNull(timeout);
         return self();
     }
 
@@ -348,7 +349,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Set scroll timeout for {@link SearchRequest}
      */
     public Self setScroll(TimeValue keepAlive) {
-        searchRequest.scroll(new Scroll(keepAlive));
+        searchRequest.scroll(keepAlive);
         return self();
     }
 
@@ -356,7 +357,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Get scroll timeout
      */
     public TimeValue getScrollTime() {
-        return searchRequest.scroll().keepAlive();
+        return searchRequest.scroll();
     }
 
     /**

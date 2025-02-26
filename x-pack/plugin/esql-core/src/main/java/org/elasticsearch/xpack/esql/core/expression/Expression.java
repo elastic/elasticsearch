@@ -78,12 +78,20 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         super(source, children);
     }
 
-    // whether the expression can be evaluated statically (folded) or not
+    /**
+     * Whether the expression can be evaluated statically, aka "folded", or not.
+     */
     public boolean foldable() {
         return false;
     }
 
-    public Object fold() {
+    /**
+     * Evaluate this expression statically to a constant. It is an error to call
+     * this if {@link #foldable} returns false.
+     */
+    public Object fold(FoldContext ctx) {
+        // TODO After removing FoldContext.unbounded from non-test code examine all calls
+        // for places we should use instanceof Literal instead
         throw new QlIllegalArgumentException("Should not fold expression");
     }
 

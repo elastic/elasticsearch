@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.rank;
@@ -11,8 +12,8 @@ package org.elasticsearch.search.rank;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -47,6 +48,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.tasks.CancellableTask;
 
 import java.util.List;
 
@@ -203,6 +205,16 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
+    public CircuitBreaker circuitBreaker() {
+        return parent.circuitBreaker();
+    }
+
+    @Override
+    public long memAccountingBufferSize() {
+        return parent.memAccountingBufferSize();
+    }
+
+    @Override
     public long getRelativeTimeInMillis() {
         return parent.getRelativeTimeInMillis();
     }
@@ -210,12 +222,12 @@ public class RankSearchContext extends SearchContext {
     /* ---- ALL METHODS ARE UNSUPPORTED BEYOND HERE ---- */
 
     @Override
-    public void setTask(SearchShardTask task) {
+    public void setTask(CancellableTask task) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public SearchShardTask getTask() {
+    public CancellableTask getTask() {
         throw new UnsupportedOperationException();
     }
 

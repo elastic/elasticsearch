@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -18,7 +20,7 @@ import java.util.Objects;
 
 /**
  * The request object used by the Explain Lifecycle API.
- *
+ * <p>
  * Multiple indices may be queried in the same request using the
  * {@link #indices(String...)} method
  */
@@ -27,8 +29,8 @@ public class ExplainLifecycleRequest extends ClusterInfoRequest<ExplainLifecycle
     private boolean onlyErrors = false;
     private boolean onlyManaged = false;
 
-    public ExplainLifecycleRequest() {
-        super();
+    public ExplainLifecycleRequest(TimeValue masterTimeout) {
+        super(masterTimeout, IndicesOptions.strictExpandOpen());
     }
 
     public ExplainLifecycleRequest(StreamInput in) throws IOException {

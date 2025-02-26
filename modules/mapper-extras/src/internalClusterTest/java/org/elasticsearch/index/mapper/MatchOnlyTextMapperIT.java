@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -88,13 +90,14 @@ public class MatchOnlyTextMapperIT extends ESIntegTestCase {
         // load the source.
 
         String mappings = """
-            { "_source" : { "mode" : "synthetic" },
+            {
               "properties" : {
                 "message" : { "type" : "match_only_text" }
               }
             }
             """;
-        assertAcked(prepareCreate("test").setMapping(mappings));
+        Settings.Builder settings = Settings.builder().put(indexSettings()).put("index.mapping.source.mode", "synthetic");
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping(mappings));
         BulkRequestBuilder bulk = client().prepareBulk("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 2000; i++) {
             bulk.add(

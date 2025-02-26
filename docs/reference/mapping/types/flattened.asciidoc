@@ -325,17 +325,24 @@ any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
 Flattened fields support <<synthetic-source,synthetic`_source`>> in their default
-configuration. Synthetic `_source` cannot be used with <<doc-values,`doc_values`>>
-disabled.
+configuration.
 
-Synthetic source always sorts alphabetically and de-duplicates flattened fields.
+Synthetic source may sort `flattened` field values and remove duplicates.
 For example:
 [source,console,id=synthetic-source-flattened-sorting-example]
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "flattened": { "type": "flattened" }
     }
@@ -367,8 +374,16 @@ For example:
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "flattened": { "type": "flattened" }
     }
@@ -407,8 +422,16 @@ For example:
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "flattened": { "type": "flattened" }
     }

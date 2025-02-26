@@ -19,8 +19,8 @@ import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.esql.core.TestUtils.fieldAttribute;
-import static org.elasticsearch.xpack.esql.core.TestUtils.of;
+import static org.elasticsearch.xpack.esql.core.util.TestUtils.fieldAttribute;
+import static org.elasticsearch.xpack.esql.core.util.TestUtils.of;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class AttributeMapTests extends ESTestCase {
 
-    private static Attribute a(String name) {
+    static Attribute a(String name) {
         return new UnresolvedAttribute(Source.EMPTY, name);
     }
 

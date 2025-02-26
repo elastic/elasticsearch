@@ -2,22 +2,20 @@
 [[delete-analytics-collection]]
 === Delete Analytics Collection
 
+deprecated:[9.0.0]
 beta::[]
 
 ++++
 <titleabbrev>Delete Analytics Collection</titleabbrev>
 ++++
 
-////
-[source,console]
-----
-PUT _application/analytics/my_analytics_collection
-----
-// TESTSETUP
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-analytics[Behavioral analytics APIs].
+--
 
-////
-
-Removes an Analytics Collection and its associated data stream.
+Removes a <<behavioral-analytics-overview,Behavioral Analytics>> Collection and its associated data stream.
 
 [[delete-analytics-collection-request]]
 ==== {api-request-title}
@@ -53,3 +51,4 @@ The following example deletes the Analytics Collection named `my_analytics_colle
 ----
 DELETE _application/analytics/my_analytics_collection/
 ----
+// TEST[skip:Behavioral Analytics APIs emit deprecation warnings and will not be updated]

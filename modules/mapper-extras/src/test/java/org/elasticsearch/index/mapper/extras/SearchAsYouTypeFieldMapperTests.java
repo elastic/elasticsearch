@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper.extras;
 
@@ -690,7 +691,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         assertSearchAsYouTypeFieldType(mapper, mapper.fieldType(), maxShingleSize, analyzerName, mapper.prefixField().fieldType());
 
         assertThat(mapper.prefixField(), notNullValue());
-        assertThat(mapper.prefixField().fieldType().parentField, equalTo(mapper.name()));
+        assertThat(mapper.prefixField().fieldType().parentField, equalTo(mapper.fullPath()));
         assertPrefixFieldType(mapper.prefixField(), mapper.indexAnalyzers(), maxShingleSize, analyzerName);
 
         for (int shingleSize = 2; shingleSize <= maxShingleSize; shingleSize++) {
@@ -709,7 +710,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         assertThat(mapper.shingleFields().length, equalTo(numberOfShingleSubfields));
 
         final Set<String> fieldsUsingSourcePath = new HashSet<>();
-        mapper.sourcePathUsedBy().forEachRemaining(mapper1 -> fieldsUsingSourcePath.add(mapper1.name()));
+        mapper.sourcePathUsedBy().forEachRemaining(mapper1 -> fieldsUsingSourcePath.add(mapper1.fullPath()));
         int multiFields = 0;
         for (FieldMapper ignored : mapper.multiFields()) {
             multiFields++;
@@ -717,12 +718,12 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         assertThat(fieldsUsingSourcePath.size(), equalTo(numberOfShingleSubfields + 1 + multiFields));
 
         final Set<String> expectedFieldsUsingSourcePath = new HashSet<>();
-        expectedFieldsUsingSourcePath.add(mapper.prefixField().name());
+        expectedFieldsUsingSourcePath.add(mapper.prefixField().fullPath());
         for (ShingleFieldMapper shingleFieldMapper : mapper.shingleFields()) {
-            expectedFieldsUsingSourcePath.add(shingleFieldMapper.name());
+            expectedFieldsUsingSourcePath.add(shingleFieldMapper.fullPath());
         }
         for (FieldMapper multiField : mapper.multiFields()) {
-            expectedFieldsUsingSourcePath.add(multiField.name());
+            expectedFieldsUsingSourcePath.add(multiField.fullPath());
         }
         assertThat(fieldsUsingSourcePath, equalTo(expectedFieldsUsingSourcePath));
     }

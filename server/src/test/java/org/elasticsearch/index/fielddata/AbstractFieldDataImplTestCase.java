@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -112,7 +113,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             TopFieldDocs topDocs;
             SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
             topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-            assertThat(topDocs.totalHits.value, equalTo(3L));
+            assertThat(topDocs.totalHits.value(), equalTo(3L));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
             assertThat(toString(((FieldDoc) topDocs.scoreDocs[0]).fields[0]), equalTo(one()));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
@@ -122,7 +123,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
             sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
             topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-            assertThat(topDocs.totalHits.value, equalTo(3L));
+            assertThat(topDocs.totalHits.value(), equalTo(3L));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(2));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
             assertThat(topDocs.scoreDocs[2].doc, equalTo(1));
@@ -192,14 +193,14 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             IndexSearcher searcher = newIndexSearcher(DirectoryReader.open(writer));
             SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
             TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-            assertThat(topDocs.totalHits.value, equalTo(3L));
+            assertThat(topDocs.totalHits.value(), equalTo(3L));
             assertThat(topDocs.scoreDocs.length, equalTo(3));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
             assertThat(topDocs.scoreDocs[2].doc, equalTo(2));
             sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
             topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-            assertThat(topDocs.totalHits.value, equalTo(3L));
+            assertThat(topDocs.totalHits.value(), equalTo(3L));
             assertThat(topDocs.scoreDocs.length, equalTo(3));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(2));
@@ -257,7 +258,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         IndexSearcher searcher = newIndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-        assertThat(topDocs.totalHits.value, equalTo(8L));
+        assertThat(topDocs.totalHits.value(), equalTo(8L));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(7));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("!08"));
@@ -278,7 +279,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
         sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
         topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-        assertThat(topDocs.totalHits.value, equalTo(8L));
+        assertThat(topDocs.totalHits.value(), equalTo(8L));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(6));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("10"));

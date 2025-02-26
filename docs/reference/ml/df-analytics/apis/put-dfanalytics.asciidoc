@@ -6,6 +6,12 @@
 <titleabbrev>Create {dfanalytics-jobs}</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-data-frame[{ml-cap}  {dfanalytics} APIs].
+--
+
 Instantiates a {dfanalytics-job}.
 
 

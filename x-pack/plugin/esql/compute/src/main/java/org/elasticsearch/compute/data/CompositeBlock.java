@@ -58,6 +58,10 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
         return block;
     }
 
+    public Page asPage() {
+        return new Page(positionCount, blocks);
+    }
+
     /**
      * Returns the number of blocks in this composite block.
      */
@@ -87,17 +91,26 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
 
     @Override
     public int getFirstValueIndex(int position) {
-        throw new UnsupportedOperationException("Composite block");
+        return blocks[0].getFirstValueIndex(position);
     }
 
     @Override
     public int getValueCount(int position) {
-        throw new UnsupportedOperationException("Composite block");
+        int max = 0;
+        for (var block : blocks) {
+            max = Math.max(max, block.getValueCount(position));
+        }
+        return max;
     }
 
     @Override
     public boolean isNull(int position) {
-        throw new UnsupportedOperationException("Composite block");
+        for (Block block : blocks) {
+            if (block.isNull(position) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -133,6 +146,14 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     }
 
     @Override
+    public boolean doesHaveMultivaluedFields() {
+        if (false == Arrays.stream(blocks).anyMatch(Block::mayHaveMultivaluedFields)) {
+            return false;
+        }
+        return Arrays.stream(blocks).anyMatch(Block::doesHaveMultivaluedFields);
+    }
+
+    @Override
     public CompositeBlock filter(int... positions) {
         CompositeBlock result = null;
         final Block[] filteredBlocks = new Block[blocks.length];
@@ -145,6 +166,23 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
         } finally {
             if (result == null) {
                 Releasables.close(filteredBlocks);
+            }
+        }
+    }
+
+    @Override
+    public Block keepMask(BooleanVector mask) {
+        CompositeBlock result = null;
+        final Block[] masked = new Block[blocks.length];
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                masked[i] = blocks[i].keepMask(mask);
+            }
+            result = new CompositeBlock(masked);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.close(masked);
             }
         }
     }

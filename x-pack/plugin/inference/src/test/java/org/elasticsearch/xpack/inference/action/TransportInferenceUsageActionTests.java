@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -28,7 +27,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.inference.InferenceFeatureSetUsage;
@@ -64,7 +63,6 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
             mock(ClusterService.class),
             mock(ThreadPool.class),
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             client
         );
     }
@@ -98,7 +96,7 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         BytesStreamOutput out = new BytesStreamOutput();
         future.get().getUsage().writeTo(out);
-        XPackFeatureSet.Usage usage = new InferenceFeatureSetUsage(out.bytes().streamInput());
+        XPackFeatureUsage usage = new InferenceFeatureSetUsage(out.bytes().streamInput());
 
         assertThat(usage.name(), is(XPackField.INFERENCE));
         assertTrue(usage.enabled());

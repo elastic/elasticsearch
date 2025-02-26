@@ -74,7 +74,7 @@ import static org.hamcrest.Matchers.is;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTestCase {
 
-    private static final long WATERMARK_BYTES = new ByteSizeValue(10, ByteSizeUnit.KB).getBytes();
+    private static final long WATERMARK_BYTES = ByteSizeValue.of(10, ByteSizeUnit.KB).getBytes();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -150,14 +150,14 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
     private void createRepository(String name, String type) {
         assertAcked(
-            clusterAdmin().preparePutRepository(name)
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name)
                 .setType(type)
                 .setSettings(Settings.builder().put("location", randomRepoPath()).build())
         );
     }
 
     private void createSnapshot(String repository, String snapshot, int nbIndices) {
-        var snapshotInfo = clusterAdmin().prepareCreateSnapshot(repository, snapshot)
+        var snapshotInfo = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot)
             .setIndices("index-*")
             .setIncludeGlobalState(false)
             .setWaitForCompletion(true)
@@ -241,7 +241,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
         // The cold/frozen data node has enough disk space to hold all the shards
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState().setRoutingTable(true).get().getState();
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setRoutingTable(true).get().getState();
             assertThat(
                 state.routingTable()
                     .allShards()
@@ -257,7 +257,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         mountIndices(indicesStoresSizes.keySet(), "extra-", repositoryName, snapshot, storage);
 
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState().setRoutingTable(true).get().getState();
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setRoutingTable(true).get().getState();
             assertThat(
                 state.routingTable()
                     .allShards()
@@ -294,7 +294,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         );
         ensureStableCluster(3);
 
-        String coldNodeId = clusterAdmin().prepareState().get().getState().nodes().resolveNode(coldNodeName).getId();
+        String coldNodeId = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().resolveNode(coldNodeName).getId();
         logger.info("--> reducing disk size of node [{}/{}] so that all shards except one can fit on the node", coldNodeName, coldNodeId);
         String indexToSkip = randomFrom(indicesStoresSizes.keySet());
         Map<String, Long> indicesToBeMounted = indicesStoresSizes.entrySet()
@@ -316,7 +316,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         mountIndices(indicesToBeMounted.keySet(), prefix, repositoryName, snapshotName, FULL_COPY);
 
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState().setRoutingTable(true).get().getState();
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setRoutingTable(true).get().getState();
             assertThat(
                 state.routingTable()
                     .allShards()
@@ -333,7 +333,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
         mountIndices(List.of(indexToSkip), prefix, repositoryName, snapshotName, FULL_COPY);
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState().setRoutingTable(true).get().getState();
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setRoutingTable(true).get().getState();
             assertThat(state.routingTable().index(prefix + indexToSkip).shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
         });
 
@@ -343,7 +343,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         mockRepository.unlockRestore();
 
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState().setRoutingTable(true).get().getState();
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setRoutingTable(true).get().getState();
             assertThat(state.routingTable().index(prefix + indexToSkip).shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
             assertThat(
                 state.routingTable()

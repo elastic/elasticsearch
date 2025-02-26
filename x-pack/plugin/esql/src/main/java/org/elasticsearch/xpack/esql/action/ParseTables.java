@@ -83,17 +83,11 @@ public class ParseTables {
                         return columns;
                     }
                     case FIELD_NAME -> {
-                        String[] fname = p.currentName().split(":");
-                        if (fname.length != 2) {
-                            throw new XContentParseException(
-                                p.getTokenLocation(),
-                                "expected columns named name:type but was [" + p.currentName() + "]"
-                            );
+                        String name = p.currentName();
+                        if (columns.containsKey(name)) {
+                            throw new XContentParseException(p.getTokenLocation(), "duplicate column name [" + name + "]");
                         }
-                        if (columns.containsKey(fname[0])) {
-                            throw new XContentParseException(p.getTokenLocation(), "duplicate column name [" + fname[0] + "]");
-                        }
-                        columns.put(fname[0], parseColumn(fname[1]));
+                        columns.put(name, parseColumn());
                     }
                     default -> throw new XContentParseException(
                         p.getTokenLocation(),
@@ -108,14 +102,26 @@ public class ParseTables {
         }
     }
 
-    private Column parseColumn(String type) throws IOException {
-        return switch (type) {
+    private Column parseColumn() throws IOException {
+        if (p.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new XContentParseException(p.getTokenLocation(), "expected " + XContentParser.Token.START_OBJECT);
+        }
+        if (p.nextToken() != XContentParser.Token.FIELD_NAME) {
+            throw new XContentParseException(p.getTokenLocation(), "expected " + XContentParser.Token.FIELD_NAME);
+        }
+        String type = p.currentName();
+        Column result = switch (type) {
             case "integer" -> parseIntColumn();
             case "keyword" -> parseKeywordColumn();
             case "long" -> parseLongColumn();
             case "double" -> parseDoubleColumn();
             default -> throw new XContentParseException(p.getTokenLocation(), "unsupported type [" + type + "]");
         };
+        if (p.nextToken() != XContentParser.Token.END_OBJECT) {
+            result.close();
+            throw new XContentParseException(p.getTokenLocation(), "expected " + XContentParser.Token.END_OBJECT);
+        }
+        return result;
     }
 
     private Column parseKeywordColumn() throws IOException {

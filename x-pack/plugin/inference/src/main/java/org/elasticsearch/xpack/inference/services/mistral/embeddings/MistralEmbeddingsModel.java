@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.mistral.embeddings;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.API_EMBEDDINGS_PATH;
 
@@ -38,6 +38,7 @@ public class MistralEmbeddingsModel extends Model {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
@@ -47,25 +48,14 @@ public class MistralEmbeddingsModel extends Model {
             service,
             MistralEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,    // no task settings for Mistral embeddings
+            chunkingSettings,
             DefaultSecretSettings.fromMap(secrets)
         );
-    }
-
-    public MistralEmbeddingsModel(MistralEmbeddingsModel model, TaskSettings taskSettings, RateLimitSettings rateLimitSettings) {
-        super(model, taskSettings);
-        this.model = Objects.requireNonNull(model.model);
-        this.rateLimitSettings = Objects.requireNonNull(rateLimitSettings);
-        setEndpointUrl();
     }
 
     public MistralEmbeddingsModel(MistralEmbeddingsModel model, MistralEmbeddingsServiceSettings serviceSettings) {
         super(model, serviceSettings);
         setPropertiesFromServiceSettings(serviceSettings);
-    }
-
-    protected MistralEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-        super(modelConfigurations, modelSecrets);
-        setPropertiesFromServiceSettings((MistralEmbeddingsServiceSettings) modelConfigurations.getServiceSettings());
     }
 
     public MistralEmbeddingsModel(
@@ -74,17 +64,18 @@ public class MistralEmbeddingsModel extends Model {
         String service,
         MistralEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
         DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings()),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings(), chunkingSettings),
             new ModelSecrets(secrets)
         );
         setPropertiesFromServiceSettings(serviceSettings);
     }
 
     private void setPropertiesFromServiceSettings(MistralEmbeddingsServiceSettings serviceSettings) {
-        this.model = serviceSettings.model();
+        this.model = serviceSettings.modelId();
         this.rateLimitSettings = serviceSettings.rateLimitSettings();
         setEndpointUrl();
     }

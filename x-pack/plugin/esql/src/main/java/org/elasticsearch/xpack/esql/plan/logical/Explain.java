@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.List;
 import java.util.Objects;
 
-public class Explain extends LeafPlan {
+public class Explain extends LeafPlan implements TelemetryAware {
 
     public enum Type {
         PARSED,
@@ -30,6 +30,16 @@ public class Explain extends LeafPlan {
     public Explain(Source source, LogicalPlan query) {
         super(source);
         this.query = query;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
     }
 
     // TODO: implement again

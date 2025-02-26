@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -36,7 +37,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notANumber;
 
 public abstract class NumberFieldMapperTests extends MapperTestCase {
@@ -76,7 +76,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                 minimalMapping(b);
                 b.field("script", "test");
                 b.field("on_script_error", "continue");
-            }, m -> assertThat((m).onScriptError, is(OnScriptError.CONTINUE)));
+            }, m -> assertThat((m).builderParams.onScriptError(), is(OnScriptError.CONTINUE)));
         }
     }
 
@@ -377,6 +377,14 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        MappedFieldType ft = mapper.fieldType(loaderFieldName);
+        // Block loader can either use doc values or source.
+        // So with synthetic source it only works when doc values are enabled.
+        return new BlockReaderSupport(ft.hasDocValues(), ft.hasDocValues(), mapper, loaderFieldName);
+    }
+
+    @Override
     protected Function<Object, Object> loadBlockExpected() {
         return n -> ((Number) n); // Just assert it's a number
     }
@@ -391,6 +399,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     protected final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
         private final Long nullValue = usually() ? null : randomNumber().longValue();
         private final boolean coerce = rarely();
+        private final boolean docValues = randomBoolean();
 
         private final Function<Number, Number> round;
         private final boolean ignoreMalformed;
@@ -401,9 +410,25 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }
 
         @Override
+        public boolean preservesExactSource() {
+            // We opt in into fallback synthetic source if there is no doc values
+            // which preserves exact source.
+            return docValues == false;
+        }
+
+        @Override
         public SyntheticSourceExample example(int maxVals) {
             if (randomBoolean()) {
                 Tuple<Object, Object> v = generateValue();
+                if (preservesExactSource()) {
+                    var rawInput = v.v1();
+
+                    // This code actually runs with synthetic source disabled
+                    // to test block loader loading from source.
+                    // That's why we need to set expected block loader value here.
+                    var blockLoaderResult = v.v2() instanceof Number n ? round.apply(n) : null;
+                    return new SyntheticSourceExample(rawInput, rawInput, blockLoaderResult, this::mapping);
+                }
                 if (v.v2() instanceof Number n) {
                     Number result = round.apply(n);
                     return new SyntheticSourceExample(v.v1(), result, result, this::mapping);
@@ -413,19 +438,33 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             }
             List<Tuple<Object, Object>> values = randomList(1, maxVals, this::generateValue);
             List<Object> in = values.stream().map(Tuple::v1).toList();
-            List<Object> outList = values.stream()
-                .filter(v -> v.v2() instanceof Number)
-                .map(t -> round.apply((Number) t.v2()))
-                .sorted()
-                .collect(Collectors.toCollection(ArrayList::new));
-            values.stream().filter(v -> false == v.v2() instanceof Number).map(v -> v.v2()).forEach(outList::add);
-            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            Object out;
+            List<Object> outBlockList;
+            if (preservesExactSource()) {
+                // This code actually runs with synthetic source disabled
+                // to test block loader loading from source.
+                // That's why we need to set expected block loader value here.
+                out = in;
+                outBlockList = values.stream()
+                    .filter(v -> v.v2() instanceof Number)
+                    .map(t -> round.apply((Number) t.v2()))
+                    .collect(Collectors.toCollection(ArrayList::new));
+            } else {
+                List<Object> outList = values.stream()
+                    .filter(v -> v.v2() instanceof Number)
+                    .map(t -> round.apply((Number) t.v2()))
+                    .sorted()
+                    .collect(Collectors.toCollection(ArrayList::new));
+                values.stream().filter(v -> false == v.v2() instanceof Number).map(Tuple::v2).forEach(outList::add);
+                out = outList.size() == 1 ? outList.get(0) : outList;
 
-            List<Object> outBlockList = values.stream()
-                .filter(v -> v.v2() instanceof Number)
-                .map(t -> round.apply((Number) t.v2()))
-                .sorted()
-                .collect(Collectors.toCollection(ArrayList::new));
+                outBlockList = values.stream()
+                    .filter(v -> v.v2() instanceof Number)
+                    .map(t -> round.apply((Number) t.v2()))
+                    .sorted()
+                    .collect(Collectors.toCollection(ArrayList::new));
+            }
+
             Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
             return new SyntheticSourceExample(in, out, outBlock, this::mapping);
         }
@@ -459,19 +498,14 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             if (ignoreMalformed) {
                 b.field("ignore_malformed", true);
             }
+            if (docValues == false) {
+                b.field("doc_values", "false");
+            }
         }
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-            return List.of(
-                new SyntheticSourceInvalidExample(
-                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it doesn't have doc values"),
-                    b -> {
-                        minimalMapping(b);
-                        b.field("doc_values", false);
-                    }
-                )
-            );
+            return List.of();
         }
     }
 }

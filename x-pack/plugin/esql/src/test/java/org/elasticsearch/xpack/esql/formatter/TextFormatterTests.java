@@ -13,10 +13,11 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
-import org.elasticsearch.xpack.esql.TestBlockFactory;
+import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Arrays;
@@ -32,17 +33,17 @@ public class TextFormatterTests extends ESTestCase {
 
     static BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
-    private final List<ColumnInfo> columns = Arrays.asList(
-        new ColumnInfo("foo", "keyword"),
-        new ColumnInfo("bar", "long"),
-        new ColumnInfo("15charwidename!", "double"),
-        new ColumnInfo("null_field1", "integer"),
-        new ColumnInfo("superduperwidename!!!", "double"),
-        new ColumnInfo("baz", "keyword"),
-        new ColumnInfo("date", "date"),
-        new ColumnInfo("location", "geo_point"),
-        new ColumnInfo("location2", "cartesian_point"),
-        new ColumnInfo("null_field2", "keyword")
+    private final List<ColumnInfoImpl> columns = Arrays.asList(
+        new ColumnInfoImpl("foo", "keyword"),
+        new ColumnInfoImpl("bar", "long"),
+        new ColumnInfoImpl("15charwidename!", "double"),
+        new ColumnInfoImpl("null_field1", "integer"),
+        new ColumnInfoImpl("superduperwidename!!!", "double"),
+        new ColumnInfoImpl("baz", "keyword"),
+        new ColumnInfoImpl("date", "date"),
+        new ColumnInfoImpl("location", "geo_point"),
+        new ColumnInfoImpl("location2", "cartesian_point"),
+        new ColumnInfoImpl("null_field2", "keyword")
     );
 
     private static final BytesRefArray geoPoints = new BytesRefArray(2, BigArrays.NON_RECYCLING_INSTANCE);
@@ -80,10 +81,9 @@ public class TextFormatterTests extends ESTestCase {
         ),
         null,
         randomBoolean(),
-        randomBoolean()
+        randomBoolean(),
+        new EsqlExecutionInfo(randomBoolean())
     );
-
-    TextFormatter formatter = new TextFormatter(esqlResponse);
 
     /**
      * Tests for {@link TextFormatter#format} with header, values
@@ -93,7 +93,7 @@ public class TextFormatterTests extends ESTestCase {
      * column size.
      */
     public void testFormatWithHeader() {
-        String[] result = getTextBodyContent(formatter.format(true)).split("\n");
+        String[] result = getTextBodyContent(new TextFormatter(esqlResponse, true, false).format()).split("\n");
         assertThat(result, arrayWithSize(4));
         assertEquals(
             "      foo      |      bar      |15charwidename!|  null_field1  |superduperwidename!!!|      baz      |"
@@ -113,6 +113,35 @@ public class TextFormatterTests extends ESTestCase {
         assertEquals(
             "dog            |2              |123124.888     |null           |9912.0               |goat           |"
                 + "2000-03-15T21:34:37.443Z|POINT (-97.0 26.0)|POINT (-9753.0 2611.0)|null           ",
+            result[3]
+        );
+    }
+
+    /**
+     * Tests for {@link TextFormatter#format} with drop_null_columns and
+     * truncation of long columns.
+     */
+    public void testFormatWithDropNullColumns() {
+        String[] result = getTextBodyContent(new TextFormatter(esqlResponse, true, true).format()).split("\n");
+        assertThat(result, arrayWithSize(4));
+        assertEquals(
+            "      foo      |      bar      |15charwidename!|superduperwidename!!!|      baz      |"
+                + "          date          |     location     |      location2       ",
+            result[0]
+        );
+        assertEquals(
+            "---------------+---------------+---------------+---------------------+---------------+-------"
+                + "-----------------+------------------+----------------------",
+            result[1]
+        );
+        assertEquals(
+            "15charwidedata!|1              |6.888          |12.0                 |rabbit         |"
+                + "1953-09-02T00:00:00.000Z|POINT (12.0 56.0) |POINT (1234.0 5678.0) ",
+            result[2]
+        );
+        assertEquals(
+            "dog            |2              |123124.888     |9912.0               |goat           |"
+                + "2000-03-15T21:34:37.443Z|POINT (-97.0 26.0)|POINT (-9753.0 2611.0)",
             result[3]
         );
     }
@@ -154,10 +183,11 @@ public class TextFormatterTests extends ESTestCase {
             ),
             null,
             randomBoolean(),
-            randomBoolean()
+            randomBoolean(),
+            new EsqlExecutionInfo(randomBoolean())
         );
 
-        String[] result = getTextBodyContent(new TextFormatter(response).format(false)).split("\n");
+        String[] result = getTextBodyContent(new TextFormatter(response, false, false).format()).split("\n");
         assertThat(result, arrayWithSize(2));
         assertEquals(
             "doggie         |4              |1.0            |null           |77.0                 |wombat         |"
@@ -183,7 +213,7 @@ public class TextFormatterTests extends ESTestCase {
             getTextBodyContent(
                 new TextFormatter(
                     new EsqlQueryResponse(
-                        List.of(new ColumnInfo("foo", "keyword")),
+                        List.of(new ColumnInfoImpl("foo", "keyword")),
                         List.of(
                             new Page(
                                 blockFactory.newBytesRefBlockBuilder(2)
@@ -194,9 +224,12 @@ public class TextFormatterTests extends ESTestCase {
                         ),
                         null,
                         randomBoolean(),
-                        randomBoolean()
-                    )
-                ).format(false)
+                        randomBoolean(),
+                        new EsqlExecutionInfo(randomBoolean())
+                    ),
+                    false,
+                    false
+                ).format()
             )
         );
     }

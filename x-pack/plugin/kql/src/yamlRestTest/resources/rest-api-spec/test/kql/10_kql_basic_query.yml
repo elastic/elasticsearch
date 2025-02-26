@@ -1,0 +1,212 @@
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ kql_query ]
+      test_runner_features: capabilities
+      reason: KQL query is not available
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              date_field:
+                type: date
+              text_field:
+                type: text
+              keyword_field:
+                type: keyword
+              integer_field:
+                type: integer
+              double_field:
+                type: double
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          { "index" : { "_id": "doc-1" } }
+          { "text_field": "foo bar", "integer_field": 1, "double_field": 3.5, "date_field": "2010-03-06T14:15:00", "keyword_field": "foo bar" }
+          { "index" : { "_id": "doc-42" } }
+          { "text_field": "foo baz", "integer_field": 2, "double_field": 18.9, "date_field": "2018-03-28T20:30:00", "keyword_field": "foo baz" }
+
+---
+"KQL match all queries":
+  # KQL empty query are supposed to match all.
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "" } }
+          }
+  - match: { hits.total: 2 }
+
+  # Using the *:* syntax
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "*" } }
+          }
+  - match: { hits.total: 2 }
+
+  # Using the *:* syntax
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "*:*" } }
+          }
+  - match: { hits.total: 2 }
+
+---
+"KQL match term queries (no field specified)":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "bar" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "foo bar" } }
+          }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  # KQL does not match on the _id field when no field is specified.
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "doc-42" } }
+          }
+  - match: { hits.total: 0 }
+
+---
+"KQL match multiple terms queries (no field specified)":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "foo bar" } }
+          }
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "(foo bar)" } }
+          }
+  - match: { hits.total: 2 }
+
+---
+"KQL match phrase queries (no field specified)":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "\"foo bar\"" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+---
+"KQL match number queries (no field specified)":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "2" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-42" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "3.5" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+---
+"KQL match multiple terms queries (no matches)":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "no match" } }
+          }
+  - match: { hits.total: 0 }
+
+
+---
+"KQL boolean queries":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "text_field: foo AND integer_field > 1" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-42" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "text_field: baz OR keyword_field: foo bar" } }
+          }
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "NOT text_field: baz" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+

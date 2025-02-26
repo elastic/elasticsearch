@@ -11,11 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -25,7 +26,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class ToLongTests extends AbstractFunctionTestCase {
+public class ToLongTests extends AbstractScalarFunctionTestCase {
     public ToLongTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -42,7 +43,15 @@ public class ToLongTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataType.LONG, b -> b ? 1L : 0L, List.of());
 
         // datetimes
-        TestCaseSupplier.forUnaryDatetime(suppliers, read, DataType.LONG, Instant::toEpochMilli, List.of());
+        TestCaseSupplier.unary(suppliers, read, TestCaseSupplier.dateCases(), DataType.LONG, v -> ((Instant) v).toEpochMilli(), List.of());
+        TestCaseSupplier.unary(
+            suppliers,
+            read,
+            TestCaseSupplier.dateNanosCases(),
+            DataType.LONG,
+            v -> DateUtils.toLong((Instant) v),
+            List.of()
+        );
         // random strings that don't look like a long
         TestCaseSupplier.forUnaryStrings(
             suppliers,
@@ -50,8 +59,8 @@ public class ToLongTests extends AbstractFunctionTestCase {
             DataType.LONG,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
                     + bytesRef.utf8ToString()
                     + "]"
             )
@@ -75,8 +84,8 @@ public class ToLongTests extends AbstractFunctionTestCase {
             Double.NEGATIVE_INFINITY,
             Long.MIN_VALUE - 1d,
             d -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
             )
         );
         // from doubles outside long's range, positive
@@ -88,8 +97,8 @@ public class ToLongTests extends AbstractFunctionTestCase {
             Long.MAX_VALUE + 1d,
             Double.POSITIVE_INFINITY,
             d -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
             )
         );
 
@@ -111,8 +120,8 @@ public class ToLongTests extends AbstractFunctionTestCase {
             BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE),
             UNSIGNED_LONG_MAX,
             ul -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + ul + "] out of [long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + ul + "] out of [long] range"
 
             )
         );
@@ -181,8 +190,8 @@ public class ToLongTests extends AbstractFunctionTestCase {
             DataType.LONG,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "]"
             )
@@ -204,8 +213,8 @@ public class ToLongTests extends AbstractFunctionTestCase {
             DataType.LONG,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "]"
             )
@@ -221,13 +230,13 @@ public class ToLongTests extends AbstractFunctionTestCase {
         );
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("Integer"),
+            evaluatorName.apply("Int"),
             List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomInt, DataType.COUNTER_INTEGER)),
             DataType.LONG,
             l -> ((Integer) l).longValue(),
             List.of()
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

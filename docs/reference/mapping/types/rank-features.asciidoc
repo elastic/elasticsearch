@@ -70,6 +70,15 @@ GET my-index-000001/_search
     }
   }
 }
+
+GET my-index-000001/_search
+{
+  "query": { <6>
+    "term": {
+      "topics": "economics"
+    }
+  }
+}
 --------------------------------------------------
 
 <1> Rank features fields must use the `rank_features` field type
@@ -77,6 +86,7 @@ GET my-index-000001/_search
 <3> Rank features fields must be a hash with string keys and strictly positive numeric values
 <4> This query ranks documents by how much they are about the "politics" topic.
 <5> This query ranks documents inversely to the number of "1star" reviews they received.
+<6> This query returns documents that store the "economics" feature in the "topics" field.
 
 
 NOTE: `rank_features` fields only support single-valued features and strictly

@@ -1,0 +1,5 @@
+pr: 120913
+summary: Automatically rollover legacy .ml-anomalies indices
+area: Machine Learning
+type: upgrade
+issues: []

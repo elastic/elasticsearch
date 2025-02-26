@@ -5,6 +5,12 @@
 <titleabbrev>Stop watch service</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-watcher[{watcher} APIs].
+--
+
 Stops the {watcher} service if it is running.
 
 [[watcher-api-stop-request]]

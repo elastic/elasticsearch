@@ -18,7 +18,9 @@
 * <<esql-cos>>
 * <<esql-cosh>>
 * <<esql-e>>
+* <<esql-exp>>
 * <<esql-floor>>
+* <<esql-hypot>>
 * <<esql-log>>
 * <<esql-log10>>
 * <<esql-pi>>
@@ -43,7 +45,9 @@ include::layout/ceil.asciidoc[]
 include::layout/cos.asciidoc[]
 include::layout/cosh.asciidoc[]
 include::layout/e.asciidoc[]
+include::layout/exp.asciidoc[]
 include::layout/floor.asciidoc[]
+include::layout/hypot.asciidoc[]
 include::layout/log.asciidoc[]
 include::layout/log10.asciidoc[]
 include::layout/pi.asciidoc[]

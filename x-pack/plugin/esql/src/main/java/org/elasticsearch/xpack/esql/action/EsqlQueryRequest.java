@@ -21,12 +21,11 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
@@ -43,14 +42,17 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private String query;
     private boolean columnar;
     private boolean profile;
+    private boolean includeCCSMetadata;
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
-    private List<TypedParamValue> params = List.of();
+    private QueryParams params = new QueryParams();
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;
     private boolean onSnapshotBuild = Build.current().isSnapshot();
+    private boolean acceptedPragmaRisks = false;
+    private boolean allowPartialResults = false;
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
@@ -79,8 +81,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         if (Strings.hasText(query) == false) {
             validationException = addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", validationException);
         }
+
         if (onSnapshotBuild == false) {
-            if (pragmas.isEmpty() == false) {
+            if (pragmas.isEmpty() == false && acceptedPragmaRisks == false) {
                 validationException = addValidationError(
                     "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
                     validationException
@@ -127,6 +130,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.profile = profile;
     }
 
+    public void includeCCSMetadata(boolean include) {
+        this.includeCCSMetadata = include;
+    }
+
+    public boolean includeCCSMetadata() {
+        return includeCCSMetadata;
+    }
+
     /**
      * Is profiling enabled?
      */
@@ -159,11 +170,11 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return pragmas;
     }
 
-    public List<TypedParamValue> params() {
+    public QueryParams params() {
         return params;
     }
 
-    public void params(List<TypedParamValue> params) {
+    public void params(QueryParams params) {
         this.params = params;
     }
 
@@ -221,6 +232,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return tables;
     }
 
+    public boolean allowPartialResults() {
+        return allowPartialResults;
+    }
+
+    public void allowPartialResults(boolean allowPartialResults) {
+        this.allowPartialResults = allowPartialResults;
+    }
+
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         // Pass the query as the description
@@ -230,5 +249,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     // Setter for tests
     void onSnapshotBuild(boolean onSnapshotBuild) {
         this.onSnapshotBuild = onSnapshotBuild;
+    }
+
+    void acceptedPragmaRisks(boolean accepted) {
+        this.acceptedPragmaRisks = accepted;
     }
 }

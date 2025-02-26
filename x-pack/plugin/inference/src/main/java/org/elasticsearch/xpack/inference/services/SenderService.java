@@ -7,25 +7,37 @@
 
 package org.elasticsearch.xpack.inference.services;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public abstract class SenderService implements InferenceService {
+    protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION);
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 
@@ -35,7 +47,7 @@ public abstract class SenderService implements InferenceService {
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
 
-    protected Sender getSender() {
+    public Sender getSender() {
         return sender;
     }
 
@@ -48,30 +60,38 @@ public abstract class SenderService implements InferenceService {
         Model model,
         @Nullable String query,
         List<String> input,
+        boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         init();
-        if (query != null) {
-            doInfer(model, query, input, taskSettings, inputType, timeout, listener);
-        } else {
-            doInfer(model, input, taskSettings, inputType, timeout, listener);
-        }
+        var inferenceInput = createInput(model, input, query, stream);
+        doInfer(model, inferenceInput, taskSettings, inputType, timeout, listener);
     }
 
-    public void chunkedInfer(
+    private static InferenceInputs createInput(Model model, List<String> input, @Nullable String query, boolean stream) {
+        return switch (model.getTaskType()) {
+            case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(input, stream);
+            case RERANK -> new QueryAndDocsInputs(query, input, stream);
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> new DocumentsOnlyInput(input, stream);
+            default -> throw new ElasticsearchStatusException(
+                Strings.format("Invalid task type received when determining input type: [%s]", model.getTaskType().toString()),
+                RestStatus.BAD_REQUEST
+            );
+        };
+    }
+
+    @Override
+    public void unifiedCompletionInfer(
         Model model,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        InputType inputType,
-        ChunkingOptions chunkingOptions,
+        UnifiedCompletionRequest request,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<InferenceServiceResults> listener
     ) {
         init();
-        chunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, timeout, listener);
+        doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, listener);
     }
 
     @Override
@@ -81,49 +101,47 @@ public abstract class SenderService implements InferenceService {
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<ChunkedInference>> listener
     ) {
         init();
-        doChunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, timeout, listener);
+        // a non-null query is not supported and is dropped by all providers
+        doChunkedInfer(model, new DocumentsOnlyInput(input), taskSettings, inputType, timeout, listener);
     }
 
     protected abstract void doInfer(
         Model model,
-        List<String> input,
+        InferenceInputs inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
 
-    protected abstract void doInfer(
+    protected abstract void doUnifiedCompletionInfer(
         Model model,
-        String query,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        InputType inputType,
+        UnifiedChatInput inputs,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
 
     protected abstract void doChunkedInfer(
         Model model,
-        @Nullable String query,
-        List<String> input,
+        DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<ChunkedInference>> listener
     );
 
-    @Override
     public void start(Model model, ActionListener<Boolean> listener) {
         init();
-
         doStart(model, listener);
+    }
+
+    @Override
+    public void start(Model model, @Nullable TimeValue unused, ActionListener<Boolean> listener) {
+        start(model, listener);
     }
 
     protected void doStart(Model model, ActionListener<Boolean> listener) {

@@ -36,7 +36,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
 
     @Before
     public void ensureNativeStoresStarted() throws Exception {
-        assertSecurityIndexActive();
+        createSecurityIndexWithWaitForActiveShards();
         if (shouldSetReservedUserPasswords()) {
             setupReservedPasswords();
         }

@@ -23,11 +23,12 @@ configuration is required.
 | `source_port`      | no       | `source.port` | Field containing the source port.
 | `destination_ip`   | no       | `destination.ip` | Field containing the destination IP address.
 | `destination_port` | no       | `destination.port` | Field containing the destination port.
-| `iana_number` | no | `network.iana_number` | Field containing the IANA number. The following protocol numbers are currently supported: `1` ICMP, `2` IGMP, `6` TCP, `17` UDP, `47` GRE, `58` ICMP IPv6, `88` EIGRP, `89` OSPF, `103` PIM, and `132` SCTP.
+| `iana_number` | no | `network.iana_number` | Field containing the IANA number.
 | `icmp_type`        | no       | `icmp.type`   | Field containing the ICMP type.
 | `icmp_code`        | no       | `icmp.code`   | Field containing the ICMP code.
-| `transport`        | no       | `network.transport` | Field containing the transport protocol.
-Used only when the `iana_number` field is not present.
+| `transport`        | no       | `network.transport` | Field containing the transport protocol name or number.
+Used only when the `iana_number` field is not present. The following protocol names are currently supported:
+`ICMP`, `IGMP`, `TCP`, `UDP`, `GRE`, `ICMP IPv6`, `EIGRP`, `OSPF`, `PIM`, and `SCTP`.
 | `target_field`     | no       | `network.community_id` | Output field for the community ID.
 | `seed`             | no       | `0`           | Seed for the community ID hash. Must be between
 0 and 65535 (inclusive). The seed can prevent hash collisions between network domains, such as

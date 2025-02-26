@@ -10,7 +10,7 @@ include::install_remove.asciidoc[]
 ==== Working around a bug in Windows SMB and Java on windows
 
 When using a shared file system based on the SMB protocol (like Azure File Service) to store indices, the way Lucene
-open index segment files is with a write only flag. This is the _correct_ way to open the files, as they will only be
+opens index segment files is with a write only flag. This is the _correct_ way to open the files, as they will only be
 used for writes and allows different FS implementations to optimize for it. Sadly, in windows with SMB, this disables
 the cache manager, causing writes to be slow. This has been described in
 https://issues.apache.org/jira/browse/LUCENE-6176[LUCENE-6176], but it affects each and every Java program out there!.
@@ -44,7 +44,7 @@ This can be configured for all indices by adding this to the `elasticsearch.yml`
 index.store.type: smb_nio_fs
 ----
 
-Note that setting will be applied for newly created indices.
+Note that settings will be applied for newly created indices.
 
 It can also be set on a per-index basis at index creation time:
 

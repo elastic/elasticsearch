@@ -73,8 +73,7 @@ import java.util.Set;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION;
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_SUPPORTED_SNAPSHOT_VERSION;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.core.ml.MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT;
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
@@ -116,14 +115,14 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         Client client,
         IndexNameExpressionResolver expressionResolver,
         XPackLicenseState licenseState,
-        boolean includeNodeInfo
+        AnomalyDetectionAuditor auditor
     ) {
         super(MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME, settings, clusterService, memoryTracker, expressionResolver);
         this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
         this.datafeedConfigProvider = Objects.requireNonNull(datafeedConfigProvider);
         this.client = Objects.requireNonNull(client);
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
-        this.auditor = new AnomalyDetectionAuditor(client, clusterService, includeNodeInfo);
+        this.auditor = auditor;
         this.licenseState = licenseState;
         clusterService.addListener(event -> clusterState = event.state());
     }
@@ -436,7 +435,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                     }
                     assert snapshot.getPage().results().size() == 1;
                     ModelSnapshot snapshotObj = snapshot.getPage().results().get(0);
-                    if (snapshotObj.getMinVersion().onOrAfter(MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION)) {
+                    if (snapshotObj.getMinVersion().onOrAfter(MIN_SUPPORTED_SNAPSHOT_VERSION)) {
                         listener.onResponse(true);
                         return;
                     }
@@ -446,7 +445,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                                 + "please revert to a newer model snapshot or reset the job",
                             jobId,
                             jobSnapshotId,
-                            MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION.toString()
+                            MIN_SUPPORTED_SNAPSHOT_VERSION.toString()
                         )
                     );
                 }, snapshotFailure -> {

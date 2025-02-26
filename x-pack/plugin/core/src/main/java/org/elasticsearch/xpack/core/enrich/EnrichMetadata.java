@@ -36,6 +36,8 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     static final ParseField POLICIES = new ParseField("policies");
 
+    public static final EnrichMetadata EMPTY = new EnrichMetadata(Collections.emptyMap());
+
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<EnrichMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "enrich_metadata",
@@ -84,7 +86,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_5_0;
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -99,7 +101,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.xContentFragmentValuesMap(POLICIES.getPreferredName(), policies);
+        return ChunkedToXContentHelper.xContentObjectFieldObjects(POLICIES.getPreferredName(), policies);
     }
 
     @Override

@@ -18,13 +18,17 @@ import java.util.Map;
 
 import static org.elasticsearch.common.Strings.requireNonBlank;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 public class SortOrderAnalyticsEventField {
 
-    public static ParseField SORT_FIELD = new ParseField("sort");
+    public static final ParseField SORT_FIELD = new ParseField("sort");
 
-    public static ParseField SORT_ORDER_NAME_FIELD = new ParseField("name");
+    public static final ParseField SORT_ORDER_NAME_FIELD = new ParseField("name");
 
-    public static ParseField SORT_ORDER_DIRECTION_FIELD = new ParseField("direction");
+    public static final ParseField SORT_ORDER_DIRECTION_FIELD = new ParseField("direction");
 
     private static final ObjectParser<Map<String, String>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
         SORT_FIELD.getPreferredName(),

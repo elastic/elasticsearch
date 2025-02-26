@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -38,7 +39,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.ShardId;
@@ -140,22 +140,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         DiscoveryNode nodeToMatch = randomBoolean() ? node2 : node3;
         testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
             .addData(nodeToMatch, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
-        allocateAllUnassigned(allocation);
-        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(1));
-        assertThat(
-            shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
-            equalTo(nodeToMatch.getId())
-        );
-    }
-
-    /**
-     * Verifies that when there is a sync id match but no files match, we allocate it to matching node.
-     */
-    public void testSyncIdMatch() {
-        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
-        DiscoveryNode nodeToMatch = randomBoolean() ? node2 : node3;
-        testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
-            .addData(nodeToMatch, "MATCH", new StoreFileMetadata("file1", 10, "NO_MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         allocateAllUnassigned(allocation);
         assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(1));
         assertThat(
@@ -438,17 +422,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         );
     }
 
-    public void testCancelRecoveryBetterSyncId() {
-        RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
-        testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
-            .addData(node2, "NO_MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
-            .addData(node3, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
-        testAllocator.processExistingRecoveries(allocation, shardRouting -> true);
-        assertThat(allocation.routingNodesChanged(), equalTo(true));
-        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED).size(), equalTo(1));
-        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
-    }
-
     public void testNotCancellingRecoveryIfSyncedOnExistingRecovery() {
         final UnassignedInfo unassignedInfo;
         if (randomBoolean()) {
@@ -687,9 +660,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 filesAsMap.put(file.name(), file);
             }
             Map<String, String> commitData = new HashMap<>();
-            if (syncId != null) {
-                commitData.put(Engine.SYNC_COMMIT_ID, syncId);
-            }
             data.put(
                 node,
                 new TransportNodesListShardStoreMetadata.StoreFilesMetadata(

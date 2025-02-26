@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -12,9 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.Diagnosis;
-import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -99,11 +98,9 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     );
 
     private final ClusterService clusterService;
-    private final FeatureService featureService;
 
-    public RepositoryIntegrityHealthIndicatorService(ClusterService clusterService, FeatureService featureService) {
+    public RepositoryIntegrityHealthIndicatorService(ClusterService clusterService) {
         this.clusterService = clusterService;
-        this.featureService = featureService;
     }
 
     @Override
@@ -174,15 +171,8 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 || invalidRepositories.isEmpty() == false) {
                 healthStatus = YELLOW;
             } else if (repositoriesHealthByNode.isEmpty()) {
-                clusterHasFeature = featureService.clusterHasFeature(
-                    clusterState,
-                    HealthFeatures.SUPPORTS_EXTENDED_REPOSITORY_INDICATOR
-                ) == false;
-                if (clusterHasFeature) {
-                    healthStatus = GREEN;
-                } else {
-                    healthStatus = UNKNOWN;
-                }
+                clusterHasFeature = false;
+                healthStatus = UNKNOWN;
             } else {
                 healthStatus = GREEN;
             }

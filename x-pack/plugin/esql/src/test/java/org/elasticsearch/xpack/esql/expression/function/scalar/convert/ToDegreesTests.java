@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class ToDegreesTests extends AbstractFunctionTestCase {
+public class ToDegreesTests extends AbstractScalarFunctionTestCase {
     public ToDegreesTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -67,8 +67,8 @@ public class ToDegreesTests extends AbstractFunctionTestCase {
             double deg = Math.toDegrees(d);
             ArrayList<String> warnings = new ArrayList<>(2);
             if (Double.isNaN(deg) || Double.isInfinite(deg)) {
-                warnings.add("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.");
-                warnings.add("Line -1:-1: java.lang.ArithmeticException: not a finite double number: " + deg);
+                warnings.add("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.");
+                warnings.add("Line 1:1: java.lang.ArithmeticException: not a finite double number: " + deg);
             }
             return warnings;
         });
@@ -84,12 +84,12 @@ public class ToDegreesTests extends AbstractFunctionTestCase {
             DataType.DOUBLE,
             d -> null,
             d -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: not a finite double number: " + ((double) d > 0 ? "Infinity" : "-Infinity")
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: not a finite double number: " + ((double) d > 0 ? "Infinity" : "-Infinity")
             )
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.migration;
@@ -12,8 +13,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
@@ -30,7 +31,8 @@ import static org.hamcrest.Matchers.hasSize;
 public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
 
     public static String TEST_SYSTEM_INDEX_PATTERN = ".test*";
-    private static final IndexVersion TEST_OLD_VERSION = IndexVersion.fromId(6000099);
+    // Version just before MINIMUM_COMPATIBLE in order to check that UpgradeStatus.MIGRATION_NEEDED is set correctly
+    private static final IndexVersion TEST_OLD_VERSION = IndexVersion.fromId(IndexVersions.MINIMUM_COMPATIBLE.id() - 1);
     private static final ClusterState CLUSTER_STATE = getClusterState();
     private static final SystemIndices.Feature FEATURE = getFeature();
 
@@ -84,7 +86,6 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
 
-        @UpdateForV9 // Once we start testing 9.x, we should update this test to use a 7.x "version created"
         IndexMetadata indexMetadata2 = IndexMetadata.builder(".test-index-2")
             .settings(Settings.builder().put("index.version.created", TEST_OLD_VERSION).build())
             .numberOfShards(1)

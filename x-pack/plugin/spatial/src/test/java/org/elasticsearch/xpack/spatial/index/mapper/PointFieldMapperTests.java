@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.XYDocValuesField;
-import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
@@ -55,7 +54,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     @Override
     protected void assertXYPointField(IndexableField field, float x, float y) {
         // Unfortunately XYPointField and parent classes like IndexableField do not define equals, so we use toString
-        assertThat(field.toString(), is(new XYPointField(FIELD_NAME, 2000.1f, 305.6f).toString()));
+        assertThat(field.toString(), is(new PointFieldMapper.XYFieldWithDocValues(FIELD_NAME, 2000.1f, 305.6f).toString()));
     }
 
     /** The GeoJSON parser used by 'point' and 'geo_point' mimic the required fields of the GeoJSON parser */
@@ -182,7 +181,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         SourceToParse sourceToParse = source(b -> b.startArray(FIELD_NAME).value(1.3).value(1.2).endArray());
         ParsedDocument doc = mapper.parse(sourceToParse);
         assertThat(doc.rootDoc().getField(FIELD_NAME), notNullValue());
-        assertThat(doc.rootDoc().getFields(FIELD_NAME), hasSize(3));
+        assertThat(doc.rootDoc().getFields(FIELD_NAME), hasSize(2));
     }
 
     public void testArrayArrayStored() throws Exception {
@@ -369,7 +368,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
             b.startObject("keyword").field("type", "keyword").endObject();
             b.endObject();
         }));
-        assertWarnings("Adding multifields to [point] mappers has no effect and will be forbidden in future");
+        assertWarnings("Adding multifields to [point] mappers has no effect");
     }
 
     @Override
@@ -489,7 +488,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
                     return new Value(nullValue, null);
                 }
 
-                if (ignoreMalformed) {
+                if (ignoreMalformed && randomBoolean()) {
                     // #exampleMalformedValues() covers a lot of cases
 
                     // nice complex object
@@ -557,6 +556,11 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
                 return List.of();
             }
         };
+    }
+
+    @Override
+    public void testSyntheticSourceKeepArrays() {
+        // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
     }
 
     @Override

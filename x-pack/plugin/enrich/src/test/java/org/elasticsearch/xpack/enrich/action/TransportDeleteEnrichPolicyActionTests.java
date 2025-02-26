@@ -136,13 +136,15 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             Settings settings = Settings.builder()
                 .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), destructiveRequiresName)
                 .build();
-            assertAcked(clusterAdmin().prepareUpdateSettings().setPersistentSettings(settings));
+            assertAcked(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings));
         }
 
         createIndex(EnrichPolicy.getIndexName(name, 1001));
         createIndex(EnrichPolicy.getIndexName(name, 1002));
 
-        indicesAdmin().prepareGetIndex().setIndices(EnrichPolicy.getIndexName(name, 1001), EnrichPolicy.getIndexName(name, 1002)).get();
+        indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .setIndices(EnrichPolicy.getIndexName(name, 1001), EnrichPolicy.getIndexName(name, 1002))
+            .get();
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<AcknowledgedResponse> reference = new AtomicReference<>();
@@ -169,12 +171,13 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
 
         expectThrows(
             IndexNotFoundException.class,
-            indicesAdmin().prepareGetIndex().setIndices(EnrichPolicy.getIndexName(name, 1001), EnrichPolicy.getIndexName(name, 1001))
+            indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+                .setIndices(EnrichPolicy.getIndexName(name, 1001), EnrichPolicy.getIndexName(name, 1001))
         );
 
         if (destructiveRequiresName) {
             Settings settings = Settings.builder().putNull(DestructiveOperations.REQUIRES_NAME_SETTING.getKey()).build();
-            assertAcked(clusterAdmin().prepareUpdateSettings().setPersistentSettings(settings));
+            assertAcked(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings));
         }
 
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
@@ -307,7 +310,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             assertNotNull(EnrichStore.getPolicy(otherName, clusterService.state()));
 
             // and the index associated with the other index should be unaffected
-            indicesAdmin().prepareGetIndex().setIndices(EnrichPolicy.getIndexName(otherName, 1001)).get();
+            indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(EnrichPolicy.getIndexName(otherName, 1001)).get();
         }
     }
 }

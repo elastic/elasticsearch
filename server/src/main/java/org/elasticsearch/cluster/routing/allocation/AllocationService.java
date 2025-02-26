@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -11,6 +12,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -18,6 +20,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -35,6 +38,9 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
@@ -154,9 +160,7 @@ public class AllocationService {
     }
 
     private static ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
-        final RoutingTable oldRoutingTable = oldState.routingTable();
-        final RoutingNodes newRoutingNodes = allocation.routingNodes();
-        final RoutingTable newRoutingTable = RoutingTable.of(oldRoutingTable.version(), newRoutingNodes);
+        final RoutingTable newRoutingTable = RoutingTable.of(allocation.routingNodes());
         final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetadata); // validates the routing table is coherent with the cluster state metadata
 
@@ -267,8 +271,7 @@ public class AllocationService {
     }
 
     /**
-     * unassigned an shards that are associated with nodes that are no longer part of the cluster, potentially promoting replicas
-     * if needed.
+     * Unassign any shards that are associated with nodes that are no longer part of the cluster, potentially promoting replicas if needed.
      */
     public ClusterState disassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason) {
         RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
@@ -280,7 +283,7 @@ public class AllocationService {
             clusterState = buildResultAndLogHealthChange(clusterState, allocation, reason);
         }
         if (reroute) {
-            return reroute(clusterState, reason, rerouteCompletionIsNotRequired());// this is not triggered by a user request
+            return reroute(clusterState, reason, rerouteCompletionIsNotRequired() /* this is not triggered by a user request */);
         } else {
             return clusterState;
         }
@@ -557,6 +560,88 @@ public class AllocationService {
                 getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, replicaIterator);
             }
         }
+    }
+
+    /**
+     * Creates a cluster state listener that resets allocation failures. For example, reset when a new node joins a cluster. Resetting
+     * counter on new node join covers a variety of use cases, such as rolling update, version change, node restarts.
+     */
+    public void addAllocFailuresResetListenerTo(ClusterService clusterService) {
+        // batched cluster update executor, runs reroute once per batch
+        // set retryFailed=true to trigger failures reset during reroute
+        var taskQueue = clusterService.createTaskQueue("reset-allocation-failures", Priority.NORMAL, (batchCtx) -> {
+            batchCtx.taskContexts().forEach((taskCtx) -> taskCtx.success(() -> {}));
+            return rerouteWithResetFailedCounter(batchCtx.initialState());
+        });
+
+        clusterService.addListener((changeEvent) -> {
+            if (shouldResetAllocationFailures(changeEvent)) {
+                taskQueue.submitTask("reset-allocation-failures", (e) -> { assert MasterService.isPublishFailureException(e); }, null);
+            }
+        });
+    }
+
+    /**
+     *  We should reset allocation/relocation failure count to allow further retries when:
+     *
+     *  1. A new node joins the cluster.
+     *  2. A node shutdown metadata is added that could lead to a node being removed or replaced in the cluster.
+     *
+     * Note that removing a non-RESTART shutdown metadata from a node that is still in the cluster is treated similarly and
+     * will cause resetting the allocation/relocation failures.
+     */
+    private boolean shouldResetAllocationFailures(ClusterChangedEvent changeEvent) {
+        final var clusterState = changeEvent.state();
+
+        if (clusterState.getRoutingNodes().hasAllocationFailures() == false
+            && clusterState.getRoutingNodes().hasRelocationFailures() == false) {
+            return false;
+        }
+        if (changeEvent.nodesAdded()) {
+            return true;
+        }
+
+        final var currentNodeShutdowns = clusterState.metadata().nodeShutdowns();
+        final var previousNodeShutdowns = changeEvent.previousState().metadata().nodeShutdowns();
+
+        if (currentNodeShutdowns.equals(previousNodeShutdowns)) {
+            return false;
+        }
+
+        for (var currentShutdown : currentNodeShutdowns.getAll().entrySet()) {
+            var previousNodeShutdown = previousNodeShutdowns.get(currentShutdown.getKey());
+            if (currentShutdown.equals(previousNodeShutdown)) {
+                continue;
+            }
+            // A RESTART doesn't necessarily move around shards, so no need to consider it for a reset.
+            // Furthermore, once the node rejoins after restarting, there will be a reset if necessary.
+            if (currentShutdown.getValue().getType() == SingleNodeShutdownMetadata.Type.RESTART) {
+                continue;
+            }
+            // A node with no shutdown marker or a RESTART marker receives a non-RESTART shutdown marker
+            if (previousNodeShutdown == null || previousNodeShutdown.getType() == Type.RESTART) {
+                return true;
+            }
+        }
+
+        for (var previousShutdown : previousNodeShutdowns.getAll().entrySet()) {
+            var nodeId = previousShutdown.getKey();
+            // A non-RESTART marker is removed but the node is still in the cluster. We could re-attempt failed relocations/allocations.
+            if (currentNodeShutdowns.get(nodeId) == null
+                && previousShutdown.getValue().getType() != SingleNodeShutdownMetadata.Type.RESTART
+                && clusterState.nodes().get(nodeId) != null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private ClusterState rerouteWithResetFailedCounter(ClusterState clusterState) {
+        RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
+        allocation.routingNodes().resetFailedCounter(allocation);
+        reroute(allocation, routingAllocation -> shardsAllocator.allocate(routingAllocation, ActionListener.noop()));
+        return buildResultAndLogHealthChange(clusterState, allocation, "reroute with reset failed counter");
     }
 
     private static void disassociateDeadNodes(RoutingAllocation allocation) {

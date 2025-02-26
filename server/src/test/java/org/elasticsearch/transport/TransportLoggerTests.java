@@ -1,16 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
-import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -33,7 +32,7 @@ public class TransportLoggerTests extends ESTestCase {
             + ", type: request"
             + ", version: .*"
             + ", header size: \\d+B"
-            + ", action: cluster:monitor/stats]"
+            + ", action: internal:test]"
             + " WRITE: \\d+B";
         final MockLog.LoggingExpectation writeExpectation = new MockLog.PatternSeenEventExpectation(
             "hot threads request",
@@ -47,11 +46,11 @@ public class TransportLoggerTests extends ESTestCase {
             + ", type: request"
             + ", version: .*"
             + ", header size: \\d+B"
-            + ", action: cluster:monitor/stats]"
+            + ", action: internal:test]"
             + " READ: \\d+B";
 
         final MockLog.LoggingExpectation readExpectation = new MockLog.PatternSeenEventExpectation(
-            "cluster monitor request",
+            "cluster state request",
             TransportLogger.class.getCanonicalName(),
             Level.TRACE,
             readPattern
@@ -73,9 +72,9 @@ public class TransportLoggerTests extends ESTestCase {
         try (RecyclerBytesStreamOutput bytesStreamOutput = new RecyclerBytesStreamOutput(recycler)) {
             OutboundMessage.Request request = new OutboundMessage.Request(
                 new ThreadContext(Settings.EMPTY),
-                new ClusterStatsRequest(),
+                new EmptyRequest(),
                 TransportVersion.current(),
-                TransportClusterStatsAction.TYPE.name(),
+                "internal:test",
                 randomInt(30),
                 false,
                 compress

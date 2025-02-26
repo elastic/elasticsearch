@@ -31,8 +31,8 @@ public class AzureOpenAiResponseHandler extends OpenAiResponseHandler {
     // The remaining number of tokens that are permitted before exhausting the rate limit.
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
 
-    public AzureOpenAiResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction);
+    public AzureOpenAiResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
+        super(requestType, parseFunction, canHandleStreamingResponses);
     }
 
     @Override
@@ -48,5 +48,4 @@ public class AzureOpenAiResponseHandler extends OpenAiResponseHandler {
 
         return RATE_LIMIT + ". " + usageMessage;
     }
-
 }

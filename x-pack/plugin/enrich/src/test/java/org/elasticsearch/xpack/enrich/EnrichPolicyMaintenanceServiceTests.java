@@ -137,7 +137,10 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
     }
 
     private void assertEnrichIndicesExist(Set<String> activeIndices) {
-        GetIndexResponse indices = client().admin().indices().getIndex(new GetIndexRequest().indices(".enrich-*")).actionGet();
+        GetIndexResponse indices = client().admin()
+            .indices()
+            .getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(".enrich-*"))
+            .actionGet();
         assertThat(indices.indices().length, is(equalTo(activeIndices.size())));
         for (String index : indices.indices()) {
             assertThat(activeIndices.contains(index), is(true));
@@ -203,7 +206,10 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
 
     private void promoteFakePolicyIndex(String indexName, String forPolicy) {
         String enrichIndexBase = EnrichPolicy.getBaseName(forPolicy);
-        GetAliasesResponse getAliasesResponse = client().admin().indices().getAliases(new GetAliasesRequest(enrichIndexBase)).actionGet();
+        GetAliasesResponse getAliasesResponse = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT, enrichIndexBase))
+            .actionGet();
         IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();
         String[] indices = getAliasesResponse.getAliases().keySet().toArray(new String[0]);
         if (indices.length > 0) {

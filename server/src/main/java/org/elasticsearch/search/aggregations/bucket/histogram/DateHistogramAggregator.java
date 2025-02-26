@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
@@ -16,6 +17,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Rounding.DateTimeUnit;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -336,9 +338,9 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds, (bucketValue, docCount, subAggregationResults) -> {
-            return new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults);
+            return new InternalDateHistogram.Bucket(bucketValue, docCount, formatter, subAggregationResults);
         }, (owningBucketOrd, buckets) -> {
             // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
             CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
@@ -464,7 +466,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                         new InternalDateHistogram.Bucket(
                             rangeBucket.getFrom().toInstant().toEpochMilli(),
                             rangeBucket.getDocCount(),
-                            keyed,
                             format,
                             rangeBucket.getAggregations()
                         )

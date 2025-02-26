@@ -1,0 +1,5 @@
+pr: 121552
+summary: Fix a bug in TOP
+area: ES|QL
+type: bug
+issues: []

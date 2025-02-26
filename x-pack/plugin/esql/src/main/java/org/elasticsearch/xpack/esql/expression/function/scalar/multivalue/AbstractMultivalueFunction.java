@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -16,6 +18,9 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+
+import java.io.IOException;
 
 /**
  * Base class for functions that reduce multivalued fields into single valued fields.
@@ -25,8 +30,19 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
  * </p>
  */
 public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
+
     protected AbstractMultivalueFunction(Source source, Expression field) {
         super(source, field);
+    }
+
+    protected AbstractMultivalueFunction(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(field);
     }
 
     /**
@@ -45,7 +61,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
     protected abstract TypeResolution resolveFieldType();
 
     @Override
-    public final ExpressionEvaluator.Factory toEvaluator(java.util.function.Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public final ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return evaluator(toEvaluator.apply(field()));
     }
 

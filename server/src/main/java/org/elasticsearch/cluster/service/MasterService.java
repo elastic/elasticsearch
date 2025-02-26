@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.service;
@@ -46,7 +47,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
@@ -108,6 +108,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     protected final ThreadPool threadPool;
     private final TaskManager taskManager;
+    private final ThreadContext.StoredContext clusterStateUpdateContext;
 
     private volatile ExecutorService threadPoolExecutor;
     private final AtomicInteger totalQueueSize = new AtomicInteger();
@@ -128,6 +129,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         this.threadPool = threadPool;
         this.taskManager = taskManager;
+        this.clusterStateUpdateContext = getClusterStateUpdateContext(threadPool.getThreadContext());
 
         final var queuesByPriorityBuilder = new EnumMap<Priority, PerPriorityQueue>(Priority.class);
         for (final var priority : Priority.values()) {
@@ -135,6 +137,15 @@ public class MasterService extends AbstractLifecycleComponent {
         }
         this.queuesByPriority = Collections.unmodifiableMap(queuesByPriorityBuilder);
         this.unbatchedExecutor = new UnbatchedExecutor();
+    }
+
+    private static ThreadContext.StoredContext getClusterStateUpdateContext(ThreadContext threadContext) {
+        try (var ignored = threadContext.newStoredContext()) {
+            // capture the context in which to run all cluster state updates here where we know it to be very clean
+            assert threadContext.isDefaultContext() : "must only create MasterService in a clean ThreadContext";
+            threadContext.markAsSystemContext();
+            return threadContext.newStoredContext();
+        }
     }
 
     private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -505,9 +516,6 @@ public class MasterService extends AbstractLifecycleComponent {
         if (previousClusterState != newClusterState) {
             // only the master controls the version numbers
             Builder builder = incrementVersion(newClusterState);
-            if (previousClusterState.routingTable() != newClusterState.routingTable()) {
-                builder.routingTable(newClusterState.routingTable().withIncrementedVersion());
-            }
             if (previousClusterState.metadata() != newClusterState.metadata()) {
                 builder.metadata(newClusterState.metadata().withIncrementedVersion());
             }
@@ -522,6 +530,20 @@ public class MasterService extends AbstractLifecycleComponent {
 
     public Builder incrementVersion(ClusterState clusterState) {
         return ClusterState.builder(clusterState).incrementVersion();
+    }
+
+    private static boolean versionNumbersPreserved(ClusterState oldState, ClusterState newState) {
+        if (oldState.nodes().getMasterNodeId() == null && newState.nodes().getMasterNodeId() != null) {
+            return true; // NodeJoinExecutor is special, we trust it to do the right thing with versions
+        }
+
+        if (oldState.version() != newState.version()) {
+            return false;
+        }
+        if (oldState.metadata().version() != newState.metadata().version()) {
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -644,7 +666,7 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
 
-        public void onAckFailure(@Nullable Exception e) {
+        public void onAckFailure(Exception e) {
             try (ThreadContext.StoredContext ignore = context.get()) {
                 restoreResponseHeaders.run();
                 listener.onAckFailure(e);
@@ -676,6 +698,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private static class TaskAckListener {
 
         private final ContextPreservingAckListener contextPreservingAckListener;
+        private final TimeValue ackTimeout;
         private final CountDown countDown;
         private final DiscoveryNode masterNode;
         private final ThreadPool threadPool;
@@ -690,6 +713,7 @@ public class MasterService extends AbstractLifecycleComponent {
             ThreadPool threadPool
         ) {
             this.contextPreservingAckListener = contextPreservingAckListener;
+            this.ackTimeout = Objects.requireNonNull(contextPreservingAckListener.ackTimeout());
             this.clusterStateVersion = clusterStateVersion;
             this.threadPool = threadPool;
             this.masterNode = nodes.getMasterNode();
@@ -704,14 +728,7 @@ public class MasterService extends AbstractLifecycleComponent {
             this.countDown = new CountDown(countDown + 1); // we also wait for onCommit to be called
         }
 
-        @UpdateForV9 // properly forbid ackTimeout == null after enough time has passed to be sure it's not used in production
         public void onCommit(TimeValue commitTime) {
-            TimeValue ackTimeout = contextPreservingAckListener.ackTimeout();
-            if (ackTimeout == null) {
-                assert false : "ackTimeout must always be present: " + contextPreservingAckListener;
-                ackTimeout = TimeValue.ZERO;
-            }
-
             if (ackTimeout.millis() < 0) {
                 if (countDown.countDown()) {
                     finish();
@@ -1035,6 +1052,8 @@ public class MasterService extends AbstractLifecycleComponent {
         return true;
     }
 
+    static final String TEST_ONLY_EXECUTOR_MAY_CHANGE_VERSION_NUMBER_TRANSIENT_NAME = "test_only_executor_may_change_version_number";
+
     private static <T extends ClusterStateTaskListener> ClusterState innerExecuteTasks(
         ClusterState previousClusterState,
         List<ExecutionResult<T>> executionResults,
@@ -1047,13 +1066,23 @@ public class MasterService extends AbstractLifecycleComponent {
             // to avoid leaking headers in production that were missed by tests
 
             try {
-                return executor.execute(
+                final var updatedState = executor.execute(
                     new ClusterStateTaskExecutor.BatchExecutionContext<>(
                         previousClusterState,
                         executionResults,
                         threadContext::newStoredContext
                     )
                 );
+                if (versionNumbersPreserved(previousClusterState, updatedState) == false) {
+                    // Shenanigans! Executors mustn't meddle with version numbers. Perhaps the executor based its update on the wrong
+                    // initial state, potentially losing an intervening cluster state update. That'd be very bad!
+                    final var exception = new IllegalStateException(
+                        "cluster state update executor did not preserve version numbers: [" + summary.toString() + "]"
+                    );
+                    assert threadContext.getTransient(TEST_ONLY_EXECUTOR_MAY_CHANGE_VERSION_NUMBER_TRANSIENT_NAME) != null : exception;
+                    throw exception;
+                }
+                return updatedState;
             } catch (Exception e) {
                 logger.trace(
                     () -> format(
@@ -1306,8 +1335,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
         assert totalQueueSize.get() > 0;
         final var threadContext = threadPool.getThreadContext();
-        try (var ignored = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
+        try (var ignored = threadContext.newStoredContext()) {
+            clusterStateUpdateContext.restore();
             threadPoolExecutor.execute(queuesProcessor);
         }
     }

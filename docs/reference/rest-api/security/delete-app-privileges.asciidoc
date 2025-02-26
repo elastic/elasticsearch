@@ -5,6 +5,12 @@
 <titleabbrev>Delete application privileges</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Removes <<application-privileges,application privileges>>.
 
 [[security-api-delete-privilege-request]]

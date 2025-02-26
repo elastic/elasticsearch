@@ -25,9 +25,9 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     private final int size;
     private final double samplingRate;
     private final long selfCPU;
-    @UpdateForV9 // remove this field - it is unused in Kibana
+    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // remove this field - it is unused in Kibana
     private final long totalCPU;
-    @UpdateForV9 // remove this field - it is unused in Kibana
+    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // remove this field - it is unused in Kibana
     private final long totalSamples;
     private final List<Map<String, Integer>> edges;
     private final List<String> fileIds;
@@ -173,20 +173,20 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         return totalSamples;
     }
 
-    @UpdateForV9 // change casing from Camel Case to Snake Case (requires updates in Kibana as well)
+    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // change casing from Camel Case to Snake Case (requires updates in Kibana as well)
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        /*
+         * The flamegraph response can be quite big. Some of these arrays need to be individual chunks, some can be a single chunk.
+         * They also need to be in-line so that neither the constants nor the fields get captured in a closure.
+         */
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             ChunkedToXContentHelper.array(
                 "Edges",
                 Iterators.flatMap(
                     edges.iterator(),
-                    perNodeEdges -> Iterators.concat(
-                        ChunkedToXContentHelper.startArray(),
-                        Iterators.map(perNodeEdges.entrySet().iterator(), edge -> (b, p) -> b.value(edge.getValue())),
-                        ChunkedToXContentHelper.endArray()
-                    )
+                    perNodeEdges -> ChunkedToXContentHelper.array(perNodeEdges.values().iterator(), edge -> (b, p) -> b.value(edge))
                 )
             ),
             ChunkedToXContentHelper.array("FileID", Iterators.map(fileIds.iterator(), e -> (b, p) -> b.value(e))),
@@ -195,7 +195,7 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
             ChunkedToXContentHelper.array("ExeFilename", Iterators.map(fileNames.iterator(), e -> (b, p) -> b.value(e))),
             ChunkedToXContentHelper.array("AddressOrLine", Iterators.map(addressOrLines.iterator(), e -> (b, p) -> b.value(e))),
             ChunkedToXContentHelper.array("FunctionName", Iterators.map(functionNames.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
+            ChunkedToXContentHelper.chunk((b, p) -> {
                 b.startArray("FunctionOffset");
                 for (int functionOffset : functionOffsets) {
                     b.value(functionOffset);
@@ -203,28 +203,28 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
                 return b.endArray();
             }),
             ChunkedToXContentHelper.array("SourceFilename", Iterators.map(sourceFileNames.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
+            ChunkedToXContentHelper.chunk((b, p) -> {
                 b.startArray("SourceLine");
                 for (int sourceLine : sourceLines) {
                     b.value(sourceLine);
                 }
                 return b.endArray();
             }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
+            ChunkedToXContentHelper.chunk((b, p) -> {
                 b.startArray("CountInclusive");
                 for (long countInclusive : countInclusive) {
                     b.value(countInclusive);
                 }
                 return b.endArray();
             }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
+            ChunkedToXContentHelper.chunk((b, p) -> {
                 b.startArray("CountExclusive");
                 for (long c : countExclusive) {
                     b.value(c);
                 }
                 return b.endArray();
             }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
+            ChunkedToXContentHelper.chunk((b, p) -> {
                 b.startArray("AnnualCO2TonsInclusive");
                 for (double co2Tons : annualCO2TonsInclusive) {
                     // write as raw value - we need direct control over the output representation (here: limit to 4 decimal places)
@@ -232,21 +232,21 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
                 }
                 return b.endArray();
             }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
+            ChunkedToXContentHelper.chunk((b, p) -> {
                 b.startArray("AnnualCO2TonsExclusive");
                 for (double co2Tons : annualCO2TonsExclusive) {
                     b.rawValue(NumberUtils.doubleToString(co2Tons));
                 }
                 return b.endArray();
             }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
+            ChunkedToXContentHelper.chunk((b, p) -> {
                 b.startArray("AnnualCostsUSDInclusive");
                 for (double costs : annualCostsUSDInclusive) {
                     b.rawValue(NumberUtils.doubleToString(costs));
                 }
                 return b.endArray();
             }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
+            ChunkedToXContentHelper.chunk((b, p) -> {
                 b.startArray("AnnualCostsUSDExclusive");
                 for (double costs : annualCostsUSDExclusive) {
                     b.rawValue(NumberUtils.doubleToString(costs));

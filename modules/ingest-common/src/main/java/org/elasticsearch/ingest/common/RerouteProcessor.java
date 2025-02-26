@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -25,6 +26,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.common.RerouteProcessor.DataStreamValueSource.DATASET_VALUE_SOURCE;
 import static org.elasticsearch.ingest.common.RerouteProcessor.DataStreamValueSource.NAMESPACE_VALUE_SOURCE;
+import static org.elasticsearch.ingest.common.RerouteProcessor.DataStreamValueSource.TYPE_VALUE_SOURCE;
 
 public final class RerouteProcessor extends AbstractProcessor {
 
@@ -38,6 +40,7 @@ public final class RerouteProcessor extends AbstractProcessor {
     private static final String DATA_STREAM_DATASET = DATA_STREAM_PREFIX + "dataset";
     private static final String DATA_STREAM_NAMESPACE = DATA_STREAM_PREFIX + "namespace";
     private static final String EVENT_DATASET = "event.dataset";
+    private final List<DataStreamValueSource> type;
     private final List<DataStreamValueSource> dataset;
     private final List<DataStreamValueSource> namespace;
     private final String destination;
@@ -45,11 +48,17 @@ public final class RerouteProcessor extends AbstractProcessor {
     RerouteProcessor(
         String tag,
         String description,
+        List<DataStreamValueSource> type,
         List<DataStreamValueSource> dataset,
         List<DataStreamValueSource> namespace,
         String destination
     ) {
         super(tag, description);
+        if (type.isEmpty()) {
+            this.type = List.of(TYPE_VALUE_SOURCE);
+        } else {
+            this.type = type;
+        }
         if (dataset.isEmpty()) {
             this.dataset = List.of(DATASET_VALUE_SOURCE);
         } else {
@@ -70,7 +79,7 @@ public final class RerouteProcessor extends AbstractProcessor {
             return ingestDocument;
         }
         final String indexName = ingestDocument.getFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), String.class);
-        final String type;
+        final String currentType;
         final String currentDataset;
         final String currentNamespace;
 
@@ -83,10 +92,11 @@ public final class RerouteProcessor extends AbstractProcessor {
         if (indexOfSecondDash < 0) {
             throw new IllegalArgumentException(format(NAMING_SCHEME_ERROR_MESSAGE, indexName));
         }
-        type = parseDataStreamType(indexName, indexOfFirstDash);
+        currentType = parseDataStreamType(indexName, indexOfFirstDash);
         currentDataset = parseDataStreamDataset(indexName, indexOfFirstDash, indexOfSecondDash);
         currentNamespace = parseDataStreamNamespace(indexName, indexOfSecondDash);
 
+        String type = determineDataStreamField(ingestDocument, this.type, currentType);
         String dataset = determineDataStreamField(ingestDocument, this.dataset, currentDataset);
         String namespace = determineDataStreamField(ingestDocument, this.namespace, currentNamespace);
         String newTarget = type + "-" + dataset + "-" + namespace;
@@ -167,6 +177,15 @@ public final class RerouteProcessor extends AbstractProcessor {
             String description,
             Map<String, Object> config
         ) throws Exception {
+            List<DataStreamValueSource> type;
+            try {
+                type = ConfigurationUtils.readOptionalListOrString(TYPE, tag, config, "type")
+                    .stream()
+                    .map(DataStreamValueSource::type)
+                    .toList();
+            } catch (IllegalArgumentException e) {
+                throw newConfigurationException(TYPE, tag, "type", e.getMessage());
+            }
             List<DataStreamValueSource> dataset;
             try {
                 dataset = ConfigurationUtils.readOptionalListOrString(TYPE, tag, config, "dataset")
@@ -187,11 +206,11 @@ public final class RerouteProcessor extends AbstractProcessor {
             }
 
             String destination = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "destination");
-            if (destination != null && (dataset.isEmpty() == false || namespace.isEmpty() == false)) {
-                throw newConfigurationException(TYPE, tag, "destination", "can only be set if dataset and namespace are not set");
+            if (destination != null && (type.isEmpty() == false || dataset.isEmpty() == false || namespace.isEmpty() == false)) {
+                throw newConfigurationException(TYPE, tag, "destination", "can only be set if type, dataset, and namespace are not set");
             }
 
-            return new RerouteProcessor(tag, description, dataset, namespace, destination);
+            return new RerouteProcessor(tag, description, type, dataset, namespace, destination);
         }
     }
 
@@ -202,14 +221,20 @@ public final class RerouteProcessor extends AbstractProcessor {
 
         private static final int MAX_LENGTH = 100;
         private static final String REPLACEMENT = "_";
+        private static final Pattern DISALLOWED_IN_TYPE = Pattern.compile("[\\\\/*?\"<>| ,#:-]");
         private static final Pattern DISALLOWED_IN_DATASET = Pattern.compile("[\\\\/*?\"<>| ,#:-]");
         private static final Pattern DISALLOWED_IN_NAMESPACE = Pattern.compile("[\\\\/*?\"<>| ,#:]");
+        static final DataStreamValueSource TYPE_VALUE_SOURCE = type("{{" + DATA_STREAM_TYPE + "}}");
         static final DataStreamValueSource DATASET_VALUE_SOURCE = dataset("{{" + DATA_STREAM_DATASET + "}}");
         static final DataStreamValueSource NAMESPACE_VALUE_SOURCE = namespace("{{" + DATA_STREAM_NAMESPACE + "}}");
 
         private final String value;
         private final String fieldReference;
         private final Function<String, String> sanitizer;
+
+        public static DataStreamValueSource type(String type) {
+            return new DataStreamValueSource(type, ds -> sanitizeDataStreamField(ds, DISALLOWED_IN_TYPE));
+        }
 
         public static DataStreamValueSource dataset(String dataset) {
             return new DataStreamValueSource(dataset, ds -> sanitizeDataStreamField(ds, DISALLOWED_IN_DATASET));

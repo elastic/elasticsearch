@@ -15,7 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.nio.charset.StandardCharsets;
@@ -30,18 +30,16 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for {@link Locate} function.
  */
-public class LocateTests extends AbstractFunctionTestCase {
+public class LocateTests extends AbstractScalarFunctionTestCase {
     public LocateTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
-    private static final DataType[] STRING_TYPES = new DataType[] { DataType.KEYWORD, DataType.TEXT };
-
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType strType : STRING_TYPES) {
-            for (DataType substrType : STRING_TYPES) {
+        for (DataType strType : DataType.stringTypes()) {
+            for (DataType substrType : DataType.stringTypes()) {
                 suppliers.add(
                     supplier(
                         "",
@@ -77,8 +75,6 @@ public class LocateTests extends AbstractFunctionTestCase {
                 );
             }
         }
-
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers));
 
         // Here follows some non-randomized examples that we want to cover on every run
         suppliers.add(supplier("a tiger", "a t", null, 1));
@@ -130,7 +126,7 @@ public class LocateTests extends AbstractFunctionTestCase {
         suppliers.add(supplier("🐱Meow!🐶Woof!", "Meow!🐶Woof!", 0, 2));
         suppliers.add(supplier("🐱Meow!🐶Woof!", "eow!🐶Woof!", 0, 3));
 
-        return parameterSuppliersFromTypedData(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

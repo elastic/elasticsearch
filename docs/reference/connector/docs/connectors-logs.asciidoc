@@ -1,0 +1,63 @@
+[#es-connectors-logs]
+=== Connector logs
+++++
+<titleabbrev>Logs</titleabbrev>
+++++
+
+This document describes logs for <<es-native-connectors,managed connectors>> and <<es-build-connector,self-managed connectors>>.
+
+[discrete#es-connectors-logs-enable]
+==== Enable logs
+
+[discrete#es-connectors-logs-enable-cloud]
+===== Elastic Cloud
+
+Elastic Cloud users need to {cloud}/ec-enable-logging-and-monitoring.html#ec-enable-logging-and-monitoring-steps[enable logging^] to view connector logs.
+Go to *Cloud > Deployment > _your-deployment_ > Logs and metrics* to enable logs.
+
+Once enabled, <<es-connectors-logs-view, you can view logs in Kibana>>.
+
+Configure the `log_level` user setting for Enterprise Search. See {cloud}/ec-manage-enterprise-search-settings.html[Add Enterprise Search user settings^] in the Elastic Cloud documentation.
+
+[discrete#es-connectors-logs-enable-self-managed]
+===== self-managed connectors
+
+Note that self-managed deployments and self-managed connector logs are written to `STDOUT`.
+
+Self-managed connectors have the following logging options:
+
+* Use the `service.log_level` setting in your connector service configuration file to specify the log level for the service.
+** Enable `elasticsearch.bulk.enable_operations_logging` to log the result of sending documents to Elasticsearch from connectors, for auditing and debugging. This setting depends on the `service.log_level` and will be logged at `DEBUG` level .
+* Use the `elasticsearch.log_level` setting to specify the log level for the Elasticsearch _client_ used by the connector service.
+
+[discrete#es-connectors-logs-view]
+==== View connector logs
+
+You can view logs in Kibana.
+
+You can filter by `service.type`:
+
+- `enterprise-search`
+- `connectors`
+
+[discrete#es-connectors-logs-reference]
+==== Logs reference
+
+Logs use Elastic Common Schema (ECS), without extensions.
+See {ecs-ref}[the ECS Reference^] for more information.
+
+The fields logged are:
+
+* `@timestamp`
+* `log.level`
+* `ecs.version`
+* `labels.index_date`
+* `tags`
+* `log.logger`
+* `service.type`
+* `service.version`
+* `process.name`
+* `process.pid`
+* `process.thread.id`
+
+See {ref}/logging.html[Logging^] in the Elasticsearch documentation for more information.

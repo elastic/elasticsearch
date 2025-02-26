@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -17,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +33,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
  * to <a href="https://en.wikipedia.org/wiki/Radian">radians</a>.
  */
 public class ToRadians extends AbstractConvertFunction implements EvaluatorMapper {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "ToRadians",
+        ToRadians::new
+    );
+
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DOUBLE, ToRadiansEvaluator.Factory::new),
         Map.entry(INTEGER, (field, source) -> new ToRadiansEvaluator.Factory(new ToDoubleFromIntEvaluator.Factory(field, source), source)),
@@ -54,6 +63,15 @@ public class ToRadians extends AbstractConvertFunction implements EvaluatorMappe
         ) Expression field
     ) {
         super(source, field);
+    }
+
+    private ToRadians(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

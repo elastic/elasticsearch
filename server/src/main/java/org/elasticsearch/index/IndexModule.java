@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -17,7 +18,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
@@ -58,6 +58,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -103,18 +104,14 @@ public final class IndexModule {
 
     private static final IndexStorePlugin.RecoveryStateFactory DEFAULT_RECOVERY_STATE_FACTORY = RecoveryState::new;
 
-    public static final Setting<String> INDEX_STORE_TYPE_SETTING = new Setting<>(
+    public static final Setting<String> INDEX_STORE_TYPE_SETTING = Setting.simpleString(
         "index.store.type",
-        "",
-        Function.identity(),
         Property.IndexScope,
         Property.NodeScope
     );
 
-    public static final Setting<String> INDEX_RECOVERY_TYPE_SETTING = new Setting<>(
+    public static final Setting<String> INDEX_RECOVERY_TYPE_SETTING = Setting.simpleString(
         "index.recovery.type",
-        "",
-        Function.identity(),
         Property.IndexScope,
         Property.NodeScope
     );
@@ -171,7 +168,7 @@ public final class IndexModule {
     private final Map<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>> similarities = new HashMap<>();
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     private final SetOnce<BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> forceQueryCacheProvider = new SetOnce<>();
-    private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
+    private final List<SearchOperationListener> searchOperationListeners;
     private final List<IndexingOperationListener> indexOperationListeners = new ArrayList<>();
     private final IndexNameExpressionResolver expressionResolver;
     private final AtomicBoolean frozen = new AtomicBoolean(false);
@@ -198,13 +195,17 @@ public final class IndexModule {
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         final SlowLogFieldProvider slowLogFieldProvider,
-        final MapperMetrics mapperMetrics
+        final MapperMetrics mapperMetrics,
+        final List<SearchOperationListener> searchOperationListeners
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
-        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, slowLogFieldProvider));
-        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, slowLogFieldProvider));
+        // Need to have a mutable arraylist for plugins to add listeners to it
+        this.searchOperationListeners = new ArrayList<>(searchOperationListeners);
+        SlowLogFields slowLogFields = slowLogFieldProvider.create(indexSettings);
+        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, slowLogFields));
+        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, slowLogFields));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
@@ -454,7 +455,7 @@ public final class IndexModule {
     }
 
     public static Type defaultStoreType(final boolean allowMmap) {
-        if (allowMmap && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
+        if (allowMmap && Constants.JRE_IS_64BIT) {
             return Type.HYBRIDFS;
         } else {
             return Type.NIOFS;
@@ -479,7 +480,8 @@ public final class IndexModule {
         IdFieldMapper idFieldMapper,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
-        Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers
+        Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers,
+        QueryRewriteInterceptor queryRewriteInterceptor
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -541,7 +543,8 @@ public final class IndexModule {
                 indexFoldersDeletionListener,
                 snapshotCommitSupplier,
                 indexCommitListener.get(),
-                mapperMetrics
+                mapperMetrics,
+                queryRewriteInterceptor
             );
             success = true;
             return indexService;

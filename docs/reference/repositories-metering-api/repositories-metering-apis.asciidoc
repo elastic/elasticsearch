@@ -4,6 +4,12 @@
 
 experimental[]
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
+
 You can use the following APIs to retrieve repositories metering information.
 
 This is an API used by Elastic's commercial offerings.

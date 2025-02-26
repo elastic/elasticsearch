@@ -149,3 +149,127 @@
       indices.exists_alias:
         name: logs_2022-12-31
   - is_true: ''
+
+---
+"Create lookup index":
+  - requires:
+      test_runner_features: [ capabilities, default_shards ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ lookup_index_mode ]
+      reason: "Support for 'lookup' index mode capability required"
+  - do:
+      indices.create:
+        index: "test_lookup"
+        body:
+          settings:
+            index.mode: lookup
+
+  - do:
+      indices.get_settings:
+        index: test_lookup
+
+  - match: { test_lookup.settings.index.number_of_shards: "1"}
+
+---
+"Create lookup index with one shard":
+  - requires:
+      test_runner_features: [ capabilities, default_shards ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ lookup_index_mode ]
+      reason: "Support for 'lookup' index mode capability required"
+  - do:
+      indices.create:
+        index: "test_lookup"
+        body:
+          settings:
+            index:
+              mode: lookup
+              number_of_shards: 1
+
+  - do:
+      indices.get_settings:
+        index: test_lookup
+
+  - match: { test_lookup.settings.index.number_of_shards: "1"}
+
+---
+"Create lookup index with two shards":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ lookup_index_mode ]
+      reason: "Support for 'lookup' index mode capability required"
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test_lookup
+        body:
+          settings:
+            index.mode: lookup
+            index.number_of_shards: 2
+
+---
+"Create index with invalid field type":
+  - requires:
+      cluster_features: [ "mapper.unknown_field_mapping_update_error_message" ]
+      reason: "Update error message for unknown field type"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              content:
+                type: invalid
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: The mapper type [invalid] declared on field [content] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }
+
+---
+"Create index with invalid runtime field type":
+  - requires:
+      cluster_features: [ "mapper.unknown_field_mapping_update_error_message" ]
+      reason: "Update error message for unknown field type"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            runtime:
+              content:
+                type: invalid
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: The mapper type [invalid] declared on runtime field [content] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }
+
+---
+"Create index with invalid multi-field type":
+  - requires:
+      cluster_features: [ "mapper.unknown_field_mapping_update_error_message" ]
+      reason: "Update error message for unknown field type"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              city:
+                type: text
+                fields:
+                  raw:
+                    type: invalid
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: The mapper type [invalid] declared on field [raw] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }

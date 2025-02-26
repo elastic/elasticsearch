@@ -20,22 +20,36 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverProfile> {
     public void testToXContent() {
         DriverProfile status = new DriverProfile(
+            "test",
+            123413220000L,
+            123413243214L,
             10012,
             10000,
             12,
             List.of(
-                new DriverStatus.OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
-                new DriverStatus.OperatorStatus("ValuesSourceReader", ValuesSourceReaderOperatorStatusTests.simple())
+                new OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
+                new OperatorStatus("ValuesSourceReader", ValuesSourceReaderOperatorStatusTests.simple())
+            ),
+            new DriverSleeps(
+                Map.of("driver time", 1L),
+                List.of(new DriverSleeps.Sleep("driver time", 1, 1)),
+                List.of(new DriverSleeps.Sleep("driver time", 1, 1))
             )
         );
         assertThat(Strings.toString(status, true, true), equalTo("""
             {
+              "task_description" : "test",
+              "start" : "1973-11-29T09:27:00.000Z",
+              "start_millis" : 123413220000,
+              "stop" : "1973-11-29T09:27:23.214Z",
+              "stop_millis" : 123413243214,
               "took_nanos" : 10012,
               "took_time" : "10micros",
               "cpu_nanos" : 10000,
@@ -54,39 +68,74 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
             """.stripTrailing() + " " + ValuesSourceReaderOperatorStatusTests.simpleToJson().replace("\n", "\n      ") + """
 
                 }
-              ]
+              ],
+              "sleeps" : {
+                "counts" : {
+                  "driver time" : 1
+                },
+                "first" : [
+                  {
+                    "reason" : "driver time",
+                    "sleep" : "1970-01-01T00:00:00.001Z",
+                    "sleep_millis" : 1,
+                    "wake" : "1970-01-01T00:00:00.001Z",
+                    "wake_millis" : 1
+                  }
+                ],
+                "last" : [
+                  {
+                    "reason" : "driver time",
+                    "sleep" : "1970-01-01T00:00:00.001Z",
+                    "sleep_millis" : 1,
+                    "wake" : "1970-01-01T00:00:00.001Z",
+                    "wake_millis" : 1
+                  }
+                ]
+              }
             }"""));
     }
 
     @Override
     protected Writeable.Reader<DriverProfile> instanceReader() {
-        return DriverProfile::new;
+        return DriverProfile::readFrom;
     }
 
     @Override
     protected DriverProfile createTestInstance() {
         return new DriverProfile(
+            DriverStatusTests.randomTaskDescription(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            DriverStatusTests.randomOperatorStatuses()
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            DriverStatusTests.randomOperatorStatuses(),
+            DriverSleepsTests.randomDriverSleeps()
         );
     }
 
     @Override
     protected DriverProfile mutateInstance(DriverProfile instance) throws IOException {
+        String taskDescription = instance.taskDescription();
+        long startMillis = instance.startMillis();
+        long stopMillis = instance.stopMillis();
         long tookNanos = instance.tookNanos();
         long cpuNanos = instance.cpuNanos();
         long iterations = instance.iterations();
         var operators = instance.operators();
-        switch (between(0, 3)) {
-            case 0 -> tookNanos = randomValueOtherThan(tookNanos, ESTestCase::randomNonNegativeLong);
-            case 1 -> cpuNanos = randomValueOtherThan(cpuNanos, ESTestCase::randomNonNegativeLong);
-            case 2 -> iterations = randomValueOtherThan(iterations, ESTestCase::randomNonNegativeLong);
-            case 3 -> operators = randomValueOtherThan(operators, DriverStatusTests::randomOperatorStatuses);
+        var sleeps = instance.sleeps();
+        switch (between(0, 7)) {
+            case 0 -> taskDescription = randomValueOtherThan(taskDescription, DriverStatusTests::randomTaskDescription);
+            case 1 -> startMillis = randomValueOtherThan(startMillis, ESTestCase::randomNonNegativeLong);
+            case 2 -> stopMillis = randomValueOtherThan(startMillis, ESTestCase::randomNonNegativeLong);
+            case 3 -> tookNanos = randomValueOtherThan(tookNanos, ESTestCase::randomNonNegativeLong);
+            case 4 -> cpuNanos = randomValueOtherThan(cpuNanos, ESTestCase::randomNonNegativeLong);
+            case 5 -> iterations = randomValueOtherThan(iterations, ESTestCase::randomNonNegativeLong);
+            case 6 -> operators = randomValueOtherThan(operators, DriverStatusTests::randomOperatorStatuses);
+            case 7 -> sleeps = randomValueOtherThan(sleeps, DriverSleepsTests::randomDriverSleeps);
             default -> throw new UnsupportedOperationException();
         }
-        return new DriverProfile(tookNanos, cpuNanos, iterations, operators);
+        return new DriverProfile(taskDescription, startMillis, stopMillis, tookNanos, cpuNanos, iterations, operators, sleeps);
     }
 
     @Override

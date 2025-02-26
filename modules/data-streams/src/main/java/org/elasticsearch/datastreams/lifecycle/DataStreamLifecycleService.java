@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.lifecycle;
@@ -32,7 +33,7 @@ import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -44,10 +45,13 @@ import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -95,8 +99,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.STARTED;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.SUCCESS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.UNKNOWN;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DOWNSAMPLE_STATUS;
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
 
@@ -164,7 +166,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     final ResultDeduplicator<TransportRequest, Void> transportActionsDeduplicator;
     final ResultDeduplicator<String, Void> clusterStateChangesDeduplicator;
     private final DataStreamLifecycleHealthInfoPublisher dslHealthInfoPublisher;
-    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
+    private final DataStreamGlobalRetentionSettings globalRetentionSettings;
     private LongSupplier nowSupplier;
     private final Clock clock;
     private final DataStreamLifecycleErrorStore errorStore;
@@ -213,7 +215,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DataStreamLifecycleErrorStore errorStore,
         AllocationService allocationService,
         DataStreamLifecycleHealthInfoPublisher dataStreamLifecycleHealthInfoPublisher,
-        DataStreamGlobalRetentionResolver globalRetentionResolver
+        DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
         this.settings = settings;
         this.client = client;
@@ -224,7 +226,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         this.clusterStateChangesDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
         this.nowSupplier = nowSupplier;
         this.errorStore = errorStore;
-        this.globalRetentionResolver = globalRetentionResolver;
+        this.globalRetentionSettings = globalRetentionSettings;
         this.scheduledJob = null;
         this.pollInterval = DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         this.targetMergePolicyFloorSegment = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(settings);
@@ -298,13 +300,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
-        if (event.getJobName().equals(LIFECYCLE_JOB_NAME)) {
+        if (event.jobName().equals(LIFECYCLE_JOB_NAME)) {
             if (this.isMaster) {
                 logger.trace(
                     "Data stream lifecycle job triggered: {}, {}, {}",
-                    event.getJobName(),
-                    event.getScheduledTime(),
-                    event.getTriggeredTime()
+                    event.jobName(),
+                    event.scheduledTime(),
+                    event.triggeredTime()
                 );
                 run(clusterService.state());
                 dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
@@ -563,7 +565,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Issues a request downsample the source index to the downsample index for the specified round.
      */
     private void downsampleIndexOnce(DataStreamLifecycle.Downsampling.Round round, String sourceIndex, String downsampleIndexName) {
-        DownsampleAction.Request request = new DownsampleAction.Request(sourceIndex, downsampleIndexName, null, round.config());
+        DownsampleAction.Request request = new DownsampleAction.Request(
+            TimeValue.THIRTY_SECONDS /* TODO should this be longer/configurable? */,
+            sourceIndex,
+            downsampleIndexName,
+            null,
+            round.config()
+        );
         transportActionsDeduplicator.executeOnce(
             request,
             new ErrorRecordingActionListener(
@@ -754,10 +762,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 targetIndices.add(index);
             }
         }
-        if (withFailureStore
-            && DataStream.isFailureStoreFeatureFlagEnabled()
-            && dataStream.getFailureIndices().getIndices().isEmpty() == false) {
-            for (Index index : dataStream.getFailureIndices().getIndices()) {
+        if (withFailureStore && DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
+            for (Index index : dataStream.getFailureIndices()) {
                 if (dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier)
                     && indicesToExcludeForRemainingRun.contains(index) == false) {
                     targetIndices.add(index);
@@ -812,7 +818,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     @Nullable
     private Index maybeExecuteRollover(ClusterState state, DataStream dataStream, boolean rolloverFailureStore) {
-        Index currentRunWriteIndex = rolloverFailureStore ? dataStream.getFailureStoreWriteIndex() : dataStream.getWriteIndex();
+        Index currentRunWriteIndex = rolloverFailureStore ? dataStream.getWriteFailureIndex() : dataStream.getWriteIndex();
         if (currentRunWriteIndex == null) {
             return null;
         }
@@ -821,8 +827,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                     rolloverConfiguration,
                     dataStream.getName(),
-                    dataStream.getLifecycle()
-                        .getEffectiveDataRetention(dataStream.isSystem() ? null : globalRetentionResolver.resolve(state)),
+                    dataStream.getLifecycle().getEffectiveDataRetention(globalRetentionSettings.get(), dataStream.isInternal()),
                     rolloverFailureStore
                 );
                 transportActionsDeduplicator.executeOnce(
@@ -874,7 +879,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     Set<Index> maybeExecuteRetention(ClusterState state, DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun) {
         Metadata metadata = state.metadata();
-        DataStreamGlobalRetention globalRetention = dataStream.isSystem() ? null : globalRetentionResolver.resolve(state);
+        DataStreamGlobalRetention globalRetention = dataStream.isSystem() ? null : globalRetentionSettings.get();
         List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(metadata::index, nowSupplier, globalRetention);
         if (backingIndicesOlderThanRetention.isEmpty()) {
             return Set.of();
@@ -882,7 +887,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Set<Index> indicesToBeRemoved = new HashSet<>();
         // We know that there is lifecycle and retention because there are indices to be deleted
         assert dataStream.getLifecycle() != null;
-        TimeValue effectiveDataRetention = dataStream.getLifecycle().getEffectiveDataRetention(globalRetention);
+        TimeValue effectiveDataRetention = dataStream.getLifecycle().getEffectiveDataRetention(globalRetention, dataStream.isInternal());
         for (Index index : backingIndicesOlderThanRetention) {
             if (indicesToExcludeForRemainingRun.contains(index) == false) {
                 IndexMetadata backingIndex = metadata.index(index);
@@ -940,11 +945,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             if ((configuredFloorSegmentMerge == null || configuredFloorSegmentMerge.equals(targetMergePolicyFloorSegment) == false)
                 || (configuredMergeFactor == null || configuredMergeFactor.equals(targetMergePolicyFactor) == false)) {
                 UpdateSettingsRequest updateMergePolicySettingsRequest = new UpdateSettingsRequest();
-                updateMergePolicySettingsRequest.indicesOptions(
-                    IndicesOptions.builder(updateMergePolicySettingsRequest.indicesOptions())
-                        .failureStoreOptions(new IndicesOptions.FailureStoreOptions(true, true))
-                        .build()
-                );
                 updateMergePolicySettingsRequest.indices(indexName);
                 updateMergePolicySettingsRequest.settings(
                     Settings.builder()
@@ -994,8 +994,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     private void rolloverDataStream(String writeIndexName, RolloverRequest rolloverRequest, ActionListener<Void> listener) {
         // "saving" the rollover target name here so we don't capture the entire request
-        String rolloverTarget = rolloverRequest.getRolloverTarget();
-        logger.trace("Data stream lifecycle issues rollover request for data stream [{}]", rolloverTarget);
+        ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(
+            rolloverRequest.getRolloverTarget(),
+            rolloverRequest.indicesOptions()
+        );
+        logger.trace("Data stream lifecycle issues rollover request for data stream [{}]", rolloverRequest.getRolloverTarget());
         client.admin().indices().rolloverIndex(rolloverRequest, new ActionListener<>() {
             @Override
             public void onResponse(RolloverResponse rolloverResponse) {
@@ -1010,7 +1013,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     logger.info(
                         "Data stream lifecycle successfully rolled over datastream [{}] due to the following met rollover "
                             + "conditions {}. The new index is [{}]",
-                        rolloverTarget,
+                        rolloverRequest.getRolloverTarget(),
                         metConditions,
                         rolloverResponse.getNewIndex()
                     );
@@ -1020,7 +1023,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             @Override
             public void onFailure(Exception e) {
-                DataStream dataStream = clusterService.state().metadata().dataStreams().get(rolloverTarget);
+                DataStream dataStream = clusterService.state().metadata().dataStreams().get(resolvedRolloverTarget.resource());
                 if (dataStream == null || dataStream.getWriteIndex().getName().equals(writeIndexName) == false) {
                     // the data stream has another write index so no point in recording an error for the previous write index we were
                     // attempting to roll over
@@ -1403,11 +1406,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     ) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
         if (rolloverFailureStore) {
-            rolloverRequest.setIndicesOptions(
-                IndicesOptions.builder(rolloverRequest.indicesOptions())
-                    .failureStoreOptions(opts -> opts.includeFailureIndices(true).includeRegularIndices(false))
-                    .build()
-            );
+            rolloverRequest.setRolloverTarget(IndexNameExpressionResolver.combineSelector(dataStream, IndexComponentSelector.FAILURES));
         }
         rolloverRequest.setConditions(rolloverConfiguration.resolveRolloverConditions(dataRetention));
         return rolloverRequest;

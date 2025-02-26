@@ -1,24 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.rank;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -26,6 +33,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 /**
  * {@code RankBuilder} is used as a base class to manage input, parsing, and subsequent generation of appropriate contexts
@@ -105,7 +113,17 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
      * on the coordinator based on all the individual shard results. The output of this will be a `size` ranked list of ordered results,
      * which will then be passed to fetch phase.
      */
-    public abstract RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from);
+    public abstract RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client);
+
+    /**
+     * Transforms the specific rank builder (as parsed through SearchSourceBuilder) to the corresponding retriever.
+     * This is used to ensure smooth deprecation of `rank` and `sub_searches` and move towards the retriever framework
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE) // remove for 10.0 once we remove support for the rank parameter in SearchAPI
+    @Nullable
+    public RetrieverBuilder toRetriever(SearchSourceBuilder searchSourceBuilder, Predicate<NodeFeature> clusterSupportsFeature) {
+        return null;
+    }
 
     @Override
     public final boolean equals(Object obj) {
@@ -115,9 +133,8 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        @SuppressWarnings("unchecked")
         RankBuilder other = (RankBuilder) obj;
-        return Objects.equals(rankWindowSize, other.rankWindowSize()) && doEquals(other);
+        return rankWindowSize == other.rankWindowSize && doEquals(other);
     }
 
     protected abstract boolean doEquals(RankBuilder other);

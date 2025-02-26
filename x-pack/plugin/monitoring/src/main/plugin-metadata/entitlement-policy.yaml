@@ -1,0 +1,2 @@
+ALL-UNNAMED:
+  - set_https_connection_properties # potentially required by apache.httpcomponents

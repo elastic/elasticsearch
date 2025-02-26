@@ -15,12 +15,14 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
@@ -31,6 +33,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -419,7 +422,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 responseAsParser(performRequestWithRemoteMetricUser(metricSearchRequest))
             );
             try {
-                assertThat(metricSearchResponse.getHits().getTotalHits().value, equalTo(4L));
+                assertThat(metricSearchResponse.getHits().getTotalHits().value(), equalTo(4L));
                 assertThat(
                     Arrays.stream(metricSearchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toSet()),
                     containsInAnyOrder("shared-metrics")
@@ -607,6 +610,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 assertThat(exception6.getMessage(), containsString("invalid cross-cluster API key value"));
             }
         }
+        assertNoRcs1DeprecationWarnings();
     }
 
     @SuppressWarnings("unchecked")
@@ -678,6 +682,25 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                         taskConsumer.accept(task);
                     }
                 }
+            }
+        }
+    }
+
+    private void assertNoRcs1DeprecationWarnings() throws IOException {
+        for (int i = 0; i < queryCluster.getNumNodes(); i++) {
+            try (InputStream log = queryCluster.getNodeLog(i, LogType.DEPRECATION)) {
+                Streams.readAllLines(
+                    log,
+                    line -> assertThat(
+                        line,
+                        not(
+                            containsString(
+                                "The certificate-based security model is deprecated and will be removed in a future major version. "
+                                    + "Migrate the remote cluster from the certificate-based to the API key-based security model."
+                            )
+                        )
+                    )
+                );
             }
         }
     }

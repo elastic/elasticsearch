@@ -18,6 +18,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
@@ -409,7 +410,7 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                     RequestInfo requestInfo,
                     AuthorizationInfo authorizationInfo,
                     AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                    Map<String, IndexAbstraction> aliasOrIndexLookup,
+                    Metadata metadata,
                     ActionListener<IndexAuthorizationResult> listener
                 ) {
                     listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);

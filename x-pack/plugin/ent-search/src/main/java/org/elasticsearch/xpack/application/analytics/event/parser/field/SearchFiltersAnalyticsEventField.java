@@ -18,8 +18,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 public class SearchFiltersAnalyticsEventField {
-    public static ParseField SEARCH_FILTERS_FIELD = new ParseField("filters");
+    public static final ParseField SEARCH_FILTERS_FIELD = new ParseField("filters");
 
     private static final ObjectParser<Map<String, List<String>>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
         SEARCH_FILTERS_FIELD.getPreferredName(),

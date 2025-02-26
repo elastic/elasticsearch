@@ -9,7 +9,7 @@ boolean | double
 counter_double | double
 counter_integer | double
 counter_long | double
-datetime | double
+date | double
 double | double
 integer | double
 keyword | double

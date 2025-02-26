@@ -1,5 +1,0 @@
-pr: 108444
-summary: "Apm-data: ignore malformed fields, and too many dynamic fields"
-area: Data streams
-type: enhancement
-issues: []

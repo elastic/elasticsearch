@@ -17,8 +17,9 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.XContentUtils;
@@ -43,7 +44,9 @@ public class CohereEmbeddingsResponseEntity {
         toLowerCase(CohereEmbeddingType.FLOAT),
         CohereEmbeddingsResponseEntity::parseFloatEmbeddingsArray,
         toLowerCase(CohereEmbeddingType.INT8),
-        CohereEmbeddingsResponseEntity::parseByteEmbeddingsArray
+        CohereEmbeddingsResponseEntity::parseByteEmbeddingsArray,
+        toLowerCase(CohereEmbeddingType.BINARY),
+        CohereEmbeddingsResponseEntity::parseBitEmbeddingsArray
     );
     private static final String VALID_EMBEDDING_TYPES_STRING = supportedEmbeddingTypes();
 
@@ -184,6 +187,13 @@ public class CohereEmbeddingsResponseEntity {
         );
     }
 
+    private static InferenceServiceResults parseBitEmbeddingsArray(XContentParser parser) throws IOException {
+        // Cohere returns array of binary embeddings encoded as bytes with int8 precision so we can reuse the byte parser
+        var embeddingList = parseList(parser, CohereEmbeddingsResponseEntity::parseByteArrayEntry);
+
+        return new TextEmbeddingBitResults(embeddingList);
+    }
+
     private static InferenceServiceResults parseByteEmbeddingsArray(XContentParser parser) throws IOException {
         var embeddingList = parseList(parser, CohereEmbeddingsResponseEntity::parseByteArrayEntry);
 
@@ -215,13 +225,13 @@ public class CohereEmbeddingsResponseEntity {
     private static InferenceServiceResults parseFloatEmbeddingsArray(XContentParser parser) throws IOException {
         var embeddingList = parseList(parser, CohereEmbeddingsResponseEntity::parseFloatArrayEntry);
 
-        return new TextEmbeddingResults(embeddingList);
+        return new TextEmbeddingFloatResults(embeddingList);
     }
 
-    private static TextEmbeddingResults.Embedding parseFloatArrayEntry(XContentParser parser) throws IOException {
+    private static TextEmbeddingFloatResults.Embedding parseFloatArrayEntry(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
         List<Float> embeddingValuesList = parseList(parser, XContentUtils::parseFloat);
-        return TextEmbeddingResults.Embedding.of(embeddingValuesList);
+        return TextEmbeddingFloatResults.Embedding.of(embeddingValuesList);
     }
 
     private CohereEmbeddingsResponseEntity() {}

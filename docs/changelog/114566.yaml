@@ -1,0 +1,5 @@
+pr: 114566
+summary: Use Azure blob batch API to delete blobs in batches
+area: Distributed
+type: enhancement
+issues: []

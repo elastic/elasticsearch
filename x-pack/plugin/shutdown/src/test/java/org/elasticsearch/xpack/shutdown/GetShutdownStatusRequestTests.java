@@ -19,7 +19,7 @@ public class GetShutdownStatusRequestTests extends AbstractWireSerializingTestCa
 
     @Override
     protected Writeable.Reader<GetShutdownStatusAction.Request> instanceReader() {
-        return GetShutdownStatusAction.Request::readFrom;
+        return GetShutdownStatusAction.Request::new;
     }
 
     @Override

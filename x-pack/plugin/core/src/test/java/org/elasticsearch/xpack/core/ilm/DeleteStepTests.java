@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -87,7 +86,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
             .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
+        performActionAndWait(step, indexMetadata, clusterState, null);
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -113,13 +112,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
             .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
-        assertSame(
-            exception,
-            expectThrows(
-                Exception.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))
-            )
-        );
+        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, clusterState, null)));
     }
 
     public void testPerformActionCallsFailureListenerIfIndexIsTheDataStreamWriteIndex() {
@@ -255,7 +248,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
         // Try on the normal data stream - It should delete the data stream
         DeleteStep step = createRandomInstance();
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(index1, clusterState, null, f));
+        performActionAndWait(step, index1, clusterState, null);
 
         Mockito.verify(client, Mockito.only()).execute(any(), any(), any());
         Mockito.verify(adminClient, Mockito.never()).indices();
@@ -328,7 +321,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
         // Again, the deletion should work since the data stream would be fully deleted anyway if the failure store were disabled.
         DeleteStep step = createRandomInstance();
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(index1, clusterState, null, f));
+        performActionAndWait(step, index1, clusterState, null);
 
         Mockito.verify(client, Mockito.only()).execute(any(), any(), any());
         Mockito.verify(adminClient, Mockito.never()).indices();

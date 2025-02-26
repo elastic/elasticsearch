@@ -22,7 +22,7 @@ import static org.hamcrest.CoreMatchers.is;
 public class AzureOpenAiCompletionRequestEntityTests extends ESTestCase {
 
     public void testXContent_WritesSingleMessage_DoesNotWriteUserWhenItIsNull() throws IOException {
-        var entity = new AzureOpenAiCompletionRequestEntity(List.of("input"), null);
+        var entity = new AzureOpenAiCompletionRequestEntity(List.of("input"), null, false);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -33,7 +33,7 @@ public class AzureOpenAiCompletionRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_WritesSingleMessage_WriteUserWhenItIsNull() throws IOException {
-        var entity = new AzureOpenAiCompletionRequestEntity(List.of("input"), "user");
+        var entity = new AzureOpenAiCompletionRequestEntity(List.of("input"), "user", false);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);

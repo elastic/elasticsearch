@@ -1,0 +1,5 @@
+pr: 116739
+summary: Change default Docker image to be based on UBI minimal instead of Ubuntu
+area: Infra/Core
+type: enhancement
+issues: []

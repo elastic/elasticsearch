@@ -11,13 +11,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.ArrayList;
@@ -26,10 +27,10 @@ import java.util.List;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.esql.core.TestUtils.equalsOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.fieldAttribute;
-import static org.elasticsearch.xpack.esql.core.TestUtils.of;
-import static org.elasticsearch.xpack.esql.core.TestUtils.relation;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalsOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.hamcrest.Matchers.contains;
@@ -42,7 +43,7 @@ public class QueryPlanTests extends ESTestCase {
 
         assertEquals(Limit.class, transformed.getClass());
         Limit l = (Limit) transformed;
-        assertEquals(24, l.limit().fold());
+        assertEquals(24, l.limit().fold(FoldContext.small()));
     }
 
     public void testTransformWithExpressionTree() throws Exception {
@@ -53,7 +54,7 @@ public class QueryPlanTests extends ESTestCase {
         assertEquals(OrderBy.class, transformed.getClass());
         OrderBy order = (OrderBy) transformed;
         assertEquals(Limit.class, order.child().getClass());
-        assertEquals(24, ((Limit) order.child()).limit().fold());
+        assertEquals(24, ((Limit) order.child()).limit().fold(FoldContext.small()));
     }
 
     public void testTransformWithExpressionTopLevelInCollection() throws Exception {
@@ -83,12 +84,12 @@ public class QueryPlanTests extends ESTestCase {
 
         List<Object> list = new ArrayList<>();
         project.forEachExpression(Literal.class, l -> {
-            if (l.fold().equals(42)) {
-                list.add(l.fold());
+            if (l.value().equals(42)) {
+                list.add(l.value());
             }
         });
 
-        assertEquals(singletonList(one.child().fold()), list);
+        assertEquals(singletonList(one.child().fold(FoldContext.small())), list);
     }
 
     public void testForEachWithExpressionTree() throws Exception {
@@ -97,12 +98,12 @@ public class QueryPlanTests extends ESTestCase {
 
         List<Object> list = new ArrayList<>();
         o.forEachExpressionDown(Literal.class, l -> {
-            if (l.fold().equals(42)) {
-                list.add(l.fold());
+            if (l.value().equals(42)) {
+                list.add(l.value());
             }
         });
 
-        assertEquals(singletonList(limit.limit().fold()), list);
+        assertEquals(singletonList(limit.limit().fold(FoldContext.small())), list);
     }
 
     public void testForEachWithExpressionTopLevelInCollection() throws Exception {
@@ -129,12 +130,12 @@ public class QueryPlanTests extends ESTestCase {
 
         List<Object> list = new ArrayList<>();
         project.forEachExpression(Literal.class, l -> {
-            if (l.fold().equals(42)) {
-                list.add(l.fold());
+            if (l.value().equals(42)) {
+                list.add(l.value());
             }
         });
 
-        assertEquals(singletonList(one.child().fold()), list);
+        assertEquals(singletonList(one.child().fold(FoldContext.small())), list);
     }
 
     public void testPlanExpressions() {

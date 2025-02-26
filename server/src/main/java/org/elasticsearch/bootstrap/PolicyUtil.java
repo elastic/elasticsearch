@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.SecuredFileAccessPermission;
+import org.elasticsearch.SecuredConfigFileAccessPermission;
+import org.elasticsearch.SecuredConfigFileSettingAccessPermission;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -169,7 +171,8 @@ public class PolicyUtil {
             entry(PrivateCredentialPermission.class, ALLOW_ALL_NAMES),
             entry(SQLPermission.class, List.of("callAbort", "setNetworkTimeout")),
             entry(ClassPermission.class, ALLOW_ALL_NAMES),
-            entry(SecuredFileAccessPermission.class, ALLOW_ALL_NAMES)
+            entry(SecuredConfigFileAccessPermission.class, ALLOW_ALL_NAMES),
+            entry(SecuredConfigFileSettingAccessPermission.class, ALLOW_ALL_NAMES)
         ).collect(Collectors.toMap(e -> e.getKey().getCanonicalName(), Map.Entry::getValue));
         PermissionCollection pluginPermissionCollection = new Permissions();
         namedPermissions.forEach(pluginPermissionCollection::add);
@@ -292,8 +295,8 @@ public class PolicyUtil {
                             + " in policy file ["
                             + policyFile
                             + "]"
-                            + "\nAvailable codebases: "
-                            + codebaseProperties.keySet()
+                            + "\nAvailable codebases: \n  "
+                            + String.join("\n  ", codebaseProperties.keySet().stream().sorted().toList())
                     );
                 }
                 return policy;

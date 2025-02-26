@@ -517,6 +517,68 @@ public class SparseFileTrackerTests extends ESTestCase {
         assertThat(completedRanges, equalTo(expectedCompletedRanges));
     }
 
+    public void testCompletePointerUpdatesOnProgress() {
+        // min length of 2 to have at least one progress update before reaching the end
+        byte[] bytes = new byte[between(2, 1024)];
+        var tracker = new SparseFileTracker(getTestName(), bytes.length);
+
+        long position = 0L;
+        for (int i = 0; i < 25 && position < tracker.getLength() - 1L; i++) {
+            var progress = randomLongBetween(position + 1L, tracker.getLength() - 1L);
+
+            var listener = new PlainActionFuture<Void>();
+            var gaps = tracker.waitForRange(
+                ByteRange.of(position, progress),
+                ByteRange.of(position, progress),
+                ActionListener.runBefore(listener, () -> assertThat(tracker.getComplete(), equalTo(progress)))
+            );
+            assertThat(listener.isDone(), equalTo(false));
+            assertThat(gaps, hasSize(1));
+
+            gaps.forEach(gap -> {
+                long latestUpdatedCompletePointer = gap.start();
+
+                for (long j = gap.start(); j < gap.end(); j++) {
+                    final PlainActionFuture<Void> awaitingListener;
+                    if (randomBoolean()) {
+                        awaitingListener = new PlainActionFuture<>();
+                        var moreGaps = tracker.waitForRange(
+                            ByteRange.of(gap.start(), j + 1L),
+                            ByteRange.of(gap.start(), j + 1L),
+                            awaitingListener
+                        );
+                        assertThat(moreGaps.isEmpty(), equalTo(true));
+                    } else {
+                        awaitingListener = null;
+                    }
+
+                    assertThat(bytes[toIntBytes(j)], equalTo(UNAVAILABLE));
+                    bytes[toIntBytes(j)] = AVAILABLE;
+                    gap.onProgress(j + 1L);
+
+                    if (awaitingListener != null && j < gap.end() - 1L) {
+                        assertThat(
+                            "Complete pointer should have been updated when a listener is waiting for the gap to be completed",
+                            tracker.getComplete(),
+                            equalTo(j + 1L)
+                        );
+                        assertThat(awaitingListener.isDone(), equalTo(true));
+                        latestUpdatedCompletePointer = tracker.getComplete();
+                    } else {
+                        assertThat(
+                            "Complete pointer is not updated if no listeners are waiting for the gap to be completed",
+                            tracker.getComplete(),
+                            equalTo(latestUpdatedCompletePointer)
+                        );
+                    }
+                }
+                gap.onCompletion();
+                assertThat(tracker.getComplete(), equalTo(gap.end()));
+            });
+            position = progress;
+        }
+    }
+
     private static void checkRandomAbsentRange(byte[] fileContents, SparseFileTracker sparseFileTracker, boolean expectExact) {
         final long checkStart = randomLongBetween(0, fileContents.length - 1);
         final long checkEnd = randomLongBetween(checkStart, fileContents.length);

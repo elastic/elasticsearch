@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -37,7 +38,6 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -483,21 +483,18 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             if (badRequestCause != null) {
                 dispatcher.dispatchBadRequest(channel, threadContext, badRequestCause);
             } else {
-                populatePerRequestThreadContext0(restRequest, channel, threadContext);
+                try {
+                    populatePerRequestThreadContext(restRequest, threadContext);
+                } catch (Exception e) {
+                    try {
+                        dispatcher.dispatchBadRequest(channel, threadContext, e);
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.error(() -> "failed to send failure response for uri [" + restRequest.uri() + "]", inner);
+                    }
+                    return;
+                }
                 dispatcher.dispatchRequest(restRequest, channel, threadContext);
-            }
-        }
-    }
-
-    private void populatePerRequestThreadContext0(RestRequest restRequest, RestChannel channel, ThreadContext threadContext) {
-        try {
-            populatePerRequestThreadContext(restRequest, threadContext);
-        } catch (Exception e) {
-            try {
-                channel.sendResponse(new RestResponse(channel, e));
-            } catch (Exception inner) {
-                inner.addSuppressed(e);
-                logger.error(() -> "failed to send failure response for uri [" + restRequest.uri() + "]", inner);
             }
         }
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -105,7 +106,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             // rarely leave some holes to be filled up with empty buckets in case minDocCount is set to 0
             if (frequently()) {
                 long key = startingDate + intervalMillis * i;
-                buckets.add(new InternalDateHistogram.Bucket(key, randomIntBetween(1, 100), keyed, format, aggregations));
+                buckets.add(new InternalDateHistogram.Bucket(key, randomIntBetween(1, 100), format, aggregations));
             }
         }
         BucketOrder order = BucketOrder.key(randomBoolean());
@@ -180,13 +181,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             case 1 -> {
                 buckets = new ArrayList<>(buckets);
                 buckets.add(
-                    new InternalDateHistogram.Bucket(
-                        randomNonNegativeLong(),
-                        randomIntBetween(1, 100),
-                        keyed,
-                        format,
-                        InternalAggregations.EMPTY
-                    )
+                    new InternalDateHistogram.Bucket(randomNonNegativeLong(), randomIntBetween(1, 100), format, InternalAggregations.EMPTY)
                 );
             }
             case 2 -> order = BucketOrder.count(randomBoolean());

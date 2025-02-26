@@ -45,7 +45,8 @@ public class AzureAndOpenAiExternalResponseHandlerTests extends ESTestCase {
         var handler = new AzureMistralOpenAiExternalResponseHandler(
             "",
             (request, result) -> null,
-            AzureMistralOpenAiErrorResponseEntity::fromResponse
+            ErrorMessageResponseEntity::fromResponse,
+            false
         );
 
         // 200 ok

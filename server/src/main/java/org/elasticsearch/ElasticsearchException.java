@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -13,6 +14,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -23,7 +25,9 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -36,7 +40,6 @@ import org.elasticsearch.persistent.NotPersistentTaskNodeException;
 import org.elasticsearch.persistent.PersistentTaskNodeNotAssignedException;
 import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.TooManyScrollContextsException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -315,10 +318,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
         CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> elasticsearchException = ID_TO_SUPPLIER.get(id);
         if (elasticsearchException == null) {
-            if (id == 127 && input.getTransportVersion().before(TransportVersions.V_7_5_0)) {
-                // was SearchContextException
-                return new SearchException(input);
-            }
             throw new IllegalStateException("unknown exception for id: " + id);
         }
         return elasticsearchException.apply(input);
@@ -609,23 +608,31 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public static XContentBuilder generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
         throws IOException {
-        // No exception to render as an error
-        if (e == null) {
-            return builder.field(ERROR, "unknown");
+        if (builder.getRestApiVersion() == RestApiVersion.V_8) {
+            if (e == null) {
+                return builder.field(ERROR, "unknown");
+            }
+            if (detailed == false) {
+                return generateNonDetailedFailureXContentV8(builder, e);
+            }
+            // else fallthrough
         }
 
-        // Render the exception with a simple message
+        if (e == null) {
+            // No exception to render as an error
+            builder.startObject(ERROR);
+            builder.field(TYPE, "unknown");
+            builder.field(REASON, "unknown");
+            return builder.endObject();
+        }
+
         if (detailed == false) {
-            String message = "No ElasticsearchException found";
-            Throwable t = e;
-            for (int counter = 0; counter < 10 && t != null; counter++) {
-                if (t instanceof ElasticsearchException) {
-                    message = t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
-                    break;
-                }
-                t = t.getCause();
-            }
-            return builder.field(ERROR, message);
+            // just render the type & message
+            Throwable t = ExceptionsHelper.unwrapCause(e);
+            builder.startObject(ERROR);
+            builder.field(TYPE, getExceptionName(t));
+            builder.field(REASON, t.getMessage());
+            return builder.endObject();
         }
 
         // Render the exception with all details
@@ -642,6 +649,20 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
         generateThrowableXContent(builder, params, e);
         return builder.endObject();
+    }
+
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)    // remove V8 API
+    private static XContentBuilder generateNonDetailedFailureXContentV8(XContentBuilder builder, @Nullable Exception e) throws IOException {
+        String message = "No ElasticsearchException found";
+        Throwable t = e;
+        for (int counter = 0; counter < 10 && t != null; counter++) {
+            if (t instanceof ElasticsearchException) {
+                message = t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
+                break;
+            }
+            t = t.getCause();
+        }
+        return builder.field(ERROR, message);
     }
 
     /**
@@ -727,8 +748,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     static String buildMessage(String type, String reason, String stack) {
         StringBuilder message = new StringBuilder("Elasticsearch exception [");
-        message.append(TYPE).append('=').append(type).append(", ");
-        message.append(REASON).append('=').append(reason);
+        message.append(TYPE).append('=').append(type);
+        message.append(", ").append(REASON).append('=').append(reason);
         if (stack != null) {
             message.append(", ").append(STACK_TRACE).append('=').append(stack);
         }
@@ -1646,12 +1667,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED
         ),
         // 127 used to be org.elasticsearch.search.SearchContextException
-        SEARCH_SOURCE_BUILDER_EXCEPTION(
-            org.elasticsearch.search.builder.SearchSourceBuilderException.class,
-            org.elasticsearch.search.builder.SearchSourceBuilderException::new,
-            128,
-            UNKNOWN_VERSION_ADDED
-        ),
+        // 128 used to be org.elasticsearch.search.builder.SearchSourceBuilderException
         // 129 was EngineClosedException
         NO_SHARD_AVAILABLE_ACTION_EXCEPTION(
             org.elasticsearch.action.NoShardAvailableActionException.class,
@@ -1760,7 +1776,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.cluster.coordination.CoordinationStateRejectedException.class,
             org.elasticsearch.cluster.coordination.CoordinationStateRejectedException::new,
             150,
-            TransportVersions.V_7_0_0
+            UNKNOWN_VERSION_ADDED
         ),
         SNAPSHOT_IN_PROGRESS_EXCEPTION(
             org.elasticsearch.snapshots.SnapshotInProgressException.class,
@@ -1796,19 +1812,19 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException.class,
             org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException::new,
             156,
-            TransportVersions.V_7_5_0
+            UNKNOWN_VERSION_ADDED
         ),
         INGEST_PROCESSOR_EXCEPTION(
             org.elasticsearch.ingest.IngestProcessorException.class,
             org.elasticsearch.ingest.IngestProcessorException::new,
             157,
-            TransportVersions.V_7_5_0
+            UNKNOWN_VERSION_ADDED
         ),
         PEER_RECOVERY_NOT_FOUND_EXCEPTION(
             org.elasticsearch.indices.recovery.PeerRecoveryNotFound.class,
             org.elasticsearch.indices.recovery.PeerRecoveryNotFound::new,
             158,
-            TransportVersions.V_7_9_0
+            UNKNOWN_VERSION_ADDED
         ),
         NODE_HEALTH_CHECK_FAILURE_EXCEPTION(
             org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException.class,
@@ -1820,13 +1836,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.transport.NoSeedNodeLeftException.class,
             org.elasticsearch.transport.NoSeedNodeLeftException::new,
             160,
-            TransportVersions.V_7_10_0
-        ),
-        VERSION_MISMATCH_EXCEPTION(
-            org.elasticsearch.action.search.VersionMismatchException.class,
-            org.elasticsearch.action.search.VersionMismatchException::new,
-            161,
-            TransportVersions.V_7_12_0
+            UNKNOWN_VERSION_ADDED
         ),
         AUTHENTICATION_PROCESSING_ERROR(
             org.elasticsearch.ElasticsearchAuthenticationProcessingError.class,
@@ -1908,25 +1918,37 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             FailureIndexNotSupportedException.class,
             FailureIndexNotSupportedException::new,
             178,
-            TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS
+            TransportVersions.V_8_14_0
         ),
         NOT_PERSISTENT_TASK_NODE_EXCEPTION(
             NotPersistentTaskNodeException.class,
             NotPersistentTaskNodeException::new,
             179,
-            TransportVersions.ADD_PERSISTENT_TASK_EXCEPTIONS
+            TransportVersions.V_8_14_0
         ),
         PERSISTENT_TASK_NODE_NOT_ASSIGNED_EXCEPTION(
             PersistentTaskNodeNotAssignedException.class,
             PersistentTaskNodeNotAssignedException::new,
             180,
-            TransportVersions.ADD_PERSISTENT_TASK_EXCEPTIONS
+            TransportVersions.V_8_14_0
         ),
         RESOURCE_ALREADY_UPLOADED_EXCEPTION(
             ResourceAlreadyUploadedException.class,
             ResourceAlreadyUploadedException::new,
             181,
-            TransportVersions.ADD_RESOURCE_ALREADY_UPLOADED_EXCEPTION
+            TransportVersions.V_8_15_0
+        ),
+        INGEST_PIPELINE_EXCEPTION(
+            org.elasticsearch.ingest.IngestPipelineException.class,
+            org.elasticsearch.ingest.IngestPipelineException::new,
+            182,
+            TransportVersions.V_8_16_0
+        ),
+        INDEX_RESPONSE_WRAPPER_EXCEPTION(
+            IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus.class,
+            IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus::new,
+            183,
+            TransportVersions.V_8_16_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

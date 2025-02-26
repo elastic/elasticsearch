@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -126,6 +127,14 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     }
 
     /**
+     * Checks if the provided node is scheduled for being permanently removed from the cluster.
+     */
+    public boolean isNodeMarkedForRemoval(String nodeId) {
+        var singleNodeShutdownMetadata = get(nodeId);
+        return singleNodeShutdownMetadata != null && singleNodeShutdownMetadata.getType().isRemovalType();
+    }
+
+    /**
      * Add or update the shutdown metadata for a single node.
      * @param nodeShutdownMetadata The single node shutdown metadata to add or update.
      * @return A new {@link NodesShutdownMetadata} that reflects the updated value.
@@ -181,8 +190,8 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.xContentValuesMap(NODES_FIELD.getPreferredName(), nodes);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContentHelper.xContentObjectFields(NODES_FIELD.getPreferredName(), nodes);
     }
 
     /**

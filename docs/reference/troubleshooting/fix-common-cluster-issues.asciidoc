@@ -3,6 +3,10 @@
 
 This guide describes how to fix common errors and problems with {es} clusters.
 
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
+
 <<fix-watermark-errors,Watermark errors>>::
 Fix watermark errors that occur when a data node is critically low on disk space
 and has reached the flood-stage disk usage watermark.

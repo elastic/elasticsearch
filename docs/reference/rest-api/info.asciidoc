@@ -2,6 +2,12 @@
 [[info-api]]
 == Info API
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-info[Info APIs].
+--
+
 Provides general information about the installed {xpack} features.
 
 [discrete]
@@ -89,10 +95,6 @@ Example response:
           "available" : true,
           "enabled" : true
       },
-      "frozen_indices" : {
-         "available" : true,
-         "enabled" : true
-      },
       "graph" : {
          "available" : true,
          "enabled" : true
@@ -172,6 +174,10 @@ Example response:
       "universal_profiling": {
          "available": true,
          "enabled": true
+      },
+      "logsdb": {
+        "available": true,
+        "enabled": true
       }
    },
    "tagline" : "You know, for X"

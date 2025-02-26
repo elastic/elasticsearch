@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
@@ -77,11 +76,11 @@ import java.util.function.Consumer;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.versionIntroducingType;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
+import static org.elasticsearch.xpack.sql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
+import static org.elasticsearch.xpack.sql.index.VersionCompatibilityChecks.versionIntroducingType;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.HAVING;
@@ -1000,9 +999,8 @@ public final class Verifier {
     }
 
     private static void checkClientSupportsDataTypes(LogicalPlan p, Set<Failure> localFailures, SqlVersion version) {
-        Version ver = Version.fromId(version.id);
         p.output().forEach(e -> {
-            if (e.resolved() && isTypeSupportedInVersion(e.dataType(), ver) == false) {
+            if (e.resolved() && isTypeSupportedInVersion(e.dataType(), version) == false) {
                 localFailures.add(
                     fail(
                         e,

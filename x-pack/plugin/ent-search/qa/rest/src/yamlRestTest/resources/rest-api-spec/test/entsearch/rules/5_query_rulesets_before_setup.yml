@@ -1,26 +1,26 @@
 setup:
-    - requires:
-        cluster_features: ["gte_v8.10.0"]
-        reason: Introduced in 8.10.0
+  - requires:
+      cluster_features: [ "gte_v8.10.0" ]
+      reason: Introduced in 8.10.0
 
 ---
 "Get query ruleset returns a 404 when no query rulesets exist":
   - do:
       catch: /resource_not_found_exception/
-      query_ruleset.get:
+      query_rules.get_ruleset:
         ruleset_id: test-i-dont-exist
 
 ---
 "Delete query ruleset returns a 404 when no query rulesets exist":
   - do:
       catch: /resource_not_found_exception/
-      query_ruleset.delete:
-          ruleset_id: test-i-dont-exist
+      query_rules.delete_ruleset:
+        ruleset_id: test-i-dont-exist
 
 ---
 "List query rulesets returns an empty list when no query rulesets exist":
   - do:
-        query_ruleset.list: { }
+      query_rules.list_rulesets: { }
 
   - match: { count: 0 }
 

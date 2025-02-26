@@ -21,7 +21,7 @@ testClusters.matching { it.name == "yamlRestTest" }.configureEach {
 }
 
 tasks.named('yamlRestTestTestingConventions').configure {
-  baseClass 'org.elasticsearch.repositories.blobstore.testkit.AbstractSnapshotRepoTestKitRestTestCase'
+  baseClass 'org.elasticsearch.repositories.blobstore.testkit.analyze.AbstractRepositoryAnalysisRestTestCase'
   baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
 }
 

@@ -84,6 +84,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
         assertAllPreviousForecastsAreClearedAfterRollover(dataStream, metadata);
 
         setHasValidLicense(false);
+        writeLoadForecaster.refreshLicense();
 
         final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
         assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(equalTo(false)));
@@ -131,6 +132,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
         assertAllPreviousForecastsAreClearedAfterRollover(dataStream, metadata);
 
         setHasValidLicense(false);
+        writeLoadForecaster.refreshLicense();
 
         final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
         assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(equalTo(false)));
@@ -161,7 +163,12 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
                 )
             )
         );
-        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet());
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
+            ).actionGet()
+        );
 
         final int numberOfRollovers = randomIntBetween(5, 10);
         for (int i = 0; i < numberOfRollovers; i++) {

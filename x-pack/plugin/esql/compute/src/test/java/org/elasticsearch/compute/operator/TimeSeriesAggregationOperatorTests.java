@@ -11,15 +11,23 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.aggregation.RateLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperatorTests;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -27,12 +35,14 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.junit.After;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorTests.createTimeSeriesSourceOperator;
 import static org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorTests.writeTS;
+import static org.elasticsearch.compute.operator.TimeSeriesAggregationOperatorFactories.SupplierWithChannels;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
@@ -203,7 +213,6 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             Integer.MAX_VALUE,
             between(1, 100),
             randomBoolean(),
-            bucketInterval,
             writer -> {
                 List<Doc> docs = new ArrayList<>();
                 for (Pod pod : pods) {
@@ -227,22 +236,42 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         );
         var ctx = driverContext();
 
-        List<Operator> extractOperators = new ArrayList<>();
+        List<Operator> intermediateOperators = new ArrayList<>();
+        final Rounding.Prepared rounding = new Rounding.Builder(bucketInterval).timeZone(ZoneOffset.UTC).build().prepareForUnknown();
+        var timeBucket = new EvalOperator(ctx.blockFactory(), new EvalOperator.ExpressionEvaluator() {
+            @Override
+            public Block eval(Page page) {
+                LongBlock timestampsBlock = page.getBlock(2);
+                LongVector timestamps = timestampsBlock.asVector();
+                try (var builder = blockFactory().newLongVectorFixedBuilder(timestamps.getPositionCount())) {
+                    for (int i = 0; i < timestamps.getPositionCount(); i++) {
+                        builder.appendLong(rounding.round(timestampsBlock.getLong(i)));
+                    }
+                    return builder.build().asBlock();
+                }
+            }
+
+            @Override
+            public void close() {
+
+            }
+        });
+        intermediateOperators.add(timeBucket);
         var rateField = new NumberFieldMapper.NumberFieldType("requests", NumberFieldMapper.NumberType.LONG);
         Operator extractRate = (ValuesSourceReaderOperatorTests.factory(reader, rateField, ElementType.LONG).get(ctx));
-        extractOperators.add(extractRate);
+        intermediateOperators.add(extractRate);
         List<String> nonBucketGroupings = new ArrayList<>(groupings);
         nonBucketGroupings.remove("bucket");
         for (String grouping : nonBucketGroupings) {
             var groupingField = new KeywordFieldMapper.KeywordFieldType(grouping);
-            extractOperators.add(ValuesSourceReaderOperatorTests.factory(reader, groupingField, ElementType.BYTES_REF).get(ctx));
+            intermediateOperators.add(ValuesSourceReaderOperatorTests.factory(reader, groupingField, ElementType.BYTES_REF).get(ctx));
         }
         // _doc, tsid, timestamp, bucket, requests, grouping1, grouping2
         Operator intialAgg = new TimeSeriesAggregationOperatorFactories.Initial(
             1,
             3,
             IntStream.range(0, nonBucketGroupings.size()).mapToObj(n -> new BlockHash.GroupSpec(5 + n, ElementType.BYTES_REF)).toList(),
-            List.of(new RateLongAggregatorFunctionSupplier(List.of(4, 2), unitInMillis)),
+            List.of(new SupplierWithChannels(new RateLongAggregatorFunctionSupplier(unitInMillis), List.of(4, 2))),
             List.of(),
             between(1, 100)
         ).get(ctx);
@@ -252,7 +281,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             0,
             1,
             IntStream.range(0, nonBucketGroupings.size()).mapToObj(n -> new BlockHash.GroupSpec(5 + n, ElementType.BYTES_REF)).toList(),
-            List.of(new RateLongAggregatorFunctionSupplier(List.of(2, 3, 4), unitInMillis)),
+            List.of(new SupplierWithChannels(new RateLongAggregatorFunctionSupplier(unitInMillis), List.of(2, 3, 4))),
             List.of(),
             between(1, 100)
         ).get(ctx);
@@ -268,19 +297,18 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         }
         Operator finalAgg = new TimeSeriesAggregationOperatorFactories.Final(
             finalGroups,
-            List.of(new SumDoubleAggregatorFunctionSupplier(List.of(2))),
+            List.of(new SupplierWithChannels(new SumDoubleAggregatorFunctionSupplier(), List.of(2))),
             List.of(),
             between(1, 100)
         ).get(ctx);
 
         List<Page> results = new ArrayList<>();
         OperatorTestCase.runDriver(
-            new Driver(
+            TestDriverFactory.create(
                 ctx,
                 sourceOperatorFactory.get(ctx),
-                CollectionUtils.concatLists(extractOperators, List.of(intialAgg, intermediateAgg, finalAgg)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                CollectionUtils.concatLists(intermediateOperators, List.of(intialAgg, intermediateAgg, finalAgg)),
+                new TestResultPageSinkOperator(results::add)
             )
         );
         List<List<Object>> values = new ArrayList<>();

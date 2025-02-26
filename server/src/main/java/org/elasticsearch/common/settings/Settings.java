@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.settings;
@@ -241,7 +242,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         if (prefix.isEmpty()) {
             return this;
         }
-        // create the the next prefix right after the given prefix, and use it as exclusive upper bound for the sub-map to filter by prefix
+        // create the next prefix right after the given prefix, and use it as exclusive upper bound for the sub-map to filter by prefix
         // below
         char[] toPrefixCharArr = prefix.toCharArray();
         toPrefixCharArr[toPrefixCharArr.length - 1]++;
@@ -287,6 +288,24 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     public String get(String setting, String defaultValue) {
         String retVal = get(setting);
         return retVal == null ? defaultValue : retVal;
+    }
+
+    /**
+     * Returns the values for settings that match the given glob pattern.
+     * A single glob is supported.
+     *
+     * @param settingGlob setting name containing a glob
+     * @return zero or more values for any settings in this settings object that match the glob pattern
+     */
+    public Stream<String> getGlobValues(String settingGlob) {
+        int globIndex = settingGlob.indexOf(".*.");
+        if (globIndex == -1) {
+            throw new IllegalArgumentException("Pattern [" + settingGlob + "] does not contain a glob [*]");
+        }
+        String prefix = settingGlob.substring(0, globIndex + 1);
+        String suffix = settingGlob.substring(globIndex + 2);
+        Settings subSettings = getByPrefix(prefix);
+        return subSettings.names().stream().map(k -> k + suffix).map(subSettings::get).filter(Objects::nonNull);
     }
 
     /**
@@ -1567,7 +1586,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
      * @param s string to intern
      * @return interned string
      */
-    static String internKeyOrValue(String s) {
+    public static String internKeyOrValue(String s) {
         return settingLiteralDeduplicator.deduplicate(s);
     }
 

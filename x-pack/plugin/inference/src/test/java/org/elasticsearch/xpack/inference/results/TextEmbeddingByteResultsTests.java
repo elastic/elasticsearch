@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -96,19 +97,22 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
             results,
             is(
                 List.of(
-                    new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(
-                        TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES,
-                        new double[] { 23F, 24F },
-                        false
-                    ),
-                    new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(
-                        TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES,
-                        new double[] { 25F, 26F },
-                        false
-                    )
+                    new MlTextEmbeddingResults(TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES, new double[] { 23F, 24F }, false),
+                    new MlTextEmbeddingResults(TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES, new double[] { 25F, 26F }, false)
                 )
             )
         );
+    }
+
+    public void testGetFirstEmbeddingSize() {
+        var firstEmbeddingSize = new TextEmbeddingByteResults(
+            List.of(
+                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 23, (byte) 24 }),
+                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 25, (byte) 26 })
+            )
+        ).getFirstEmbeddingSize();
+
+        assertThat(firstEmbeddingSize, is(2));
     }
 
     @Override

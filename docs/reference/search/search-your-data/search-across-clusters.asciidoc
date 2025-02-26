@@ -22,7 +22,7 @@ The following APIs support {ccs}:
 * experimental:[] <<eql-search-api,EQL search>>
 * experimental:[] <<sql-search-api,SQL search>>
 * experimental:[] <<search-vector-tile-api,Vector tile search>>
-* experimental:[] <<esql,ES|QL>>
+* experimental:[] <<esql-cross-clusters,ES|QL>>
 
 [discrete]
 === Prerequisites
@@ -109,7 +109,7 @@ PUT _cluster/settings
 // end::ccs-remote-cluster-setup[]
 
 <1> Since `skip_unavailable` was not set on `cluster_three`, it uses
-the default of `false`. See the <<skip-unavailable-clusters>>
+the default of `true`. See the <<skip-unavailable-clusters>>
 section for details.
 
 

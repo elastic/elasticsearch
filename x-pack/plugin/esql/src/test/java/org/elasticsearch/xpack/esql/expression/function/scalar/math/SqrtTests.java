@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -24,7 +24,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
-public class SqrtTests extends AbstractFunctionTestCase {
+public class SqrtTests extends AbstractScalarFunctionTestCase {
     public SqrtTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -81,8 +81,8 @@ public class SqrtTests extends AbstractFunctionTestCase {
             Integer.MIN_VALUE,
             -1,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: Square root of negative"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: Square root of negative"
             )
         );
         TestCaseSupplier.forUnaryLong(
@@ -93,8 +93,8 @@ public class SqrtTests extends AbstractFunctionTestCase {
             Long.MIN_VALUE,
             -1,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: Square root of negative"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: Square root of negative"
             )
         );
         TestCaseSupplier.forUnaryDouble(
@@ -105,11 +105,11 @@ public class SqrtTests extends AbstractFunctionTestCase {
             Double.NEGATIVE_INFINITY,
             -Double.MIN_VALUE,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: Square root of negative"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: Square root of negative"
             )
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

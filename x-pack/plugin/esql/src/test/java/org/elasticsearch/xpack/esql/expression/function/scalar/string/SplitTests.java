@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
@@ -34,7 +34,7 @@ import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SplitTests extends AbstractFunctionTestCase {
+public class SplitTests extends AbstractScalarFunctionTestCase {
     public SplitTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -42,9 +42,8 @@ public class SplitTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        List<DataType> supportedDataTyes = List.of(DataType.KEYWORD, DataType.TEXT);
-        for (DataType sType : supportedDataTyes) {
-            for (DataType dType : supportedDataTyes) {
+        for (DataType sType : DataType.stringTypes()) {
+            for (DataType dType : DataType.stringTypes()) {
                 suppliers.add(new TestCaseSupplier("split test " + sType.toString() + " " + dType.toString(), List.of(sType, dType), () -> {
                     String delimiter = randomAlphaOfLength(1);
                     List<BytesRef> strings = IntStream.range(0, between(1, 5))
@@ -64,7 +63,7 @@ public class SplitTests extends AbstractFunctionTestCase {
                 }));
             }
         }
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

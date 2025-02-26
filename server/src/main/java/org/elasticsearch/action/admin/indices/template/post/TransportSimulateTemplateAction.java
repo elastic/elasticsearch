@@ -1,37 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.post;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -49,7 +48,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.fi
  * Handles simulating an index template either by name (looking it up in the
  * cluster state), or by a provided template configuration
  */
-public class TransportSimulateTemplateAction extends TransportMasterNodeReadAction<
+public class TransportSimulateTemplateAction extends TransportLocalClusterStateAction<
     SimulateTemplateAction.Request,
     SimulateIndexTemplateResponse> {
 
@@ -60,31 +59,29 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final ClusterSettings clusterSettings;
     private final boolean isDslOnlyMode;
-    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportSimulateTemplateAction(
         TransportService transportService,
         ClusterService clusterService,
-        ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
         SystemIndices systemIndices,
-        IndexSettingProviders indexSettingProviders,
-        DataStreamGlobalRetentionResolver globalRetentionResolver
+        IndexSettingProviders indexSettingProviders
     ) {
         super(
             SimulateTemplateAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
-            SimulateTemplateAction.Request::new,
-            indexNameExpressionResolver,
-            SimulateIndexTemplateResponse::new,
+            transportService.getTaskManager(),
+            clusterService,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;
@@ -94,17 +91,24 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.clusterSettings = clusterService.getClusterSettings();
         this.isDslOnlyMode = isDataStreamsLifecycleOnlyMode(clusterService.getSettings());
-        this.globalRetentionResolver = globalRetentionResolver;
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
+            SimulateTemplateAction.Request::new,
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
+        );
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         SimulateTemplateAction.Request request,
         ClusterState state,
         ActionListener<SimulateIndexTemplateResponse> listener
     ) throws Exception {
-        final DataStreamGlobalRetention globalRetention = globalRetentionResolver.resolve(state);
         String uuid = UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
         final String temporaryIndexName = "simulate_template_index_" + uuid;
         final ClusterState stateWithTemplate;
@@ -182,12 +186,11 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
                 new SimulateIndexTemplateResponse(
                     template,
                     overlapping,
-                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),
-                    globalRetention
+                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
                 )
             );
         } else {
-            listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping, globalRetention));
+            listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
         }
     }
 

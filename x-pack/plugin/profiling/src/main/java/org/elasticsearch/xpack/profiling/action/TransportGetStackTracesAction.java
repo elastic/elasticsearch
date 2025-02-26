@@ -22,13 +22,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.countedterms.CountedTermsAggregationBuilder;
@@ -138,7 +139,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         ProfilingLicenseChecker licenseChecker,
         IndexNameExpressionResolver resolver
     ) {
-        super(GetStackTracesAction.NAME, actionFilters, transportService.getTaskManager());
+        super(GetStackTracesAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nodeClient = nodeClient;
         this.licenseChecker = licenseChecker;
         this.clusterService = clusterService;
@@ -178,7 +179,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .setQuery(request.getQuery())
             .setTrackTotalHits(true)
             .execute(ActionListener.wrap(searchResponse -> {
-                long sampleCount = searchResponse.getHits().getTotalHits().value;
+                long sampleCount = searchResponse.getHits().getTotalHits().value();
                 EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
                 log.debug(
                     "User requested [{}] samples, [{}] samples matched in [{}]. Picking [{}]",
@@ -219,7 +220,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .setPreference(String.valueOf(request.hashCode()))
             .setQuery(request.getQuery())
             .execute(ActionListener.wrap(searchResponse -> {
-                long sampleCount = searchResponse.getHits().getTotalHits().value;
+                long sampleCount = searchResponse.getHits().getTotalHits().value();
                 int requestedSampleCount = request.getSampleSize();
                 // random sampler aggregation does not support sampling rates between 0.5 and 1.0 -> clamp to 1.0
                 if (sampleCount <= requestedSampleCount * 2L) {
@@ -254,11 +255,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         CountedTermsAggregationBuilder groupByStackTraceId = new CountedTermsAggregationBuilder("group_by").size(
             MAX_TRACE_EVENTS_RESULT_SIZE
         ).field(request.getStackTraceIdsField());
-        SubGroupCollector subGroups = SubGroupCollector.attach(
-            groupByStackTraceId,
-            request.getAggregationFields(),
-            request.isLegacyAggregationField()
-        );
+        SubGroupCollector subGroups = SubGroupCollector.attach(groupByStackTraceId, request.getAggregationFields());
         RandomSamplerAggregationBuilder randomSampler = new RandomSamplerAggregationBuilder("sample").setSeed(request.hashCode())
             .setProbability(responseBuilder.getSamplingRate())
             .subAggregation(groupByStackTraceId);
@@ -325,11 +322,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             // Especially with high cardinality fields, this makes aggregations really slow.
             .executionHint("map")
             .subAggregation(new SumAggregationBuilder("count").field("Stacktrace.count"));
-        SubGroupCollector subGroups = SubGroupCollector.attach(
-            groupByStackTraceId,
-            request.getAggregationFields(),
-            request.isLegacyAggregationField()
-        );
+        SubGroupCollector subGroups = SubGroupCollector.attach(groupByStackTraceId, request.getAggregationFields());
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setSize(0)
@@ -347,6 +340,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     // 'size' specifies the max number of host ID we support per request.
                     .size(MAX_TRACE_EVENTS_RESULT_SIZE)
                     .field("host.id")
+                    // missing("") is used to include documents where the field is missing.
+                    .missing("")
                     // 'execution_hint: map' skips the slow building of ordinals that we don't need.
                     // Especially with high cardinality fields, this makes aggregations really slow.
                     .executionHint("map")

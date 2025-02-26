@@ -1,0 +1,5 @@
+pr: 122134
+summary: Adding integration for VoyageAI embeddings and rerank models
+area: Machine Learning
+type: enhancement
+issues: []

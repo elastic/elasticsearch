@@ -13,13 +13,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.List;
 import java.util.function.Supplier;
 
-public class LogTests extends AbstractFunctionTestCase {
+public class LogTests extends AbstractScalarFunctionTestCase {
     public LogTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -92,8 +92,8 @@ public class LogTests extends AbstractFunctionTestCase {
                 1d,
                 Double.POSITIVE_INFINITY,
                 List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: Log of non-positive number"
                 )
             )
         );
@@ -110,8 +110,8 @@ public class LogTests extends AbstractFunctionTestCase {
                 Double.NEGATIVE_INFINITY,
                 0d,
                 List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: Log of non-positive number"
                 )
             )
         );
@@ -128,8 +128,8 @@ public class LogTests extends AbstractFunctionTestCase {
                 1d,
                 Double.POSITIVE_INFINITY,
                 List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: Log of base 1"
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: Log of base 1"
                 )
             )
         );
@@ -181,17 +181,13 @@ public class LogTests extends AbstractFunctionTestCase {
                 Double.NEGATIVE_INFINITY,
                 0d,
                 List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: Log of non-positive number"
                 )
             )
         );
 
-        // Add null cases before the rest of the error cases, so messages are correct.
-        suppliers = anyNullIsNull(true, suppliers);
-
-        // Negative cases
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

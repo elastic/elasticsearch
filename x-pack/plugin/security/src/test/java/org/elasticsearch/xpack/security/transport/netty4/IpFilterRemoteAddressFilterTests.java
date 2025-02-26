@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
@@ -90,10 +91,11 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
             ipFilter.setBoundHttpTransportAddress(httpTransport.boundAddress());
         }
 
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         if (isHttpEnabled) {
-            handler = new IpFilterRemoteAddressFilter(ipFilter, IPFilter.HTTP_PROFILE_NAME);
+            handler = new IpFilterRemoteAddressFilter(ipFilter, IPFilter.HTTP_PROFILE_NAME, threadContext);
         } else {
-            handler = new IpFilterRemoteAddressFilter(ipFilter, "default");
+            handler = new IpFilterRemoteAddressFilter(ipFilter, "default", threadContext);
         }
     }
 
@@ -106,7 +108,11 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
     }
 
     public void testFilteringWorksForRemoteClusterPort() throws Exception {
-        handler = new IpFilterRemoteAddressFilter(ipFilter, RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE);
+        handler = new IpFilterRemoteAddressFilter(
+            ipFilter,
+            RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE,
+            new ThreadContext(Settings.EMPTY)
+        );
         InetSocketAddress localhostAddr = new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 12345);
         assertThat(handler.accept(mock(ChannelHandlerContext.class), localhostAddr), is(true));
 

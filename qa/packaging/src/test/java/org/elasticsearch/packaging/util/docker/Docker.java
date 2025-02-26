@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.util.docker;
@@ -205,13 +206,32 @@ public class Docker {
                 ps output:
                 %s
 
-                stdout():
+                Stdout:
                 %s
 
                 Stderr:
+                %s
+
+                Thread dump:
                 %s\
-                """, psOutput, dockerLogs.stdout(), dockerLogs.stderr()));
+                """, psOutput, dockerLogs.stdout(), dockerLogs.stderr(), getThreadDump()));
         }
+    }
+
+    /**
+     * @return output of jstack for currently running Java process
+     */
+    private static String getThreadDump() {
+        try {
+            String pid = dockerShell.run("/usr/share/elasticsearch/jdk/bin/jps | grep -v 'Jps' | awk '{print $1}'").stdout();
+            if (pid.isEmpty() == false) {
+                return dockerShell.run("/usr/share/elasticsearch/jdk/bin/jstack " + Integer.parseInt(pid)).stdout();
+            }
+        } catch (Exception e) {
+            logger.error("Failed to get thread dump", e);
+        }
+
+        return "";
     }
 
     /**
@@ -485,9 +505,9 @@ public class Docker {
         // Ensure the `elasticsearch` user and group exist.
         // These lines will both throw an exception if the command fails
         dockerShell.run("id elasticsearch");
-        dockerShell.run("getent group elasticsearch");
+        dockerShell.run("grep -E '^elasticsearch:' /etc/group");
 
-        final Shell.Result passwdResult = dockerShell.run("getent passwd elasticsearch");
+        final Shell.Result passwdResult = dockerShell.run("grep -E '^elasticsearch:' /etc/passwd");
         final String homeDir = passwdResult.stdout().trim().split(":")[5];
         assertThat("elasticsearch user's home directory is incorrect", homeDir, equalTo("/usr/share/elasticsearch"));
 
@@ -531,7 +551,7 @@ public class Docker {
                 )
             );
 
-        if (es.distribution.packaging == Packaging.DOCKER_CLOUD || es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
+        if (es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
             verifyCloudContainerInstallation(es);
         }
     }

@@ -22,7 +22,7 @@ import java.io.IOException;
 
 /**
  * Block that stores $type$ values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 $if(BytesRef)$
 public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
@@ -63,10 +63,21 @@ $if(BytesRef)$
      * returns null. Callers must not release the returned block as no extra reference is retained by this method.
      */
     OrdinalBytesRefBlock asOrdinals();
-$endif$
 
+$elseif(boolean)$
+    /**
+     * Convert this to a {@link BooleanVector "mask"} that's appropriate for
+     * passing to {@link #keepMask}. Null and multivalued positions will be
+     * converted to {@code false}.
+     */
+    ToMask toMask();
+
+$endif$
     @Override
     $Type$Block filter(int... positions);
+
+    @Override
+    $Type$Block keepMask(BooleanVector mask);
 
     @Override
     ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
@@ -129,15 +140,15 @@ $endif$
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof $Type$ArrayBlock b) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$ArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
 $if(BytesRef)$
-        } else if (version.onOrAfter(TransportVersions.ESQL_ORDINAL_BLOCK) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
             out.writeByte(SERIALIZE_BLOCK_ORDINAL);
             b.writeOrdinalBlock(out);
 $else$
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_ARRAY) && this instanceof $Type$BigArrayBlock b) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof $Type$BigArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
 $endif$
@@ -246,6 +257,8 @@ $elseif(boolean)$
                     result = 31 * result + Boolean.hashCode(block.getBoolean(firstValueIdx + valueIndex));
 $elseif(int)$
                     result = 31 * result + block.getInt(firstValueIdx + valueIndex);
+$elseif(float)$
+                    result = 31 * result + Float.floatToIntBits(block.getFloat(pos));
 $elseif(long)$
                     long element = block.getLong(firstValueIdx + valueIndex);
                     result = 31 * result + (int) (element ^ (element >>> 32));
@@ -274,6 +287,18 @@ $endif$
          * {@code endExclusive} into this builder.
          */
         Builder copyFrom($Type$Block block, int beginInclusive, int endExclusive);
+
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+$if(BytesRef)$
+         * @param scratch Scratch string used to prevent allocation. Share this
+                          between many calls to this function.
+$endif$
+         */
+        Builder copyFrom($Type$Block block, int position$if(BytesRef)$, BytesRef scratch$endif$);
 
         @Override
         Builder appendNull();

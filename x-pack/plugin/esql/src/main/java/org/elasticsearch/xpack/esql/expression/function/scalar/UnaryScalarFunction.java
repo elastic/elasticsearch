@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
@@ -22,6 +26,16 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
     public UnaryScalarFunction(Source source, Expression field) {
         super(source, Arrays.asList(field));
         this.field = field;
+    }
+
+    protected UnaryScalarFunction(StreamInput in) throws IOException {
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(field);
     }
 
     @Override
@@ -44,6 +58,6 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return field.dataType();
+        return field.dataType().noText();
     }
 }

@@ -25,12 +25,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
@@ -46,6 +44,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -205,8 +204,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
             String[] singleIndex = { indexName };
 
-            GroupShardsIterator<ShardIterator> shards = clusterService.operationRouting()
-                .searchShards(clusterState, singleIndex, null, null);
+            List<ShardIterator> shards = clusterService.operationRouting().searchShards(clusterState, singleIndex, null, null);
 
             for (ShardIterator copiesOfShard : shards) {
                 ShardRouting selectedCopyOfShard = null;
@@ -492,7 +490,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         return false;
     }
 
-    private boolean canMatchShard(ShardId shardId, NodeTermsEnumRequest req) throws IOException {
+    private boolean canMatchShard(ShardId shardId, NodeTermsEnumRequest req) {
         if (req.indexFilter() == null || req.indexFilter() instanceof MatchAllQueryBuilder) {
             return true;
         }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -637,6 +638,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             shutdowns = shutdowns.putSingleNodeMetadata(
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(randomValueOtherThan(lastNodeId, () -> randomAlphaOfLengthBetween(5, 10)))
+                    .setNodeEphemeralId(randomValueOtherThan(lastNodeId, () -> randomAlphaOfLengthBetween(5, 10)))
                     .setReason(this.getTestName())
                     .setStartedAtMillis(randomNonNegativeLong())
                     .setType(type)
@@ -657,6 +659,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             NodesShutdownMetadata shutdowns = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(lastNodeId)
+                    .setNodeEphemeralId(lastNodeId)
                     .setReason(this.getTestName())
                     .setStartedAtMillis(randomNonNegativeLong())
                     .setType(type)
@@ -677,6 +680,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         NodesShutdownMetadata shutdowns = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
             SingleNodeShutdownMetadata.builder()
                 .setNodeId(lastNodeId)
+                .setNodeEphemeralId(lastNodeId)
                 .setReason(this.getTestName())
                 .setStartedAtMillis(randomNonNegativeLong())
                 .setType(SingleNodeShutdownMetadata.Type.RESTART)
@@ -699,6 +703,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         NodesShutdownMetadata shutdowns = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
             SingleNodeShutdownMetadata.builder()
                 .setNodeId(lastNodeId)
+                .setNodeEphemeralId(lastNodeId)
                 .setReason(this.getTestName())
                 .setStartedAtMillis(randomNonNegativeLong())
                 .setType(SingleNodeShutdownMetadata.Type.RESTART)
@@ -727,6 +732,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         NodesShutdownMetadata shutdowns = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
             SingleNodeShutdownMetadata.builder()
                 .setNodeId(lastNodeId)
+                .setNodeEphemeralId(lastNodeId)
                 .setReason(this.getTestName())
                 .setStartedAtMillis(randomNonNegativeLong())
                 .setType(SingleNodeShutdownMetadata.Type.RESTART)

@@ -97,10 +97,20 @@ GET my-index-000001/_search
         "my_field._3gram"
       ]
     }
+  },
+  "highlight": {
+    "fields": {
+      "my_field": {
+        "matched_fields": ["my_field._index_prefix"] <1>
+      }
+    }
   }
 }
 --------------------------------------------------
 // TEST[continued]
+
+<1> Adding "my_field._index_prefix" to the `matched_fields` allows to highlight
+    "my_field" also based on matches from "my_field._index_prefix" field.
 
 [source,console-result]
 --------------------------------------------------
@@ -126,6 +136,11 @@ GET my-index-000001/_search
         "_score" : 0.8630463,
         "_source" : {
           "my_field" : "quick brown fox jump lazy dog"
+        },
+        "highlight": {
+          "my_field": [
+            "quick <em>brown fox jump lazy</em> dog"
+          ]
         }
       }
     ]
@@ -266,5 +281,4 @@ any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
 `search_as_you_type` fields support <<synthetic-source,synthetic `_source`>> in their
-default configuration. Synthetic `_source` cannot be used together with
-<<copy-to,`copy_to`>>.
+default configuration.

@@ -140,7 +140,11 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     protected void assertTemplateInstalled(String name) {
         boolean found = false;
-        for (IndexTemplateMetadata template : client().admin().indices().prepareGetTemplates().get().getIndexTemplates()) {
+        for (IndexTemplateMetadata template : client().admin()
+            .indices()
+            .prepareGetTemplates(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getIndexTemplates()) {
             if (Regex.simpleMatch(name, template.getName())) {
                 found = true;
             }

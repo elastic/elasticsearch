@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -30,6 +31,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Map<String, List<ProcessorStat>> processorStats)
     implements
@@ -56,24 +58,33 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
      * Read from a stream.
      */
     public static IngestStats read(StreamInput in) throws IOException {
-        var stats = new Stats(in);
+        // while reading the processors, we're going to encounter identical name and type strings *repeatedly*
+        // it's advantageous to discard the endless copies of the same strings and canonical-ize them to keep our
+        // heap usage under control. note: this map is key to key, because of the limitations of the set interface.
+        final Map<String, String> namesAndTypesCache = new HashMap<>();
+
+        var stats = readStats(in);
         var size = in.readVInt();
+        if (stats == Stats.IDENTITY && size == 0) {
+            return IDENTITY;
+        }
         var pipelineStats = new ArrayList<PipelineStat>(size);
         var processorStats = Maps.<String, List<ProcessorStat>>newMapWithExpectedSize(size);
 
         for (var i = 0; i < size; i++) {
             var pipelineId = in.readString();
-            var pipelineStat = new Stats(in);
-            var byteStat = in.getTransportVersion().onOrAfter(TransportVersions.NODE_STATS_INGEST_BYTES)
-                ? new ByteStats(in)
-                : new ByteStats(0, 0);
+            var pipelineStat = readStats(in);
+            var byteStat = in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? new ByteStats(in) : new ByteStats(0, 0);
             pipelineStats.add(new PipelineStat(pipelineId, pipelineStat, byteStat));
             int processorsSize = in.readVInt();
             var processorStatsPerPipeline = new ArrayList<ProcessorStat>(processorsSize);
             for (var j = 0; j < processorsSize; j++) {
                 var processorName = in.readString();
                 var processorType = in.readString();
-                var processorStat = new Stats(in);
+                var processorStat = readStats(in);
+                // pass these name and type through the local names and types cache to canonical-ize them
+                processorName = namesAndTypesCache.computeIfAbsent(processorName, Function.identity());
+                processorType = namesAndTypesCache.computeIfAbsent(processorType, Function.identity());
                 processorStatsPerPipeline.add(new ProcessorStat(processorName, processorType, processorStat));
             }
             processorStats.put(pipelineId, Collections.unmodifiableList(processorStatsPerPipeline));
@@ -89,7 +100,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         for (PipelineStat pipelineStat : pipelineStats) {
             out.writeString(pipelineStat.pipelineId());
             pipelineStat.stats().writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_STATS_INGEST_BYTES)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 pipelineStat.byteStats().writeTo(out);
             }
             List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.pipelineId());
@@ -144,12 +155,10 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
                             return builder;
                         }
                     ),
-
-                    Iterators.<ToXContent>single((builder, params) -> builder.endArray().endObject())
+                    Iterators.single((builder, params) -> builder.endArray().endObject())
                 )
             ),
-
-            Iterators.<ToXContent>single((builder, params) -> builder.endObject().endObject())
+            Iterators.single((builder, params) -> builder.endObject().endObject())
         );
     }
 
@@ -170,19 +179,27 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         return totalsPerPipelineProcessor;
     }
 
+    /**
+     * Read {@link Stats} from a stream.
+     */
+    private static Stats readStats(StreamInput in) throws IOException {
+        long ingestCount = in.readVLong();
+        long ingestTimeInMillis = in.readVLong();
+        long ingestCurrent = in.readVLong();
+        long ingestFailedCount = in.readVLong();
+        if (ingestCount == 0 && ingestTimeInMillis == 0 && ingestCurrent == 0 && ingestFailedCount == 0) {
+            return Stats.IDENTITY;
+        } else {
+            return new Stats(ingestCount, ingestTimeInMillis, ingestCurrent, ingestFailedCount);
+        }
+    }
+
     public record Stats(long ingestCount, long ingestTimeInMillis, long ingestCurrent, long ingestFailedCount)
         implements
             Writeable,
             ToXContentFragment {
 
         public static final Stats IDENTITY = new Stats(0, 0, 0, 0);
-
-        /**
-         * Read from a stream.
-         */
-        public Stats(StreamInput in) throws IOException {
-            this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
-        }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {

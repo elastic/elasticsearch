@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.regex;
@@ -44,8 +45,18 @@ public class Regex {
         return str.equals("*");
     }
 
+    /**
+     * Returns true if the str ends with "*".
+     */
     public static boolean isSuffixMatchPattern(String str) {
         return str.length() > 1 && str.indexOf('*') == str.length() - 1;
+    }
+
+    /**
+     * Returns true if the str ends with ".*".
+     */
+    public static boolean isSuffixWildcard(String str) {
+        return isSuffixMatchPattern(str) && str.endsWith(".*");
     }
 
     /** Return an {@link Automaton} that matches the given pattern. */
@@ -58,7 +69,7 @@ public class Regex {
             previous = i + 1;
         }
         automata.add(Automata.makeString(pattern.substring(previous)));
-        return Operations.concatenate(automata);
+        return Operations.determinize(Operations.concatenate(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     /**
@@ -71,9 +82,12 @@ public class Regex {
 
         List<BytesRef> simpleStrings = new ArrayList<>();
         List<Automaton> automata = new ArrayList<>();
+        List<BytesRef> prefixes = new ArrayList<>();
         for (String pattern : patterns) {
             // Strings longer than 1000 characters aren't supported by makeStringUnion
-            if (isSimpleMatchPattern(pattern) || pattern.length() >= 1000) {
+            if (isSuffixWildcard(pattern) && pattern.length() < 1000) {
+                prefixes.add(new BytesRef(pattern.substring(0, pattern.length() - 1)));
+            } else if (isSimpleMatchPattern(pattern) || pattern.length() >= 1000) {
                 automata.add(simpleMatchToAutomaton(pattern));
             } else {
                 simpleStrings.add(new BytesRef(pattern));
@@ -87,12 +101,19 @@ public class Regex {
             } else {
                 simpleStringsAutomaton = Automata.makeString(simpleStrings.get(0).utf8ToString());
             }
-            if (automata.isEmpty()) {
+            if (automata.isEmpty() && prefixes.isEmpty()) {
                 return simpleStringsAutomaton;
             }
             automata.add(simpleStringsAutomaton);
         }
-        return Operations.union(automata);
+        if (false == prefixes.isEmpty()) {
+            List<Automaton> prefixAutomaton = new ArrayList<>();
+            Collections.sort(prefixes);
+            prefixAutomaton.add(Automata.makeStringUnion(prefixes));
+            prefixAutomaton.add(Automata.makeAnyString());
+            automata.add(Operations.concatenate(prefixAutomaton));
+        }
+        return Operations.determinize(Operations.union(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     /**

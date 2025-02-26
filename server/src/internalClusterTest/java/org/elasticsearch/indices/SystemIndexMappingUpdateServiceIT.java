@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -69,7 +70,7 @@ public class SystemIndexMappingUpdateServiceIT extends ESIntegTestCase {
     }
 
     /**
-     * Check that if the the SystemIndexManager finds a managed index with mappings that claim to be newer than
+     * Check that if the SystemIndexManager finds a managed index with mappings that claim to be newer than
      * what it expects, then those mappings are left alone.
      */
     public void testSystemIndexManagerLeavesNewerMappingsAlone() throws Exception {
@@ -122,8 +123,9 @@ public class SystemIndexMappingUpdateServiceIT extends ESIntegTestCase {
      * Fetch the mappings and settings for {@link TestSystemIndexDescriptor#INDEX_NAME} and verify that they match the expected values.
      */
     private void assertMappingsAndSettings(String expectedMappings) {
-        final GetMappingsResponse getMappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(INDEX_NAME))
-            .actionGet();
+        final GetMappingsResponse getMappingsResponse = indicesAdmin().getMappings(
+            new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(INDEX_NAME)
+        ).actionGet();
 
         final Map<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
         assertThat(
@@ -135,8 +137,9 @@ public class SystemIndexMappingUpdateServiceIT extends ESIntegTestCase {
 
         assertThat(sourceAsMap, equalTo(XContentHelper.convertToMap(XContentType.JSON.xContent(), expectedMappings, false)));
 
-        final GetSettingsResponse getSettingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(INDEX_NAME))
-            .actionGet();
+        final GetSettingsResponse getSettingsResponse = indicesAdmin().getSettings(
+            new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(INDEX_NAME)
+        ).actionGet();
 
         final Settings actual = getSettingsResponse.getIndexToSettings().get(PRIMARY_INDEX_NAME);
 

@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.application.analytics.ingest;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 
 /**
  *  Bulk processor configuration.
@@ -20,7 +20,9 @@ import org.elasticsearch.core.TimeValue;
  *  - flush_delay: the maximum delay between two flushes (default: 10s.)
  *  - max_events_per_bulk: the maximum number of events that can be added to the bulk before flushing the bulk (default: 1000)
  *  - max_number_of_retries: the maximum number of retries when bulk execution fails (default: 3)
+ * @deprecated in 9.0
  */
+@Deprecated
 public class AnalyticsEventIngestConfig {
     private static final String SETTING_ROOT_PATH = "xpack.applications.behavioral_analytics.ingest";
 

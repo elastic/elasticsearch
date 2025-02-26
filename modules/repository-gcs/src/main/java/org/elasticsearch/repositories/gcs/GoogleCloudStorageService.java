@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.gcs;
@@ -24,6 +25,7 @@ import com.google.cloud.storage.StorageRetryStrategy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -39,6 +41,7 @@ import java.net.URI;
 import java.net.URL;
 import java.security.KeyStore;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.emptyMap;
@@ -50,12 +53,15 @@ public class GoogleCloudStorageService {
 
     private volatile Map<String, GoogleCloudStorageClientSettings> clientSettings = emptyMap();
 
+    private record ClientKey(OperationPurpose purpose, String repositoryName) {}
+
     /**
      * Dictionary of client instances. Client instances are built lazily from the
-     * latest settings. Each repository has its own client instance identified by
-     * the repository name.
+     * latest settings. Clients are cached by a composite OperationPurpose/repositoryName
+     * key.
+     * @see ClientKey
      */
-    private volatile Map<String, Storage> clientCache = emptyMap();
+    private volatile Map<ClientKey, Storage> clientCache = emptyMap();
 
     /**
      * Refreshes the client settings and clears the client cache. Subsequent calls to
@@ -78,20 +84,26 @@ public class GoogleCloudStorageService {
      *
      * @param clientName name of the client settings used to create the client
      * @param repositoryName name of the repository that would use the client
+     * @param operationPurpose the purpose for which the client will be used
      * @param stats the stats collector used to gather information about the underlying SKD API calls.
      * @return a cached client storage instance that can be used to manage objects
      *         (blobs)
      */
-    public Storage client(final String clientName, final String repositoryName, final GoogleCloudStorageOperationsStats stats)
-        throws IOException {
+    public Storage client(
+        final String clientName,
+        final String repositoryName,
+        final OperationPurpose operationPurpose,
+        final GoogleCloudStorageOperationsStats stats
+    ) throws IOException {
+        ClientKey clientKey = new ClientKey(operationPurpose, repositoryName);
         {
-            final Storage storage = clientCache.get(repositoryName);
+            final Storage storage = clientCache.get(clientKey);
             if (storage != null) {
                 return storage;
             }
         }
         synchronized (this) {
-            final Storage existing = clientCache.get(repositoryName);
+            final Storage existing = clientCache.get(clientKey);
 
             if (existing != null) {
                 return existing;
@@ -109,14 +121,17 @@ public class GoogleCloudStorageService {
             }
 
             logger.debug(() -> format("creating GCS client with client_name [%s], endpoint [%s]", clientName, settings.getHost()));
-            final Storage storage = createClient(settings, stats);
-            clientCache = Maps.copyMapWithAddedEntry(clientCache, repositoryName, storage);
+            final Storage storage = createClient(settings, stats, operationPurpose);
+            clientCache = Maps.copyMapWithAddedEntry(clientCache, clientKey, storage);
             return storage;
         }
     }
 
-    synchronized void closeRepositoryClient(String repositoryName) {
-        clientCache = Maps.copyMapWithRemovedEntry(clientCache, repositoryName);
+    synchronized void closeRepositoryClients(String repositoryName) {
+        clientCache = clientCache.entrySet()
+            .stream()
+            .filter(entry -> entry.getKey().repositoryName().equals(repositoryName) == false)
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**
@@ -124,11 +139,15 @@ public class GoogleCloudStorageService {
      *
      * @param gcsClientSettings client settings to use, including secure settings
      * @param stats the stats collector to use by the underlying SDK
+     * @param operationPurpose the purpose this client will be used for
      * @return a new client storage instance that can be used to manage objects
      *         (blobs)
      */
-    private Storage createClient(GoogleCloudStorageClientSettings gcsClientSettings, GoogleCloudStorageOperationsStats stats)
-        throws IOException {
+    private Storage createClient(
+        GoogleCloudStorageClientSettings gcsClientSettings,
+        GoogleCloudStorageOperationsStats stats,
+        OperationPurpose operationPurpose
+    ) throws IOException {
         final HttpTransport httpTransport = SocketAccess.doPrivilegedIOException(() -> {
             final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
             // requires java.lang.RuntimePermission "setFactory"
@@ -148,7 +167,7 @@ public class GoogleCloudStorageService {
             return builder.build();
         });
 
-        final GoogleCloudStorageHttpStatsCollector httpStatsCollector = new GoogleCloudStorageHttpStatsCollector(stats);
+        final GoogleCloudStorageHttpStatsCollector httpStatsCollector = new GoogleCloudStorageHttpStatsCollector(stats, operationPurpose);
 
         final HttpTransportOptions httpTransportOptions = new HttpTransportOptions(
             HttpTransportOptions.newBuilder()

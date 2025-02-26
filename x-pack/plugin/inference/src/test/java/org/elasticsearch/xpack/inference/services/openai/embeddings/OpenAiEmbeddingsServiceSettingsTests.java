@@ -257,6 +257,92 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         assertThat(settings, is(new OpenAiEmbeddingsServiceSettings("m", (URI) null, null, null, null, null, true, null)));
     }
 
+    public void testFromMap_ThrowsException_WhenDimensionsAreZero() {
+        var modelId = "model-foo";
+        var url = "https://www.abc.com";
+        var org = "organization";
+        var dimensions = 0;
+
+        var settingsMap = getServiceSettingsMap(modelId, url, org, dimensions, null, null);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> OpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;")
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenDimensionsAreNegative() {
+        var modelId = "model-foo";
+        var url = "https://www.abc.com";
+        var org = "organization";
+        var dimensions = randomNegativeInt();
+
+        var settingsMap = getServiceSettingsMap(modelId, url, org, dimensions, null, null);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> OpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [dimensions] must be a positive integer;",
+                    dimensions
+                )
+            )
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenMaxInputTokensAreZero() {
+        var modelId = "model-foo";
+        var url = "https://www.abc.com";
+        var org = "organization";
+        var maxInputTokens = 0;
+
+        var settingsMap = getServiceSettingsMap(modelId, url, org, null, maxInputTokens, null);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> OpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [max_input_tokens] must be a positive integer;")
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenMaxInputTokensAreNegative() {
+        var modelId = "model-foo";
+        var url = "https://www.abc.com";
+        var org = "organization";
+        var maxInputTokens = randomNegativeInt();
+
+        var settingsMap = getServiceSettingsMap(modelId, url, org, null, maxInputTokens, null);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> OpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [max_input_tokens] must be a positive integer;",
+                    maxInputTokens
+                )
+            )
+        );
+    }
+
     public void testFromMap_PersistentContext_DoesNotThrowException_WhenDimensionsSetByUserIsNull() {
         OpenAiEmbeddingsServiceSettings.fromMap(
             new HashMap<>(Map.of(ServiceFields.DIMENSIONS, 1, ServiceFields.MODEL_ID, "m")),
@@ -464,6 +550,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         @Nullable String url,
         @Nullable String org,
         @Nullable Integer dimensions,
+        @Nullable Integer maxInputTokens,
         @Nullable Boolean dimensionsSetByUser
     ) {
         var map = new HashMap<String, Object>();
@@ -479,6 +566,10 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         if (dimensions != null) {
             map.put(ServiceFields.DIMENSIONS, dimensions);
+        }
+
+        if (maxInputTokens != null) {
+            map.put(ServiceFields.MAX_INPUT_TOKENS, maxInputTokens);
         }
 
         if (dimensionsSetByUser != null) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.update;
@@ -22,6 +23,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.instance.TransportInstanceSingleOperationAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -34,7 +36,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -44,11 +45,13 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -94,7 +97,10 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Override
     protected Executor executor(ShardId shardId) {
-        final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        return executor(indicesService.indexServiceSafe(shardId.getIndex()));
+    }
+
+    private Executor executor(IndexService indexService) {
         return threadPool.executor(indexService.getIndexSettings().getIndexMetadata().isSystem() ? Names.SYSTEM_WRITE : Names.WRITE);
     }
 
@@ -186,133 +192,149 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final ShardId shardId = request.getShardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
-        final UpdateHelper.Result result = deleteInferenceResults(
-            request,
-            updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis),
-            indexService.getMetadata(),
-            indexShard.mapperService().mappingLookup()
-        );
+        final MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
 
-        switch (result.getResponseResult()) {
-            case CREATED -> {
-                IndexRequest upsertRequest = result.action();
-                // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
-                final BytesReference upsertSourceBytes = upsertRequest.source();
-                client.bulk(
-                    toSingleItemBulkRequest(upsertRequest),
-                    unwrappingSingleItemBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
-                        UpdateResponse update = new UpdateResponse(
-                            response.getShardInfo(),
-                            response.getShardId(),
-                            response.getId(),
-                            response.getSeqNo(),
-                            response.getPrimaryTerm(),
-                            response.getVersion(),
-                            response.getResult()
-                        );
-                        if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
-                            Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
-                                upsertSourceBytes,
-                                true,
-                                upsertRequest.getContentType()
-                            );
-                            update.setGetResult(
-                                UpdateHelper.extractGetResult(
-                                    request,
-                                    request.concreteIndex(),
+        var executor = executor(indexService);
+        assert ThreadPool.assertCurrentThreadPool(Names.SYSTEM_WRITE, Names.WRITE);
+
+        SubscribableListener.newForked(indexShard::ensureMutable)
+        // Make sure to fork back to a `write` thread pool if necessary
+        .<UpdateHelper.Result>andThen(executor, threadPool.getThreadContext(), (l, unused) -> ActionListener.completeWith(l, () -> {
+            assert ThreadPool.assertCurrentThreadPool(Names.SYSTEM_WRITE, Names.WRITE);
+            return deleteInferenceResults(
+                request,
+                updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis), // Gets the doc using the engine
+                indexService.getMetadata(),
+                mappingLookup
+            );
+        }))
+            // Proceed with a single item bulk request
+            .<UpdateResponse>andThen((l, result) -> {
+                switch (result.getResponseResult()) {
+                    case CREATED -> {
+                        IndexRequest upsertRequest = result.action();
+                        // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
+                        final BytesReference upsertSourceBytes = upsertRequest.source();
+                        client.bulk(
+                            toSingleItemBulkRequest(upsertRequest),
+                            unwrappingSingleItemBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
+                                UpdateResponse update = new UpdateResponse(
+                                    response.getShardInfo(),
+                                    response.getShardId(),
+                                    response.getId(),
                                     response.getSeqNo(),
                                     response.getPrimaryTerm(),
                                     response.getVersion(),
-                                    sourceAndContent.v2(),
-                                    sourceAndContent.v1(),
-                                    upsertSourceBytes
-                                )
-                            );
-                        } else {
-                            update.setGetResult(null);
-                        }
-                        update.setForcedRefresh(response.forcedRefresh());
-                        listener.onResponse(update);
-                    }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))
-                );
-            }
-            case UPDATED -> {
-                IndexRequest indexRequest = result.action();
-                // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
-                final BytesReference indexSourceBytes = indexRequest.source();
-                client.bulk(
-                    toSingleItemBulkRequest(indexRequest),
-                    unwrappingSingleItemBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
-                        UpdateResponse update = new UpdateResponse(
-                            response.getShardInfo(),
-                            response.getShardId(),
-                            response.getId(),
-                            response.getSeqNo(),
-                            response.getPrimaryTerm(),
-                            response.getVersion(),
-                            response.getResult()
+                                    response.getResult()
+                                );
+                                if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
+                                    Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
+                                        upsertSourceBytes,
+                                        true,
+                                        upsertRequest.getContentType()
+                                    );
+                                    update.setGetResult(
+                                        UpdateHelper.extractGetResult(
+                                            request,
+                                            request.concreteIndex(),
+                                            mappingLookup,
+                                            response.getSeqNo(),
+                                            response.getPrimaryTerm(),
+                                            response.getVersion(),
+                                            sourceAndContent.v2(),
+                                            sourceAndContent.v1(),
+                                            upsertSourceBytes
+                                        )
+                                    );
+                                } else {
+                                    update.setGetResult(null);
+                                }
+                                update.setForcedRefresh(response.forcedRefresh());
+                                l.onResponse(update);
+                            }, exception -> handleUpdateFailureWithRetry(l, request, exception, retryCount)))
                         );
-                        update.setGetResult(
-                            UpdateHelper.extractGetResult(
-                                request,
-                                request.concreteIndex(),
-                                response.getSeqNo(),
-                                response.getPrimaryTerm(),
-                                response.getVersion(),
-                                result.updatedSourceAsMap(),
-                                result.updateSourceContentType(),
-                                indexSourceBytes
-                            )
-                        );
-                        update.setForcedRefresh(response.forcedRefresh());
-                        listener.onResponse(update);
-                    }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))
-                );
-            }
-            case DELETED -> {
-                DeleteRequest deleteRequest = result.action();
-                client.bulk(
-                    toSingleItemBulkRequest(deleteRequest),
-                    unwrappingSingleItemBulkResponse(ActionListener.<DeleteResponse>wrap(response -> {
-                        UpdateResponse update = new UpdateResponse(
-                            response.getShardInfo(),
-                            response.getShardId(),
-                            response.getId(),
-                            response.getSeqNo(),
-                            response.getPrimaryTerm(),
-                            response.getVersion(),
-                            response.getResult()
-                        );
-                        update.setGetResult(
-                            UpdateHelper.extractGetResult(
-                                request,
-                                request.concreteIndex(),
-                                response.getSeqNo(),
-                                response.getPrimaryTerm(),
-                                response.getVersion(),
-                                result.updatedSourceAsMap(),
-                                result.updateSourceContentType(),
-                                null
-                            )
-                        );
-                        update.setForcedRefresh(response.forcedRefresh());
-                        listener.onResponse(update);
-                    }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))
-                );
-            }
-            case NOOP -> {
-                UpdateResponse update = result.action();
-                IndexService indexServiceOrNull = indicesService.indexService(shardId.getIndex());
-                if (indexServiceOrNull != null) {
-                    IndexShard shard = indexService.getShardOrNull(shardId.getId());
-                    if (shard != null) {
-                        shard.noopUpdate();
                     }
+                    case UPDATED -> {
+                        IndexRequest indexRequest = result.action();
+                        // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
+                        final BytesReference indexSourceBytes = indexRequest.source();
+                        client.bulk(
+                            toSingleItemBulkRequest(indexRequest),
+                            unwrappingSingleItemBulkResponse(ActionListener.<DocWriteResponse>wrap(response -> {
+                                UpdateResponse update = new UpdateResponse(
+                                    response.getShardInfo(),
+                                    response.getShardId(),
+                                    response.getId(),
+                                    response.getSeqNo(),
+                                    response.getPrimaryTerm(),
+                                    response.getVersion(),
+                                    response.getResult()
+                                );
+                                update.setGetResult(
+                                    UpdateHelper.extractGetResult(
+                                        request,
+                                        request.concreteIndex(),
+                                        mappingLookup,
+                                        response.getSeqNo(),
+                                        response.getPrimaryTerm(),
+                                        response.getVersion(),
+                                        result.updatedSourceAsMap(),
+                                        result.updateSourceContentType(),
+                                        indexSourceBytes
+                                    )
+                                );
+                                update.setForcedRefresh(response.forcedRefresh());
+                                l.onResponse(update);
+                            }, exception -> handleUpdateFailureWithRetry(l, request, exception, retryCount)))
+                        );
+                    }
+                    case DELETED -> {
+                        DeleteRequest deleteRequest = result.action();
+                        client.bulk(
+                            toSingleItemBulkRequest(deleteRequest),
+                            unwrappingSingleItemBulkResponse(ActionListener.<DeleteResponse>wrap(response -> {
+                                UpdateResponse update = new UpdateResponse(
+                                    response.getShardInfo(),
+                                    response.getShardId(),
+                                    response.getId(),
+                                    response.getSeqNo(),
+                                    response.getPrimaryTerm(),
+                                    response.getVersion(),
+                                    response.getResult()
+                                );
+                                update.setGetResult(
+                                    UpdateHelper.extractGetResult(
+                                        request,
+                                        request.concreteIndex(),
+                                        mappingLookup,
+                                        response.getSeqNo(),
+                                        response.getPrimaryTerm(),
+                                        response.getVersion(),
+                                        result.updatedSourceAsMap(),
+                                        result.updateSourceContentType(),
+                                        null
+                                    )
+                                );
+                                update.setForcedRefresh(response.forcedRefresh());
+                                l.onResponse(update);
+                            }, exception -> handleUpdateFailureWithRetry(l, request, exception, retryCount)))
+                        );
+                    }
+                    case NOOP -> {
+                        UpdateResponse update = result.action();
+                        IndexService indexServiceOrNull = indicesService.indexService(shardId.getIndex());
+                        if (indexServiceOrNull != null) {
+                            IndexShard shard = indexService.getShardOrNull(shardId.getId());
+                            if (shard != null) {
+                                shard.noopUpdate();
+                            }
+                        }
+                        l.onResponse(update);
+                    }
+                    default -> throw new IllegalStateException("Illegal result " + result.getResponseResult());
                 }
-                listener.onResponse(update);
-            }
-            default -> throw new IllegalStateException("Illegal result " + result.getResponseResult());
-        }
+            })
+            .addListener(listener);
     }
 
     private void handleUpdateFailureWithRetry(
@@ -369,7 +391,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         IndexMetadata indexMetadata,
         MappingLookup mappingLookup
     ) {
-        if (result.getResponseResult() != DocWriteResponse.Result.UPDATED) {
+        if (result.getResponseResult() != DocWriteResponse.Result.UPDATED || InferenceMetadataFieldsMapper.isEnabled(mappingLookup)) {
             return result;
         }
 
@@ -398,7 +420,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             String inferenceFieldName = entry.getKey();
             Mapper mapper = mappingLookup.getMapper(inferenceFieldName);
 
-            if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
+            if (mapper instanceof InferenceFieldMapper) {
                 String[] sourceFields = entry.getValue().getSourceFields();
                 for (String sourceField : sourceFields) {
                     if (sourceField.equals(inferenceFieldName) == false
@@ -407,7 +429,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         // This has two important side effects:
                         // - The inference field value will remain parsable by its mapper
                         // - The inference results will be removed, forcing them to be re-generated downstream
-                        updatedSource.put(inferenceFieldName, inferenceFieldMapper.getOriginalValue(updatedSource));
+                        updatedSource.put(inferenceFieldName, getOriginalValueLegacy(inferenceFieldName, updatedSource));
                         updatedSourceModified = true;
                         break;
                     }
@@ -429,5 +451,25 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         }
 
         return returnedResult;
+    }
+
+    /**
+     * Get the field's original value (i.e. the value the user specified) from the provided source.
+     *
+     * @param sourceAsMap The source as a map
+     * @return The field's original value, or {@code null} if none was provided
+     */
+    private static Object getOriginalValueLegacy(String fullPath, Map<String, Object> sourceAsMap) {
+        // TODO: Fix bug here when semantic text field is in an object
+        Object fieldValue = sourceAsMap.get(fullPath);
+        if (fieldValue == null) {
+            return null;
+        } else if (fieldValue instanceof Map<?, ?> == false) {
+            // Don't try to further validate the non-map value, that will be handled when the source is fully parsed
+            return fieldValue;
+        }
+
+        Map<String, Object> fieldValueMap = XContentMapValues.nodeMapValue(fieldValue, "Field [" + fullPath + "]");
+        return XContentMapValues.extractValue("text", fieldValueMap);
     }
 }

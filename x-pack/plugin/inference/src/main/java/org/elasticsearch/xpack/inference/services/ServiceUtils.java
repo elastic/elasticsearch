@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
@@ -21,8 +22,9 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
 import java.net.URI;
@@ -37,6 +39,10 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.ENABLED;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MIN_NUMBER_OF_ALLOCATIONS;
+import static org.elasticsearch.xpack.inference.rest.Paths.STREAM_SUFFIX;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 
 public final class ServiceUtils {
@@ -126,6 +132,30 @@ public final class ServiceUtils {
         return null;
     }
 
+    public static AdaptiveAllocationsSettings removeAsAdaptiveAllocationsSettings(
+        Map<String, Object> sourceMap,
+        String key,
+        ValidationException validationException
+    ) {
+        Map<String, Object> settingsMap = ServiceUtils.removeFromMap(sourceMap, key);
+        if (settingsMap == null) {
+            return null;
+        }
+        AdaptiveAllocationsSettings settings = new AdaptiveAllocationsSettings(
+            ServiceUtils.removeAsType(settingsMap, ENABLED.getPreferredName(), Boolean.class, validationException),
+            ServiceUtils.removeAsType(settingsMap, MIN_NUMBER_OF_ALLOCATIONS.getPreferredName(), Integer.class, validationException),
+            ServiceUtils.removeAsType(settingsMap, MAX_NUMBER_OF_ALLOCATIONS.getPreferredName(), Integer.class, validationException)
+        );
+        for (String settingName : settingsMap.keySet()) {
+            validationException.addValidationError(invalidSettingError(settingName, key));
+        }
+        ActionRequestValidationException exception = settings.validate();
+        if (exception != null) {
+            validationException.addValidationErrors(exception.validationErrors());
+        }
+        return settings;
+    }
+
     @SuppressWarnings("unchecked")
     public static Map<String, Object> removeFromMap(Map<String, Object> sourceMap, String fieldName) {
         return (Map<String, Object>) sourceMap.remove(fieldName);
@@ -173,8 +203,28 @@ public final class ServiceUtils {
         );
     }
 
+    public static ElasticsearchStatusException invalidModelTypeForUpdateModelWithEmbeddingDetails(Class<? extends Model> invalidModelType) {
+        throw new ElasticsearchStatusException(
+            Strings.format("Can't update embedding details for model with unexpected type %s", invalidModelType),
+            RestStatus.BAD_REQUEST
+        );
+    }
+
+    public static ElasticsearchStatusException invalidModelTypeForUpdateModelWithChatCompletionDetails(
+        Class<? extends Model> invalidModelType
+    ) {
+        throw new ElasticsearchStatusException(
+            Strings.format("Can't update chat completion details for model with unexpected type %s", invalidModelType),
+            RestStatus.BAD_REQUEST
+        );
+    }
+
     public static String missingSettingErrorMsg(String settingName, String scope) {
         return Strings.format("[%s] does not contain the required setting [%s]", scope, settingName);
+    }
+
+    public static String missingOneOfSettingsErrorMsg(List<String> settingNames, String scope) {
+        return Strings.format("[%s] does not contain one of the required settings [%s]", scope, String.join(", ", settingNames));
     }
 
     public static String invalidTypeErrorMsg(String settingName, Object foundObject, String expectedType) {
@@ -233,11 +283,7 @@ public final class ServiceUtils {
 
     public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
         try {
-            if (url == null) {
-                return null;
-            }
-
-            return createUri(url);
+            return createOptionalUri(url);
         } catch (IllegalArgumentException cause) {
             validationException.addValidationError(ServiceUtils.invalidUrlErrorMsg(url, settingName, settingScope, cause.getMessage()));
             return null;
@@ -355,6 +401,76 @@ public final class ServiceUtils {
         return optionalField;
     }
 
+    public static Integer extractRequiredPositiveInteger(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        Integer field = ServiceUtils.removeAsType(map, settingName, Integer.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        if (field == null) {
+            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(settingName, scope));
+        } else if (field <= 0) {
+            validationException.addValidationError(ServiceUtils.mustBeAPositiveIntegerErrorMessage(settingName, scope, field));
+        }
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        return field;
+    }
+
+    public static Integer extractRequiredPositiveIntegerLessThanOrEqualToMax(
+        Map<String, Object> map,
+        String settingName,
+        int maxValue,
+        String scope,
+        ValidationException validationException
+    ) {
+        Integer field = extractRequiredPositiveInteger(map, settingName, scope, validationException);
+
+        if (field != null && field > maxValue) {
+            validationException.addValidationError(
+                ServiceUtils.mustBeLessThanOrEqualNumberErrorMessage(settingName, scope, field, maxValue)
+            );
+        }
+
+        return field;
+    }
+
+    public static Integer extractRequiredPositiveIntegerBetween(
+        Map<String, Object> map,
+        String settingName,
+        int minValue,
+        int maxValue,
+        String scope,
+        ValidationException validationException
+    ) {
+        Integer field = extractRequiredPositiveInteger(map, settingName, scope, validationException);
+
+        if (field != null && field < minValue) {
+            validationException.addValidationError(
+                ServiceUtils.mustBeGreaterThanOrEqualNumberErrorMessage(settingName, scope, field, minValue)
+            );
+            return null;
+        }
+        if (field != null && field > maxValue) {
+            validationException.addValidationError(
+                ServiceUtils.mustBeLessThanOrEqualNumberErrorMessage(settingName, scope, field, maxValue)
+            );
+            return null;
+        }
+
+        return field;
+    }
+
     public static Integer extractOptionalPositiveInteger(
         Map<String, Object> map,
         String settingName,
@@ -370,9 +486,6 @@ public final class ServiceUtils {
 
         if (optionalField != null && optionalField <= 0) {
             validationException.addValidationError(ServiceUtils.mustBeAPositiveIntegerErrorMessage(settingName, scope, optionalField));
-        }
-
-        if (validationException.validationErrors().size() > initialValidationErrorCount) {
             return null;
         }
 
@@ -549,6 +662,40 @@ public final class ServiceUtils {
     }
 
     /**
+     * task_type can be specified as either a URL parameter or in the
+     * request body. Resolve which to use or throw if the settings are
+     * inconsistent
+     * @param urlTaskType Taken from the URL parameter. ANY means not specified.
+     * @param bodyTaskType Taken from the request body. Maybe null
+     * @return The resolved task type
+     */
+    public static TaskType resolveTaskType(TaskType urlTaskType, String bodyTaskType) {
+        if (bodyTaskType == null) {
+            if (urlTaskType == TaskType.ANY) {
+                throw new ElasticsearchStatusException("model is missing required setting [task_type]", RestStatus.BAD_REQUEST);
+            } else {
+                return urlTaskType;
+            }
+        }
+
+        TaskType parsedBodyTask = TaskType.fromStringOrStatusException(bodyTaskType);
+        if (parsedBodyTask == TaskType.ANY) {
+            throw new ElasticsearchStatusException("task_type [any] is not valid type for inference", RestStatus.BAD_REQUEST);
+        }
+
+        if (parsedBodyTask.isAnyOrSame(urlTaskType) == false) {
+            throw new ElasticsearchStatusException(
+                "Cannot resolve conflicting task_type parameter in the request URL [{}] and the request body [{}]",
+                RestStatus.BAD_REQUEST,
+                urlTaskType.toString(),
+                bodyTaskType
+            );
+        }
+
+        return parsedBodyTask;
+    }
+
+    /**
      * Functional interface for creating an enum from a string.
      * @param <E>
      */
@@ -589,11 +736,12 @@ public final class ServiceUtils {
             model,
             null,
             List.of(TEST_EMBEDDING_INPUT),
+            false,
             Map.of(),
             InputType.INGEST,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener.delegateFailureAndWrap((delegate, r) -> {
-                if (r instanceof TextEmbedding embeddingResults) {
+                if (r instanceof TextEmbeddingResults<?, ?> embeddingResults) {
                     try {
                         delegate.onResponse(embeddingResults.getFirstEmbeddingSize());
                     } catch (Exception e) {
@@ -606,7 +754,7 @@ public final class ServiceUtils {
                         new ElasticsearchStatusException(
                             "Could not determine embedding size. "
                                 + "Expected a result of type ["
-                                + TextEmbeddingResults.NAME
+                                + TextEmbeddingFloatResults.NAME
                                 + "] got ["
                                 + r.getWriteableName()
                                 + "]",
@@ -623,6 +771,33 @@ public final class ServiceUtils {
     public static SecureString apiKey(@Nullable ApiKeySecrets secrets) {
         // To avoid a possible null pointer throughout the code we'll create a noop api key of an empty array
         return secrets == null ? new SecureString(new char[0]) : secrets.apiKey();
+    }
+
+    public static <T> T nonNullOrDefault(@Nullable T requestValue, @Nullable T originalSettingsValue) {
+        return requestValue == null ? originalSettingsValue : requestValue;
+    }
+
+    public static void throwUnsupportedUnifiedCompletionOperation(String serviceName) {
+        throw new UnsupportedOperationException(Strings.format("The %s service does not support unified completion", serviceName));
+    }
+
+    public static String unsupportedTaskTypeForInference(Model model, EnumSet<TaskType> supportedTaskTypes) {
+        return Strings.format(
+            "Inference entity [%s] does not support task type [%s] for inference, the task type must be one of %s.",
+            model.getInferenceEntityId(),
+            model.getTaskType(),
+            supportedTaskTypes
+        );
+    }
+
+    public static String useChatCompletionUrlMessage(Model model) {
+        return org.elasticsearch.common.Strings.format(
+            "The task type for the inference entity is %s, please use the _inference/%s/%s/%s URL.",
+            model.getTaskType(),
+            model.getTaskType(),
+            model.getInferenceEntityId(),
+            STREAM_SUFFIX
+        );
     }
 
     private ServiceUtils() {}

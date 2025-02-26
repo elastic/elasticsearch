@@ -38,7 +38,6 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
     public static final ParseField SLM_OPERATION_MODE_FIELD = new ParseField("slm_operation_mode");
     public static final LifecycleOperationMetadata EMPTY = new LifecycleOperationMetadata(OperationMode.RUNNING, OperationMode.RUNNING);
 
-    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<LifecycleOperationMetadata, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
         a -> new LifecycleOperationMetadata(OperationMode.valueOf((String) a[0]), OperationMode.valueOf((String) a[1]))

@@ -161,5 +161,5 @@ public class CohereRankedResponseEntity {
 
     private CohereRankedResponseEntity() {}
 
-    static String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Cohere embeddings response";
+    static String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Cohere rerank response";
 }

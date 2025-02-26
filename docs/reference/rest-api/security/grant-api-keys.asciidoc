@@ -5,6 +5,12 @@
 <titleabbrev>Grant API keys</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Creates an API key on behalf of another user.
 
 [[security-api-grant-api-key-request]]

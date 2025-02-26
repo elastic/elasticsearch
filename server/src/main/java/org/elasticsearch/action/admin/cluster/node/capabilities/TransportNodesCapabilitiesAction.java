@@ -1,28 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.capabilities;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -30,19 +29,18 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 public class TransportNodesCapabilitiesAction extends TransportNodesAction<
     NodesCapabilitiesRequest,
     NodesCapabilitiesResponse,
     TransportNodesCapabilitiesAction.NodeCapabilitiesRequest,
-    NodeCapability> {
+    NodeCapability,
+    Void> {
 
     public static final ActionType<NodesCapabilitiesResponse> TYPE = new ActionType<>("cluster:monitor/nodes/capabilities");
 
     private final RestController restController;
-    private final FeatureService featureService;
 
     @Inject
     public TransportNodesCapabilitiesAction(
@@ -50,8 +48,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        RestController restController,
-        FeatureService featureService
+        RestController restController
     ) {
         super(
             TYPE.name(),
@@ -62,23 +59,6 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.restController = restController;
-        this.featureService = featureService;
-    }
-
-    @Override
-    protected void doExecute(Task task, NodesCapabilitiesRequest request, ActionListener<NodesCapabilitiesResponse> listener) {
-        if (featureService.clusterHasFeature(clusterService.state(), RestNodesCapabilitiesAction.CAPABILITIES_ACTION) == false) {
-            // not everything in the cluster supports capabilities.
-            // Therefore we don't support whatever it is we're being asked for
-            listener.onResponse(new NodesCapabilitiesResponse(clusterService.getClusterName(), List.of(), List.of()) {
-                @Override
-                public Optional<Boolean> isSupported() {
-                    return Optional.of(false);
-                }
-            });
-        } else {
-            super.doExecute(task, request, listener);
-        }
     }
 
     @Override
@@ -149,6 +129,10 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             this.restApiVersion = restApiVersion;
         }
 
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // 8.x blows up in a mixed cluster when trying to read RestApiVersion.forMajor(9)
+        // ./gradlew ":qa:mixed-cluster:v8.16.0#mixedClusterTest"
+        // -Dtests.class="org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT"
+        // -Dtests.method="test {p0=capabilities/10_basic/Capabilities API}"
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -157,7 +141,9 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             out.writeString(path);
             out.writeCollection(parameters, StreamOutput::writeString);
             out.writeCollection(capabilities, StreamOutput::writeString);
-            out.writeVInt(restApiVersion.major);
+            // Fixme: lies! all lies!
+            out.writeVInt(8);
+            // out.writeVInt(restApiVersion.major);
         }
     }
 }

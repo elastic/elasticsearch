@@ -16,17 +16,18 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class ToDoubleTests extends AbstractFunctionTestCase {
+public class ToDoubleTests extends AbstractScalarFunctionTestCase {
     public ToDoubleTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -49,11 +50,12 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
         );
 
         TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataType.DOUBLE, b -> b ? 1d : 0d, List.of());
-        TestCaseSupplier.forUnaryDatetime(
+        TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("Long"),
+            TestCaseSupplier.dateCases(),
             DataType.DOUBLE,
-            i -> (double) i.toEpochMilli(),
+            i -> (double) ((Instant) i).toEpochMilli(),
             List.of()
         );
         // random strings that don't look like a double
@@ -63,8 +65,8 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
                 () -> EsqlDataTypeConverter.stringToDouble(bytesRef.utf8ToString())
             );
             return List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: " + exception
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: " + exception
             );
         });
         TestCaseSupplier.forUnaryUnsignedLong(
@@ -124,7 +126,7 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
         );
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("Integer"),
+            evaluatorName.apply("Int"),
             List.of(new TestCaseSupplier.TypedDataSupplier("counter", () -> randomInt(1000), DataType.COUNTER_INTEGER)),
             DataType.DOUBLE,
             l -> ((Integer) l).doubleValue(),
@@ -139,7 +141,7 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
             List.of()
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

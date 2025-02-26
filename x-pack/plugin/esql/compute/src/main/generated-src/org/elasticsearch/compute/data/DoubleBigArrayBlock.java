@@ -20,7 +20,7 @@ import java.util.BitSet;
 /**
  * Block implementation that stores values in a {@link DoubleBigArrayVector}. Does not take ownership of the given
  * {@link DoubleArray} and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BigArrayBlock.java.st} instead.
  */
 public final class DoubleBigArrayBlock extends AbstractArrayBlock implements DoubleBlock {
 
@@ -112,6 +112,47 @@ public final class DoubleBigArrayBlock extends AbstractArrayBlock implements Dou
                 }
             }
             return builder.mvOrdering(mvOrdering()).build();
+        }
+    }
+
+    @Override
+    public DoubleBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return this;
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return this;
+            }
+            return (DoubleBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (false == mask.getBoolean(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(p);
+                if (valueCount == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                int start = getFirstValueIndex(p);
+                if (valueCount == 1) {
+                    builder.appendDouble(getDouble(start));
+                    continue;
+                }
+                int end = start + valueCount;
+                builder.beginPositionEntry();
+                for (int i = start; i < end; i++) {
+                    builder.appendDouble(getDouble(i));
+                }
+                builder.endPositionEntry();
+            }
+            return builder.build();
         }
     }
 

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
@@ -123,7 +123,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any());
 
         var service = createRequestExecutorService(null, requestSender);
 
@@ -131,7 +131,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         service.execute(
-            OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "id", null, threadPool),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "id", null, threadPool),
             new DocumentsOnlyInput(List.of()),
             null,
             listener
@@ -203,12 +203,12 @@ public class RequestExecutorServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             service.shutdown();
             throw new IllegalArgumentException("failed");
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any());
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
         service.execute(
-            OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "id", null, threadPool),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "id", null, threadPool),
             new DocumentsOnlyInput(List.of()),
             null,
             listener
@@ -238,12 +238,10 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var listener = new PlainActionFuture<InferenceServiceResults>();
         service.execute(RequestManagerTests.createMock(), new DocumentsOnlyInput(List.of()), TimeValue.timeValueNanos(1), listener);
 
-        var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
+        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(
-            thrownException.getMessage(),
-            is(format("Request timed out waiting to be sent after [%s]", TimeValue.timeValueNanos(1)))
-        );
+        assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
+        assertThat(thrownException.status().getStatus(), is(408));
     }
 
     public void testExecute_PreservesThreadContext() throws InterruptedException, ExecutionException, TimeoutException {
@@ -270,13 +268,13 @@ public class RequestExecutorServiceTests extends ESTestCase {
             assertNull(serviceThreadContext.getHeader(headerKey));
 
             @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[5];
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(4, ActionListener.class);
             listener.onResponse(null);
 
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any());
 
         var finishedOnResponse = new CountDownLatch(1);
         ActionListener<InferenceServiceResults> listener = new ActionListener<>() {
@@ -422,7 +420,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any());
 
         Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
@@ -467,7 +465,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any());
 
         Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
@@ -528,7 +526,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any());
 
         Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
@@ -598,11 +596,11 @@ public class RequestExecutorServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             service.shutdown();
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any());
 
         service.start();
 
-        verify(requestSender, times(1)).send(any(), any(), any(), any(), any(), any());
+        verify(requestSender, times(1)).send(any(), any(), any(), any(), any());
     }
 
     public void testRemovesRateLimitGroup_AfterStaleDuration() {

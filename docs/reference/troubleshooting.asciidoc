@@ -6,6 +6,10 @@
 This section provides a series of troubleshooting solutions aimed at helping users
 fix problems that an {es} deployment might encounter.
 
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
+
 [discrete]
 [[troubleshooting-general]]
 === General

@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
-public class LeftTests extends AbstractFunctionTestCase {
+public class LeftTests extends AbstractScalarFunctionTestCase {
     public LeftTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -167,7 +167,21 @@ public class LeftTests extends AbstractFunctionTestCase {
             );
         }));
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        suppliers.add(new TestCaseSupplier("semantic_text as input", List.of(DataType.SEMANTIC_TEXT, DataType.INTEGER), () -> {
+            String text = randomUnicodeOfLengthBetween(1, 64);
+            int length = between(1, text.length());
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.SEMANTIC_TEXT, "str"),
+                    new TestCaseSupplier.TypedData(length, DataType.INTEGER, "length")
+                ),
+                "LeftEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
+                DataType.KEYWORD,
+                equalTo(new BytesRef(unicodeLeftSubstring(text, length)))
+            );
+        }));
+
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     private static String unicodeLeftSubstring(String str, int length) {

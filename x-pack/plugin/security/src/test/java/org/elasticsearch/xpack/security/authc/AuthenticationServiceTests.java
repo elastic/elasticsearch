@@ -55,6 +55,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -123,6 +124,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
@@ -263,6 +265,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadPool = new ThreadPool(
             settings,
             MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders(),
             new FixedExecutorBuilder(
                 settings,
                 THREAD_POOL_NAME,
@@ -1500,7 +1503,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final boolean throwElasticsearchSecurityException = randomBoolean();
         final boolean withAuthenticateHeader = throwElasticsearchSecurityException && randomBoolean();
         Exception throwE = new Exception("general authentication error");
-        final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\"";
         String selectedScheme = randomFrom(basicScheme, "Negotiate IOJoj");
         if (throwElasticsearchSecurityException) {
             throwE = new ElasticsearchSecurityException("authentication error", RestStatus.UNAUTHORIZED);
@@ -1547,7 +1550,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(token.principal()).thenReturn(principal);
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
-        final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\"";
         mockAuthenticate(firstRealm, token, null, true);
 
         ElasticsearchSecurityException e = expectThrows(
@@ -1953,6 +1956,37 @@ public class AuthenticationServiceTests extends ESTestCase {
         final User user = new User("_username", "r1");
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
+
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        // An invalid token might decode to something that looks like a UUID
+        // Randomise it being invalid because the index doesn't exist, or the document doesn't exist
+        if (randomBoolean()) {
+            when(securityIndex.isAvailable(any())).thenReturn(false);
+            when(securityIndex.getUnavailableReason(any())).thenReturn(new ElasticsearchException(getTestName()));
+        } else {
+            when(securityIndex.isAvailable(any())).thenReturn(true);
+            doAnswer(inv -> {
+                final GetRequest request = inv.getArgument(0);
+                final ActionListener<GetResponse> listener = inv.getArgument(1);
+                listener.onResponse(
+                    new GetResponse(
+                        new GetResult(
+                            request.index(),
+                            request.id(),
+                            UNASSIGNED_SEQ_NO,
+                            UNASSIGNED_PRIMARY_TERM,
+                            0,
+                            false,
+                            null,
+                            Map.of(),
+                            Map.of()
+                        )
+                    )
+                );
+                return null;
+            }).when(client).get(any(GetRequest.class), any());
+        }
+
         mockAuthenticate(firstRealm, token, user);
         final int numBytes = randomIntBetween(TokenService.MINIMUM_BYTES, TokenService.MINIMUM_BYTES + 32);
         final byte[] randomBytes = new byte[numBytes];
@@ -1999,6 +2033,9 @@ public class AuthenticationServiceTests extends ESTestCase {
                 } else if (e instanceof NegativeArraySizeException) {
                     assertThat(e.getMessage(), containsString("array size must be positive but was: "));
                     latch.countDown();
+                } else if (e instanceof ElasticsearchException) {
+                    assertThat(e.getMessage(), containsString(getTestName()));
+                    latch.countDown();
                 } else {
                     logger.error("unexpected exception", e);
                     latch.countDown();
@@ -2039,8 +2076,14 @@ public class AuthenticationServiceTests extends ESTestCase {
                 .user(new User("creator"))
                 .realmRef(new RealmRef("test", "test", "test"))
                 .build(false);
-            tokenService.createOAuth2Tokens(newTokenBytes.v1(), newTokenBytes.v2(), expected, originatingAuth, Collections.emptyMap(),
-                    tokenFuture);
+            tokenService.createOAuth2Tokens(
+                newTokenBytes.v1(),
+                newTokenBytes.v2(),
+                expected,
+                originatingAuth,
+                Collections.emptyMap(),
+                tokenFuture
+            );
         }
         String token = tokenFuture.get().getAccessToken();
         mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), expected, Map.of(), true, null, client);
@@ -2512,6 +2555,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             true,
             true,
             true,
+            true,
+            null,
             null,
             null,
             null,

@@ -11,15 +11,17 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -27,7 +29,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
-public class ToStringTests extends AbstractFunctionTestCase {
+public class ToStringTests extends AbstractScalarFunctionTestCase {
     public ToStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -80,11 +82,20 @@ public class ToStringTests extends AbstractFunctionTestCase {
             b -> new BytesRef(b.toString()),
             List.of()
         );
-        TestCaseSupplier.forUnaryDatetime(
+        TestCaseSupplier.unary(
             suppliers,
             "ToStringFromDatetimeEvaluator[field=" + read + "]",
+            TestCaseSupplier.dateCases(),
             DataType.KEYWORD,
-            i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(i.toEpochMilli())),
+            i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(((Instant) i).toEpochMilli())),
+            List.of()
+        );
+        TestCaseSupplier.unary(
+            suppliers,
+            "ToStringFromDateNanosEvaluator[field=" + read + "]",
+            TestCaseSupplier.dateNanosCases(),
+            DataType.KEYWORD,
+            i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER.formatNanos(DateUtils.toLong((Instant) i))),
             List.of()
         );
         TestCaseSupplier.forUnaryGeoPoint(
@@ -130,7 +141,7 @@ public class ToStringTests extends AbstractFunctionTestCase {
             v -> new BytesRef(v.toString()),
             List.of()
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

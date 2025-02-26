@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.store;
 
@@ -51,7 +52,6 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.ShardLock;
@@ -273,7 +273,7 @@ public class StoreTests extends ESTestCase {
         metadata = store.getMetadata(randomBoolean() ? indexCommit : null);
         assertThat(metadata.fileMetadataMap().isEmpty(), is(false));
         for (StoreFileMetadata meta : metadata) {
-            try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
+            try (IndexInput input = store.directory().openInput(meta.name(), IOContext.READONCE)) {
                 String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
                 assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
                 assertThat(meta.writtenBy(), equalTo(Version.LATEST.toString()));
@@ -732,6 +732,15 @@ public class StoreTests extends ESTestCase {
         IOUtils.close(store);
     }
 
+    public void testCleanupEmptyStore() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+
+        store.cleanupAndVerify("test", Store.MetadataSnapshot.EMPTY);
+
+        IOUtils.close(store);
+    }
+
     public void testOnCloseCallback() throws IOException {
         final ShardId shardId = new ShardId(
             new Index(randomRealisticUnicodeOfCodepointLengthBetween(1, 10), "_na_"),
@@ -744,7 +753,7 @@ public class StoreTests extends ESTestCase {
             assertEquals(shardId, theLock.getShardId());
             assertEquals(lock, theLock);
             count.incrementAndGet();
-        });
+        }, false);
         assertEquals(count.get(), 0);
 
         final int iters = randomIntBetween(1, 10);
@@ -995,17 +1004,12 @@ public class StoreTests extends ESTestCase {
         Document doc = new Document();
         doc.add(new TextField("id", "1", Field.Store.NO));
         writer.addDocument(doc);
-        Map<String, String> commitData = Maps.newMapWithExpectedSize(2);
-        String syncId = "a sync id";
-        commitData.put(Engine.SYNC_COMMIT_ID, syncId);
-        writer.setLiveCommitData(commitData.entrySet());
         writer.commit();
         writer.close();
         Store.MetadataSnapshot metadata;
         metadata = store.getMetadata(randomBoolean() ? null : deletionPolicy.snapshot());
         assertFalse(metadata.fileMetadataMap().isEmpty());
         // do not check for correct files, we have enough tests for that above
-        assertThat(metadata.commitUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
         TestUtil.checkIndex(store.directory());
         assertDeleteContent(store, store.directory());
         IOUtils.close(store);
@@ -1040,7 +1044,6 @@ public class StoreTests extends ESTestCase {
         for (StoreFileMetadata inFile : inStoreFileMetadata) {
             assertThat(inFile.name(), equalTo(outFiles.next().name()));
         }
-        assertThat(outStoreFileMetadata.syncId(), equalTo(inStoreFileMetadata.syncId()));
         assertThat(outStoreFileMetadata.peerRecoveryRetentionLeases(), equalTo(peerRecoveryRetentionLeases));
     }
 

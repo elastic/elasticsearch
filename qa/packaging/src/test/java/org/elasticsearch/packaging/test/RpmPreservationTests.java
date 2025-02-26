@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.packaging.test;
@@ -28,7 +29,7 @@ import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 import static org.elasticsearch.packaging.util.ServerUtils.enableGeoIpDownloader;
-import static org.hamcrest.core.Is.is;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
 public class RpmPreservationTests extends PackagingTestCase {
@@ -78,7 +79,7 @@ public class RpmPreservationTests extends PackagingTestCase {
         assertRemoved(distribution());
 
         if (isSystemd()) {
-            assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode(), is(1));
+            assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode(), not(0));
         }
 
         assertPathsDoNotExist(

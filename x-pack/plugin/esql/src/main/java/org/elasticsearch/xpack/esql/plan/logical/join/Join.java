@@ -7,27 +7,36 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.plan.logical.BinaryPlan;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class Join extends BinaryPlan {
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
+
+public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAgnostic {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
 
     private final JoinConfig config;
-    // TODO: The matching attributes from the left and right logical plans should become part of the `expressions()`
-    // so that `references()` returns the attributes we actually rely on.
     private List<Attribute> lazyOutput;
 
     public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
@@ -35,16 +44,35 @@ public class Join extends BinaryPlan {
         this.config = config;
     }
 
-    public Join(PlanStreamInput in) throws IOException {
-        super(Source.readFrom(in), in.readLogicalPlanNode(), in.readLogicalPlanNode());
+    public Join(
+        Source source,
+        LogicalPlan left,
+        LogicalPlan right,
+        JoinType type,
+        List<Attribute> matchFields,
+        List<Attribute> leftFields,
+        List<Attribute> rightFields
+    ) {
+        super(source, left, right);
+        this.config = new JoinConfig(type, matchFields, leftFields, rightFields);
+    }
+
+    public Join(StreamInput in) throws IOException {
+        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), in.readNamedWriteable(LogicalPlan.class));
         this.config = new JoinConfig(in);
     }
 
-    public void writeTo(PlanStreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeLogicalPlanNode(left());
-        out.writeLogicalPlanNode(right());
+        out.writeNamedWriteable(left());
+        out.writeNamedWriteable(right());
         config.writeTo(out);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public JoinConfig config() {
@@ -53,62 +81,68 @@ public class Join extends BinaryPlan {
 
     @Override
     protected NodeInfo<Join> info() {
-        return NodeInfo.create(this, Join::new, left(), right(), config);
-    }
-
-    @Override
-    public Join replaceChildren(List<LogicalPlan> newChildren) {
-        return new Join(source(), newChildren.get(0), newChildren.get(1), config);
-    }
-
-    public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new Join(source(), left, right, config);
+        // Do not just add the JoinConfig as a whole - this would prevent correctly registering the
+        // expressions and references.
+        return NodeInfo.create(
+            this,
+            Join::new,
+            left(),
+            right(),
+            config.type(),
+            config.matchFields(),
+            config.leftFields(),
+            config.rightFields()
+        );
     }
 
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = computeOutput();
+            lazyOutput = computeOutput(left().output(), right().output(), config);
         }
         return lazyOutput;
     }
 
-    private List<Attribute> computeOutput() {
-        List<Attribute> right = makeReference(right().output());
-        return switch (config.type()) {
-            case LEFT -> // right side becomes nullable
-                mergeOutput(left().output(), makeNullable(right), config.matchFields());
-            case RIGHT -> // left side becomes nullable
-                mergeOutput(makeNullable(left().output()), right, config.matchFields());
-            case FULL -> // both sides become nullable
-                mergeOutput(makeNullable(left().output()), makeNullable(right), config.matchFields());
-            default -> // neither side becomes nullable
-                mergeOutput(left().output(), right, config.matchFields());
-        };
+    @Override
+    public AttributeSet leftReferences() {
+        return Expressions.references(config().leftFields());
+    }
+
+    @Override
+    public AttributeSet rightReferences() {
+        return Expressions.references(config().rightFields());
+    }
+
+    public List<Attribute> rightOutputFields() {
+        AttributeSet leftInputs = left().outputSet();
+
+        List<Attribute> rightOutputFields = new ArrayList<>();
+        for (Attribute attr : output()) {
+            if (leftInputs.contains(attr) == false) {
+                rightOutputFields.add(attr);
+            }
+        }
+
+        return rightOutputFields;
     }
 
     /**
-     * Merge output fields, left hand side wins in name conflicts <strong>except</strong>
-     * for fields defined in {@link JoinConfig#matchFields()}.
+     * Combine the two lists of attributes into one.
+     * In case of (name) conflicts, specify which sides wins, that is overrides the other column - the left or the right.
      */
-    public static List<Attribute> mergeOutput(
-        List<? extends Attribute> lhs,
-        List<? extends Attribute> rhs,
-        List<NamedExpression> matchFields
-    ) {
-        List<Attribute> results = new ArrayList<>(lhs.size() + rhs.size());
-
-        for (Attribute a : lhs) {
-            if (rhs.contains(a) == false || matchFields.stream().anyMatch(m -> m.name().equals(a.name()))) {
-                results.add(a);
-            }
+    public static List<Attribute> computeOutput(List<Attribute> leftOutput, List<Attribute> rightOutput, JoinConfig config) {
+        JoinType joinType = config.type();
+        List<Attribute> output;
+        // TODO: make the other side nullable
+        if (LEFT.equals(joinType)) {
+            // right side becomes nullable and overrides left except for join keys, which we preserve from the left
+            AttributeSet rightKeys = new AttributeSet(config.rightFields());
+            List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream().filter(attr -> rightKeys.contains(attr) == false).toList();
+            output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
+        } else {
+            throw new IllegalArgumentException(joinType.joinName() + " unsupported");
         }
-        for (Attribute a : rhs) {
-            if (false == matchFields.stream().anyMatch(m -> m.name().equals(a.name()))) {
-                results.add(a);
-            }
-        }
-        return results;
+        return output;
     }
 
     /**
@@ -125,19 +159,11 @@ public class Join extends BinaryPlan {
     public static List<Attribute> makeReference(List<Attribute> output) {
         List<Attribute> out = new ArrayList<>(output.size());
         for (Attribute a : output) {
-            if (a.resolved()) {
-                out.add(new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.qualifier(), a.nullable(), a.id(), a.synthetic()));
+            if (a.resolved() && a instanceof ReferenceAttribute == false) {
+                out.add(new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.nullable(), a.id(), a.synthetic()));
             } else {
                 out.add(a);
             }
-        }
-        return out;
-    }
-
-    public static List<Attribute> makeNullable(List<Attribute> output) {
-        List<Attribute> out = new ArrayList<>(output.size());
-        for (Attribute a : output) {
-            out.add(a.withNullability(Nullability.TRUE));
         }
         return out;
     }
@@ -153,6 +179,15 @@ public class Join extends BinaryPlan {
         // - the children are resolved
         // - the condition (if present) is resolved to a boolean
         return childrenResolved() && expressionsResolved();
+    }
+
+    public Join withConfig(JoinConfig config) {
+        return new Join(source(), left(), right(), config);
+    }
+
+    @Override
+    public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
+        return new Join(source(), left, right, config);
     }
 
     @Override
@@ -171,5 +206,30 @@ public class Join extends BinaryPlan {
 
         Join other = (Join) obj;
         return config.equals(other.config) && Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        for (int i = 0; i < config.leftFields().size(); i++) {
+            Attribute leftField = config.leftFields().get(i);
+            Attribute rightField = config.rightFields().get(i);
+            if (leftField.dataType().noText() != rightField.dataType().noText()) {
+                failures.add(
+                    fail(
+                        leftField,
+                        "JOIN left field [{}] of type [{}] is incompatible with right field [{}] of type [{}]",
+                        leftField.name(),
+                        leftField.dataType(),
+                        rightField.name(),
+                        rightField.dataType()
+                    )
+                );
+            }
+            if (rightField.dataType().equals(TEXT)) {
+                failures.add(
+                    fail(leftField, "JOIN with right field [{}] of type [{}] is not supported", rightField.name(), rightField.dataType())
+                );
+            }
+        }
     }
 }

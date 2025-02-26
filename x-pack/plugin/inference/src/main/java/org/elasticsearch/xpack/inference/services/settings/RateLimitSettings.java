@@ -11,11 +11,16 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -46,6 +51,28 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         }
 
         return requestsPerMinute == null ? defaultValue : new RateLimitSettings(requestsPerMinute);
+    }
+
+    public static Map<String, SettingsConfiguration> toSettingsConfigurationWithDescription(
+        String description,
+        EnumSet<TaskType> supportedTaskTypes
+    ) {
+        var configurationMap = new HashMap<String, SettingsConfiguration>();
+        configurationMap.put(
+            FIELD_NAME + "." + REQUESTS_PER_MINUTE_FIELD,
+            new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(description)
+                .setLabel("Rate Limit")
+                .setRequired(false)
+                .setSensitive(false)
+                .setUpdatable(false)
+                .setType(SettingsConfigurationFieldType.INTEGER)
+                .build()
+        );
+        return configurationMap;
+    }
+
+    public static Map<String, SettingsConfiguration> toSettingsConfiguration(EnumSet<TaskType> supportedTaskTypes) {
+        return RateLimitSettings.toSettingsConfigurationWithDescription("Minimize the number of rate limit errors.", supportedTaskTypes);
     }
 
     /**

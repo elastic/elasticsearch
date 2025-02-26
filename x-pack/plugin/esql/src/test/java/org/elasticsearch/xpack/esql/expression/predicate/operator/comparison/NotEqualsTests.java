@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class NotEqualsTests extends AbstractFunctionTestCase {
+public class NotEqualsTests extends AbstractScalarFunctionTestCase {
     public NotEqualsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -115,7 +115,6 @@ public class NotEqualsTests extends AbstractFunctionTestCase {
             )
         );
         // Datetime
-        // TODO: I'm surprised this passes. Shouldn't there be a cast from DateTime to Long?
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 "NotEqualsLongsEvaluator",
@@ -129,6 +128,50 @@ public class NotEqualsTests extends AbstractFunctionTestCase {
                 false
             )
         );
+        // Datenanos
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsLongsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateNanosCases(),
+                List.of(),
+                false
+            )
+        );
+
+        // nanoseconds to milliseconds. NB: these have different evaluator names depending on the direction
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsNanosMillisEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "NotEqualsMillisNanosEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> false == l.equals(r),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateNanosCases(),
+                List.of(),
+                false
+            )
+        );
+
         suppliers.addAll(
             TestCaseSupplier.stringCases(
                 (l, r) -> false == l.equals(r),
@@ -189,9 +232,8 @@ public class NotEqualsTests extends AbstractFunctionTestCase {
                 false
             )
         );
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), AbstractFunctionTestCase::errorMessageStringForBinaryOperators)
-        );
+
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

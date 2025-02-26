@@ -12,6 +12,7 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.Step;
+import org.elasticsearch.xpack.core.ilm.WaitUntilReplicateForTimePassesStep;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -47,7 +49,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.singletonMap;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
@@ -184,7 +187,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         Map<String, LifecycleAction> coldActions = Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
-        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(10000), singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE)));
+        phases.put("delete", new Phase("delete", TimeValue.timeValueMillis(10000), Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE)));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         // PUT policy
         XContentBuilder builder = jsonBuilder();
@@ -361,9 +364,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             null
         );
 
+        String template = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
+            template,
             dataStream,
             new Template(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
@@ -407,19 +411,24 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // snapshot)
         assertOK(client().performRequest(new Request("DELETE", "/_data_stream/" + dataStream)));
 
-        createPolicy(
-            client(),
-            policy,
-            new Phase("hot", TimeValue.ZERO, Map.of()),
-            new Phase(
-                "warm",
-                TimeValue.ZERO,
-                Map.of(ShrinkAction.NAME, new ShrinkAction(1, null, false), ForceMergeAction.NAME, new ForceMergeAction(1, null))
-            ),
-            new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, FreezeAction.INSTANCE)),
-            null,
-            null
-        );
+        try {
+            createPolicy(
+                client(),
+                policy,
+                new Phase("hot", TimeValue.ZERO, Map.of()),
+                new Phase(
+                    "warm",
+                    TimeValue.ZERO,
+                    Map.of(ShrinkAction.NAME, new ShrinkAction(1, null, false), ForceMergeAction.NAME, new ForceMergeAction(1, null))
+                ),
+                new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, FreezeAction.INSTANCE)),
+                null,
+                null
+            );
+            fail("Expected a deprecation warning.");
+        } catch (WarningFailureException e) {
+            assertThat(e.getMessage(), containsString("The freeze action in ILM is deprecated and will be removed in a future version"));
+        }
 
         // restore the datastream
         Request restoreSnapshot = new Request("POST", "/_snapshot/" + snapshotRepo + "/" + dsSnapshotName + "/_restore");
@@ -432,7 +441,16 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         // the restored index is now managed by the now updated ILM policy and needs to go through the warm and cold phase
         assertBusy(() -> {
-            Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
+            Step.StepKey stepKeyForIndex;
+            try {
+                stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
+            } catch (WarningFailureException e) {
+                assertThat(
+                    e.getMessage(),
+                    containsString("The freeze action in ILM is deprecated and will be removed in a future version")
+                );
+                stepKeyForIndex = getKeyForIndex(e.getResponse(), searchableSnapMountedIndexName);
+            }
             assertThat(stepKeyForIndex.phase(), is("cold"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
@@ -454,7 +472,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null
         );
@@ -515,12 +533,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null
         );
@@ -585,7 +603,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null,
             null
@@ -599,12 +617,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null
         );
@@ -663,14 +681,14 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
-            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
+            new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
         );
         assertBusy(() -> {
             logger.info("--> waiting for [{}] to be deleted...", partiallyMountedIndexName);
@@ -694,7 +712,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null,
             null
@@ -709,12 +727,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null
         );
@@ -774,10 +792,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "cold",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
             ),
             null,
-            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
+            new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
         );
         assertBusy(() -> {
             logger.info("--> waiting for [{}] to be deleted...", restoredPartiallyMountedIndexName);
@@ -802,12 +820,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 new Phase(
                     "cold",
                     TimeValue.ZERO,
-                    singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+                    Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
                 ),
                 new Phase(
                     "frozen",
                     TimeValue.ZERO,
-                    singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(secondRepo, randomBoolean()))
+                    Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(secondRepo, randomBoolean()))
                 ),
                 null
             )
@@ -921,12 +939,179 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    public void testSearchableSnapshotTotalShardsPerNode() throws Exception {
+        String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
+        Integer totalShardsPerNode = 2;
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        createPolicy(
+            client(),
+            policy,
+            null,
+            null,
+            new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+            ),
+            new Phase(
+                "frozen",
+                TimeValue.ZERO,
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode, null))
+            ),
+            null
+        );
+
+        createIndex(index, Settings.EMPTY);
+        ensureGreen(index);
+        indexDocument(client(), index, true);
+
+        // enable ILM after we indexed a document as otherwise ILM might sometimes run so fast the indexDocument call will fail with
+        // `index_not_found_exception`
+        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+
+        // wait for snapshot successfully mounted and ILM execution completed
+        final String searchableSnapMountedIndexName = SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX
+            + SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
+        assertBusy(() -> {
+            logger.info("--> waiting for [{}] to exist...", searchableSnapMountedIndexName);
+            assertTrue(indexExists(searchableSnapMountedIndexName));
+        }, 30, TimeUnit.SECONDS);
+        assertBusy(() -> {
+            triggerStateChange();
+            Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
+            assertThat(stepKeyForIndex.phase(), is("frozen"));
+            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
+        }, 30, TimeUnit.SECONDS);
+
+        // validate total_shards_per_node setting
+        Map<String, Object> indexSettings = getIndexSettingsAsMap(searchableSnapMountedIndexName);
+        assertNotNull("expected total_shards_per_node to exist", indexSettings.get(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()));
+        Integer snapshotTotalShardsPerNode = Integer.valueOf((String) indexSettings.get(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()));
+        assertEquals(
+            "expected total_shards_per_node to be " + totalShardsPerNode + ", but got: " + snapshotTotalShardsPerNode,
+            snapshotTotalShardsPerNode,
+            totalShardsPerNode
+        );
+    }
+
+    public void testSearchableSnapshotReplicateFor() throws Exception {
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+
+        final boolean forceMergeIndex = randomBoolean();
+        createPolicy(
+            client(),
+            policy,
+            null,
+            null,
+            null,
+            new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(
+                    SearchableSnapshotAction.NAME,
+                    new SearchableSnapshotAction(snapshotRepo, forceMergeIndex, null, TimeValue.timeValueHours(2))
+                )
+            ),
+            new Phase("delete", TimeValue.timeValueDays(1), Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
+        );
+
+        createComposableTemplate(
+            client(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
+            dataStream,
+            new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null)
+        );
+
+        indexDocument(client(), dataStream, true);
+
+        // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
+        assertTrue(waitUntil(() -> {
+            try {
+                return indexExists(restoredIndexName);
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+
+        // check that the index is in the expected step and has the expected step_info.message
+        assertBusy(() -> {
+            triggerStateChange();
+            Map<String, Object> explainResponse = explainIndex(client(), restoredIndexName);
+            assertThat(explainResponse.get("step"), is(WaitUntilReplicateForTimePassesStep.NAME));
+            @SuppressWarnings("unchecked")
+            final var stepInfo = (Map<String, String>) explainResponse.get("step_info");
+            String message = stepInfo == null ? "" : stepInfo.get("message");
+            assertThat(message, containsString("Waiting [less than 1d] until the replicate_for time [2h] has elapsed"));
+            assertThat(message, containsString("for index [" + restoredIndexName + "] before removing replicas."));
+        }, 30, TimeUnit.SECONDS);
+
+        // check that it has the right number of replicas
+        {
+            Map<String, Object> indexSettings = getIndexSettingsAsMap(restoredIndexName);
+            assertNotNull("expected number_of_replicas to exist", indexSettings.get(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()));
+            Integer numberOfReplicas = Integer.valueOf((String) indexSettings.get(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()));
+            assertThat(numberOfReplicas, is(1));
+        }
+
+        // tweak the policy to replicate_for hardly any time at all
+        createPolicy(
+            client(),
+            policy,
+            null,
+            null,
+            null,
+            new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(
+                    SearchableSnapshotAction.NAME,
+                    new SearchableSnapshotAction(snapshotRepo, forceMergeIndex, null, TimeValue.timeValueSeconds(10))
+                )
+            ),
+            new Phase("delete", TimeValue.timeValueDays(1), Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
+        );
+
+        // check that the index has progressed because enough time has passed now that the policy is different
+        assertBusy(() -> {
+            triggerStateChange();
+            Map<String, Object> explainResponse = explainIndex(client(), restoredIndexName);
+            assertThat(explainResponse.get("phase"), is("cold"));
+            assertThat(explainResponse.get("step"), is(PhaseCompleteStep.NAME));
+        }, 30, TimeUnit.SECONDS);
+
+        // check that it has the right number of replicas
+        {
+            Map<String, Object> indexSettings = getIndexSettingsAsMap(restoredIndexName);
+            assertNotNull("expected number_of_replicas to exist", indexSettings.get(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()));
+            Integer numberOfReplicas = Integer.valueOf((String) indexSettings.get(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()));
+            assertThat(numberOfReplicas, is(0));
+        }
+    }
+
     /**
      * Cause a bit of cluster activity using an empty reroute call in case the `wait-for-index-colour` ILM step missed the
      * notification that partial-index is now GREEN.
      */
     private void triggerStateChange() throws IOException {
-        Request rerouteRequest = new Request("POST", "/_cluster/reroute?metric=none");
+        Request rerouteRequest = new Request("POST", "/_cluster/reroute");
         client().performRequest(rerouteRequest);
+    }
+
+    private Step.StepKey getKeyForIndex(Response response, String indexName) throws IOException {
+        Map<String, Object> responseMap;
+        try (InputStream is = response.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices")).get(indexName);
+        String phase = (String) indexResponse.get("phase");
+        String action = (String) indexResponse.get("action");
+        String step = (String) indexResponse.get("step");
+        return new Step.StepKey(phase, action, step);
     }
 }

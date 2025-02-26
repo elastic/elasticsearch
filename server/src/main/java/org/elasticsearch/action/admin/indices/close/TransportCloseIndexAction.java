@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.close;
@@ -21,13 +22,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -45,6 +46,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     private static final Logger logger = LogManager.getLogger(TransportCloseIndexAction.class);
 
     private final MetadataIndexStateService indexStateService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DestructiveOperations destructiveOperations;
     private volatile boolean closeIndexEnabled;
     public static final Setting<Boolean> CLUSTER_INDICES_CLOSE_ENABLE_SETTING = Setting.boolSetting(
@@ -73,11 +75,11 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
             threadPool,
             actionFilters,
             CloseIndexRequest::new,
-            indexNameExpressionResolver,
             CloseIndexResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexStateService = indexStateService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destructiveOperations = destructiveOperations;
         this.closeIndexEnabled = CLUSTER_INDICES_CLOSE_ENABLE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_INDICES_CLOSE_ENABLE_SETTING, this::setCloseIndexEnabled);
@@ -119,9 +121,13 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
             return;
         }
 
-        final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest(task.getId()).ackTimeout(
-            request.ackTimeout()
-        ).masterNodeTimeout(request.masterNodeTimeout()).waitForActiveShards(request.waitForActiveShards()).indices(concreteIndices);
+        final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest(
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            task.getId(),
+            request.waitForActiveShards(),
+            concreteIndices
+        );
         indexStateService.closeIndices(closeRequest, listener.delegateResponse((delegatedListener, t) -> {
             logger.debug(() -> "failed to close indices [" + Arrays.toString(concreteIndices) + "]", t);
             delegatedListener.onFailure(t);

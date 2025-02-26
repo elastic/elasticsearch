@@ -22,7 +22,6 @@ module org.elasticsearch.xcore {
     requires unboundid.ldapsdk;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.xcore.templates;
-    requires com.nimbusds.jose.jwt;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;
@@ -67,7 +66,6 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.esql;
     exports org.elasticsearch.xpack.core.esql.action;
     exports org.elasticsearch.xpack.core.esql.action.internal; // TODO: qualify to esql when modularized
-    exports org.elasticsearch.xpack.core.frozen.action;
     exports org.elasticsearch.xpack.core.frozen;
     exports org.elasticsearch.xpack.core.graph.action;
     exports org.elasticsearch.xpack.core.graph;
@@ -119,12 +117,15 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
     exports org.elasticsearch.xpack.core.ml.job.results;
     exports org.elasticsearch.xpack.core.ml.job.snapshot.upgrade;
+    exports org.elasticsearch.xpack.core.ml.ltr;
     exports org.elasticsearch.xpack.core.ml.notifications;
     exports org.elasticsearch.xpack.core.ml.packageloader.action;
     exports org.elasticsearch.xpack.core.ml.process.writer;
+    exports org.elasticsearch.xpack.core.ml.search;
     exports org.elasticsearch.xpack.core.ml.stats;
     exports org.elasticsearch.xpack.core.ml.utils.time;
     exports org.elasticsearch.xpack.core.ml.utils;
+    exports org.elasticsearch.xpack.core.ml.vectors;
     exports org.elasticsearch.xpack.core.ml;
     exports org.elasticsearch.xpack.core.monitoring.action;
     exports org.elasticsearch.xpack.core.monitoring.exporter;
@@ -171,6 +172,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.security.authz.store;
     exports org.elasticsearch.xpack.core.security.authz.support;
     exports org.elasticsearch.xpack.core.security.authz;
+    exports org.elasticsearch.xpack.core.security.operator;
     exports org.elasticsearch.xpack.core.security.support;
     exports org.elasticsearch.xpack.core.security.user;
     exports org.elasticsearch.xpack.core.security.xcontent;
@@ -227,8 +229,6 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.trigger;
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
-    exports org.elasticsearch.xpack.core.ml.ltr;
-    exports org.elasticsearch.xpack.core.ml.search;
 
     provides org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber
         with

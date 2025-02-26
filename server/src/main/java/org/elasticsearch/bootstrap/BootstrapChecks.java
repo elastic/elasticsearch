@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -20,6 +21,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.nativeaccess.NativeAccess;
@@ -210,7 +212,6 @@ final class BootstrapChecks {
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
         checks.add(new EarlyAccessCheck());
-        checks.add(new AllPermissionCheck());
         checks.add(new DiscoveryConfiguredCheck());
         checks.add(new ByteOrderCheck());
         return Collections.unmodifiableList(checks);
@@ -411,12 +412,12 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
-            final long maxFileSize = getMaxFileSize();
+            final long maxFileSize = getProcessLimits().maxFileSize();
             if (maxFileSize != Long.MIN_VALUE && maxFileSize != ProcessLimits.UNLIMITED) {
                 final String message = String.format(
                     Locale.ROOT,
                     "max file size [%d] for user [%s] is too low, increase to [unlimited]",
-                    getMaxFileSize(),
+                    maxFileSize,
                     BootstrapInfo.getSystemProperties().get("user.name")
                 );
                 return BootstrapCheckResult.failure(message);
@@ -425,8 +426,8 @@ final class BootstrapChecks {
             }
         }
 
-        long getMaxFileSize() {
-            return NativeAccess.instance().getProcessLimits().maxVirtualMemorySize();
+        protected ProcessLimits getProcessLimits() {
+            return NativeAccess.instance().getProcessLimits();
         }
 
         @Override
@@ -584,7 +585,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isSystemCallFilterInstalled() {
-            return Natives.isSystemCallFilterInstalled();
+            return NativeAccess.instance().getExecSandboxState() != NativeAccess.ExecSandboxState.NONE;
         }
 
         @Override
@@ -608,7 +609,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isSystemCallFilterInstalled() {
-            return Natives.isSystemCallFilterInstalled();
+            return NativeAccess.instance().getExecSandboxState() != NativeAccess.ExecSandboxState.NONE;
         }
 
         // visible for testing
@@ -700,7 +701,7 @@ final class BootstrapChecks {
         }
 
         String javaVersion() {
-            return Constants.JAVA_VERSION;
+            return Runtime.version().toString();
         }
 
         @Override
@@ -721,6 +722,9 @@ final class BootstrapChecks {
         }
 
         boolean isAllPermissionGranted() {
+            if (RuntimeVersionFeature.isSecurityManagerAvailable() == false) {
+                return false;
+            }
             final SecurityManager sm = System.getSecurityManager();
             assert sm != null;
             try {

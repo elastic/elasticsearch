@@ -17,7 +17,7 @@ import org.junit.ClassRule;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class FieldExtractorIT extends FieldExtractorTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster();
+    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {});
 
     @Override
     protected String getTestRestCluster() {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.rank.feature;
@@ -23,6 +24,8 @@ import java.util.Objects;
  */
 public class RankFeatureShardResult implements RankShardResult {
 
+    public static final String NAME = "rank_feature_shard";
+
     public final RankFeatureDoc[] rankFeatureDocs;
 
     public RankFeatureShardResult(RankFeatureDoc[] rankFeatureDocs) {
@@ -35,12 +38,12 @@ public class RankFeatureShardResult implements RankShardResult {
 
     @Override
     public String getWriteableName() {
-        return "rank_feature_shard";
+        return NAME;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.RANK_FEATURE_PHASE_ADDED;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override

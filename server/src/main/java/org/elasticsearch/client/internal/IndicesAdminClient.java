@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.client.internal;
@@ -114,6 +115,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
@@ -265,8 +267,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         return execute(GetMappingsAction.INSTANCE, request);
     }
 
-    public GetMappingsRequestBuilder prepareGetMappings(String... indices) {
-        return new GetMappingsRequestBuilder(this, indices);
+    public GetMappingsRequestBuilder prepareGetMappings(TimeValue masterTimeout, String... indices) {
+        return new GetMappingsRequestBuilder(this, masterTimeout, indices);
     }
 
     public void getFieldMappings(GetFieldMappingsRequest request, ActionListener<GetFieldMappingsResponse> listener) {
@@ -335,8 +337,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(GetAliasesAction.INSTANCE, request, listener);
     }
 
-    public GetAliasesRequestBuilder prepareGetAliases(String... aliases) {
-        return new GetAliasesRequestBuilder(this, aliases);
+    public GetAliasesRequestBuilder prepareGetAliases(TimeValue masterTimeout, String... aliases) {
+        return new GetAliasesRequestBuilder(this, masterTimeout, aliases);
     }
 
     public ActionFuture<GetIndexResponse> getIndex(GetIndexRequest request) {
@@ -347,8 +349,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(GetIndexAction.INSTANCE, request, listener);
     }
 
-    public GetIndexRequestBuilder prepareGetIndex() {
-        return new GetIndexRequestBuilder(this);
+    public GetIndexRequestBuilder prepareGetIndex(TimeValue masterTimeout) {
+        return new GetIndexRequestBuilder(this, masterTimeout);
     }
 
     public ActionFuture<BroadcastResponse> clearCache(final ClearIndicesCacheRequest request) {
@@ -419,8 +421,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(GetIndexTemplatesAction.INSTANCE, request, listener);
     }
 
-    public GetIndexTemplatesRequestBuilder prepareGetTemplates(String... names) {
-        return new GetIndexTemplatesRequestBuilder(this, names);
+    public GetIndexTemplatesRequestBuilder prepareGetTemplates(TimeValue masterTimeout, String... names) {
+        return new GetIndexTemplatesRequestBuilder(this, masterTimeout, names);
     }
 
     public ActionFuture<ValidateQueryResponse> validateQuery(final ValidateQueryRequest request) {
@@ -443,8 +445,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         return execute(GetSettingsAction.INSTANCE, request);
     }
 
-    public GetSettingsRequestBuilder prepareGetSettings(String... indices) {
-        return new GetSettingsRequestBuilder(this, indices);
+    public GetSettingsRequestBuilder prepareGetSettings(TimeValue masterTimeout, String... indices) {
+        return new GetSettingsRequestBuilder(this, masterTimeout, indices);
     }
 
     public ResizeRequestBuilder prepareResizeIndex(String sourceIndex, String targetIndex) {

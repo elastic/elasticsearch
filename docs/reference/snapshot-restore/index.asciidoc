@@ -48,6 +48,9 @@ Snapshots don't contain or back up:
 * Node configuration files
 * <<security-files,Security configuration files>>
 
+NOTE: When restoring a data stream, if the target cluster does not have an index template that matches the data stream, the data stream will not be able to roll over until a matching index template is created.
+This will affect the lifecycle management of the data stream and interfere with the data stream size and retention.
+
 [discrete]
 [[feature-state]]
 === Feature states

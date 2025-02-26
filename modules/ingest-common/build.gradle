@@ -1,24 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
-  classname 'org.elasticsearch.ingest.common.IngestCommonPlugin'
+  description = 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
+  classname ='org.elasticsearch.ingest.common.IngestCommonPlugin'
   extendedPlugins = ['lang-painless']
 }
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
-  api project(':libs:elasticsearch-grok')
-  api project(':libs:elasticsearch-dissect')
+  api project(':libs:grok')
+  api project(':libs:dissect')
   implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
 }
@@ -29,7 +32,7 @@ restResources {
   }
 }
 
-tasks.named('yamlRestTest') {
+tasks.withType(StandaloneRestIntegTestTask).configureEach {
   usesDefaultDistribution()
 }
 
@@ -48,6 +51,6 @@ tasks.named("thirdPartyAudit").configure {
   )
 }
 
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
-  task.addAllowedWarningRegex("\\[types removal\\].*")
-}
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("ingest/30_date_processor/Test week based date parsing", "week-date behaviour has changed")
+})

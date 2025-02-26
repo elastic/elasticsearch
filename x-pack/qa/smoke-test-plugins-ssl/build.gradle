@@ -1,6 +1,11 @@
-import org.apache.tools.ant.filters.ReplaceTokens
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
+import org.apache.tools.ant.filters.ReplaceTokens
 
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
@@ -49,6 +54,14 @@ project(':plugins').getChildProjects().each { pluginName, pluginProject ->
 testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.interval', '1s'
+  setting 'xpack.monitoring.collection.enabled', 'false' //will enable in test
+  setting 'xpack.monitoring.exporters._http.enabled', 'false'//will enable in test
+  setting 'xpack.monitoring.exporters._http.type', "http"
+  setting 'xpack.monitoring.exporters._http.host', "https://example.com" //will be replaced in test
+  setting 'xpack.monitoring.exporters._http.auth.username', 'monitoring_agent'
+  setting 'xpack.monitoring.exporters._http.ssl.verification_mode', 'full'
+  setting 'xpack.monitoring.exporters._http.ssl.certificate_authorities', 'testnode.crt'
+  keystore 'xpack.monitoring.exporters._http.auth.secure_password', 'x-pack-test-password'
 
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'

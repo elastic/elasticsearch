@@ -1,5 +1,5 @@
 [[query-dsl-sparse-vector-query]]
-== Sparse vector query
+=== Sparse vector query
 
 ++++
 <titleabbrev>Sparse vector</titleabbrev>
@@ -11,7 +11,8 @@ This can be achieved with one of two strategies:
 - Using an {nlp} model to convert query text into a list of token-weight pairs
 - Sending in precalculated token-weight pairs as query vectors
 
-These token-weight pairs are then used in a query against a <<sparse-vector,sparse vector>>.
+These token-weight pairs are then used in a query against a <<sparse-vector,sparse vector>> 
+or a <<semantic-text, semantic_text>> field with a compatible sparse inference model.
 At query time, query vectors are calculated using the same inference model that was used to create the tokens.
 When querying, these query vectors are ORed together with their respective weights, which means scoring is effectively a <<vector-functions-dot-product,dot product>> calculation between stored dimensions and query dimensions.
 
@@ -19,7 +20,7 @@ For example, a stored vector `{"feature_0": 0.12, "feature_1": 1.2, "feature_2":
 
 [discrete]
 [[sparse-vector-query-ex-request]]
-=== Example request using an {nlp} model
+==== Example request using an {nlp} model
 
 [source,console]
 ----
@@ -37,7 +38,7 @@ GET _search
 // TEST[skip: Requires inference]
 
 [discrete]
-=== Example request using precomputed vectors
+==== Example request using precomputed vectors
 
 [source,console]
 ----
@@ -55,29 +56,39 @@ GET _search
 
 [discrete]
 [[sparse-vector-field-params]]
-=== Top level parameters for `sparse_vector`
+==== Top level parameters for `sparse_vector`
 
-`<field>`:::
-(Required, object) The name of the field that contains the token-weight pairs to be searched against.
+`field`::
+(Required, string) The name of the field that contains the token-weight pairs to be searched against.
 
-`inference_id`::::
-(Optional, string) The <<inference-apis,inference ID>> to use to convert the query text into token-weight pairs.
+`inference_id`::
+(Optional, string)
+The <<inference-apis,inference ID>> to use to convert the query text into token-weight pairs.
 It must be the same inference ID that was used to create the tokens from the input text.
 Only one of `inference_id` and `query_vector` is allowed.
 If `inference_id` is specified, `query` must also be specified.
+If all queried fields are of type <<semantic-text, semantic_text>>, the inference ID associated with the `semantic_text` field will be inferred.
+You can reference a `deployment_id` of a {ml} trained model deployment as an `inference_id`.
+For example, if you download and deploy the ELSER model in the {ml-cap} trained models UI in {kib}, you can use the `deployment_id` of that deployment as the `inference_id`.
 
-`query`::::
+`query`::
 (Optional, string) The query text you want to use for search.
 If `inference_id` is specified, `query` must also be specified.
+If `query_vector` is specified, `query` must not be specified.
 
-`prune` ::::
+`query_vector`::
+(Optional, dictionary) A dictionary of token-weight pairs representing the precomputed query vector to search.
+Searching using this query vector will bypass additional inference.
+Only one of `inference_id` and `query_vector` is allowed.
+
+`prune` ::
 (Optional, boolean)
 preview:[]
 Whether to perform pruning, omitting the non-significant tokens from the query to improve query performance.
 If `prune` is true but the `pruning_config` is not specified, pruning will occur but default values will be used.
 Default: false.
 
-`pruning_config` ::::
+`pruning_config` ::
 (Optional, object)
 preview:[]
 Optional pruning configuration.
@@ -86,7 +97,7 @@ This is only used if `prune` is set to `true`.
 If `prune` is set to `true` but `pruning_config` is not specified, default values will be used.
 +
 --
-Parameters for `<pruning_config>` are:
+Parameters for `pruning_config` are:
 
 `tokens_freq_ratio_threshold`::
 (Optional, integer)
@@ -98,7 +109,7 @@ Default: `5`.
 `tokens_weight_threshold`::
 (Optional, float)
 preview:[]
-Tokens whose weight is less than `tokens_weight_threshold` are considered nonsignificant and pruned.
+Tokens whose weight is less than `tokens_weight_threshold` are considered insignificant and pruned.
 This value must be between 0 and 1.
 Default: `0.4`.
 
@@ -114,7 +125,7 @@ NOTE: The default values for `tokens_freq_ratio_threshold` and `tokens_weight_th
 
 [discrete]
 [[sparse-vector-query-example]]
-=== Example ELSER query
+==== Example ELSER query
 
 The following is an example of the `sparse_vector` query that references the ELSER model to perform semantic search.
 For a more detailed description of how to perform semantic search by using ELSER and the `sparse_vector` query, refer to <<semantic-search-elser,this tutorial>>.
@@ -235,7 +246,7 @@ GET my-index/_search
 
 [discrete]
 [[sparse-vector-query-with-pruning-config-and-rescore-example]]
-=== Example ELSER query with pruning configuration and rescore
+==== Example ELSER query with pruning configuration and rescore
 
 The following is an extension to the above example that adds a preview:[] pruning configuration to the `sparse_vector` query.
 The pruning configuration identifies non-significant tokens to prune from the query in order to improve query performance.

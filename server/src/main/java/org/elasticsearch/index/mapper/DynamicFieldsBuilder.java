@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -13,6 +14,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.XContentParser;
@@ -161,7 +163,7 @@ final class DynamicFieldsBuilder {
         Mapper mapper = createObjectMapperFromTemplate(context, name);
         return mapper != null
             ? mapper
-            : new ObjectMapper.Builder(name, ObjectMapper.Defaults.SUBOBJECTS).enabled(ObjectMapper.Defaults.ENABLED)
+            : new ObjectMapper.Builder(name, context.parent().subobjects).enabled(ObjectMapper.Defaults.ENABLED)
                 .build(context.createDynamicMapperBuilderContext());
     }
 
@@ -333,13 +335,10 @@ final class DynamicFieldsBuilder {
                 );
             } else {
                 return createDynamicField(
-                    new TextFieldMapper.Builder(
-                        name,
-                        context.indexAnalyzers(),
-                        context.indexSettings().getMode().isSyntheticSourceEnabled()
-                    ).addMultiField(
-                        new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
-                    ),
+                    new TextFieldMapper.Builder(name, context.indexAnalyzers(), SourceFieldMapper.isSynthetic(context.indexSettings()))
+                        .addMultiField(
+                            new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
+                        ),
                     context
                 );
             }
@@ -404,17 +403,17 @@ final class DynamicFieldsBuilder {
                     dateTimeFormatter,
                     ScriptCompiler.NONE,
                     ignoreMalformed,
-                    context.indexSettings().getIndexVersionCreated()
+                    context.indexSettings().getMode(),
+                    context.indexSettings().getIndexSortConfig(),
+                    context.indexSettings().getIndexVersionCreated(),
+                    IndexSettings.USE_DOC_VALUES_SKIPPER.get(context.indexSettings().getSettings())
                 ),
                 context
             );
         }
 
         boolean newDynamicBinaryField(DocumentParserContext context, String name) throws IOException {
-            return createDynamicField(
-                new BinaryFieldMapper.Builder(name, context.indexSettings().getMode().isSyntheticSourceEnabled()),
-                context
-            );
+            return createDynamicField(new BinaryFieldMapper.Builder(name, SourceFieldMapper.isSynthetic(context.indexSettings())), context);
         }
     }
 

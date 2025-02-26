@@ -188,7 +188,7 @@ It is preferable to use `EsqlCapabilities` for new features, although all existi
 
 ### Warnings
 
-Some queries can return warnings, eg. for number overflows or when a multi-value is passed to a funciton
+Some queries can return warnings, eg. for number overflows or when a multi-value is passed to a function
 that does not support it.
 
 Each CSV-SPEC test has to also assert all the expected warnings.

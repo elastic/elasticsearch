@@ -21,6 +21,7 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -69,7 +70,15 @@ public class TransportPutUserActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        TransportPutUserAction action = new TransportPutUserAction(settings, mock(ActionFilters.class), usersStore, transportService);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        TransportPutUserAction action = new TransportPutUserAction(
+            settings,
+            mock(ActionFilters.class),
+            usersStore,
+            securityContext,
+            transportService
+        );
 
         PutUserRequest request = new PutUserRequest();
         request.username(anonymousUser.principal());
@@ -119,7 +128,15 @@ public class TransportPutUserActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ActionFilters.class), usersStore, transportService);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        TransportPutUserAction action = new TransportPutUserAction(
+            Settings.EMPTY,
+            mock(ActionFilters.class),
+            usersStore,
+            securityContext,
+            transportService
+        );
 
         PutUserRequest request = new PutUserRequest();
         request.username(reserved.principal());
@@ -166,7 +183,15 @@ public class TransportPutUserActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ActionFilters.class), usersStore, transportService);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        TransportPutUserAction action = new TransportPutUserAction(
+            Settings.EMPTY,
+            mock(ActionFilters.class),
+            usersStore,
+            securityContext,
+            transportService
+        );
 
         final boolean isCreate = randomBoolean();
         final PutUserRequest request = new PutUserRequest();
@@ -230,7 +255,15 @@ public class TransportPutUserActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ActionFilters.class), usersStore, transportService);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        TransportPutUserAction action = new TransportPutUserAction(
+            Settings.EMPTY,
+            mock(ActionFilters.class),
+            usersStore,
+            securityContext,
+            transportService
+        );
 
         final PutUserRequest request = new PutUserRequest();
         request.username(user.principal());
@@ -291,7 +324,15 @@ public class TransportPutUserActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ActionFilters.class), usersStore, transportService);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        TransportPutUserAction action = new TransportPutUserAction(
+            Settings.EMPTY,
+            mock(ActionFilters.class),
+            usersStore,
+            securityContext,
+            transportService
+        );
 
         final PutUserRequest request = new PutUserRequest();
         request.username(user.principal());

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.inference.action;
 import org.apache.http.pool.PoolStats;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -37,14 +36,10 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
         super(NAME);
     }
 
-    public static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest {
 
         public Request() {
             super((String[]) null);
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
         }
 
         @Override
@@ -58,11 +53,6 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
         public int hashCode() {
             // The class doesn't have any members at the moment so return the same hash code
             return Objects.hash(NAME);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            TransportAction.localOnly();
         }
     }
 

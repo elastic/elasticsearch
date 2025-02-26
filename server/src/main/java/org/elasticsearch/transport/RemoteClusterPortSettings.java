@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -134,9 +135,9 @@ public class RemoteClusterPortSettings {
 
     public static final Setting<ByteSizeValue> MAX_REQUEST_HEADER_SIZE = Setting.byteSizeSetting(
         REMOTE_CLUSTER_PREFIX + "max_request_header_size",
-        new ByteSizeValue(64, ByteSizeUnit.KB), // should cover typical querying user/key authn serialized to the fulfilling cluster
-        new ByteSizeValue(64, ByteSizeUnit.BYTES), // toBytes must be higher than fixed header length
-        new ByteSizeValue(2, ByteSizeUnit.GB), // toBytes must be lower than INT_MAX (>2 GB)
+        ByteSizeValue.of(64, ByteSizeUnit.KB), // should cover typical querying user/key authn serialized to the fulfilling cluster
+        ByteSizeValue.of(64, ByteSizeUnit.BYTES), // toBytes must be higher than fixed header length
+        ByteSizeValue.of(2, ByteSizeUnit.GB), // toBytes must be lower than INT_MAX (>2 GB)
         Setting.Property.NodeScope
     );
 

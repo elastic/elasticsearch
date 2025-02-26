@@ -15,10 +15,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -26,7 +27,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
 
-public class ToIntegerTests extends AbstractFunctionTestCase {
+public class ToIntegerTests extends AbstractScalarFunctionTestCase {
     public ToIntegerTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -48,7 +49,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             evaluatorName.apply("Long"),
             dateCases(0, Integer.MAX_VALUE),
             DataType.INTEGER,
-            l -> ((Long) l).intValue(),
+            l -> Long.valueOf(((Instant) l).toEpochMilli()).intValue(),
             List.of()
         );
         // datetimes that fall outside Integer's range
@@ -59,8 +60,10 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             DataType.INTEGER,
             l -> null,
             l -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + l + "] out of [integer] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: ["
+                    + ((Instant) l).toEpochMilli()
+                    + "] out of [integer] range"
             )
         );
         // random strings that don't look like an Integer
@@ -70,8 +73,8 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             DataType.INTEGER,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
                     + bytesRef.utf8ToString()
                     + "]"
             )
@@ -95,8 +98,8 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             Double.NEGATIVE_INFINITY,
             Integer.MIN_VALUE - 1d,
             d -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [integer] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [integer] range"
             )
         );
         // from doubles outside Integer's range, positive
@@ -108,8 +111,8 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             Integer.MAX_VALUE + 1d,
             Double.POSITIVE_INFINITY,
             d -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [integer] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [integer] range"
             )
         );
 
@@ -132,8 +135,8 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             BigInteger.valueOf(Integer.MAX_VALUE).add(BigInteger.ONE),
             UNSIGNED_LONG_MAX,
             ul -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + ul + "] out of [integer] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + ul + "] out of [integer] range"
 
             )
         );
@@ -157,8 +160,8 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             Long.MIN_VALUE,
             Integer.MIN_VALUE - 1L,
             l -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + l + "] out of [integer] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + l + "] out of [integer] range"
 
             )
         );
@@ -171,8 +174,8 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             Integer.MAX_VALUE + 1L,
             Long.MAX_VALUE,
             l -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + l + "] out of [integer] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + l + "] out of [integer] range"
             )
         );
 
@@ -229,8 +232,8 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             DataType.INTEGER,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "]"
             )
@@ -252,8 +255,8 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             DataType.INTEGER,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "]"
             )
@@ -268,7 +271,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             List.of()
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

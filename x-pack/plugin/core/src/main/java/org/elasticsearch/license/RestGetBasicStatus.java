@@ -8,7 +8,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -24,9 +23,7 @@ public class RestGetBasicStatus extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(GET, "/_license/basic_status").replaces(GET, "/_xpack/license/basic_status", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(GET, "/_license/basic_status"));
     }
 
     @Override

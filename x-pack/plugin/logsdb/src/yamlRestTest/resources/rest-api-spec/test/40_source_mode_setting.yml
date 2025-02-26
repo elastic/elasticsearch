@@ -1,0 +1,491 @@
+---
+create an index with disabled source mode and standard index mode without setting:
+  - do:
+      indices.create:
+        index: test_disabled_standard
+        body:
+          settings:
+            index:
+              mode: standard
+              mapping:
+                source:
+                  mode: disabled
+
+  - do:
+      indices.get_settings:
+        index: test_disabled_standard
+  - match: { test_disabled_standard.settings.index.mapping.source.mode: disabled }
+
+---
+create an index with stored source mode and standard index mode without setting:
+  - do:
+      indices.create:
+        index: test_stored_standard
+        body:
+          settings:
+            index:
+              mode: standard
+              mapping:
+                source:
+                  mode: stored
+
+  - do:
+      indices.get_settings:
+        index: test_stored_standard
+
+  - match: { test_stored_standard.settings.index.mapping.source.mode: stored }
+
+---
+create an index with synthetic source mode and standard index mode without setting:
+  - do:
+      indices.create:
+        index: test_synthetic_standard
+        body:
+          settings:
+            index:
+              mode: standard
+              mapping:
+                source:
+                  mode: "synthetic"
+
+  - do:
+      indices.get_settings:
+        index: test_synthetic_standard
+
+  - match: { test_synthetic_standard.settings.index.mapping.source.mode: synthetic }
+
+---
+create an index with disabled source mode and logsdb index mode without setting:
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_disabled_logsdb
+        body:
+          settings:
+            index:
+              mode: logsdb
+              mapping:
+                source:
+                  mode: disabled
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode" }
+
+---
+create an index with stored source mode and logsdb index mode without setting:
+  - do:
+      indices.create:
+        index: test_stored_logsdb
+        body:
+          settings:
+            index:
+              mode: logsdb
+              mapping:
+                source:
+                  mode: stored
+
+  - do:
+      indices.get_settings:
+        index: "test_stored_logsdb"
+  - match: { test_stored_logsdb.settings.index.mode: logsdb }
+  - match: { test_stored_logsdb.settings.index.mapping.source.mode: stored }
+
+---
+create an index with synthetic source mode and logsdb index mode without setting:
+  - do:
+      indices.create:
+        index: test_synthetic_logsdb
+        body:
+          settings:
+            index:
+              mode: logsdb
+              mapping:
+                source:
+                  mode: synthetic
+
+  - do:
+      indices.get_settings:
+        index: test_synthetic_logsdb
+
+  - match: { test_synthetic_logsdb.settings.index.mapping.source.mode: synthetic }
+
+---
+create an index with disabled source mode and time series index mode without setting:
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_disabled_time_series
+        body:
+          settings:
+            index:
+              mode: time_series
+              mapping:
+                source:
+                  mode: disabled
+              routing_path: [ keyword ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                time_series_dimension: true
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [time_series] index mode" }
+
+---
+create an index with stored source mode and time series index mode without setting:
+  - do:
+      indices.create:
+        index: test_stored_time_series
+        body:
+          settings:
+            index:
+              mode: time_series
+              mapping:
+                source:
+                  mode: stored
+              routing_path: [ keyword ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      indices.get_settings:
+        index: "test_stored_time_series"
+  - match: { test_stored_time_series.settings.index.mode: time_series }
+
+  - do:
+      indices.get_settings:
+        index: test_stored_time_series
+
+  - match: { test_stored_time_series.settings.index.mapping.source.mode: stored }
+
+---
+create an index with synthetic source mode and time series index mode without setting:
+  - do:
+      indices.create:
+        index: test_synthetic_time_series
+        body:
+          settings:
+            index:
+              mode: time_series
+              mapping:
+                source:
+                  mode: synthetic
+              routing_path: [ keyword ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      indices.get_settings:
+        index: "test_synthetic_time_series"
+  - match: { test_synthetic_time_series.settings.index.mode: time_series }
+  - match: { test_synthetic_time_series.settings.index.mapping.source.mode: synthetic }
+
+---
+create an index with stored source mode:
+  - do:
+      indices.create:
+        index: test_stored_default
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: stored
+
+  - do:
+      indices.get_settings:
+        index: test_stored_default
+
+  - match: { test_stored_default.settings.index.mapping.source.mode: stored }
+
+---
+create an index with disabled source mode:
+  - do:
+      indices.create:
+        index: test_disabled_default
+        body:
+          settings:
+            index:
+              mapping.source.mode: disabled
+
+  - do:
+      indices.get_settings:
+        index: test_disabled_default
+
+  - match: { test_disabled_default.settings.index.mapping.source.mode: disabled }
+
+---
+create an index with synthetic source mode:
+  - do:
+      indices.create:
+        index: test_synthetic_default
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+
+  - do:
+      indices.get_settings:
+        index: test_synthetic_default
+  - match: { test_synthetic_default.settings.index.mapping.source.mode: synthetic }
+
+---
+create an index with unspecified source mode:
+  - do:
+      indices.create:
+        index: test_unset_default
+
+  - do:
+      indices.get_settings:
+        index: test_unset_default
+
+  - match: { test_unset_default.settings.index.mapping.source.mode: null }
+
+---
+override unspecified to stored source mode:
+  - do:
+      indices.create:
+        index: test_unset_stored
+        body:
+          settings:
+            index:
+              mapping.source.mode: stored
+
+  - do:
+      indices.get_mapping:
+        index: test_unset_stored
+
+  - match: { test_unset_stored.mappings: { } }
+
+---
+override unspecified to disabled source mode:
+  - do:
+      indices.create:
+        index: test_unset_disabled
+        body:
+          settings:
+            index:
+              mapping.source.mode: disabled
+
+  - do:
+      indices.get_mapping:
+        index: test_unset_disabled
+
+  - match: { test_unset_disabled.mappings: { } }
+
+---
+override unspecified to synthetic source mode:
+  - do:
+      indices.create:
+        index: test_unset_synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+
+  - do:
+      indices.get_mapping:
+        index: test_unset_synthetic
+
+  - match: { test_unset_synthetic.mappings: { } }
+
+---
+create an index with standard index mode:
+  - do:
+      indices.create:
+        index: test_standard_index_mode
+        body:
+          settings:
+            index:
+              mode: standard
+              mapping:
+                source:
+                  mode: stored
+  - do:
+      indices.get_settings:
+        index: test_standard_index_mode
+
+  - match: { test_standard_index_mode.settings.index.mapping.source.mode: stored }
+
+---
+create an index with time_series index mode and synthetic source:
+  - do:
+      indices.create:
+        index: test_time_series_index_mode_synthetic
+        body:
+          settings:
+            index:
+              mode: time_series
+              mapping.source.mode: synthetic
+              routing_path: [ keyword ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      indices.get_settings:
+        index: "test_time_series_index_mode_synthetic"
+  - match: { test_time_series_index_mode_synthetic.settings.index.mode: time_series }
+  - match: { test_time_series_index_mode_synthetic.settings.index.mapping.source.mode: synthetic }
+
+---
+create an index with logsdb index mode and synthetic source:
+  - do:
+      indices.create:
+        index: test_logsdb_index_mode_synthetic
+        body:
+          settings:
+            index:
+              mode: logsdb
+              mapping.source.mode: synthetic
+
+  - do:
+      indices.get_settings:
+        index: "test_logsdb_index_mode_synthetic"
+  - match: { test_logsdb_index_mode_synthetic.settings.index.mode: logsdb }
+  - match: { test_logsdb_index_mode_synthetic.settings.index.mapping.source.mode: synthetic }
+
+---
+create an index with time_series index mode and stored source:
+  - do:
+      indices.create:
+        index: test_time_series_index_mode_undefined
+        body:
+          settings:
+            index:
+              mode: time_series
+              mapping.source.mode: stored
+              routing_path: [ keyword ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      indices.get_settings:
+        index: "test_time_series_index_mode_undefined"
+  - match: { test_time_series_index_mode_undefined.settings.index.mode: time_series }
+  - match: { test_time_series_index_mode_undefined.settings.index.mapping.source.mode: stored }
+
+---
+create an index with logsdb index mode and stored source:
+  - do:
+      indices.create:
+        index: test_logsdb_index_mode_undefined
+        body:
+          settings:
+            index:
+              mode: logsdb
+              mapping.source.mode: stored
+
+  - do:
+      indices.get_settings:
+        index: "test_logsdb_index_mode_undefined"
+  - match: { test_logsdb_index_mode_undefined.settings.index.mode: logsdb }
+  - match: { test_logsdb_index_mode_undefined.settings.index.mapping.source.mode: stored }
+
+---
+create an index with time_series index mode and disabled source:
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_time_series_index_mode
+        body:
+          settings:
+            index:
+              mode: time_series
+              mapping.source.mode: disabled
+              routing_path: [ keyword ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+                time_series_dimension: true
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [time_series] index mode" }
+
+---
+create an index with logsdb index mode and disabled source:
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_logsdb_index_mode
+        body:
+          settings:
+            index:
+              mode: logsdb
+              mapping.source.mode: disabled
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode" }
+
+---
+modify final setting after index creation:
+  - do:
+      indices.create:
+        index: test_modify_setting
+        body:
+          settings:
+            index:
+              mapping.source.mode: stored
+
+  - do:
+      catch: /.*Can't update non dynamic setting.*/
+      indices.put_settings:
+        index: test_modify_setting
+        body:
+          index:
+            mapping.source.mode: synthetic
+
+---
+use no-op _source.mode attr:
+  - requires:
+      test_runner_features: [ "warnings" ]
+
+  - do:
+      warnings:
+        - "Configuring source mode in mappings is deprecated and will be removed in future versions. Use [index.mapping.source.mode] index setting instead."
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            _source:
+              mode: synthetic
+
+  - do:
+      indices.get_settings:
+        index: test
+
+  - match: { test.settings.index.mapping.source.mode: synthetic }

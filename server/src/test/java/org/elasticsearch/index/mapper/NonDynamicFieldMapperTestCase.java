@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -42,7 +43,7 @@ public abstract class NonDynamicFieldMapperTestCase extends ESSingleNodeTestCase
             """, getMapping());
         var resp = client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         assertTrue(resp.isAcknowledged());
-        var mappingsResp = client().admin().indices().prepareGetMappings("test").get();
+        var mappingsResp = client().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
         var mappingMetadata = mappingsResp.getMappings().get("test");
         var fieldType = XContentMapValues.extractValue("properties.field.type", mappingMetadata.getSourceAsMap());
         assertThat(fieldType, equalTo(getTypeName()));
@@ -148,7 +149,7 @@ public abstract class NonDynamicFieldMapperTestCase extends ESSingleNodeTestCase
         var resp = client().prepareIndex("test1").setSource("field", "hello world").get();
         assertThat(resp.status(), equalTo(RestStatus.CREATED));
 
-        var mappingsResp = client().admin().indices().prepareGetMappings("test1").get();
+        var mappingsResp = client().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test1").get();
         var mappingMetadata = mappingsResp.getMappings().get("test1");
         var fieldType = XContentMapValues.extractValue("properties.field.type", mappingMetadata.getSourceAsMap());
         assertThat(fieldType, equalTo(getTypeName()));

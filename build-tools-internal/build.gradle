@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.apache.tools.ant.filters.ReplaceTokens
@@ -257,9 +258,6 @@ tasks.named('licenseHeaders').configure {
  *****************************************************************************/
 
 repositories {
-  maven {
-    url 'https://jitpack.io'
-  }
   mavenCentral()
   gradlePluginPortal()
 }
@@ -274,10 +272,7 @@ dependencies {
     // ensuring brought asm version brought in by spock is up-to-date
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
-    integTestImplementation('org.ow2.asm:asm:9.6')
-    api("org.yaml:snakeyaml") {
-      version { strictly(versions.snakeyaml) }
-    }
+    api(buildLibs.snakeyaml)
   }
   // Forcefully downgrade the jackson platform as used in production
   api enforcedPlatform(buildLibs.jackson.platform)
@@ -314,7 +309,7 @@ dependencies {
   compileOnly buildLibs.checkstyle
   compileOnly buildLibs.reflections
 
-  implementation 'com.github.javaparser:javaparser-core:3.18.0'
+  implementation buildLibs.javaparser
 
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation buildLibs.checkstyle
@@ -384,6 +379,18 @@ tasks.register("bootstrapPerformanceTests", Copy) {
 
 tasks.named("jar") {
   exclude("classpath.index")
+}
+
+spotless {
+  java {
+
+    // workaround for https://github.com/diffplug/spotless/issues/2317
+    //toggleOffOn()
+    target project.fileTree("src/main/java") {
+      include '**/*.java'
+      exclude '**/DockerBase.java'
+    }
+  }
 }
 
 def resolveMainWrapperVersion() {

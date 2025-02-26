@@ -7,5 +7,5 @@ Returns a string constructed by concatenating `string` with itself the specified
 
 ```
 ROW a = "Hello!"
-| EVAL triple_a = REPEAT(a, 3);
+| EVAL triple_a = REPEAT(a, 3)
 ```

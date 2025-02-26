@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.rank.feature;
@@ -34,9 +35,9 @@ public final class RankFeatureShardPhase {
 
     public static final RankFeatureShardResult EMPTY_RESULT = new RankFeatureShardResult(new RankFeatureDoc[0]);
 
-    public RankFeatureShardPhase() {}
+    private RankFeatureShardPhase() {}
 
-    public void prepareForFetch(SearchContext searchContext, RankFeatureShardRequest request) {
+    public static void prepareForFetch(SearchContext searchContext, RankFeatureShardRequest request) {
         if (logger.isTraceEnabled()) {
             logger.trace("{}", new SearchContextSourcePrinter(searchContext));
         }
@@ -57,7 +58,7 @@ public final class RankFeatureShardPhase {
         }
     }
 
-    public void processFetch(SearchContext searchContext) {
+    public static void processFetch(SearchContext searchContext) {
         if (logger.isTraceEnabled()) {
             logger.trace("{}", new SearchContextSourcePrinter(searchContext));
         }
@@ -82,7 +83,7 @@ public final class RankFeatureShardPhase {
             // FetchSearchResult#shardResult()
             SearchHits hits = fetchSearchResult.hits();
             RankFeatureShardResult featureRankShardResult = (RankFeatureShardResult) rankFeaturePhaseRankShardContext
-                .buildRankFeatureShardResult(hits, searchContext.shardTarget().getShardId().id());
+                .buildRankFeatureShardResult(hits, searchContext.request().shardRequestIndex());
             // save the result in the search context
             // need to add profiling info as well available from fetch
             if (featureRankShardResult != null) {
@@ -91,7 +92,7 @@ public final class RankFeatureShardPhase {
         }
     }
 
-    private RankFeaturePhaseRankShardContext shardContext(SearchContext searchContext) {
+    private static RankFeaturePhaseRankShardContext shardContext(SearchContext searchContext) {
         return searchContext.request().source() != null && searchContext.request().source().rankBuilder() != null
             ? searchContext.request().source().rankBuilder().buildRankFeaturePhaseShardContext()
             : null;

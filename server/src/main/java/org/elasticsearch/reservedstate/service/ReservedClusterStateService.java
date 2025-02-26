@@ -1,28 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.reservedstate.NonStateTransformResult;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -30,8 +28,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -64,8 +60,6 @@ public class ReservedClusterStateService {
 
     final Map<String, ReservedClusterStateHandler<?>> handlers;
     final ClusterService clusterService;
-    private final MasterServiceTaskQueue<ReservedStateUpdateTask> updateTaskQueue;
-    private final MasterServiceTaskQueue<ReservedStateErrorTask> errorTaskQueue;
 
     @SuppressWarnings("unchecked")
     private final ConstructingObjectParser<ReservedStateChunk, Void> stateChunkParser = new ConstructingObjectParser<>(
@@ -80,6 +74,8 @@ public class ReservedClusterStateService {
             return new ReservedStateChunk(stateMap, (ReservedStateVersion) a[1]);
         }
     );
+    private final ReservedStateUpdateTaskExecutor updateTaskExecutor;
+    private final ReservedStateErrorTaskExecutor errorTaskExecutor;
 
     /**
      * Controller class for saving and reserving {@link ClusterState}.
@@ -92,12 +88,8 @@ public class ReservedClusterStateService {
         List<ReservedClusterStateHandler<?>> handlerList
     ) {
         this.clusterService = clusterService;
-        this.updateTaskQueue = clusterService.createTaskQueue(
-            "reserved state update",
-            Priority.URGENT,
-            new ReservedStateUpdateTaskExecutor(rerouteService)
-        );
-        this.errorTaskQueue = clusterService.createTaskQueue("reserved state error", Priority.URGENT, new ReservedStateErrorTaskExecutor());
+        this.updateTaskExecutor = new ReservedStateUpdateTaskExecutor(rerouteService);
+        this.errorTaskExecutor = new ReservedStateErrorTaskExecutor();
         this.handlers = handlerList.stream().collect(Collectors.toMap(ReservedClusterStateHandler::name, Function.identity()));
         stateChunkParser.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, name) -> {
             if (handlers.containsKey(name) == false) {
@@ -113,7 +105,13 @@ public class ReservedClusterStateService {
         try {
             return stateChunkParser.apply(parser, null);
         } catch (Exception e) {
-            ErrorState errorState = new ErrorState(namespace, EMPTY_VERSION, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            ErrorState errorState = new ErrorState(
+                namespace,
+                EMPTY_VERSION,
+                ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+                e,
+                ReservedStateErrorMetadata.ErrorKind.PARSING
+            );
             updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
@@ -126,16 +124,22 @@ public class ReservedClusterStateService {
      *
      * @param namespace the namespace under which we'll store the reserved keys in the cluster state metadata
      * @param parser the XContentParser to process
+     * @param versionCheck determines if current and new versions of reserved state require processing or should be skipped
      * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
      *        cluster state cannot be correctly applied, null if successful or state couldn't be applied because of incompatible version.
      */
-    public void process(String namespace, XContentParser parser, Consumer<Exception> errorListener) {
+    public void process(
+        String namespace,
+        XContentParser parser,
+        ReservedStateVersionCheck versionCheck,
+        Consumer<Exception> errorListener
+    ) {
         ReservedStateChunk stateChunk;
 
         try {
             stateChunk = parse(namespace, parser);
         } catch (Exception e) {
-            ErrorState errorState = new ErrorState(namespace, EMPTY_VERSION, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            ErrorState errorState = new ErrorState(namespace, EMPTY_VERSION, versionCheck, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
             updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
@@ -145,27 +149,25 @@ public class ReservedClusterStateService {
             return;
         }
 
-        process(namespace, stateChunk, errorListener);
+        process(namespace, stateChunk, versionCheck, errorListener);
     }
 
     public void initEmpty(String namespace, ActionListener<ActionResponse.Empty> listener) {
-        var missingVersion = new ReservedStateVersion(EMPTY_VERSION, Version.CURRENT);
+        var missingVersion = new ReservedStateVersion(EMPTY_VERSION, BuildVersion.current());
         var emptyState = new ReservedStateChunk(Map.of(), missingVersion);
-        updateTaskQueue.submitTask(
+        submitUpdateTask(
             "empty initial cluster state [" + namespace + "]",
             new ReservedStateUpdateTask(
                 namespace,
                 emptyState,
-                List.of(),
+                ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
                 Map.of(),
                 List.of(),
                 // error state should not be possible since there is no metadata being parsed or processed
                 errorState -> { throw new AssertionError(); },
                 listener
-            ),
-            null
+            )
         );
-
     }
 
     /**
@@ -176,9 +178,14 @@ public class ReservedClusterStateService {
      * @param errorListener a consumer called with {@link IllegalStateException} if the content has errors and the
      *        cluster state cannot be correctly applied, null if successful or the state failed to apply because of incompatible version.
      */
-    public void process(String namespace, ReservedStateChunk reservedStateChunk, Consumer<Exception> errorListener) {
+    public void process(
+        String namespace,
+        ReservedStateChunk reservedStateChunk,
+        ReservedStateVersionCheck versionCheck,
+        Consumer<Exception> errorListener
+    ) {
         Map<String, Object> reservedState = reservedStateChunk.state();
-        final ReservedStateVersion reservedStateVersion = reservedStateChunk.metadata();
+        ReservedStateVersion reservedStateVersion = reservedStateChunk.metadata();
 
         LinkedHashSet<String> orderedHandlers;
         try {
@@ -187,6 +194,7 @@ public class ReservedClusterStateService {
             ErrorState errorState = new ErrorState(
                 namespace,
                 reservedStateVersion.version(),
+                versionCheck,
                 e,
                 ReservedStateErrorMetadata.ErrorKind.PARSING
             );
@@ -205,74 +213,58 @@ public class ReservedClusterStateService {
 
         // We check if we should exit early on the state version from clusterService. The ReservedStateUpdateTask
         // will check again with the most current state version if this continues.
-        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion) == false) {
+        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion, versionCheck) == false) {
             errorListener.accept(null);
             return;
         }
 
-        // We trial run all handler validations to ensure that we can process all of the cluster state error free. During
-        // the trial run we collect 'consumers' (functions) for any non cluster state transforms that need to run.
-        var trialRunResult = trialRun(namespace, state, reservedStateChunk, orderedHandlers);
+        // We trial run all handler validations to ensure that we can process all of the cluster state error free.
+        var trialRunErrors = trialRun(namespace, state, reservedStateChunk, orderedHandlers);
         // this is not using the modified trial state above, but that doesn't matter, we're just setting errors here
-        var error = checkAndReportError(namespace, trialRunResult.errors, reservedStateVersion);
+        var error = checkAndReportError(namespace, trialRunErrors, reservedStateVersion, versionCheck);
 
         if (error != null) {
             errorListener.accept(error);
             return;
         }
+        submitUpdateTask(
+            "reserved cluster state [" + namespace + "]",
+            new ReservedStateUpdateTask(
+                namespace,
+                reservedStateChunk,
+                versionCheck,
+                handlers,
+                orderedHandlers,
+                this::updateErrorState,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(ActionResponse.Empty empty) {
+                        logger.info("Successfully applied new reserved cluster state for namespace [{}]", namespace);
+                        errorListener.accept(null);
+                    }
 
-        // Since we have validated that the cluster state update can be correctly performed in the trial run, we now
-        // execute the non cluster state transforms. These are assumed to be async and we continue with the cluster state update
-        // after all have completed. This part of reserved cluster state update is non-atomic, some or all of the non-state
-        // transformations can succeed, and we can fail to eventually write the reserved cluster state.
-        executeNonStateTransformationSteps(trialRunResult.nonStateTransforms, new ActionListener<>() {
-            @Override
-            public void onResponse(Collection<NonStateTransformResult> nonStateTransformResults) {
-                // Once all of the non-state transformation results complete, we can proceed to
-                // do the final save of the cluster state. The non-state transformation reserved keys are applied
-                // to the reserved state after all other key handlers.
-                updateTaskQueue.submitTask(
-                    "reserved cluster state [" + namespace + "]",
-                    new ReservedStateUpdateTask(
-                        namespace,
-                        reservedStateChunk,
-                        nonStateTransformResults,
-                        handlers,
-                        orderedHandlers,
-                        ReservedClusterStateService.this::updateErrorState,
-                        new ActionListener<>() {
-                            @Override
-                            public void onResponse(ActionResponse.Empty empty) {
-                                logger.info("Successfully applied new reserved cluster state for namespace [{}]", namespace);
-                                errorListener.accept(null);
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                // Don't spam the logs on repeated errors
-                                if (isNewError(existingMetadata, reservedStateVersion.version())) {
-                                    logger.debug("Failed to apply reserved cluster state", e);
-                                    errorListener.accept(e);
-                                } else {
-                                    errorListener.accept(null);
-                                }
-                            }
+                    @Override
+                    public void onFailure(Exception e) {
+                        // Don't spam the logs on repeated errors
+                        if (isNewError(existingMetadata, reservedStateVersion.version(), versionCheck)) {
+                            logger.debug("Failed to apply reserved cluster state", e);
+                            errorListener.accept(e);
+                        } else {
+                            errorListener.accept(null);
                         }
-                    ),
-                    null
-                );
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                // If we encounter an error while runnin the non-state transforms, we avoid saving any cluster state.
-                errorListener.accept(checkAndReportError(namespace, List.of(stackTrace(e)), reservedStateVersion));
-            }
-        });
+                    }
+                }
+            )
+        );
     }
 
     // package private for testing
-    Exception checkAndReportError(String namespace, List<String> errors, ReservedStateVersion reservedStateVersion) {
+    Exception checkAndReportError(
+        String namespace,
+        List<String> errors,
+        ReservedStateVersion reservedStateVersion,
+        ReservedStateVersionCheck versionCheck
+    ) {
         // Any errors should be discovered through validation performed in the transform calls
         if (errors.isEmpty() == false) {
             logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
@@ -280,6 +272,7 @@ public class ReservedClusterStateService {
             var errorState = new ErrorState(
                 namespace,
                 reservedStateVersion.version(),
+                versionCheck,
                 errors,
                 ReservedStateErrorMetadata.ErrorKind.VALIDATION
             );
@@ -290,6 +283,11 @@ public class ReservedClusterStateService {
         }
 
         return null;
+    }
+
+    void submitUpdateTask(String source, ReservedStateUpdateTask task) {
+        var updateTaskQueue = clusterService.createTaskQueue("reserved state update", Priority.URGENT, updateTaskExecutor);
+        updateTaskQueue.submitTask(source, task, null);
     }
 
     // package private for testing
@@ -304,6 +302,7 @@ public class ReservedClusterStateService {
     }
 
     private void submitErrorUpdateTask(ErrorState errorState) {
+        var errorTaskQueue = clusterService.createTaskQueue("reserved state error", Priority.URGENT, errorTaskExecutor);
         errorTaskQueue.submitTask(
             "reserved cluster state update error for [ " + errorState.namespace() + "]",
             new ReservedStateErrorTask(errorState, new ActionListener<>() {
@@ -324,14 +323,13 @@ public class ReservedClusterStateService {
     /**
      * Goes through all of the handlers, runs the validation and the transform part of the cluster state.
      * <p>
-     * While running the handlers we also collect any non cluster state transformation consumer actions that
-     * need to be performed asynchronously before we attempt to save the cluster state. The trial run does not
-     * result in an update of the cluster state, it's only purpose is to verify if we can correctly perform a
-     * cluster state update with the given reserved state chunk.
+     * The trial run does not result in an update of the cluster state, it's only purpose is to verify
+     * if we can correctly perform a cluster state update with the given reserved state chunk.
      *
      * Package private for testing
+     * @return Any errors that occured
      */
-    TrialRunResult trialRun(
+    List<String> trialRun(
         String namespace,
         ClusterState currentState,
         ReservedStateChunk stateChunk,
@@ -341,7 +339,6 @@ public class ReservedClusterStateService {
         Map<String, Object> reservedState = stateChunk.state();
 
         List<String> errors = new ArrayList<>();
-        List<Consumer<ActionListener<NonStateTransformResult>>> nonStateTransforms = new ArrayList<>();
 
         ClusterState state = currentState;
 
@@ -351,39 +348,12 @@ public class ReservedClusterStateService {
                 Set<String> existingKeys = keysForHandler(existingMetadata, handlerName);
                 TransformState transformState = handler.transform(reservedState.get(handlerName), new TransformState(state, existingKeys));
                 state = transformState.state();
-                if (transformState.nonStateTransform() != null) {
-                    nonStateTransforms.add(transformState.nonStateTransform());
-                }
             } catch (Exception e) {
                 errors.add(format("Error processing %s state change: %s", handler.name(), stackTrace(e)));
             }
         }
 
-        return new TrialRunResult(nonStateTransforms, errors);
-    }
-
-    /**
-     * Runs the non cluster state transformations asynchronously, collecting the {@link NonStateTransformResult} objects.
-     * <p>
-     * Once all non cluster state transformations have completed, we submit the cluster state update task, which
-     * updates all of the handler state, including the keys produced by the non cluster state transforms. The new reserved
-     * state version isn't written to the cluster state until the cluster state task runs.
-     *
-     * Package private for testing
-     */
-    static void executeNonStateTransformationSteps(
-        List<Consumer<ActionListener<NonStateTransformResult>>> nonStateTransforms,
-        ActionListener<Collection<NonStateTransformResult>> listener
-    ) {
-        final List<NonStateTransformResult> result = Collections.synchronizedList(new ArrayList<>(nonStateTransforms.size()));
-        try (var listeners = new RefCountingListener(listener.map(ignored -> result))) {
-            for (var transform : nonStateTransforms) {
-                // non cluster state transforms don't modify the cluster state, they however are given a chance to return a more
-                // up-to-date version of the modified keys we should save in the reserved state. These calls are
-                // async and report back when they are done through the postTasksListener.
-                transform.accept(listeners.acquire(result::add));
-            }
-        }
+        return errors;
     }
 
     /**
@@ -449,9 +419,4 @@ public class ReservedClusterStateService {
     public void installStateHandler(ReservedClusterStateHandler<?> handler) {
         this.handlers.put(handler.name(), handler);
     }
-
-    /**
-     * Helper record class to combine the result of a trial run, non cluster state actions and any errors
-     */
-    record TrialRunResult(List<Consumer<ActionListener<NonStateTransformResult>>> nonStateTransforms, List<String> errors) {}
 }

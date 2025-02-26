@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -45,13 +45,12 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");
-    public static final QueryBuilder DEFAULT_INNER_HIT_QUERY = new MatchAllQueryBuilder();
     public static final ParseField COLLAPSE_FIELD = new ParseField("collapse");
     public static final ParseField FIELD_FIELD = new ParseField("field");
 
+    public static final int DEFAULT_FROM = 0;
+    public static final int DEFAULT_SIZE = 3;
     private static final boolean DEFAULT_IGNORE_UNAMPPED = false;
-    private static final int DEFAULT_FROM = 0;
-    private static final int DEFAULT_SIZE = 3;
     private static final boolean DEFAULT_VERSION = false;
     private static final boolean DEFAULT_SEQ_NO_AND_PRIMARY_TERM = false;
     private static final boolean DEFAULT_EXPLAIN = false;
@@ -189,11 +188,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
         this.innerCollapseBuilder = in.readOptionalWriteable(CollapseBuilder::new);
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            if (in.readBoolean()) {
-                fetchFields = in.readCollectionAsList(FieldAndFormat::new);
-            }
-        }
+        fetchFields = in.readOptionalCollectionAsList(FieldAndFormat::new);
     }
 
     @Override
@@ -228,13 +223,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         }
         out.writeOptionalWriteable(highlightBuilder);
         out.writeOptionalWriteable(innerCollapseBuilder);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeBoolean(fetchFields != null);
-            if (fetchFields != null) {
-                out.writeCollection(fetchFields);
-            }
-        }
+        out.writeOptionalCollection(fetchFields);
     }
 
     public String getName() {

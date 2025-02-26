@@ -128,6 +128,11 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
     }
 
     @Override
+    public String modelId() {
+        return null;
+    }
+
+    @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
     }
@@ -163,7 +168,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_OPENAI_COMPLETIONS;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override

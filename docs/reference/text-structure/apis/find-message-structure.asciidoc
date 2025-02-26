@@ -2,6 +2,12 @@
 [[find-message-structure]]
 = Find messages structure API
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-text_structure[Text structure APIs].
+--
+
 Finds the structure of a list of text messages.
 
 [discrete]

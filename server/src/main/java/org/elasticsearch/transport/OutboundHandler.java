@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -11,22 +12,23 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -38,7 +40,10 @@ final class OutboundHandler {
     private static final Logger logger = LogManager.getLogger(OutboundHandler.class);
 
     private final String nodeName;
+
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // only used in assertions, can be dropped in future
     private final TransportVersion version;
+
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
     private final Recycler<BytesRef> recycler;
@@ -98,27 +103,22 @@ final class OutboundHandler {
         final Compression.Scheme compressionScheme,
         final boolean isHandshake
     ) throws IOException, TransportException {
-        TransportVersion version = TransportVersion.min(this.version, transportVersion);
-        OutboundMessage.Request message = new OutboundMessage.Request(
+        assert assertValidTransportVersion(transportVersion);
+        final OutboundMessage.Request message = new OutboundMessage.Request(
             threadPool.getThreadContext(),
             request,
-            version,
+            transportVersion,
             action,
             requestId,
             isHandshake,
             compressionScheme
         );
-        if (request.tryIncRef() == false) {
-            assert false : "request [" + request + "] has been released already";
-            throw new AlreadyClosedException("request [" + request + "] has been released already");
-        }
-        sendMessage(channel, message, ResponseStatsConsumer.NONE, () -> {
-            try {
-                messageListener.onRequestSent(node, requestId, action, request, options);
-            } finally {
-                request.decRef();
-            }
-        });
+        sendMessage(
+            channel,
+            message,
+            ResponseStatsConsumer.NONE,
+            () -> messageListener.onRequestSent(node, requestId, action, request, options)
+        );
     }
 
     /**
@@ -137,28 +137,26 @@ final class OutboundHandler {
         final boolean isHandshake,
         final ResponseStatsConsumer responseStatsConsumer
     ) {
-        TransportVersion version = TransportVersion.min(this.version, transportVersion);
+        assert assertValidTransportVersion(transportVersion);
         OutboundMessage.Response message = new OutboundMessage.Response(
             threadPool.getThreadContext(),
             response,
-            version,
+            transportVersion,
             requestId,
             isHandshake,
             compressionScheme
         );
-        response.mustIncRef();
+        assert response.hasReferences();
         try {
-            sendMessage(channel, message, responseStatsConsumer, () -> {
-                try {
-                    messageListener.onResponseSent(requestId, action, response);
-                } finally {
-                    response.decRef();
-                }
-            });
+            sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, response));
         } catch (Exception ex) {
             if (isHandshake) {
                 logger.error(
-                    () -> format("Failed to send handshake response version [%s] received on [%s], closing channel", version, channel),
+                    () -> format(
+                        "Failed to send handshake response version [%s] received on [%s], closing channel",
+                        transportVersion,
+                        channel
+                    ),
                     ex
                 );
                 channel.close();
@@ -179,9 +177,15 @@ final class OutboundHandler {
         final ResponseStatsConsumer responseStatsConsumer,
         final Exception error
     ) {
-        TransportVersion version = TransportVersion.min(this.version, transportVersion);
-        RemoteTransportException tx = new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error);
-        OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), tx, version, requestId, false, null);
+        assert assertValidTransportVersion(transportVersion);
+        OutboundMessage.Response message = new OutboundMessage.Response(
+            threadPool.getThreadContext(),
+            new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error),
+            transportVersion,
+            requestId,
+            false,
+            null
+        );
         try {
             sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, error));
         } catch (Exception sendException) {
@@ -207,7 +211,6 @@ final class OutboundHandler {
                 Releasables.closeExpectNoException(onAfter);
             }
         }
-        final Releasable release = Releasables.wrap(byteStreamOutput, onAfter);
         final BytesReference message;
         boolean serializeSuccess = false;
         try {
@@ -218,11 +221,20 @@ final class OutboundHandler {
             throw e;
         } finally {
             if (serializeSuccess == false) {
-                release.close();
+                Releasables.close(byteStreamOutput, onAfter);
             }
         }
         responseStatsConsumer.addResponseStats(message.length());
-        internalSend(channel, message, networkMessage, ActionListener.running(release::close));
+        internalSend(
+            channel,
+            message,
+            networkMessage,
+            ActionListener.releasing(
+                message instanceof ReleasableBytesReference r
+                    ? Releasables.wrap(byteStreamOutput, onAfter, r)
+                    : Releasables.wrap(byteStreamOutput, onAfter)
+            )
+        );
     }
 
     private void internalSend(
@@ -236,7 +248,7 @@ final class OutboundHandler {
         final long messageSize = reference.length();
         TransportLogger.logOutboundMessage(channel, reference);
         // stash thread context so that channel event loop is not polluted by thread context
-        try (ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {
+        try (var ignored = threadPool.getThreadContext().newEmptyContext()) {
             channel.sendMessage(reference, new ActionListener<>() {
                 @Override
                 public void onResponse(Void v) {
@@ -295,6 +307,12 @@ final class OutboundHandler {
 
     public boolean rstOnClose() {
         return rstOnClose;
+    }
+
+    private boolean assertValidTransportVersion(TransportVersion transportVersion) {
+        assert this.version.before(TransportVersions.MINIMUM_COMPATIBLE) // running an incompatible-version test
+            || this.version.onOrAfter(transportVersion) : this.version + " vs " + transportVersion;
+        return true;
     }
 
 }

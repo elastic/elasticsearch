@@ -17,15 +17,18 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.AnyOperatorTestCase;
-import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorTestCase;
-import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.AnyOperatorTestCase;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -63,10 +66,10 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected LuceneSourceOperator.Factory simple() {
-        return simple(randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
+        return simple(randomFrom(DataPartitioning.values()), between(1, 10_000), 100, scoring);
     }
 
-    private LuceneSourceOperator.Factory simple(DataPartitioning dataPartitioning, int numDocs, int limit) {
+    private LuceneSourceOperator.Factory simple(DataPartitioning dataPartitioning, int numDocs, int limit, boolean scoring) {
         int commitEvery = Math.max(1, numDocs / 10);
         try (
             RandomIndexWriter writer = new RandomIndexWriter(
@@ -91,7 +94,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         ShardContext ctx = new MockShardContext(reader, 0);
         Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
         int maxPageSize = between(10, Math.max(10, numDocs));
-        return new LuceneSourceOperator.Factory(List.of(ctx), queryFunction, dataPartitioning, 1, maxPageSize, limit);
+        return new LuceneSourceOperator.Factory(List.of(ctx), queryFunction, dataPartitioning, 1, maxPageSize, limit, scoring);
     }
 
     @Override
@@ -101,7 +104,10 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return matchesRegex("LuceneSourceOperator\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100]");
+        return matchesRegex(
+            "LuceneSourceOperator"
+                + "\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100, scoreMode = (COMPLETE|COMPLETE_NO_SCORES)]"
+        );
     }
 
     // TODO tests for the other data partitioning configurations
@@ -110,6 +116,27 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         int size = between(1_000, 20_000);
         int limit = between(10, size);
         testSimple(driverContext(), size, limit);
+    }
+
+    public void testEarlyTermination() {
+        int size = between(1_000, 20_000);
+        int limit = between(10, size);
+        LuceneSourceOperator.Factory factory = simple(randomFrom(DataPartitioning.values()), size, limit, scoring);
+        try (SourceOperator sourceOperator = factory.get(driverContext())) {
+            assertFalse(sourceOperator.isFinished());
+            int collected = 0;
+            while (sourceOperator.isFinished() == false) {
+                Page page = sourceOperator.getOutput();
+                if (page != null) {
+                    collected += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                if (collected >= limit) {
+                    assertTrue("source operator is not finished after reaching limit", sourceOperator.isFinished());
+                    assertThat(collected, equalTo(limit));
+                }
+            }
+        }
     }
 
     public void testEmpty() {
@@ -149,13 +176,13 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     private void testSimple(DriverContext ctx, int size, int limit) {
-        LuceneSourceOperator.Factory factory = simple(DataPartitioning.SHARD, size, limit);
+        LuceneSourceOperator.Factory factory = simple(DataPartitioning.SHARD, size, limit, scoring);
         Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD, ElementType.LONG);
 
         List<Page> results = new ArrayList<>();
 
         OperatorTestCase.runDriver(
-            new Driver(ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add), () -> {})
+            TestDriverFactory.create(ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add))
         );
         OperatorTestCase.assertDriverContext(ctx);
 
@@ -164,7 +191,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         }
 
         for (Page page : results) {
-            LongBlock sBlock = page.getBlock(1);
+            LongBlock sBlock = page.getBlock(initialBlockIndex(page));
             for (int p = 0; p < page.getPositionCount(); p++) {
                 assertThat(sBlock.getLong(sBlock.getFirstValueIndex(p)), both(greaterThanOrEqualTo(0L)).and(lessThan((long) size)));
             }
@@ -172,6 +199,20 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         int maxPages = Math.min(size, limit);
         int minPages = (int) Math.ceil(maxPages / factory.maxPageSize());
         assertThat(results, hasSize(both(greaterThanOrEqualTo(minPages)).and(lessThanOrEqualTo(maxPages))));
+    }
+
+    // Scores are not interesting to this test, but enabled conditionally and effectively ignored just for coverage.
+    private final boolean scoring = randomBoolean();
+
+    // Returns the initial block index, ignoring the score block if scoring is enabled
+    private int initialBlockIndex(Page page) {
+        assert page.getBlock(0) instanceof DocBlock : "expected doc block at index 0";
+        if (scoring) {
+            assert page.getBlock(1) instanceof DoubleBlock : "expected double block at index 1";
+            return 2;
+        } else {
+            return 1;
+        }
     }
 
     /**

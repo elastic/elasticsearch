@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.monitor.StatusInfo;
+import org.elasticsearch.test.EnumSerializationTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1377,7 +1379,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
      */
     private static MasterHistoryService createMasterHistoryService(ClusterService clusterService) throws Exception {
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
+        when(threadPool.relativeTimeInMillisSupplier()).thenReturn(System::currentTimeMillis);
         MasterHistory localMasterHistory = new MasterHistory(threadPool, clusterService);
         MasterHistoryService masterHistoryService = mock(MasterHistoryService.class);
         when(masterHistoryService.getLocalMasterHistory()).thenReturn(localMasterHistory);
@@ -1416,5 +1418,15 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             nextNodeIndex.getAndIncrement(), false, Settings.EMPTY, () -> new StatusInfo(HEALTHY, "healthy-info")
         );
         cluster.clusterNodes.add(nonMasterNode);
+    }
+
+    public void testCoordinationDiagnosticsStatusSerialization() {
+        EnumSerializationTestUtils.assertEnumSerialization(
+            CoordinationDiagnosticsStatus.class,
+            CoordinationDiagnosticsStatus.GREEN,
+            CoordinationDiagnosticsStatus.UNKNOWN,
+            CoordinationDiagnosticsStatus.YELLOW,
+            CoordinationDiagnosticsStatus.RED
+        );
     }
 }

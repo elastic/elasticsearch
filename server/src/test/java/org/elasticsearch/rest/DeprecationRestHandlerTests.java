@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.rest;
 
@@ -72,7 +73,7 @@ public class DeprecationRestHandlerTests extends ESTestCase {
             RestChannel channel = mock(RestChannel.class);
             NodeClient client = mock(NodeClient.class);
 
-            final Level deprecationLevel = randomBoolean() ? null : randomFrom(Level.WARN, DeprecationLogger.CRITICAL);
+            final Level deprecationLevel = randomFrom(Level.WARN, DeprecationLogger.CRITICAL);
 
             DeprecationRestHandler deprecatedHandler = new DeprecationRestHandler(
                 handler,
@@ -155,18 +156,56 @@ public class DeprecationRestHandlerTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> DeprecationRestHandler.requireValidHeader(blank));
     }
 
-    public void testSupportsContentStreamTrue() {
-        when(handler.supportsContentStream()).thenReturn(true);
+    public void testSupportsBulkContentTrue() {
+        when(handler.supportsBulkContent()).thenReturn(true);
         assertTrue(
-            new DeprecationRestHandler(handler, METHOD, PATH, null, deprecationMessage, deprecationLogger, false).supportsContentStream()
+            new DeprecationRestHandler(handler, METHOD, PATH, Level.WARN, deprecationMessage, deprecationLogger, false)
+                .supportsBulkContent()
         );
     }
 
-    public void testSupportsContentStreamFalse() {
-        when(handler.supportsContentStream()).thenReturn(false);
+    public void testSupportsBulkContentFalse() {
+        when(handler.supportsBulkContent()).thenReturn(false);
         assertFalse(
-            new DeprecationRestHandler(handler, METHOD, PATH, null, deprecationMessage, deprecationLogger, false).supportsContentStream()
+            new DeprecationRestHandler(handler, METHOD, PATH, Level.WARN, deprecationMessage, deprecationLogger, false)
+                .supportsBulkContent()
         );
+    }
+
+    public void testDeprecationLevel() {
+        DeprecationRestHandler handler = new DeprecationRestHandler(
+            this.handler,
+            METHOD,
+            PATH,
+            Level.WARN,
+            deprecationMessage,
+            deprecationLogger,
+            false
+        );
+        assertEquals(Level.WARN, handler.getDeprecationLevel());
+
+        handler = new DeprecationRestHandler(
+            this.handler,
+            METHOD,
+            PATH,
+            DeprecationLogger.CRITICAL,
+            deprecationMessage,
+            deprecationLogger,
+            false
+        );
+        assertEquals(DeprecationLogger.CRITICAL, handler.getDeprecationLevel());
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DeprecationRestHandler(this.handler, METHOD, PATH, null, deprecationMessage, deprecationLogger, false)
+        );
+        assertEquals(exception.getMessage(), "unexpected deprecation logger level: null, expected either 'CRITICAL' or 'WARN'");
+
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DeprecationRestHandler(this.handler, METHOD, PATH, Level.OFF, deprecationMessage, deprecationLogger, false)
+        );
+        assertEquals(exception.getMessage(), "unexpected deprecation logger level: OFF, expected either 'CRITICAL' or 'WARN'");
     }
 
     /**

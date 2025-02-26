@@ -1,0 +1,11 @@
+pr: 116943
+summary: Remove support for deprecated `force_source` highlighting parameter
+area: Highlighting
+type: breaking
+issues: []
+breaking:
+  title: Remove support for deprecated `force_source` highlighting parameter
+  area: REST API
+  details: The deprecated highlighting `force_source` parameter is no longer supported.
+  impact: Users should remove usages of the `force_source` parameter from their search requests.
+  notable: false

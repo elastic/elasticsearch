@@ -33,7 +33,7 @@ public class OpenAiEmbeddingsRequestManager extends OpenAiRequestManager {
     private static final ResponseHandler HANDLER = createEmbeddingsHandler();
 
     private static ResponseHandler createEmbeddingsHandler() {
-        return new OpenAiResponseHandler("openai text embedding", OpenAiEmbeddingsResponseEntity::fromResponse);
+        return new OpenAiResponseHandler("openai text embedding", OpenAiEmbeddingsResponseEntity::fromResponse, false);
     }
 
     public static OpenAiEmbeddingsRequestManager of(OpenAiEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
@@ -55,13 +55,13 @@ public class OpenAiEmbeddingsRequestManager extends OpenAiRequestManager {
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
         OpenAiEmbeddingsRequest request = new OpenAiEmbeddingsRequest(truncator, truncatedInput, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));

@@ -44,7 +44,9 @@
   - requires:
       cluster_features: ["gte_v8.11.0"]
       reason: "dataset size was added in 8.11.0"
+      test_runner_features: ["headers"]
   - do:
+      headers: { X-elastic-product-origin: elastic }
       indices.create:
         index: .index1
         body:

@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.application.analytics.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
@@ -28,6 +29,10 @@ import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 @ServerlessScope(Scope.PUBLIC)
 public class RestPostAnalyticsEventAction extends EnterpriseSearchBaseRestHandler {
     public RestPostAnalyticsEventAction(XPackLicenseState licenseState) {
@@ -48,11 +53,26 @@ public class RestPostAnalyticsEventAction extends EnterpriseSearchBaseRestHandle
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) {
-        PostAnalyticsEventAction.Request request = buidRequest(restRequest);
+        Tuple<XContentType, ReleasableBytesReference> sourceTuple = restRequest.contentOrSourceParam();
+
+        var content = sourceTuple.v2();
+        PostAnalyticsEventAction.RequestBuilder builder = PostAnalyticsEventAction.Request.builder(
+            restRequest.param("collection_name"),
+            restRequest.param("event_type"),
+            sourceTuple.v1(),
+            content
+        );
+
+        builder.debug(restRequest.paramAsBoolean("debug", false));
+
+        final Map<String, List<String>> headers = restRequest.getHeaders();
+        builder.headers(headers);
+        builder.clientAddress(getClientAddress(restRequest, headers));
+
         return channel -> client.execute(
             PostAnalyticsEventAction.INSTANCE,
-            request,
-            new RestToXContentListener<>(channel, r -> RestStatus.ACCEPTED)
+            builder.request(),
+            ActionListener.withRef(new RestToXContentListener<>(channel, r -> RestStatus.ACCEPTED), content)
         );
     }
 
@@ -71,22 +91,4 @@ public class RestPostAnalyticsEventAction extends EnterpriseSearchBaseRestHandle
         return remoteAddress;
     }
 
-    private static PostAnalyticsEventAction.Request buidRequest(RestRequest restRequest) {
-        Tuple<XContentType, BytesReference> sourceTuple = restRequest.contentOrSourceParam();
-
-        PostAnalyticsEventAction.RequestBuilder builder = PostAnalyticsEventAction.Request.builder(
-            restRequest.param("collection_name"),
-            restRequest.param("event_type"),
-            sourceTuple.v1(),
-            sourceTuple.v2()
-        );
-
-        builder.debug(restRequest.paramAsBoolean("debug", false));
-
-        final Map<String, List<String>> headers = restRequest.getHeaders();
-        builder.headers(headers);
-        builder.clientAddress(getClientAddress(restRequest, headers));
-
-        return builder.request();
-    }
 }

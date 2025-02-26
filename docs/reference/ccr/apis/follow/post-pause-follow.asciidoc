@@ -5,7 +5,13 @@
 <titleabbrev>Pause follower</titleabbrev>
 ++++
 
-Pauses a follower index.
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[Cross-cluster replication APIs].
+--
+
+Pauses a <<xpack-ccr,{ccr}>> follower index.
 
 [[ccr-post-pause-follow-request]]
 ==== {api-request-title}

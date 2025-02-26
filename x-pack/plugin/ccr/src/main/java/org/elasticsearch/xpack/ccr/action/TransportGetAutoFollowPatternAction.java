@@ -14,11 +14,10 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -38,8 +37,7 @@ public class TransportGetAutoFollowPatternAction extends TransportMasterNodeRead
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             GetAutoFollowPatternAction.NAME,
@@ -48,7 +46,6 @@ public class TransportGetAutoFollowPatternAction extends TransportMasterNodeRead
             threadPool,
             actionFilters,
             GetAutoFollowPatternAction.Request::new,
-            indexNameExpressionResolver,
             GetAutoFollowPatternAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.application.analytics;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventEmitter;
 
@@ -17,7 +17,9 @@ import java.util.Objects;
 
 /**
  * Event emitter will index Analytics events submitted through a @{PostAnalyticsEventAction.Request} request.
+ * @deprecated in 9.0
  */
+@Deprecated
 public class AnalyticsEventIngestService {
     private final AnalyticsCollectionResolver collectionResolver;
 

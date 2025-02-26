@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -413,7 +414,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                                 InternalTopHits topHits = bucket.getAggregations().get("top_hits");
                                 TotalHits hits = topHits.getHits().getTotalHits();
                                 assertNotNull(hits);
-                                assertThat(hits.value, equalTo(counter));
+                                assertThat(hits.value(), equalTo(counter));
                                 assertThat(topHits.getHits().getMaxScore(), equalTo(Float.NaN));
                                 counter += 1;
                             }

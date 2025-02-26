@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -39,11 +40,11 @@ public class InboundDecoder implements Releasable {
     private final ChannelType channelType;
 
     public InboundDecoder(Recycler<BytesRef> recycler) {
-        this(recycler, new ByteSizeValue(2, ByteSizeUnit.GB), ChannelType.MIX);
+        this(recycler, ByteSizeValue.of(2, ByteSizeUnit.GB), ChannelType.MIX);
     }
 
     public InboundDecoder(Recycler<BytesRef> recycler, ChannelType channelType) {
-        this(recycler, new ByteSizeValue(2, ByteSizeUnit.GB), channelType);
+        this(recycler, ByteSizeValue.of(2, ByteSizeUnit.GB), channelType);
     }
 
     public InboundDecoder(Recycler<BytesRef> recycler, ByteSizeValue maxHeaderSize, ChannelType channelType) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search;
 
@@ -14,23 +15,29 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.profile.ProfileResult;
@@ -61,46 +68,26 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public enum SearchResponseUtils {
     ;
 
-    // All fields on the root level of the parsed SearchHit are interpreted as metadata fields
-    // public because we use it in a completion suggestion option
-    @SuppressWarnings("unchecked")
-    public static final ObjectParser.UnknownFieldConsumer<Map<String, Object>> unknownMetaFieldConsumer = (map, fieldName, fieldValue) -> {
-        Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(
-            SearchHit.METADATA_FIELDS,
-            v -> new HashMap<String, DocumentField>()
-        );
-        if (fieldName.equals(IgnoredFieldMapper.NAME)) {
-            fieldMap.put(fieldName, new DocumentField(fieldName, (List<Object>) fieldValue));
-        } else {
-            fieldMap.put(fieldName, new DocumentField(fieldName, Collections.singletonList(fieldValue)));
-        }
-    };
-
-    public static TotalHits getTotalHits(SearchRequestBuilder request) {
-        var resp = request.get();
-        try {
-            return resp.getHits().getTotalHits();
-        } finally {
-            resp.decRef();
-        }
+    public static SearchResponseBuilder response() {
+        return new SearchResponseBuilder();
     }
 
-    public static long getTotalHitsValue(SearchRequestBuilder request) {
-        return getTotalHits(request).value;
+    public static SearchResponseBuilder response(SearchHits hits) {
+        return new SearchResponseBuilder().searchHits(hits).numReducePhases(1).shards(1, 1, 0).tookInMillis(100);
     }
 
-    public static SearchResponse responseAsSearchResponse(Response searchResponse) throws IOException {
-        try (var parser = ESRestTestCase.responseAsParser(searchResponse)) {
-            return parseSearchResponse(parser);
-        }
+    public static SearchResponse successfulResponse(SearchHits hits) {
+        return response(hits).build();
     }
 
     public static SearchResponse emptyWithTotalHits(
@@ -128,6 +115,152 @@ public enum SearchResponseUtils {
             shardFailures,
             clusters
         );
+    }
+
+    public static class SearchResponseBuilder {
+        private SearchHits searchHits = SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN);
+        private InternalAggregations aggregations;
+        private Suggest suggest;
+        private boolean timedOut;
+        private Boolean terminatedEarly;
+        private SearchProfileResults profileResults;
+        private int numReducePhases;
+        private String scrollId;
+        private int totalShards;
+        private int successfulShards;
+        private int skippedShards;
+        private long tookInMillis;
+        private List<ShardSearchFailure> shardFailures;
+        private Clusters clusters = Clusters.EMPTY;
+        private BytesReference pointInTimeId;
+
+        private SearchResponseBuilder() {}
+
+        public SearchResponseBuilder searchHits(SearchHits searchHits) {
+            this.searchHits = searchHits;
+            return this;
+        }
+
+        public SearchResponseBuilder aggregations(InternalAggregations aggregations) {
+            this.aggregations = aggregations;
+            return this;
+        }
+
+        public SearchResponseBuilder suggest(Suggest suggest) {
+            this.suggest = suggest;
+            return this;
+        }
+
+        public SearchResponseBuilder timedOut(boolean timedOut) {
+            this.timedOut = timedOut;
+            return this;
+        }
+
+        public SearchResponseBuilder terminatedEarly(Boolean terminatedEarly) {
+            this.terminatedEarly = terminatedEarly;
+            return this;
+        }
+
+        public SearchResponseBuilder profileResults(SearchProfileResults profileResults) {
+            this.profileResults = profileResults;
+            return this;
+        }
+
+        public SearchResponseBuilder numReducePhases(int numReducePhases) {
+            this.numReducePhases = numReducePhases;
+            return this;
+        }
+
+        public SearchResponseBuilder scrollId(String scrollId) {
+            this.scrollId = scrollId;
+            return this;
+        }
+
+        public SearchResponseBuilder shards(int total, int successful, int skipped) {
+            this.totalShards = total;
+            this.successfulShards = successful;
+            this.skippedShards = skipped;
+            return this;
+        }
+
+        public SearchResponseBuilder tookInMillis(long tookInMillis) {
+            this.tookInMillis = tookInMillis;
+            return this;
+        }
+
+        public SearchResponseBuilder shardFailures(ShardSearchFailure... failures) {
+            shardFailures = List.of(failures);
+            return this;
+        }
+
+        public SearchResponseBuilder shardFailures(List<ShardSearchFailure> failures) {
+            shardFailures = List.copyOf(failures);
+            return this;
+        }
+
+        public SearchResponseBuilder clusters(Clusters clusters) {
+            this.clusters = clusters;
+            return this;
+        }
+
+        public SearchResponseBuilder pointInTimeId(BytesReference pointInTimeId) {
+            this.pointInTimeId = pointInTimeId;
+            return this;
+        }
+
+        public SearchResponse build() {
+            return new SearchResponse(
+                searchHits,
+                aggregations,
+                suggest,
+                timedOut,
+                terminatedEarly,
+                profileResults,
+                numReducePhases,
+                scrollId,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                tookInMillis,
+                shardFailures == null ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
+                clusters,
+                pointInTimeId
+            );
+        }
+    }
+
+    // All fields on the root level of the parsed SearchHit are interpreted as metadata fields
+    // public because we use it in a completion suggestion option
+    @SuppressWarnings("unchecked")
+    public static final ObjectParser.UnknownFieldConsumer<Map<String, Object>> unknownMetaFieldConsumer = (map, fieldName, fieldValue) -> {
+        Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(
+            SearchHit.METADATA_FIELDS,
+            v -> new HashMap<String, DocumentField>()
+        );
+        if (IgnoredFieldMapper.NAME.equals(fieldName) || IgnoredSourceFieldMapper.NAME.equals(fieldName)) {
+            fieldMap.put(fieldName, new DocumentField(fieldName, (List<Object>) fieldValue));
+        } else {
+            fieldMap.put(fieldName, new DocumentField(fieldName, Collections.singletonList(fieldValue)));
+        }
+    };
+
+    public static TotalHits getTotalHits(SearchRequestBuilder request) {
+        var resp = request.get();
+        try {
+            return resp.getHits().getTotalHits();
+        } finally {
+            resp.decRef();
+        }
+    }
+
+    public static long getTotalHitsValue(SearchRequestBuilder request) {
+        return getTotalHits(request).value();
+    }
+
+    public static SearchResponse responseAsSearchResponse(Response searchResponse) throws IOException {
+        try (var parser = ESRestTestCase.responseAsParser(searchResponse)) {
+            return parseSearchResponse(parser);
+        }
     }
 
     public static SearchResponse parseSearchResponse(XContentParser parser) throws IOException {
@@ -229,7 +362,7 @@ public enum SearchResponseUtils {
                 if (SearchHits.Fields.HITS.equals(currentFieldName)) {
                     hits = parseSearchHits(parser);
                 } else if (InternalAggregations.AGGREGATIONS_FIELD.equals(currentFieldName)) {
-                    aggs = InternalAggregations.fromXContent(parser);
+                    aggs = parseInternalAggregations(parser);
                 } else if (Suggest.NAME.equals(currentFieldName)) {
                     suggest = parseSuggest(parser);
                 } else if (SearchProfileResults.PROFILE_FIELD.equals(currentFieldName)) {
@@ -253,7 +386,7 @@ public enum SearchResponseUtils {
                         } else if (token == XContentParser.Token.START_ARRAY) {
                             if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                    failures.add(ShardSearchFailure.fromXContent(parser));
+                                    failures.add(parseShardSearchFailure(parser));
                                 }
                             } else {
                                 parser.skipChildren();
@@ -406,7 +539,7 @@ public enum SearchResponseUtils {
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        failures.add(ShardSearchFailure.fromXContent(parser));
+                        failures.add(parseShardSearchFailure(parser));
                     }
                 } else {
                     parser.skipChildren();
@@ -482,7 +615,7 @@ public enum SearchResponseUtils {
                         queryProfileResults.add(parseQueryProfileShardResult(parser));
                     }
                 } else if (AggregationProfileShardResult.AGGREGATIONS.equals(currentFieldName)) {
-                    aggProfileShardResult = AggregationProfileShardResult.fromXContent(parser);
+                    aggProfileShardResult = readAggregationProfileShardResult(parser);
                 } else {
                     parser.skipChildren();
                 }
@@ -490,7 +623,7 @@ public enum SearchResponseUtils {
                 if ("dfs".equals(currentFieldName)) {
                     searchProfileDfsPhaseResult = parseProfileDfsPhaseResult(parser);
                 } else if ("fetch".equals(currentFieldName)) {
-                    fetchResult = ProfileResult.fromXContent(parser);
+                    fetchResult = parseProfileResult(parser);
                 } else {
                     parser.skipChildren();
                 }
@@ -514,7 +647,7 @@ public enum SearchResponseUtils {
             true,
             SearchProfileDfsPhaseResult.class
         );
-        parser.declareObject(optionalConstructorArg(), (p, c) -> ProfileResult.fromXContent(p), SearchProfileDfsPhaseResult.STATISTICS);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> parseProfileResult(p), SearchProfileDfsPhaseResult.STATISTICS);
         parser.declareObjectArray(optionalConstructorArg(), (p, c) -> parseQueryProfileShardResult(p), SearchProfileDfsPhaseResult.KNN);
         PROFILE_DFS_PHASE_RESULT_PARSER = parser.build();
     }
@@ -545,11 +678,11 @@ public enum SearchResponseUtils {
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (QueryProfileShardResult.QUERY_ARRAY.equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        queryProfileResults.add(ProfileResult.fromXContent(parser));
+                        queryProfileResults.add(parseProfileResult(parser));
                     }
                 } else if (QueryProfileShardResult.COLLECTOR.equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        collector = CollectorResult.fromXContent(parser);
+                        collector = parseCollectorResult(parser);
                     }
                 } else {
                     parser.skipChildren();
@@ -703,7 +836,7 @@ public enum SearchResponseUtils {
 
         parser.declareField(
             (map, list) -> map.put(SearchHit.Fields.SORT, list),
-            SearchSortValues::fromXContent,
+            SearchResponseUtils::parseSearchSortValues,
             new ParseField(SearchHit.Fields.SORT),
             ObjectParser.ValueType.OBJECT_ARRAY
         );
@@ -752,7 +885,7 @@ public enum SearchResponseUtils {
     private static Map<String, HighlightField> parseHighlightFields(XContentParser parser) throws IOException {
         Map<String, HighlightField> highlightFields = new HashMap<>();
         while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            HighlightField highlightField = HighlightField.fromXContent(parser);
+            HighlightField highlightField = parseHighlightField(parser);
             highlightFields.put(highlightField.name(), highlightField);
         }
         return highlightFields;
@@ -850,11 +983,9 @@ public enum SearchResponseUtils {
         String index = get(SearchHit.Fields._INDEX, values, null);
         String clusterAlias = null;
         if (index != null) {
-            int indexOf = index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
-            if (indexOf > 0) {
-                clusterAlias = index.substring(0, indexOf);
-                index = index.substring(indexOf + 1);
-            }
+            String[] split = RemoteClusterAware.splitIndexName(index);
+            clusterAlias = split[0];
+            index = split[1];
         }
         ShardId shardId = get(SearchHit.Fields._SHARD, values, null);
         String nodeId = get(SearchHit.Fields._NODE, values, null);
@@ -884,7 +1015,6 @@ public enum SearchResponseUtils {
             shardTarget,
             index,
             clusterAlias,
-            null,
             get(SearchHit.Fields.INNER_HITS, values, null),
             get(SearchHit.DOCUMENT_FIELDS, values, Collections.emptyMap()),
             get(SearchHit.METADATA_FIELDS, values, Collections.emptyMap()),
@@ -897,4 +1027,168 @@ public enum SearchResponseUtils {
         return (T) map.getOrDefault(key, defaultValue);
     }
 
+    public static AggregationProfileShardResult readAggregationProfileShardResult(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
+        List<ProfileResult> aggProfileResults = new ArrayList<>();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            aggProfileResults.add(parseProfileResult(parser));
+        }
+        return new AggregationProfileShardResult(aggProfileResults);
+    }
+
+    public static CollectorResult parseCollectorResult(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+        String currentFieldName = null;
+        String name = null, reason = null;
+        long time = -1;
+        List<CollectorResult> children = new ArrayList<>();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (CollectorResult.NAME.match(currentFieldName, parser.getDeprecationHandler())) {
+                    name = parser.text();
+                } else if (CollectorResult.REASON.match(currentFieldName, parser.getDeprecationHandler())) {
+                    reason = parser.text();
+                } else if (CollectorResult.TIME.match(currentFieldName, parser.getDeprecationHandler())) {
+                    // we need to consume this value, but we use the raw nanosecond value
+                    parser.text();
+                } else if (CollectorResult.TIME_NANOS.match(currentFieldName, parser.getDeprecationHandler())) {
+                    time = parser.longValue();
+                } else {
+                    parser.skipChildren();
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (CollectorResult.CHILDREN.match(currentFieldName, parser.getDeprecationHandler())) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        children.add(parseCollectorResult(parser));
+                    }
+                } else {
+                    parser.skipChildren();
+                }
+            } else {
+                parser.skipChildren();
+            }
+        }
+        return new CollectorResult(name, reason, time, children);
+    }
+
+    public static HighlightField parseHighlightField(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+        String fieldName = parser.currentName();
+        Text[] fragments;
+        XContentParser.Token token = parser.nextToken();
+        if (token == XContentParser.Token.START_ARRAY) {
+            List<Text> values = new ArrayList<>();
+            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                values.add(new Text(parser.text()));
+            }
+            fragments = values.toArray(Text.EMPTY_ARRAY);
+        } else if (token == XContentParser.Token.VALUE_NULL) {
+            fragments = null;
+        } else {
+            throw new ParsingException(parser.getTokenLocation(), "unexpected token type [" + token + "]");
+        }
+        return new HighlightField(fieldName, fragments);
+    }
+
+    private static InternalAggregations parseInternalAggregations(XContentParser parser) throws IOException {
+        final List<InternalAggregation> aggregations = new ArrayList<>();
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                SetOnce<InternalAggregation> typedAgg = new SetOnce<>();
+                String currentField = parser.currentName();
+                parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, InternalAggregation.class, typedAgg::set);
+                if (typedAgg.get() != null) {
+                    aggregations.add(typedAgg.get());
+                } else {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        String.format(Locale.ROOT, "Could not parse aggregation keyed as [%s]", currentField)
+                    );
+                }
+            }
+        }
+        return InternalAggregations.from(aggregations);
+    }
+
+    private static final InstantiatingObjectParser<ProfileResult, Void> PROFILE_RESULT_PARSER;
+    static {
+        InstantiatingObjectParser.Builder<ProfileResult, Void> parser = InstantiatingObjectParser.builder(
+            "profile_result",
+            true,
+            ProfileResult.class
+        );
+        parser.declareString(constructorArg(), ProfileResult.TYPE);
+        parser.declareString(constructorArg(), ProfileResult.DESCRIPTION);
+        parser.declareObject(
+            constructorArg(),
+            (p, c) -> p.map().entrySet().stream().collect(toMap(Map.Entry::getKey, e -> ((Number) e.getValue()).longValue())),
+            ProfileResult.BREAKDOWN
+        );
+        parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), ProfileResult.DEBUG);
+        parser.declareLong(constructorArg(), ProfileResult.NODE_TIME_RAW);
+        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> parseProfileResult(p), ProfileResult.CHILDREN);
+        PROFILE_RESULT_PARSER = parser.build();
+    }
+
+    public static ProfileResult parseProfileResult(XContentParser p) throws IOException {
+        return PROFILE_RESULT_PARSER.parse(p, null);
+    }
+
+    public static SearchSortValues parseSearchSortValues(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+        return new SearchSortValues(parser.list().toArray());
+    }
+
+    public static ShardSearchFailure parseShardSearchFailure(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        String currentFieldName = null;
+        int shardId = -1;
+        String indexName = null;
+        String clusterAlias = null;
+        String nodeId = null;
+        ElasticsearchException exception = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (ShardSearchFailure.SHARD_FIELD.equals(currentFieldName)) {
+                    shardId = parser.intValue();
+                } else if (ShardSearchFailure.INDEX_FIELD.equals(currentFieldName)) {
+                    indexName = parser.text();
+                    int indexOf = indexName.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
+                    if (indexOf > 0) {
+                        clusterAlias = indexName.substring(0, indexOf);
+                        indexName = indexName.substring(indexOf + 1);
+                    }
+                } else if (ShardSearchFailure.NODE_FIELD.equals(currentFieldName)) {
+                    nodeId = parser.text();
+                } else {
+                    parser.skipChildren();
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (ShardSearchFailure.REASON_FIELD.equals(currentFieldName)) {
+                    exception = ElasticsearchException.fromXContent(parser);
+                } else {
+                    parser.skipChildren();
+                }
+            } else {
+                parser.skipChildren();
+            }
+        }
+        SearchShardTarget searchShardTarget = null;
+        if (nodeId != null) {
+            searchShardTarget = new SearchShardTarget(
+                nodeId,
+                new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), shardId),
+                clusterAlias
+            );
+        }
+        return new ShardSearchFailure(exception, searchShardTarget);
+    }
 }

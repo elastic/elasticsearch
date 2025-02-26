@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -18,11 +19,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -36,6 +39,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.GatewayAllocator;
@@ -85,6 +89,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
             return indexMetadata.getForecastedWriteLoad();
         }
+
+        @Override
+        public void refreshLicense() {}
     };
 
     public static MockAllocationService createAllocationService() {
@@ -164,7 +171,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             queue.getThreadPool(),
             clusterService,
             null,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         ) {
             private RoutingAllocation lastAllocation;
 
@@ -193,7 +201,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     protected static Set<DiscoveryNodeRole> MASTER_DATA_ROLES = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE);
 
     protected static DiscoveryNode newNode(String nodeId) {
-        return newNode(nodeId, (Version) null);
+        return DiscoveryNodeUtils.builder(nodeId).roles(MASTER_DATA_ROLES).build();
     }
 
     protected static DiscoveryNode newNode(String nodeName, String nodeId, Map<String, String> attributes) {
@@ -331,7 +339,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     public static ClusterState reroute(AllocationService allocationService, ClusterState clusterState) {
         final var listener = new PlainActionFuture<Void>();
         final var result = allocationService.reroute(clusterState, "test reroute", listener);
-        listener.result(); // ensures it completed successfully
+        safeGet(listener::result); // ensures it completed successfully
         return result;
     }
 
@@ -431,4 +439,17 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             }
         }
     }
+
+    protected static final NodeAllocationStatsAndWeightsCalculator EMPTY_NODE_ALLOCATION_STATS =
+        new NodeAllocationStatsAndWeightsCalculator(WriteLoadForecaster.DEFAULT, createBuiltInClusterSettings()) {
+            @Override
+            public Map<String, NodeAllocationStatsAndWeight> nodesAllocationStatsAndWeights(
+                Metadata metadata,
+                RoutingNodes routingNodes,
+                ClusterInfo clusterInfo,
+                @Nullable DesiredBalance desiredBalance
+            ) {
+                return Map.of();
+            }
+        };
 }

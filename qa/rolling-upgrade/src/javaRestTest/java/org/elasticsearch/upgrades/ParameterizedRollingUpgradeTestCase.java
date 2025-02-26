@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -54,14 +55,13 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     protected abstract ElasticsearchCluster getUpgradeCluster();
 
     @Before
-    public void extractOldClusterFeatures() {
+    public void upgradeNode() throws Exception {
+        // extract old cluster features
         if (isOldCluster() && oldClusterTestFeatureService == null) {
             oldClusterTestFeatureService = testFeatureService;
         }
-    }
 
-    @Before
-    public void extractOldIndexVersion() throws Exception {
+        // extract old index version
         if (oldIndexVersion == null && upgradedNodes.isEmpty()) {
             IndexVersion indexVersion = null;   // these should all be the same version
 
@@ -92,13 +92,11 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
             assertThat("Index version could not be read", indexVersion, notNullValue());
             oldIndexVersion = indexVersion;
         }
-    }
 
-    @Before
-    public void upgradeNode() throws Exception {
         // Skip remaining tests if upgrade failed
         assumeFalse("Cluster upgrade failed", upgradeFailed);
 
+        // finally, upgrade node
         if (upgradedNodes.size() < requestedUpgradedNodes) {
             closeClients();
             // we might be running a specific upgrade test by itself - check previous nodes too

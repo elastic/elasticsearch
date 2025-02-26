@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery;
@@ -13,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -233,7 +235,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 // is the super-connected node and recovery source and target are on opposite sides of the bridge
                 if (disruptionScheme instanceof NetworkDisruption networkDisruption
                     && networkDisruption.getDisruptedLinks() instanceof Bridge) {
-                    assertBusy(() -> assertAcked(clusterAdmin().prepareReroute().setRetryFailed(true)));
+                    assertBusy(() -> ClusterRerouteUtils.rerouteRetryFailed(client()));
                 }
                 ensureGreen("test");
 
@@ -292,7 +294,14 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         NetworkDisruption scheme = addRandomDisruptionType(partitions);
         scheme.startDisrupting();
         ensureStableCluster(2, notIsolatedNode);
-        assertFalse(client(notIsolatedNode).admin().cluster().prepareHealth("test").setWaitForYellowStatus().get().isTimedOut());
+        assertFalse(
+            client(notIsolatedNode).admin()
+                .cluster()
+                .prepareHealth(TEST_REQUEST_TIMEOUT, "test")
+                .setWaitForYellowStatus()
+                .get()
+                .isTimedOut()
+        );
 
         DocWriteResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test").setSource("field", "value").get();
         assertThat(indexResponse.getVersion(), equalTo(1L));
@@ -423,12 +432,12 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         });
 
         assertBusy(() -> {
-            assertFalse(internalCluster().client(masterNode).admin().cluster().prepareHealth().get().isTimedOut());
+            assertFalse(internalCluster().client(masterNode).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get().isTimedOut());
             assertTrue(
                 internalCluster().client(masterNode)
                     .admin()
                     .cluster()
-                    .prepareHealth()
+                    .prepareHealth(TEST_REQUEST_TIMEOUT)
                     .setWaitForNodes("2")
                     .setTimeout(TimeValue.timeValueSeconds(2))
                     .get()

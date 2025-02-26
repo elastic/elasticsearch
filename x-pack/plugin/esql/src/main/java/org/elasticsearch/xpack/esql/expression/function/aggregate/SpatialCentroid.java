@@ -6,22 +6,30 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier;
+import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
+import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatialPoint;
 
@@ -29,19 +37,43 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpat
  * Calculate spatial centroid of all geo_point or cartesian point values of a field in matching documents.
  */
 public class SpatialCentroid extends SpatialAggregateFunction implements ToAggregator {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "SpatialCentroid",
+        SpatialCentroid::new
+    );
 
-    @FunctionInfo(returnType = { "geo_point", "cartesian_point" }, description = "The centroid of a spatial field.", isAggregation = true)
+    @FunctionInfo(
+        returnType = { "geo_point", "cartesian_point" },
+        description = "Calculate the spatial centroid over a field with spatial point geometry type.",
+        type = FunctionType.AGGREGATE,
+        examples = @Example(file = "spatial", tag = "st_centroid_agg-airports")
+    )
     public SpatialCentroid(Source source, @Param(name = "field", type = { "geo_point", "cartesian_point" }) Expression field) {
-        super(source, field, false);
+        this(source, field, Literal.TRUE, NONE);
     }
 
-    private SpatialCentroid(Source source, Expression field, boolean useDocValues) {
-        super(source, field, useDocValues);
+    private SpatialCentroid(Source source, Expression field, Expression filter, FieldExtractPreference preference) {
+        super(source, field, filter, preference);
+    }
+
+    private SpatialCentroid(StreamInput in) throws IOException {
+        super(in, NONE);
     }
 
     @Override
-    public SpatialCentroid withDocValues() {
-        return new SpatialCentroid(source(), field(), true);
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    public SpatialCentroid withFilter(Expression filter) {
+        return new SpatialCentroid(source(), field(), filter, fieldExtractPreference);
+    }
+
+    @Override
+    public SpatialCentroid withFieldExtractPreference(FieldExtractPreference preference) {
+        return new SpatialCentroid(source(), field(), filter(), preference);
     }
 
     @Override
@@ -67,25 +99,18 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
-        if (useDocValues) {
-            // When the points are read as doc-values (eg. from the index), feed them into the doc-values aggregator
-            if (type == DataType.GEO_POINT) {
-                return new SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier(inputChannels);
-            }
-            if (type == DataType.CARTESIAN_POINT) {
-                return new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier(inputChannels);
-            }
-        } else {
-            // When the points are read as WKB from source or as point literals, feed them into the source-values aggregator
-            if (type == DataType.GEO_POINT) {
-                return new SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
-            }
-            if (type == DataType.CARTESIAN_POINT) {
-                return new SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
-            }
-        }
-        throw EsqlIllegalArgumentException.illegalDataType(type);
+        return switch (type) {
+            case DataType.GEO_POINT -> switch (fieldExtractPreference) {
+                case DOC_VALUES -> new SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier();
+                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier();
+            };
+            case DataType.CARTESIAN_POINT -> switch (fieldExtractPreference) {
+                case DOC_VALUES -> new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier();
+                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier();
+            };
+            default -> throw EsqlIllegalArgumentException.illegalDataType(type);
+        };
     }
 }

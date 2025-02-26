@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -289,7 +290,12 @@ public class InboundHandlerTests extends ESTestCase {
             );
             BytesStreamOutput byteData = new BytesStreamOutput();
             TaskId.EMPTY_TASK_ID.writeTo(byteData);
-            TransportVersion.writeVersion(remoteVersion, byteData);
+            // simulate bytes of a transport handshake: vInt transport version then release version string
+            try (var payloadByteData = new BytesStreamOutput()) {
+                TransportVersion.writeVersion(remoteVersion, payloadByteData);
+                payloadByteData.writeString(randomIdentifier());
+                byteData.writeBytesReference(payloadByteData.bytes());
+            }
             final InboundMessage requestMessage = new InboundMessage(
                 requestHeader,
                 ReleasableBytesReference.wrap(byteData.bytes()),

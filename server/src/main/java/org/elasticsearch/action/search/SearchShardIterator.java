@@ -1,17 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.util.Countable;
 import org.elasticsearch.common.util.PlainIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -19,17 +18,16 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
 /**
- * Extension of {@link PlainShardIterator} used in the search api, which also holds the {@link OriginalIndices}
+ * Iterator for shards used in the search api, which also holds the {@link OriginalIndices}
  * of the search request (useful especially with cross-cluster search, as each cluster has its own set of original indices) as well as
  * the cluster alias.
  * @see OriginalIndices
  */
-public final class SearchShardIterator implements Comparable<SearchShardIterator>, Countable {
+public final class SearchShardIterator implements Comparable<SearchShardIterator> {
 
     private final OriginalIndices originalIndices;
     private final String clusterAlias;
@@ -42,7 +40,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     private final PlainIterator<String> targetNodesIterator;
 
     /**
-     * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
+     * Creates a {@link SearchShardIterator} instance that iterates over a subset of the given shards
      * this the a given <code>shardId</code>.
      *
      * @param clusterAlias    the alias of the cluster where the shard is located
@@ -55,7 +53,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     }
 
     /**
-     * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
+     * Creates a {@link SearchShardIterator} instance that iterates over a subset of the given shards
      *
      * @param clusterAlias           the alias of the cluster where the shard is located
      * @param shardId                shard id of the group
@@ -103,16 +101,15 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return clusterAlias;
     }
 
+    /**
+     * Returns the next shard, or {@code null} if none available.
+     */
     SearchShardTarget nextOrNull() {
         final String nodeId = targetNodesIterator.nextOrNull();
         if (nodeId != null) {
             return new SearchShardTarget(nodeId, shardId, clusterAlias);
         }
         return null;
-    }
-
-    int remaining() {
-        return targetNodesIterator.remaining();
     }
 
     /**
@@ -130,6 +127,9 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return targetNodesIterator.asList();
     }
 
+    /**
+     * Resets the iterator to its initial state.
+     */
     void reset() {
         targetNodesIterator.reset();
     }
@@ -155,11 +155,18 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return prefiltered;
     }
 
-    @Override
+    /**
+     * The number of shard routing instances.
+     *
+     * @return number of shard routing instances in this iterator
+     */
     public int size() {
         return targetNodesIterator.size();
     }
 
+    /**
+     * The shard id this group relates to.
+     */
     ShardId shardId() {
         return shardId;
     }
@@ -174,14 +181,24 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
 
     @Override
     public int hashCode() {
-        return Objects.hash(clusterAlias, shardId);
+        var clusterAlias = this.clusterAlias;
+        return 31 * (31 + (clusterAlias == null ? 0 : clusterAlias.hashCode())) + shardId.hashCode();
     }
-
-    private static final Comparator<SearchShardIterator> COMPARATOR = Comparator.comparing(SearchShardIterator::shardId)
-        .thenComparing(SearchShardIterator::getClusterAlias, Comparator.nullsFirst(String::compareTo));
 
     @Override
     public int compareTo(SearchShardIterator o) {
-        return COMPARATOR.compare(this, o);
+        int res = shardId.compareTo(o.shardId);
+        if (res != 0) {
+            return res;
+        }
+        var thisClusterAlias = clusterAlias;
+        var otherClusterAlias = o.clusterAlias;
+        if (thisClusterAlias == null) {
+            return otherClusterAlias == null ? 0 : -1;
+        } else if (otherClusterAlias == null) {
+            return 1;
+        } else {
+            return thisClusterAlias.compareTo(otherClusterAlias);
+        }
     }
 }

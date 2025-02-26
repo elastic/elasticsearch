@@ -1,20 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.retriever;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
@@ -33,20 +37,21 @@ import java.util.Objects;
 /**
  * A retriever represents an API element that returns an ordered list of top
  * documents. These can be obtained from a query, from another retriever, etc.
- * Internally, a {@link RetrieverBuilder} is just a wrapper for other search
- * elements that are extracted into a {@link SearchSourceBuilder}. The advantage
- * retrievers have is in the API they appear as a tree-like structure enabling
+ * Internally, a {@link RetrieverBuilder} is first rewritten into its simplest
+ * form and then its elements are extracted into a {@link SearchSourceBuilder}.
+ *
+ * The advantage retrievers have is in the API they appear as a tree-like structure enabling
  * easier reasoning about what a search does.
  *
  * This is the base class for all other retrievers. This class does not support
  * serialization and is expected to be fully extracted to a {@link SearchSourceBuilder}
  * prior to any transport calls.
  */
-public abstract class RetrieverBuilder implements ToXContent {
-
-    public static final NodeFeature RETRIEVERS_SUPPORTED = new NodeFeature("retrievers_supported");
+public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>, ToXContent {
 
     public static final ParseField PRE_FILTER_FIELD = new ParseField("filter");
+
+    public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
 
     public static final ParseField NAME_FIELD = new ParseField("_name");
 
@@ -54,47 +59,31 @@ public abstract class RetrieverBuilder implements ToXContent {
         String name,
         AbstractObjectParser<? extends RetrieverBuilder, RetrieverParserContext> parser
     ) {
-        parser.declareObjectArray((r, v) -> r.preFilterQueryBuilders = v, (p, c) -> {
-            QueryBuilder preFilterQueryBuilder = AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage);
-            c.trackSectionUsage(name + ":" + PRE_FILTER_FIELD.getPreferredName());
-            return preFilterQueryBuilder;
-        }, PRE_FILTER_FIELD);
+        parser.declareObjectArray(
+            (r, v) -> r.preFilterQueryBuilders = new ArrayList<>(v),
+            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage),
+            PRE_FILTER_FIELD
+        );
         parser.declareString(RetrieverBuilder::retrieverName, NAME_FIELD);
+        parser.declareFloat(RetrieverBuilder::minScore, MIN_SCORE_FIELD);
     }
 
-    private void retrieverName(String retrieverName) {
+    public RetrieverBuilder retrieverName(String retrieverName) {
         this.retrieverName = retrieverName;
+        return this;
     }
 
-    /**
-     * This method parsers a top-level retriever within a search and tracks its own depth. Currently, the
-     * maximum depth allowed is limited to 2 as a compound retriever cannot currently contain another
-     * compound retriever.
-     */
+    public RetrieverBuilder minScore(Float minScore) {
+        this.minScore = minScore;
+        return this;
+    }
+
     public static RetrieverBuilder parseTopLevelRetrieverBuilder(XContentParser parser, RetrieverParserContext context) throws IOException {
         parser = new FilterXContentParserWrapper(parser) {
 
-            int nestedDepth = 0;
-
             @Override
             public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
-                if (categoryClass.equals(RetrieverBuilder.class)) {
-                    nestedDepth++;
-
-                    if (nestedDepth > 2) {
-                        throw new IllegalArgumentException(
-                            "the nested depth of the [" + name + "] retriever exceeds the maximum nested depth [2] for retrievers"
-                        );
-                    }
-                }
-
-                T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
-
-                if (categoryClass.equals(RetrieverBuilder.class)) {
-                    nestedDepth--;
-                }
-
-                return namedObject;
+                return getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
             }
         };
 
@@ -146,7 +135,7 @@ public abstract class RetrieverBuilder implements ToXContent {
             throw new ParsingException(new XContentLocation(nonfe.getLineNumber(), nonfe.getColumnNumber()), message, nonfe);
         }
 
-        context.trackSectionUsage(retrieverName);
+        context.trackRetrieverUsage(retrieverName);
 
         if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
             throw new ParsingException(
@@ -181,6 +170,55 @@ public abstract class RetrieverBuilder implements ToXContent {
 
     protected String retrieverName;
 
+    protected Float minScore;
+
+    /**
+     * Determines if this retriever contains sub-retrievers that need to be executed prior to search.
+     */
+    public boolean isCompound() {
+        return false;
+    }
+
+    protected RankDoc[] rankDocs = null;
+
+    public RetrieverBuilder() {}
+
+    protected final List<QueryBuilder> rewritePreFilters(QueryRewriteContext ctx) throws IOException {
+        List<QueryBuilder> newFilters = new ArrayList<>(preFilterQueryBuilders.size());
+        boolean changed = false;
+        for (var filter : preFilterQueryBuilders) {
+            var newFilter = filter.rewrite(ctx);
+            changed |= filter != newFilter;
+            newFilters.add(newFilter);
+        }
+        if (changed) {
+            return newFilters;
+        }
+        return preFilterQueryBuilders;
+    }
+
+    /**
+     * This function is called by compound {@link RetrieverBuilder} to return the original query that
+     * was used by this retriever to compute its top documents.
+     */
+    public abstract QueryBuilder topDocsQuery();
+
+    public QueryBuilder explainQuery() {
+        return topDocsQuery();
+    }
+
+    public Float minScore() {
+        return minScore;
+    }
+
+    public void setRankDocs(RankDoc[] rankDocs) {
+        this.rankDocs = rankDocs;
+    }
+
+    public RankDoc[] getRankDocs() {
+        return rankDocs;
+    }
+
     /**
      * Gets the filters for this retriever.
      */
@@ -188,11 +226,25 @@ public abstract class RetrieverBuilder implements ToXContent {
         return preFilterQueryBuilders;
     }
 
+    @Override
+    public RetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        return this;
+    }
+
     /**
-     * This method is called at the end of parsing on behalf of a {@link SearchSourceBuilder}.
+     * This method is called at the end of rewriting on behalf of a {@link SearchSourceBuilder}.
      * Elements from retrievers are expected to be "extracted" into the {@link SearchSourceBuilder}.
      */
     public abstract void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed);
+
+    public ActionRequestValidationException validate(
+        SearchSourceBuilder source,
+        ActionRequestValidationException validationException,
+        boolean isScroll,
+        boolean allowPartialSearchResults
+    ) {
+        return validationException;
+    }
 
     // ---- FOR TESTING XCONTENT PARSING ----
 
@@ -201,10 +253,18 @@ public abstract class RetrieverBuilder implements ToXContent {
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
+        builder.startObject(getName());
         if (preFilterQueryBuilders.isEmpty() == false) {
             builder.field(PRE_FILTER_FIELD.getPreferredName(), preFilterQueryBuilders);
         }
+        if (minScore != null) {
+            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+        }
+        if (retrieverName != null) {
+            builder.field(NAME_FIELD.getPreferredName(), retrieverName);
+        }
         doToXContent(builder, params);
+        builder.endObject();
         builder.endObject();
 
         return builder;
@@ -222,14 +282,16 @@ public abstract class RetrieverBuilder implements ToXContent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RetrieverBuilder that = (RetrieverBuilder) o;
-        return Objects.equals(preFilterQueryBuilders, that.preFilterQueryBuilders) && doEquals(o);
+        return Objects.equals(preFilterQueryBuilders, that.preFilterQueryBuilders)
+            && Objects.equals(minScore, that.minScore)
+            && doEquals(o);
     }
 
     protected abstract boolean doEquals(Object o);
 
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), preFilterQueryBuilders, doHashCode());
+        return Objects.hash(getClass(), preFilterQueryBuilders, minScore, doHashCode());
     }
 
     protected abstract int doHashCode();
@@ -237,6 +299,10 @@ public abstract class RetrieverBuilder implements ToXContent {
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    public String retrieverName() {
+        return retrieverName;
     }
 
     // ---- END FOR TESTING ----

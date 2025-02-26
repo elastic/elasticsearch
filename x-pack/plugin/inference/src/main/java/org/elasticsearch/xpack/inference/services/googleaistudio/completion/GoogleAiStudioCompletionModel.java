@@ -10,13 +10,10 @@ package org.elasticsearch.xpack.inference.services.googleaistudio.completion;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.googleaistudio.GoogleAiStudioActionVisitor;
 import org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleAiStudioUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioModel;
@@ -29,8 +26,6 @@ import java.util.Map;
 import static org.elasticsearch.core.Strings.format;
 
 public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
-
-    private URI uri;
 
     public GoogleAiStudioCompletionModel(
         String inferenceEntityId,
@@ -65,37 +60,18 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
             new ModelSecrets(secrets),
             serviceSettings
         );
+    }
+
+    public URI uri(boolean streaming) {
         try {
-            this.uri = buildUri(serviceSettings.modelId());
+            var api = streaming ? GoogleAiStudioUtils.STREAM_GENERATE_CONTENT_ACTION : GoogleAiStudioUtils.GENERATE_CONTENT_ACTION;
+            return new URIBuilder().setScheme("https")
+                .setHost(GoogleAiStudioUtils.HOST_SUFFIX)
+                .setPathSegments(GoogleAiStudioUtils.V1, GoogleAiStudioUtils.MODELS, format("%s:%s", getServiceSettings().modelId(), api))
+                .build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    // Should only be used directly for testing
-    GoogleAiStudioCompletionModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        String service,
-        String url,
-        GoogleAiStudioCompletionServiceSettings serviceSettings,
-        TaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secrets
-    ) {
-        super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            serviceSettings
-        );
-        try {
-            this.uri = new URI(url);
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public URI uri() {
-        return uri;
     }
 
     @Override
@@ -108,7 +84,8 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
 
-    public static URI buildUri(String model) throws URISyntaxException {
+    // visible for testing
+    static URI buildUri(String model) throws URISyntaxException {
         return new URIBuilder().setScheme("https")
             .setHost(GoogleAiStudioUtils.HOST_SUFFIX)
             .setPathSegments(
@@ -117,10 +94,5 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
                 format("%s:%s", model, GoogleAiStudioUtils.GENERATE_CONTENT_ACTION)
             )
             .build();
-    }
-
-    @Override
-    public ExecutableAction accept(GoogleAiStudioActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
-        return visitor.create(this, taskSettings);
     }
 }

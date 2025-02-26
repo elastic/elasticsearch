@@ -1,0 +1,13 @@
+pr: 115831
+summary: Increase minimum threshold in shard balancer
+area: Allocation
+type: breaking
+issues: []
+breaking:
+  title: Minimum shard balancer threshold is now 1.0
+  area: Cluster and node setting
+  details: >-
+    Earlier versions of {es} accepted any non-negative value for `cluster.routing.allocation.balance.threshold`, but values smaller than
+    `1.0` do not make sense and have been ignored since version 8.6.1. From 9.0.0 these nonsensical values are now forbidden.
+  impact: Do not set `cluster.routing.allocation.balance.threshold` to a value less than `1.0`.
+  notable: false

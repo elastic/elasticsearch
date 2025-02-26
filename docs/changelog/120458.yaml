@@ -1,0 +1,5 @@
+pr: 120458
+summary: Do not recommend increasing `max_shards_per_node`
+area: Health
+type: bug
+issues: []

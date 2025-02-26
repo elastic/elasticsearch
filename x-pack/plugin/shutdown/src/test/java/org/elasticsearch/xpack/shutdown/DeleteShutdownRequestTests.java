@@ -33,7 +33,7 @@ public class DeleteShutdownRequestTests extends AbstractWireSerializingTestCase<
     @Override
     protected Writeable.Reader<RequestWrapper> instanceReader() {
         return in -> {
-            final var request = DeleteShutdownNodeAction.Request.readFrom(in);
+            final var request = new DeleteShutdownNodeAction.Request(in);
             return new RequestWrapper(request.getNodeId(), request.getParentTask(), request.masterNodeTimeout(), request.ackTimeout());
         };
     }

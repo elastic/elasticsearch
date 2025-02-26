@@ -25,6 +25,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 public class GetAnalyticsCollectionAction {
 
     public static final String NAME = "cluster:admin/xpack/application/analytics/get";
@@ -35,7 +39,7 @@ public class GetAnalyticsCollectionAction {
     public static class Request extends MasterNodeReadRequest<Request> implements ToXContentObject {
         private final String[] names;
 
-        public static ParseField NAMES_FIELD = new ParseField("names");
+        public static final ParseField NAMES_FIELD = new ParseField("names");
 
         public Request(TimeValue masterNodeTimeout, String[] names) {
             super(masterNodeTimeout);

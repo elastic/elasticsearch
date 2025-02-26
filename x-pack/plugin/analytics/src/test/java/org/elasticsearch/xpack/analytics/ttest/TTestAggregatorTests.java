@@ -410,20 +410,20 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             );
         }, (Consumer<InternalHistogram>) histo -> {
             assertEquals(3, histo.getBuckets().size());
-            assertNotNull(histo.getBuckets().get(0).getAggregations().asMap().get("t_test"));
-            InternalTTest tTest = (InternalTTest) histo.getBuckets().get(0).getAggregations().asMap().get("t_test");
+            assertNotNull(histo.getBuckets().get(0).getAggregations().get("t_test"));
+            InternalTTest tTest = histo.getBuckets().get(0).getAggregations().get("t_test");
             assertEquals(
                 tTestType == TTestType.PAIRED ? 0.1939778614 : tTestType == TTestType.HOMOSCEDASTIC ? 0.05878871029 : 0.07529006595,
                 tTest.getValue(),
                 0.000001
             );
 
-            assertNotNull(histo.getBuckets().get(1).getAggregations().asMap().get("t_test"));
-            tTest = (InternalTTest) histo.getBuckets().get(1).getAggregations().asMap().get("t_test");
+            assertNotNull(histo.getBuckets().get(1).getAggregations().get("t_test"));
+            tTest = histo.getBuckets().get(1).getAggregations().get("t_test");
             assertEquals(Double.NaN, tTest.getValue(), 0.000001);
 
-            assertNotNull(histo.getBuckets().get(2).getAggregations().asMap().get("t_test"));
-            tTest = (InternalTTest) histo.getBuckets().get(2).getAggregations().asMap().get("t_test");
+            assertNotNull(histo.getBuckets().get(2).getAggregations().get("t_test"));
+            tTest = histo.getBuckets().get(2).getAggregations().get("t_test");
             assertEquals(
                 tTestType == TTestType.PAIRED ? 0.6666666667 : tTestType == TTestType.HOMOSCEDASTIC ? 0.8593081179 : 0.8594865044,
                 tTest.getValue(),
@@ -475,8 +475,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         }, (Consumer<InternalGlobal>) global -> {
             assertEquals(3, global.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(global));
-            assertNotNull(global.getAggregations().asMap().get("t_test"));
-            InternalTTest tTest = (InternalTTest) global.getAggregations().asMap().get("t_test");
+            assertNotNull(global.getAggregations().get("t_test"));
+            InternalTTest tTest = global.getAggregations().get("t_test");
             assertEquals(tTest, global.getProperty("t_test"));
             assertEquals(0.1939778614, (Double) global.getProperty("t_test.value"), 0.000001);
         }, new AggTestConfig(globalBuilder, fieldType1, fieldType2));

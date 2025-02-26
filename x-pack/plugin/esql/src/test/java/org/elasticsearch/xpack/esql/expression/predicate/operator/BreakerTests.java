@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.junit.After;
 
@@ -63,7 +64,7 @@ public class BreakerTests extends ESTestCase {
     public void testBreaker() {
         DriverContext unlimited = driverContext(ByteSizeValue.ofGb(1));
         DriverContext context = driverContext(limit);
-        EvalOperator.ExpressionEvaluator eval = AbstractFunctionTestCase.evaluator(expression).get(context);
+        EvalOperator.ExpressionEvaluator eval = AbstractScalarFunctionTestCase.evaluator(expression).get(context);
         try (Block b = unlimited.blockFactory().newConstantNullBlock(1)) {
             Exception e = expectThrows(CircuitBreakingException.class, () -> eval.eval(new Page(b)));
             assertThat(e.getMessage(), equalTo("over test limit"));

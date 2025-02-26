@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.suggest.phrase;
 
@@ -35,7 +36,7 @@ final class LaplaceScorer extends WordScorer {
     @Override
     protected double scoreBigram(Candidate word, Candidate w_1) throws IOException {
         join(separator, spare, w_1.term, word.term);
-        return (alpha + frequency(spare.get())) / (w_1.termStats.totalTermFreq + alpha * numTerms);
+        return (alpha + frequency(spare.get())) / (w_1.termStats.totalTermFreq() + alpha * numTerms);
     }
 
     @Override

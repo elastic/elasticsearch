@@ -1,0 +1,6 @@
+pr: 117701
+summary: Watcher history index has too many indexed fields -
+area: Watcher
+type: bug
+issues:
+ - 71479

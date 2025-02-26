@@ -9,7 +9,7 @@ succeeded on receipt of responses from a _quorum_, which is a subset of the
 master-eligible nodes in the cluster. The advantage of requiring only a subset
 of the nodes to respond is that it means some of the nodes can fail without
 preventing the cluster from making progress. The quorums are carefully chosen so
-the cluster does not have a "{wikipedia}/Split-brain_(computing)[split-brain]" scenario where it's partitioned into
+the cluster does not have a "split brain" scenario where it's partitioned into
 two pieces such that each piece may make decisions that are inconsistent with
 those of the other piece.
 

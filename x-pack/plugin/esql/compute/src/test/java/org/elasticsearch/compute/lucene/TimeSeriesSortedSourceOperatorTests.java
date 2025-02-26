@@ -9,6 +9,7 @@ package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FloatDocValuesField;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -18,6 +19,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -31,19 +33,19 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.AnyOperatorTestCase;
-import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorTestCase;
-import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.AnyOperatorTestCase;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -59,6 +61,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -82,12 +85,12 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         // for now we emit at most one time series each page
         int offset = 0;
         for (Page page : results) {
-            assertThat(page.getBlockCount(), equalTo(6));
+            assertThat(page.getBlockCount(), equalTo(5));
             DocVector docVector = (DocVector) page.getBlock(0).asVector();
             BytesRefVector tsidVector = (BytesRefVector) page.getBlock(1).asVector();
             LongVector timestampVector = (LongVector) page.getBlock(2).asVector();
-            LongVector voltageVector = (LongVector) page.getBlock(4).asVector();
-            BytesRefVector hostnameVector = (BytesRefVector) page.getBlock(5).asVector();
+            LongVector voltageVector = (LongVector) page.getBlock(3).asVector();
+            BytesRefVector hostnameVector = (BytesRefVector) page.getBlock(4).asVector();
             for (int i = 0; i < page.getPositionCount(); i++) {
                 int expectedTsidOrd = offset / numSamplesPerTS;
                 String expectedHostname = String.format(Locale.ROOT, "host-%02d", expectedTsidOrd);
@@ -112,7 +115,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         List<Page> results = runDriver(limit, randomIntBetween(1, 1024), randomBoolean(), numTimeSeries, numSamplesPerTS, timestampStart);
         assertThat(results, hasSize(1));
         Page page = results.get(0);
-        assertThat(page.getBlockCount(), equalTo(6));
+        assertThat(page.getBlockCount(), equalTo(5));
 
         DocVector docVector = (DocVector) page.getBlock(0).asVector();
         assertThat(docVector.getPositionCount(), equalTo(limit));
@@ -123,10 +126,10 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         LongVector timestampVector = (LongVector) page.getBlock(2).asVector();
         assertThat(timestampVector.getPositionCount(), equalTo(limit));
 
-        LongVector voltageVector = (LongVector) page.getBlock(4).asVector();
+        LongVector voltageVector = (LongVector) page.getBlock(3).asVector();
         assertThat(voltageVector.getPositionCount(), equalTo(limit));
 
-        BytesRefVector hostnameVector = (BytesRefVector) page.getBlock(5).asVector();
+        BytesRefVector hostnameVector = (BytesRefVector) page.getBlock(4).asVector();
         assertThat(hostnameVector.getPositionCount(), equalTo(limit));
 
         assertThat(docVector.shards().getInt(0), equalTo(0));
@@ -158,7 +161,6 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             limit,
             maxPageSize,
             randomBoolean(),
-            TimeValue.ZERO,
             writer -> {
                 Randomness.shuffle(docs);
                 for (Doc doc : docs) {
@@ -171,12 +173,11 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         List<Page> results = new ArrayList<>();
         var metricField = new NumberFieldMapper.NumberFieldType("metric", NumberFieldMapper.NumberType.LONG);
         OperatorTestCase.runDriver(
-            new Driver(
+            TestDriverFactory.create(
                 driverContext,
                 timeSeriesFactory.get(driverContext),
                 List.of(ValuesSourceReaderOperatorTests.factory(reader, metricField, ElementType.LONG).get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         );
         docs.sort(Comparator.comparing(Doc::host).thenComparing(Comparator.comparingLong(Doc::timestamp).reversed()));
@@ -191,11 +192,11 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
                 assertThat(page.getPositionCount(), lessThanOrEqualTo(limit));
                 assertThat(page.getPositionCount(), lessThanOrEqualTo(maxPageSize));
             }
-            assertThat(page.getBlockCount(), equalTo(5));
+            assertThat(page.getBlockCount(), equalTo(4));
             DocVector docVector = (DocVector) page.getBlock(0).asVector();
             BytesRefVector tsidVector = (BytesRefVector) page.getBlock(1).asVector();
             LongVector timestampVector = (LongVector) page.getBlock(2).asVector();
-            LongVector metricVector = (LongVector) page.getBlock(4).asVector();
+            LongVector metricVector = (LongVector) page.getBlock(3).asVector();
             for (int i = 0; i < page.getPositionCount(); i++) {
                 Doc doc = docs.get(offset);
                 offset++;
@@ -208,9 +209,58 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         assertThat(offset, equalTo(Math.min(limit, numDocs)));
     }
 
+    public void testMatchNone() throws Exception {
+        long t0 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-01T00:00:00Z");
+        Sort sort = new Sort(
+            new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
+            new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
+        );
+        try (
+            var directory = newDirectory();
+            RandomIndexWriter writer = new RandomIndexWriter(
+                random(),
+                directory,
+                newIndexWriterConfig().setIndexSort(sort).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            int numDocs = between(1, 100);
+            long timestamp = t0;
+            int metrics = randomIntBetween(1, 3);
+            for (int i = 0; i < numDocs; i++) {
+                timestamp += between(1, 1000);
+                for (int j = 0; j < metrics; j++) {
+                    String hostname = String.format(Locale.ROOT, "sensor-%02d", j);
+                    writeTS(writer, timestamp, new Object[] { "sensor", hostname }, new Object[] { "voltage", j + 5 });
+                }
+            }
+            try (var reader = writer.getReader()) {
+                var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
+                Query query = randomFrom(LongField.newRangeQuery("@timestamp", 0, t0), new MatchNoDocsQuery());
+                var timeSeriesFactory = TimeSeriesSortedSourceOperatorFactory.create(
+                    Integer.MAX_VALUE,
+                    randomIntBetween(1, 1024),
+                    1,
+                    List.of(ctx),
+                    unused -> query
+                );
+                var driverContext = driverContext();
+                List<Page> results = new ArrayList<>();
+                OperatorTestCase.runDriver(
+                    TestDriverFactory.create(
+                        driverContext,
+                        timeSeriesFactory.get(driverContext),
+                        List.of(),
+                        new TestResultPageSinkOperator(results::add)
+                    )
+                );
+                assertThat(results, empty());
+            }
+        }
+    }
+
     @Override
     protected Operator.OperatorFactory simple() {
-        return createTimeSeriesSourceOperator(directory, r -> this.reader = r, 1, 1, false, TimeValue.ZERO, writer -> {
+        return createTimeSeriesSourceOperator(directory, r -> this.reader = r, 1, 1, false, writer -> {
             long timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-01T00:00:00Z");
             writeTS(writer, timestamp, new Object[] { "hostname", "host-01" }, new Object[] { "voltage", 2 });
             return 1;
@@ -235,7 +285,6 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             limit,
             maxPageSize,
             forceMerge,
-            TimeValue.ZERO,
             writer -> {
                 long timestamp = timestampStart;
                 for (int i = 0; i < numSamplesPerTS; i++) {
@@ -254,15 +303,14 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         var voltageField = new NumberFieldMapper.NumberFieldType("voltage", NumberFieldMapper.NumberType.LONG);
         var hostnameField = new KeywordFieldMapper.KeywordFieldType("hostname");
         OperatorTestCase.runDriver(
-            new Driver(
+            TestDriverFactory.create(
                 ctx,
                 timeSeriesFactory.get(ctx),
                 List.of(
                     ValuesSourceReaderOperatorTests.factory(reader, voltageField, ElementType.LONG).get(ctx),
                     ValuesSourceReaderOperatorTests.factory(reader, hostnameField, ElementType.BYTES_REF).get(ctx)
                 ),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         );
         OperatorTestCase.assertDriverContext(ctx);
@@ -279,7 +327,6 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         int limit,
         int maxPageSize,
         boolean forceMerge,
-        TimeValue timeValue,
         CheckedFunction<RandomIndexWriter, Integer, IOException> indexingLogic
     ) {
         Sort sort = new Sort(
@@ -307,19 +354,19 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         }
         var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
-        return TimeSeriesSortedSourceOperatorFactory.create(limit, maxPageSize, 1, timeValue, List.of(ctx), queryFunction);
+        return TimeSeriesSortedSourceOperatorFactory.create(limit, maxPageSize, 1, List.of(ctx), queryFunction);
     }
 
     public static void writeTS(RandomIndexWriter iw, long timestamp, Object[] dimensions, Object[] metrics) throws IOException {
         final List<IndexableField> fields = new ArrayList<>();
         fields.add(new SortedNumericDocValuesField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
         fields.add(new LongPoint(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
-        final TimeSeriesIdFieldMapper.TimeSeriesIdBuilder builder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
+        var routingPathFields = new RoutingPathFields(null);
         for (int i = 0; i < dimensions.length; i += 2) {
             if (dimensions[i + 1] instanceof Number n) {
-                builder.addLong(dimensions[i].toString(), n.longValue());
+                routingPathFields.addLong(dimensions[i].toString(), n.longValue());
             } else {
-                builder.addString(dimensions[i].toString(), dimensions[i + 1].toString());
+                routingPathFields.addString(dimensions[i].toString(), dimensions[i + 1].toString());
                 fields.add(new SortedSetDocValuesField(dimensions[i].toString(), new BytesRef(dimensions[i + 1].toString())));
             }
         }
@@ -333,7 +380,9 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             }
         }
         // Use legacy tsid to make tests easier to understand:
-        fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.buildLegacyTsid().toBytesRef()));
+        fields.add(
+            new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, TimeSeriesIdFieldMapper.buildLegacyTsid(routingPathFields).toBytesRef())
+        );
         iw.addDocument(fields);
     }
 }

@@ -1,0 +1,20 @@
+[[migrating-9.1]]
+== Migrating to 9.1
+++++
+<titleabbrev>9.1</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 9.1.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+coming::[9.1.0]
+
+
+[discrete]
+[[breaking-changes-9.1]]
+=== Breaking changes
+
+There are no breaking changes in {es} 9.1.
+

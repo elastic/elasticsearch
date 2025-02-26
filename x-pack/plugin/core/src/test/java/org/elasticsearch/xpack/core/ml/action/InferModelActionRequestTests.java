@@ -252,7 +252,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
             r.setHighPriority(instance.isHighPriority());
             r.setPrefixType(TrainedModelPrefixStrings.PrefixType.NONE);
             return r;
-        } else if (version.before(TransportVersions.ML_CHUNK_INFERENCE_OPTION)) {
+        } else if (version.before(TransportVersions.V_8_15_0)) {
             var r = new Request(
                 instance.getId(),
                 adjustedUpdate,

@@ -22,7 +22,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class UpdateConnectorActiveFilteringAction {
 
-    public static final String NAME = "indices:data/write/xpack/connector/update_filtering/activate";
+    public static final String NAME = "cluster:admin/xpack/connector/update_filtering/activate";
     public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private UpdateConnectorActiveFilteringAction() {/* no instances */}

@@ -1,8 +1,6 @@
 ---
 "Allocation stats":
   - requires:
-      cluster_features: ["stats.include_disk_thresholds"]
-      reason: "fs watermark stats was added in 8.15.0"
       test_runner_features: [arbitrary_key]
 
   - do:

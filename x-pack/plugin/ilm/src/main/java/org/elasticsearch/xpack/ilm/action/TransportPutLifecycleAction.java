@@ -19,14 +19,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.tasks.Task;
@@ -74,7 +73,6 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry namedXContentRegistry,
         XPackLicenseState licenseState,
         Client client
@@ -86,7 +84,6 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
             threadPool,
             actionFilters,
             PutLifecycleRequest::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -109,7 +106,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
         Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), state);
 
         LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
-
+        request.getPolicy().maybeAddDeprecationWarningForFreezeAction(request.getPolicy().getName());
         {
             IndexLifecycleMetadata lifecycleMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
             LifecyclePolicyMetadata existingPolicy = lifecycleMetadata.getPolicyMetadatas().get(request.getPolicy().getName());

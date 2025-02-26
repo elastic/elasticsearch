@@ -27,8 +27,11 @@ teardown:
 
 ---
 "xpack usage includes Enterprise Search":
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+
   - do:
-      xpack.usage: {}
+      xpack.usage: { }
 
   - match: {
     enterprise_search: {
@@ -36,7 +39,7 @@ teardown:
       available: true,
       search_applications: { count: 0 },
       analytics_collections: { count: 0 },
-      query_rulesets: {  total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
+      query_rulesets: { total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
     }
   }
 
@@ -53,7 +56,7 @@ teardown:
                     query: "{{query_string}}"
 
   - do:
-      xpack.usage: {}
+      xpack.usage: { }
 
   - match: {
     enterprise_search: {
@@ -61,7 +64,7 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 0 },
-      query_rulesets: {  total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
+      query_rulesets: { total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
     }
   }
 
@@ -78,11 +81,13 @@ teardown:
                     query: "{{query_string}}"
 
   - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.put_behavioral_analytics:
         name: test-analytics-collection
 
   - do:
-      xpack.usage: {}
+      xpack.usage: { }
 
   - match: {
     enterprise_search: {
@@ -90,7 +95,7 @@ teardown:
       available: true,
       search_applications: { count: 2 },
       analytics_collections: { count: 1 },
-      query_rulesets: {  total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
+      query_rulesets: { total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
     }
   }
 
@@ -99,7 +104,7 @@ teardown:
         name: test-search-application-2
 
   - do:
-      xpack.usage: {}
+      xpack.usage: { }
 
   - match: {
     enterprise_search: {
@@ -107,16 +112,18 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 1 },
-      query_rulesets: {  total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
+      query_rulesets: { total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
     }
   }
 
   - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.delete_behavioral_analytics:
         name: test-analytics-collection
 
   - do:
-      xpack.usage: {}
+      xpack.usage: { }
 
   - match: {
     enterprise_search: {
@@ -124,12 +131,12 @@ teardown:
       available: true,
       search_applications: { count: 1 },
       analytics_collections: { count: 0 },
-      query_rulesets: {  total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
+      query_rulesets: { total_count: 0, total_rule_count: 0, min_rule_count: 0, max_rule_count: 0 }
     }
   }
 
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset
         body:
           rules:
@@ -144,7 +151,7 @@ teardown:
                   - 'id1'
                   - 'id2'
             - rule_id: query-rule-id2
-              type: pinned
+              type: exclude
               criteria:
                 - type: exact
                   metadata: query_string
@@ -155,7 +162,7 @@ teardown:
                   - 'id4'
 
   - do:
-      query_ruleset.put:
+      query_rules.put_ruleset:
         ruleset_id: test-query-ruleset2
         body:
           rules:
@@ -193,31 +200,29 @@ teardown:
   - do:
       xpack.usage: { }
 
-  - match: {
-    enterprise_search: {
-      enabled: true,
-      available: true,
-      search_applications: { count: 1 },
-      analytics_collections: { count: 0 },
-      query_rulesets: {  total_count: 2, total_rule_count: 5, min_rule_count: 2, max_rule_count: 3, rule_criteria_total_counts: { exact: 5 } }
-    }
-  }
+  - match: { "enterprise_search.enabled": true }
+  - match: { "enterprise_search.available": true }
+  - match: { "enterprise_search.search_applications.count": 1 }
+  - match: { "enterprise_search.analytics_collections.count": 0 }
+  - match: { "enterprise_search.query_rulesets.total_count": 2 }
+  - match: { "enterprise_search.query_rulesets.total_rule_count": 5 }
+  - match: { "enterprise_search.query_rulesets.min_rule_count": 2 }
+  - match: { "enterprise_search.query_rulesets.max_rule_count": 3 }
+  - match: { "enterprise_search.query_rulesets.rule_criteria_total_counts.exact": 5 }
 
   - do:
-      query_ruleset.delete:
+      query_rules.delete_ruleset:
         ruleset_id: test-query-ruleset2
 
   - do:
       xpack.usage: { }
 
-  - match: {
-    enterprise_search: {
-      enabled: true,
-      available: true,
-      search_applications: { count: 1 },
-      analytics_collections: { count: 0 },
-      query_rulesets: {  total_count: 1, total_rule_count: 2, min_rule_count: 2, max_rule_count: 2, rule_criteria_total_counts: { exact: 2 } }
-    }
-  }
-
-
+  - match: { "enterprise_search.enabled": true }
+  - match: { "enterprise_search.available": true }
+  - match: { "enterprise_search.search_applications.count": 1 }
+  - match: { "enterprise_search.analytics_collections.count": 0 }
+  - match: { "enterprise_search.query_rulesets.total_count": 1 }
+  - match: { "enterprise_search.query_rulesets.total_rule_count": 2 }
+  - match: { "enterprise_search.query_rulesets.min_rule_count": 2 }
+  - match: { "enterprise_search.query_rulesets.max_rule_count": 2 }
+  - match: { "enterprise_search.query_rulesets.rule_criteria_total_counts.exact": 2 }

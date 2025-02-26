@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.external.request.cohere.completion.Cohe
 import org.elasticsearch.xpack.inference.external.response.cohere.CohereCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -30,7 +29,7 @@ public class CohereCompletionRequestManager extends CohereRequestManager {
     private static final ResponseHandler HANDLER = createCompletionHandler();
 
     private static ResponseHandler createCompletionHandler() {
-        return new CohereResponseHandler("cohere completion", CohereCompletionResponseEntity::fromResponse);
+        return new CohereResponseHandler("cohere completion", CohereCompletionResponseEntity::fromResponse, true);
     }
 
     public static CohereCompletionRequestManager of(CohereCompletionModel model, ThreadPool threadPool) {
@@ -46,13 +45,15 @@ public class CohereCompletionRequestManager extends CohereRequestManager {
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        CohereCompletionRequest request = new CohereCompletionRequest(input, model);
+        var chatCompletionInput = inferenceInputs.castTo(ChatCompletionInput.class);
+        var inputs = chatCompletionInput.getInputs();
+        var stream = chatCompletionInput.stream();
+        CohereCompletionRequest request = new CohereCompletionRequest(inputs, model, stream);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

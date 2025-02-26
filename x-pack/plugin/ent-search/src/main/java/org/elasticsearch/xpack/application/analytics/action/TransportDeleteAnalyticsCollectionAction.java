@@ -14,15 +14,23 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollectionService;
 
+import static org.elasticsearch.xpack.application.EnterpriseSearch.BEHAVIORAL_ANALYTICS_API_ENDPOINT;
+import static org.elasticsearch.xpack.application.EnterpriseSearch.BEHAVIORAL_ANALYTICS_DEPRECATION_MESSAGE;
+
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 public class TransportDeleteAnalyticsCollectionAction extends AcknowledgedTransportMasterNodeAction<
     DeleteAnalyticsCollectionAction.Request> {
 
@@ -34,7 +42,6 @@ public class TransportDeleteAnalyticsCollectionAction extends AcknowledgedTransp
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         AnalyticsCollectionService analyticsCollectionService
     ) {
         super(
@@ -44,7 +51,6 @@ public class TransportDeleteAnalyticsCollectionAction extends AcknowledgedTransp
             threadPool,
             actionFilters,
             DeleteAnalyticsCollectionAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.analyticsCollectionService = analyticsCollectionService;
@@ -62,6 +68,8 @@ public class TransportDeleteAnalyticsCollectionAction extends AcknowledgedTransp
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        DeprecationLogger.getLogger(TransportDeleteAnalyticsCollectionAction.class)
+            .warn(DeprecationCategory.API, BEHAVIORAL_ANALYTICS_API_ENDPOINT, BEHAVIORAL_ANALYTICS_DEPRECATION_MESSAGE);
         analyticsCollectionService.deleteAnalyticsCollection(state, request, listener.map(v -> AcknowledgedResponse.TRUE));
     }
 }

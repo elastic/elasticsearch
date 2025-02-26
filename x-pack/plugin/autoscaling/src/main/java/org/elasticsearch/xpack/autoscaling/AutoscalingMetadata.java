@@ -114,12 +114,12 @@ public class AutoscalingMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_8_0;
+        return TransportVersions.ZERO;
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.xContentValuesMap(POLICIES_FIELD.getPreferredName(), policies);
+        return ChunkedToXContentHelper.xContentObjectFields(POLICIES_FIELD.getPreferredName(), policies);
     }
 
     @Override
@@ -173,7 +173,7 @@ public class AutoscalingMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_7_8_0;
+            return TransportVersions.ZERO;
         }
     }
 }

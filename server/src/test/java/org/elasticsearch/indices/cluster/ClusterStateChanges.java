@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.cluster;
@@ -132,7 +133,6 @@ import static org.mockito.Mockito.when;
 public class ClusterStateChanges {
     private static final Settings SETTINGS = Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build();
 
-    private final TransportService transportService;
     private final AllocationService allocationService;
     private final ClusterService clusterService;
     private final FeatureService featureService;
@@ -220,7 +220,7 @@ public class ClusterStateChanges {
         // services
         featureService = new FeatureService(List.of());
 
-        transportService = new TransportService(
+        TransportService transportService = new TransportService(
             SETTINGS,
             transport,
             threadPool,
@@ -251,7 +251,11 @@ public class ClusterStateChanges {
         ) {
             // metadata upgrader should do nothing
             @Override
-            public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
+            public IndexMetadata verifyIndexMetadata(
+                IndexMetadata indexMetadata,
+                IndexVersion minimumIndexCompatibilityVersion,
+                IndexVersion minimumReadOnlyIndexCompatibilityVersion
+            ) {
                 return indexMetadata;
             }
         };
@@ -338,8 +342,7 @@ public class ClusterStateChanges {
             clusterService,
             threadPool,
             allocationService,
-            actionFilters,
-            indexNameExpressionResolver
+            actionFilters
         );
         transportCreateIndexAction = new TransportCreateIndexAction(
             transportService,
@@ -347,7 +350,6 @@ public class ClusterStateChanges {
             threadPool,
             createIndexService,
             actionFilters,
-            indexNameExpressionResolver,
             EmptySystemIndices.INSTANCE
         );
 
@@ -489,6 +491,7 @@ public class ClusterStateChanges {
                             e.getKey().allocationId().getId(),
                             e.getValue(),
                             "shard started",
+                            ShardLongFieldRange.UNKNOWN,
                             ShardLongFieldRange.UNKNOWN
                         ),
                         createTestListener()

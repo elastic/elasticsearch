@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -18,13 +20,16 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
@@ -32,33 +37,39 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.numericBooleanToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
 public class ToString extends AbstractConvertFunction implements EvaluatorMapper {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToString", ToString::new);
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(KEYWORD, (fieldEval, source) -> fieldEval),
         Map.entry(BOOLEAN, ToStringFromBooleanEvaluator.Factory::new),
         Map.entry(DATETIME, ToStringFromDatetimeEvaluator.Factory::new),
+        Map.entry(DATE_NANOS, ToStringFromDateNanosEvaluator.Factory::new),
         Map.entry(IP, ToStringFromIPEvaluator.Factory::new),
         Map.entry(DOUBLE, ToStringFromDoubleEvaluator.Factory::new),
         Map.entry(LONG, ToStringFromLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToStringFromIntEvaluator.Factory::new),
         Map.entry(TEXT, (fieldEval, source) -> fieldEval),
+        Map.entry(SEMANTIC_TEXT, (fieldEval, source) -> fieldEval),
         Map.entry(VERSION, ToStringFromVersionEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new),
         Map.entry(GEO_POINT, ToStringFromGeoPointEvaluator.Factory::new),
         Map.entry(CARTESIAN_POINT, ToStringFromCartesianPointEvaluator.Factory::new),
         Map.entry(CARTESIAN_SHAPE, ToStringFromCartesianShapeEvaluator.Factory::new),
-        Map.entry(GEO_SHAPE, ToStringFromGeoShapeEvaluator.Factory::new)
+        Map.entry(GEO_SHAPE, ToStringFromGeoShapeEvaluator.Factory::new),
+        Map.entry(AGGREGATE_METRIC_DOUBLE, ToStringFromAggregateMetricDoubleEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -73,10 +84,12 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         @Param(
             name = "field",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -91,6 +104,15 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         ) Expression v
     ) {
         super(source, v);
+    }
+
+    private ToString(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -126,6 +148,11 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     @ConvertEvaluator(extraName = "FromDatetime")
     static BytesRef fromDatetime(long datetime) {
         return new BytesRef(dateTimeToString(datetime));
+    }
+
+    @ConvertEvaluator(extraName = "FromDateNanos")
+    static BytesRef fromDateNanos(long datetime) {
+        return new BytesRef(nanoTimeToString(datetime));
     }
 
     @ConvertEvaluator(extraName = "FromDouble")

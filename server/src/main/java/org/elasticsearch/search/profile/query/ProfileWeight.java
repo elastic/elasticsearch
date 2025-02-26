@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile.query;
@@ -37,15 +38,6 @@ public final class ProfileWeight extends Weight {
     }
 
     @Override
-    public Scorer scorer(LeafReaderContext context) throws IOException {
-        ScorerSupplier supplier = scorerSupplier(context);
-        if (supplier == null) {
-            return null;
-        }
-        return supplier.get(Long.MAX_VALUE);
-    }
-
-    @Override
     public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
         final Timer timer = profile.getNewTimer(QueryTimingType.BUILD_SCORER);
         timer.start();
@@ -66,10 +58,22 @@ public final class ProfileWeight extends Weight {
             public Scorer get(long loadCost) throws IOException {
                 timer.start();
                 try {
-                    return new ProfileScorer(weight, subQueryScorerSupplier.get(loadCost), profile);
+                    return new ProfileScorer(subQueryScorerSupplier.get(loadCost), profile);
                 } finally {
                     timer.stop();
                 }
+            }
+
+            @Override
+            public BulkScorer bulkScorer() throws IOException {
+                // We use the default bulk scorer instead of the specialized one. The reason
+                // is that Lucene's BulkScorers do everything at once: finding matches,
+                // scoring them and calling the collector, so they make it impossible to
+                // see where time is spent, which is the purpose of query profiling.
+                // The default bulk scorer will pull a scorer and iterate over matches,
+                // this might be a significantly different execution path for some queries
+                // like disjunctions, but in general this is what is done anyway
+                return super.bulkScorer();
             }
 
             @Override
@@ -87,18 +91,6 @@ public final class ProfileWeight extends Weight {
                 subQueryScorerSupplier.setTopLevelScoringClause();
             }
         };
-    }
-
-    @Override
-    public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-        // We use the default bulk scorer instead of the specialized one. The reason
-        // is that Lucene's BulkScorers do everything at once: finding matches,
-        // scoring them and calling the collector, so they make it impossible to
-        // see where time is spent, which is the purpose of query profiling.
-        // The default bulk scorer will pull a scorer and iterate over matches,
-        // this might be a significantly different execution path for some queries
-        // like disjunctions, but in general this is what is done anyway
-        return super.bulkScorer(context);
     }
 
     @Override

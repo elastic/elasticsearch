@@ -104,7 +104,7 @@ public class PutRoleRequestTests extends ESTestCase {
         }
         request.putRemoteCluster(remoteClusterPermissions);
         assertValidationError("Invalid remote_cluster permissions found. Please remove the following: [", request);
-        assertValidationError("Only [monitor_enrich] are allowed", request);
+        assertValidationError("Only [monitor_enrich, monitor_stats] are allowed", request);
     }
 
     public void testValidationErrorWithEmptyClustersInRemoteIndices() {

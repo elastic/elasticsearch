@@ -14,8 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.license.License;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -206,27 +204,11 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("uid", uid);
-
-            if (builder.getRestApiVersion() == RestApiVersion.V_7 && params.paramAsBoolean("accept_enterprise", false) == false) {
-                if (License.LicenseType.ENTERPRISE.getTypeName().equals(type)) {
-                    builder.field("type", License.LicenseType.PLATINUM.getTypeName());
-                } else {
-                    builder.field("type", type);
-                }
-
-                if (License.OperationMode.ENTERPRISE.description().equals(mode)) {
-                    builder.field("mode", License.OperationMode.PLATINUM.description());
-                } else {
-                    builder.field("mode", mode);
-                }
-            } else {
-                builder.field("type", type);
-                builder.field("mode", mode);
-            }
-
+            builder.field("type", type);
+            builder.field("mode", mode);
             builder.field("status", status.label());
             if (expiryDate != BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
-                builder.timeField("expiry_date_in_millis", "expiry_date", expiryDate);
+                builder.timestampFieldsFromUnixEpochMillis("expiry_date_in_millis", "expiry_date", expiryDate);
             }
             return builder.endObject();
         }
@@ -346,27 +328,15 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
             }
 
             public FeatureSet(StreamInput in) throws IOException {
-                this(in.readString(), readAvailable(in), in.readBoolean());
+                this(in.readString(), in.readBoolean(), in.readBoolean());
                 if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                     in.readGenericMap(); // backcompat reading native code info, but no longer used here
                 }
             }
 
-            // this is separated out so that the removed description can be read from the stream on construction
-            // TODO: remove this for 8.0
-            private static boolean readAvailable(StreamInput in) throws IOException {
-                if (in.getTransportVersion().before(TransportVersions.V_7_3_0)) {
-                    in.readOptionalString();
-                }
-                return in.readBoolean();
-            }
-
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(name);
-                if (out.getTransportVersion().before(TransportVersions.V_7_3_0)) {
-                    out.writeOptionalString(null);
-                }
                 out.writeBoolean(available);
                 out.writeBoolean(enabled);
                 if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {

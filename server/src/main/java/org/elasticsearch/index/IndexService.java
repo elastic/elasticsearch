@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -84,6 +85,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -161,6 +163,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final MapperMetrics mapperMetrics;
+    private final QueryRewriteInterceptor queryRewriteInterceptor;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -195,7 +198,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         Engine.IndexCommitListener indexCommitListener,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        QueryRewriteInterceptor queryRewriteInterceptor
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
@@ -228,7 +232,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 mapperMetrics
             );
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService);
-            if (indexSettings.getIndexSortConfig().hasIndexSort()) {
+            boolean sourceOnly = Boolean.parseBoolean(indexSettings.getSettings().get("index.source_only"));
+            if (indexSettings.getIndexSortConfig().hasIndexSort() && sourceOnly == false) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
                 // The sort order is validated right after the merge of the mapping later in the process.
                 this.indexSortSupplier = () -> indexSettings.getIndexSortConfig()
@@ -270,6 +275,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
         this.indexCommitListener = indexCommitListener;
         this.mapperMetrics = mapperMetrics;
+        this.queryRewriteInterceptor = queryRewriteInterceptor;
         try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
             // kick off async ops for the first shard in this index
             this.refreshTask = new AsyncRefreshTask(this);
@@ -332,10 +338,18 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         if (mapperService == null) {
             return null;
         }
-        long totalCount = mapperService().mappingLookup().getTotalMapperCount();
-        long totalEstimatedOverhead = totalCount * 1024L; // 1KiB estimated per mapping
-        NodeMappingStats indexNodeMappingStats = new NodeMappingStats(totalCount, totalEstimatedOverhead);
-        return indexNodeMappingStats;
+        long numFields = mapperService().mappingLookup().getTotalMapperCount();
+        long totalEstimatedOverhead = numFields * 1024L; // 1KiB estimated per mapping
+        // Assume all segments have the same mapping; otherwise, we need to acquire searchers to count the actual fields.
+        int numLeaves = 0;
+        for (IndexShard shard : shards.values()) {
+            try {
+                numLeaves += shard.commitStats().getNumLeaves();
+            } catch (AlreadyClosedException ignored) {
+
+            }
+        }
+        return new NodeMappingStats(numFields, totalEstimatedOverhead, numLeaves, numLeaves * numFields);
     }
 
     public Set<Integer> shardIds() {
@@ -525,7 +539,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSettings,
                 directory,
                 lock,
-                new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId))
+                new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)),
+                this.indexSettings.getIndexSortConfig().hasIndexSort()
             );
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
@@ -729,14 +744,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             clusterService,
             expressionResolver
         );
+        var mapperService = mapperService();
         return new SearchExecutionContext(
             shardId,
             shardRequestIndex,
             indexSettings,
             indexCache.bitsetFilterCache(),
             this::loadFielddata,
-            mapperService(),
-            mapperService().mappingLookup(),
+            mapperService,
+            mapperService.mappingLookup(),
             similarityService(),
             scriptService,
             parserConfiguration,
@@ -772,7 +788,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             expressionResolver
         );
         final MapperService mapperService = mapperService();
-        final MappingLookup mappingLookup = mapperService().mappingLookup();
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
         return new QueryRewriteContext(
             parserConfiguration,
             client,
@@ -790,7 +806,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             valuesSourceRegistry,
             allowExpensiveQueries,
             scriptService,
-            null
+            null,
+            null,
+            null,
+            false
         );
     }
 
@@ -813,6 +832,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      */
     public ScriptService getScriptService() {
         return scriptService;
+    }
+
+    public CircuitBreakerService breakerService() {
+        return circuitBreakerService;
     }
 
     List<IndexingOperationListener> getIndexOperationListeners() { // pkg private for testing

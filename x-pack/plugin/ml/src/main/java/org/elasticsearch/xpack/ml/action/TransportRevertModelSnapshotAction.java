@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -58,6 +58,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
 
     private static final Logger logger = LogManager.getLogger(TransportRevertModelSnapshotAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
     private final JobManager jobManager;
     private final JobResultsProvider jobResultsProvider;
@@ -82,10 +83,10 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             threadPool,
             actionFilters,
             RevertModelSnapshotAction.Request::new,
-            indexNameExpressionResolver,
             RevertModelSnapshotAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;

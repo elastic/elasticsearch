@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -19,14 +21,16 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
+import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
 public class Sqrt extends UnaryScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sqrt", Sqrt::new);
+
     @FunctionInfo(returnType = "double", description = """
         Returns the square root of a number. The input can be any numeric value, the return value is always a double.
         Square roots of negative numbers and infinities are null.""", examples = @Example(file = "math", tag = "sqrt"))
@@ -41,8 +45,17 @@ public class Sqrt extends UnaryScalarFunction {
         super(source, n);
     }
 
+    private Sqrt(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var field = toEvaluator.apply(field());
         var fieldType = field().dataType();
 

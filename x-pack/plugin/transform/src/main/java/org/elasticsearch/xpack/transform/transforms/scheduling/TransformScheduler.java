@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.transforms.TransformSchedulerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.transform.Transform;
 
@@ -21,6 +22,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
@@ -268,6 +270,23 @@ public final class TransformScheduler {
         Objects.requireNonNull(transformId);
         logger.trace(() -> format("[%s] de-register the transform", transformId));
         scheduledTasks.remove(transformId);
+    }
+
+    public TransformSchedulerStats getStats() {
+        return new TransformSchedulerStats(
+            scheduledTasks.size(),
+            Optional.ofNullable(scheduledTasks.first()).map(TransformScheduledTask::getTransformId).orElse(null)
+        );
+    }
+
+    // Visible for testing
+    /**
+     * Returns the number of transforms currently in the queue.
+     *
+     * @return number of transforms currently in the queue
+     */
+    int getRegisteredTransformCount() {
+        return scheduledTasks.size();
     }
 
     // Visible for testing

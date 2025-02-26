@@ -78,7 +78,7 @@ This command resets the password to an auto-generated value.
 ./bin/elasticsearch-reset-password -u elastic
 ----
 +
-If you want to set the password to a specific value, run the command with the 
+If you want to set the password to a specific value, run the command with the
 interactive (`-i`) parameter.
 +
 [source,shell]
@@ -93,7 +93,7 @@ interactive (`-i`) parameter.
 ./bin/elasticsearch-reset-password -u kibana_system
 ----
 
-. Save the new passwords. In the next step, you'll add the the password for the
+. Save the new passwords. In the next step, you'll add the password for the
 `kibana_system` user to {kib}.
 
 *Next*: <<add-built-in-users,Configure {kib} to connect to {es} with a password>>

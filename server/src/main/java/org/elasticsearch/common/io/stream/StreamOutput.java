@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
@@ -191,6 +192,15 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes an int as four bytes, least significant bytes first.
+     */
+    public void writeIntLE(int i) throws IOException {
+        final byte[] buffer = scratch.get();
+        ByteUtils.writeIntLE(i, buffer, 0);
+        writeBytes(buffer, 0, 4);
+    }
+
+    /**
      * Writes an int in a variable-length format.  Writes between one and
      * five bytes.  Smaller values take fewer bytes.  Negative numbers
      * will always use all 5 bytes and are therefore better serialized
@@ -240,6 +250,15 @@ public abstract class StreamOutput extends OutputStream {
     public void writeLong(long i) throws IOException {
         final byte[] buffer = scratch.get();
         ByteUtils.writeLongBE(i, buffer, 0);
+        writeBytes(buffer, 0, 8);
+    }
+
+    /**
+     * Writes a long as eight bytes.
+     */
+    public void writeLongLE(long i) throws IOException {
+        final byte[] buffer = scratch.get();
+        ByteUtils.writeLongLE(i, buffer, 0);
         writeBytes(buffer, 0, 8);
     }
 
@@ -440,6 +459,10 @@ public abstract class StreamOutput extends OutputStream {
 
     public void writeDouble(double v) throws IOException {
         writeLong(Double.doubleToLongBits(v));
+    }
+
+    public void writeDoubleLE(double v) throws IOException {
+        writeLongLE(Double.doubleToLongBits(v));
     }
 
     public void writeOptionalDouble(@Nullable Double v) throws IOException {
@@ -744,7 +767,13 @@ public abstract class StreamOutput extends OutputStream {
             o.writeByte((byte) 23);
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
             o.writeString(zonedDateTime.getZone().getId());
-            o.writeLong(zonedDateTime.toInstant().toEpochMilli());
+            Instant instant = zonedDateTime.toInstant();
+            if (o.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                o.writeZLong(instant.getEpochSecond());
+                o.writeInt(instant.getNano());
+            } else {
+                o.writeLong(instant.toEpochMilli());
+            }
         }),
         entry(Set.class, (o, v) -> {
             if (v instanceof LinkedHashSet) {
@@ -982,10 +1011,31 @@ public abstract class StreamOutput extends OutputStream {
         writeOptionalArray(StreamOutput::writeWriteable, array);
     }
 
+    /**
+     * Writes a boolean value indicating whether the given object is {@code null}, followed by the object's serialization if it is not
+     * {@code null}.
+     *
+     * @see StreamInput#readOptionalWriteable
+     */
     public void writeOptionalWriteable(@Nullable Writeable writeable) throws IOException {
         if (writeable != null) {
             writeBoolean(true);
             writeable.writeTo(this);
+        } else {
+            writeBoolean(false);
+        }
+    }
+
+    /**
+     * Writes a boolean value indicating whether the given object is {@code null}, followed by the object's serialization if it is not
+     * {@code null}.
+     *
+     * @see StreamInput#readOptional
+     */
+    public <T> void writeOptional(Writer<T> writer, @Nullable T maybeItem) throws IOException {
+        if (maybeItem != null) {
+            writeBoolean(true);
+            writer.write(this, maybeItem);
         } else {
             writeBoolean(false);
         }
@@ -1113,7 +1163,8 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an enum with type E based on its ordinal value
+     * Writes an enum with type {@code E} in terms of the value of its ordinal. Enums serialized like this must have a corresponding test
+     * which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {
         assert enumValue instanceof XContentType == false : "XContentHelper#writeTo should be used for XContentType serialisation";
@@ -1121,7 +1172,8 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an optional enum with type E based on its ordinal value
+     * Writes an optional enum with type {@code E} in terms of the value of its ordinal. Enums serialized like this must have a
+     * corresponding test which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> void writeOptionalEnum(@Nullable E enumValue) throws IOException {
         if (enumValue == null) {
@@ -1134,7 +1186,8 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an EnumSet with type E that by serialized it based on it's ordinal value
+     * Writes a set of enum with type {@code E} in terms of the value of its ordinal. Enums serialized like this must have a corresponding
+     * test which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> void writeEnumSet(EnumSet<E> enumSet) throws IOException {
         writeVInt(enumSet.size());
@@ -1175,5 +1228,12 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeMissingString() throws IOException {
         writeBoolean(false);
+    }
+
+    /**
+     * Write a {@link BigInteger} to the stream
+     */
+    public void writeBigInteger(BigInteger bigInteger) throws IOException {
+        writeString(bigInteger.toString());
     }
 }

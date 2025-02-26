@@ -13,14 +13,18 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestUpdateConnectorFeaturesAction extends BaseRestHandler {
+
+    private static final String CONNECTOR_ID_PARAM = "connector_id";
 
     @Override
     public String getName() {
@@ -29,20 +33,21 @@ public class RestUpdateConnectorFeaturesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{connector_id}/_features"));
+        return List.of(new Route(PUT, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{" + CONNECTOR_ID_PARAM + "}/_features"));
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        UpdateConnectorFeaturesAction.Request request = UpdateConnectorFeaturesAction.Request.fromXContentBytes(
-            restRequest.param("connector_id"),
-            restRequest.content(),
-            restRequest.getXContentType()
-        );
-        return channel -> client.execute(
-            UpdateConnectorFeaturesAction.INSTANCE,
-            request,
-            new RestToXContentListener<>(channel, ConnectorUpdateActionResponse::status)
-        );
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        try (XContentParser parser = restRequest.contentParser()) {
+            UpdateConnectorFeaturesAction.Request request = UpdateConnectorFeaturesAction.Request.fromXContent(
+                parser,
+                restRequest.param(CONNECTOR_ID_PARAM)
+            );
+            return channel -> client.execute(
+                UpdateConnectorFeaturesAction.INSTANCE,
+                request,
+                new RestToXContentListener<>(channel, ConnectorUpdateActionResponse::status)
+            );
+        }
     }
 }

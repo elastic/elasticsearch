@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.mistral.embeddings;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -27,6 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class MistralEmbeddingsServiceSettingsTests extends ESTestCase {
@@ -75,6 +77,84 @@ public class MistralEmbeddingsServiceSettingsTests extends ESTestCase {
         var serviceSettings = MistralEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.PERSISTENT);
 
         assertThat(serviceSettings, is(new MistralEmbeddingsServiceSettings(model, null, null, null, null)));
+    }
+
+    public void testFromMap_ThrowsException_WhenDimensionsAreZero() {
+        var model = "mistral-embed";
+        var dimensions = 0;
+
+        var settingsMap = createRequestSettingsMap(model, dimensions, null, SimilarityMeasure.COSINE);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> MistralEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;")
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenDimensionsAreNegative() {
+        var model = "mistral-embed";
+        var dimensions = randomNegativeInt();
+
+        var settingsMap = createRequestSettingsMap(model, dimensions, null, SimilarityMeasure.COSINE);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> MistralEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [dimensions] must be a positive integer;",
+                    dimensions
+                )
+            )
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenMaxInputTokensAreZero() {
+        var model = "mistral-embed";
+        var maxInputTokens = 0;
+
+        var settingsMap = createRequestSettingsMap(model, null, maxInputTokens, SimilarityMeasure.COSINE);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> MistralEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [max_input_tokens] must be a positive integer;")
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenMaxInputTokensAreNegative() {
+        var model = "mistral-embed";
+        var maxInputTokens = randomNegativeInt();
+
+        var settingsMap = createRequestSettingsMap(model, null, maxInputTokens, SimilarityMeasure.COSINE);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> MistralEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [max_input_tokens] must be a positive integer;",
+                    maxInputTokens
+                )
+            )
+        );
     }
 
     public void testFromMap_PersistentContext_DoesNotThrowException_WhenSimilarityIsPresent() {

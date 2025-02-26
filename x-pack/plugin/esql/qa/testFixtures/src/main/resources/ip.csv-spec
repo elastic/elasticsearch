@@ -16,11 +16,10 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 equals
-required_capability: mv_warn
 
 from hosts | sort host, card | where ip0 == ip1 | keep card, host, ip0, ip1;
-warning:Line 1:38: evaluation of [ip0 == ip1] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:38: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[ip0 == ip1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth0           |alpha          |127.0.0.1                |127.0.0.1
@@ -60,11 +59,10 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 lessThan
-required_capability: mv_warn
 
 from hosts | sort host, card, ip1 | where ip0 < ip1 | keep card, host, ip0, ip1;
-warning:Line 1:43: evaluation of [ip0 < ip1] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:43: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[ip0 < ip1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2
@@ -73,11 +71,10 @@ lo0            |gamma          |fe80::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:f
 ;
 
 notEquals
-required_capability: mv_warn
 
 from hosts | sort host, card, ip1 | where ip0 != ip1 | keep card, host, ip0, ip1;
-warning:Line 1:43: evaluation of [ip0 != ip1] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:43: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[ip0 != ip1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth0           |beta           |127.0.0.1                |::1
@@ -125,7 +122,6 @@ null           |[127.0.0.1, 127.0.0.2, 127.0.0.3]
 ;
 
 conditional
-required_capability: mv_warn
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | keep eq, ip0, ip1;
 ignoreOrder:true
@@ -146,14 +142,13 @@ fe80::cae2:65ff:fece:fec1                             |[fe80::cae2:65ff:fece:feb
 ;
 
 in
-required_capability: mv_warn
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 ignoreOrder:true
-warning:Line 1:27: evaluation of [ip0==ip1] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:27: java.lang.IllegalArgumentException: single-value function encountered multi-value
-warning:Line 1:55: evaluation of [eq in (ip0, ip1)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:55: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[ip0==ip1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[eq in \(ip0, ip1\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip                                                                           |ip1:ip                   |eq:ip
 eth0           |alpha          |127.0.0.1                                                                        |127.0.0.1                |127.0.0.1
@@ -168,7 +163,6 @@ eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece
 
 
 inWithWarningsRegex#[skip:-8.13.99, reason:regex warnings in tests introduced in v 8.14.0]
-required_capability: mv_warn
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 ignoreOrder:true
@@ -188,23 +182,21 @@ eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece
 ;
 
 cidrMatchSimple
-required_capability: mv_warn
 
 from hosts | where cidr_match(ip1, "127.0.0.2/32") | keep card, host, ip0, ip1;
-warning:Line 1:20: evaluation of [cidr_match(ip1, \"127.0.0.2/32\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:20: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[cidr_match\(ip1, \\\"127.0.0.2/32\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip         |ip1:ip
 eth1           |beta           |127.0.0.1      |127.0.0.2
 ;
 
 cidrMatchNullField
-required_capability: mv_warn
 
 from hosts | where cidr_match(ip0, "127.0.0.2/32") is null | keep card, host, ip0, ip1;
 ignoreOrder:true
-warning:Line 1:20: evaluation of [cidr_match(ip0, \"127.0.0.2/32\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:20: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[cidr_match\(ip0, \\\"127.0.0.2/32\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip                                                                           |ip1:ip
 eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1
@@ -213,7 +205,6 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 cdirMatchMultipleArgs
-required_capability: mv_warn
 
 //tag::cdirMatchMultipleArgs[]
 FROM hosts 
@@ -233,7 +224,6 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 ;
 
 cidrMatchFunctionArg
-required_capability: mv_warn
 
 from hosts | where cidr_match(ip1, concat("127.0.0.2", "/32"), "127.0.0.3/32") | keep card, host, ip0, ip1;
 ignoreOrder:true
@@ -246,7 +236,6 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 ;
 
 cidrMatchFieldArg
-required_capability: mv_warn
 
 from hosts | eval cidr="127.0.0.2" | where cidr_match(ip1, cidr, "127.0.0.3/32") | keep card, host, ip0, ip1;
 ignoreOrder:true
@@ -282,11 +271,83 @@ str1:keyword |str2:keyword |ip1:ip  |ip2:ip
 // end::to_ip-result[]
 ;
 
+cdirMatchOrsIPs
+required_capability: combine_disjunctive_cidrmatches
+
+FROM hosts
+| WHERE CIDR_MATCH(ip1, "127.0.0.2/32") or CIDR_MATCH(ip0, "127.0.0.1") or CIDR_MATCH(ip1, "127.0.0.3/32") or CIDR_MATCH(ip0, "fe80::cae2:65ff:fece:feb9")
+| KEEP card, host, ip0, ip1
+| sort host, card, ip0, ip1
+;
+warning:Line 2:20: evaluation of [ip1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:20: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:55: evaluation of [ip0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:55: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
+eth0           |alpha          |127.0.0.1                |127.0.0.1
+eth0           |beta           |127.0.0.1                |::1
+eth1           |beta           |127.0.0.1                |127.0.0.2
+eth1           |beta           |127.0.0.1                |128.0.0.1
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
+lo0            |gamma          |fe80::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:feb9
+;
+
+cdirMatchEqualsInsOrs
+required_capability: combine_disjunctive_cidrmatches
+
+FROM hosts
+| WHERE host == "alpha" OR host == "gamma" OR CIDR_MATCH(ip1, "127.0.0.2/32") OR CIDR_MATCH(ip0, "127.0.0.1") OR card IN ("eth0", "eth1") OR CIDR_MATCH(ip1, "127.0.0.3/32") OR card == "lo0" OR CIDR_MATCH(ip0, "fe80::cae2:65ff:fece:feb9") OR host == "beta"
+| KEEP card, host, ip0, ip1
+| sort host, card, ip0, ip1
+;
+warning:Line 2:58: evaluation of [ip1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:58: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:93: evaluation of [ip0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:93: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip                                                                            |ip1:ip
+eth0           |alpha          |127.0.0.1                                                                         |127.0.0.1
+eth1           |alpha          |::1                                                                               |::1
+eth0           |beta           |127.0.0.1                                                                         |::1
+eth1           |beta           |127.0.0.1                                                                         |127.0.0.2
+eth1           |beta           |127.0.0.1                                                                         |128.0.0.1
+eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1] |fe80::cae2:65ff:fece:fec1
+eth1           |epsilon        |null                                                                              |[127.0.0.1, 127.0.0.2, 127.0.0.3]
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9                                                         |127.0.0.3
+lo0            |gamma          |fe80::cae2:65ff:fece:feb9                                                         |fe81::cae2:65ff:fece:feb9
+;
+
+cdirMatchEqualsInsOrsIPs
+required_capability: combine_disjunctive_cidrmatches
+
+FROM hosts
+| WHERE host == "alpha" OR host == "gamma" OR CIDR_MATCH(ip1, "127.0.0.2/32") OR ip0 == "127.0.0.1" OR card IN ("eth0", "eth1") OR ip1 IN ("127.0.0.3", "127.0.0.1") OR card == "lo0" OR CIDR_MATCH(ip0, "fe80::cae2:65ff:fece:feb9") OR host == "beta"
+| KEEP card, host, ip0, ip1
+| sort host, card, ip0, ip1
+;
+warning:Line 2:58: evaluation of [ip1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:58: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:82: evaluation of [ip0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:82: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+card:keyword   |host:keyword   |ip0:ip                                                                            |ip1:ip
+eth0           |alpha          |127.0.0.1                                                                         |127.0.0.1
+eth1           |alpha          |::1                                                                               |::1
+eth0           |beta           |127.0.0.1                                                                         |::1
+eth1           |beta           |127.0.0.1                                                                         |127.0.0.2
+eth1           |beta           |127.0.0.1                                                                         |128.0.0.1
+eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1] |fe80::cae2:65ff:fece:fec1
+eth1           |epsilon        |null                                                                              |[127.0.0.1, 127.0.0.2, 127.0.0.3]
+eth0           |gamma          |fe80::cae2:65ff:fece:feb9                                                         |127.0.0.3
+lo0            |gamma          |fe80::cae2:65ff:fece:feb9                                                         |fe81::cae2:65ff:fece:feb9
+;
+
 pushDownIP
 from hosts | where ip1 == to_ip("::1") | keep card, host, ip0, ip1;
 ignoreOrder:true
-warning:#[Emulated:Line 1:20: evaluation of [ip1 == to_ip(\"::1\")] failed, treating result as null. Only first 20 failures recorded.]
-warning:#[Emulated:Line 1:20: java.lang.IllegalArgumentException: single-value function encountered multi-value]
+warningRegex:evaluation of \[ip1 == to_ip\(\\\"::1\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip     |ip1:ip
 eth1           |alpha          |::1        |::1
@@ -294,7 +355,6 @@ eth0           |beta           |127.0.0.1  |::1
 ;
 
 pushDownIPWithIn
-required_capability: mv_warn
 
 from hosts | where ip1 in (to_ip("::1"), to_ip("127.0.0.1")) | keep card, host, ip0, ip1;
 ignoreOrder:true
@@ -308,12 +368,11 @@ eth0           |beta           |127.0.0.1   |::1
 ;
 
 pushDownIPWithComparision
-required_capability: mv_warn
 
 from hosts | where ip1 > to_ip("127.0.0.1") | keep card, ip1;
 ignoreOrder:true
-warning:Line 1:20: evaluation of [ip1 > to_ip(\"127.0.0.1\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:20: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[ip1 > to_ip\(\\\"127.0.0.1\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |ip1:ip
 eth1           |127.0.0.2
@@ -553,8 +612,8 @@ required_capability: fn_ip_prefix
 from hosts
 | stats count(*) by ip_prefix(ip1, 24, 120)
 | sort `ip_prefix(ip1, 24, 120)`;
-warning:Line 2:21: evaluation of [ip_prefix(ip1, 24, 120)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:21: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:evaluation of \[ip_prefix\(ip1, 24, 120\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 count(*):long | ip_prefix(ip1, 24, 120):ip
 2             | ::0

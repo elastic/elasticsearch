@@ -5,7 +5,19 @@
       "branch": "main"
     },
     {
-      "branch": "8.14"
+      "branch": "8.16"
+    },
+    {
+      "branch": "9.0"
+    },
+    {
+      "branch": "8.18"
+    },
+    {
+      "branch": "8.17"
+    },
+    {
+      "branch": "8.x"
     },
     {
       "branch": "7.17"

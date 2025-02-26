@@ -1,0 +1,5 @@
+pr: 115020
+summary: Adding endpoint creation validation for all task types to remaining services
+area: Machine Learning
+type: enhancement
+issues: []

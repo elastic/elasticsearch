@@ -8,6 +8,10 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -19,10 +23,11 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -32,10 +37,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 public class Replace extends EsqlScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Replace", Replace::new);
 
     private final Expression str;
-    private final Expression newStr;
     private final Expression regex;
+    private final Expression newStr;
 
     @FunctionInfo(
         returnType = "keyword",
@@ -58,6 +64,32 @@ public class Replace extends EsqlScalarFunction {
         this.str = str;
         this.regex = regex;
         this.newStr = newStr;
+    }
+
+    private Replace(StreamInput in) throws IOException {
+        this(
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
+                ? Source.readFrom((PlanStreamInput) in)
+                : Source.EMPTY,
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)) {
+            source().writeTo(out);
+        }
+        out.writeNamedWriteable(str);
+        out.writeNamedWriteable(regex);
+        out.writeNamedWriteable(newStr);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -120,14 +152,14 @@ public class Replace extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var strEval = toEvaluator.apply(str);
         var newStrEval = toEvaluator.apply(newStr);
 
         if (regex.foldable() && regex.dataType() == DataType.KEYWORD) {
             Pattern regexPattern;
             try {
-                regexPattern = Pattern.compile(((BytesRef) regex.fold()).utf8ToString());
+                regexPattern = Pattern.compile(((BytesRef) regex.fold(toEvaluator.foldCtx())).utf8ToString());
             } catch (PatternSyntaxException pse) {
                 // TODO this is not right (inconsistent). See also https://github.com/elastic/elasticsearch/issues/100038
                 // this should generate a header warning and return null (as do the rest of this functionality in evaluators),
@@ -139,5 +171,17 @@ public class Replace extends EsqlScalarFunction {
 
         var regexEval = toEvaluator.apply(regex);
         return new ReplaceEvaluator.Factory(source(), strEval, regexEval, newStrEval);
+    }
+
+    Expression str() {
+        return str;
+    }
+
+    Expression regex() {
+        return regex;
+    }
+
+    Expression newStr() {
+        return newStr;
     }
 }

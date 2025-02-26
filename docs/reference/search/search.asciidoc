@@ -4,6 +4,12 @@
 <titleabbrev>Search</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 Returns search hits that match the query defined in the request.
 
 [source,console]
@@ -38,7 +44,7 @@ must have the `read` index privilege for the alias's data streams or indices.
 
 Allows you to execute a search query and get back search hits that match the
 query. You can provide search queries using the <<search-api-query-params-q,`q`
-query string parameter>> or <<search-search,request body>>.
+query string parameter>> or <<search-search-api-request-body,request body>>.
 
 [[search-search-api-path-params]]
 ==== {api-path-parms-title}
@@ -141,7 +147,7 @@ When unspecified, the pre-filter phase is executed if any of these conditions is
   - The primary sort of the query targets an indexed field.
 
 [[search-preference]]
-tag::search-preference[]
+// tag::search-preference[]
 `preference`::
 (Optional, string)
 Nodes and shards used for the search. By default, {es} selects from eligible
@@ -178,7 +184,7 @@ Any string that does not start with `_`. If the cluster state and selected
 shards do not change, searches using the same `<custom-string>` value are routed
 to the same shards in the same order.
 ====
-end::search-preference[]
+// end::search-preference[]
 
 
 [[search-api-query-params-q]]
@@ -527,6 +533,8 @@ not both. Refer to <<knn-semantic-search>> to learn more.
 `similarity`::
 (Optional, float)
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-similarity]
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-rescore-vector]
 
 ====
 

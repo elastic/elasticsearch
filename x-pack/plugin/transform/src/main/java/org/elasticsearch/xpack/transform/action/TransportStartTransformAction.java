@@ -17,24 +17,27 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
@@ -43,6 +46,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSetti
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -62,6 +66,7 @@ import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_ST
 public class TransportStartTransformAction extends TransportMasterNodeAction<StartTransformAction.Request, StartTransformAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportStartTransformAction.class);
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final TransformConfigManager transformConfigManager;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
@@ -113,10 +118,10 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             threadPool,
             actionFilters,
             StartTransformAction.Request::new,
-            indexNameExpressionResolver,
             StartTransformAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.transformConfigManager = transformServices.configManager();
         this.persistentTasksService = persistentTasksService;
         this.client = client;
@@ -126,23 +131,34 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
     @Override
     protected void masterOperation(
-        Task ignoredTask,
+        Task task,
         StartTransformAction.Request request,
         ClusterState state,
         ActionListener<StartTransformAction.Response> listener
     ) {
         TransformNodes.warnIfNoTransformNodes(state);
+        if (TransformMetadata.upgradeMode(state)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Cannot start any Transform while the Transform feature is upgrading.",
+                    RestStatus.CONFLICT
+                )
+            );
+            return;
+        }
 
-        final SetOnce<TransformTaskParams> transformTaskParamsHolder = new SetOnce<>();
-        final SetOnce<TransformConfig> transformConfigHolder = new SetOnce<>();
+        var transformTaskParamsHolder = new SetOnce<TransformTaskParams>();
+        var transformConfigHolder = new SetOnce<TransformConfig>();
+        var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        var parentClient = new ParentTaskAssigningClient(client, parentTaskId);
 
         // <5> Wait for the allocated task's state to STARTED
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams>> newPersistentTaskActionListener = ActionListener
-            .wrap(task -> {
+            .wrap(t -> {
                 TransformTaskParams transformTask = transformTaskParamsHolder.get();
                 assert transformTask != null;
                 waitForTransformTaskStarted(
-                    task.getId(),
+                    t.getId(),
                     transformTask,
                     request.ackTimeout(),
                     ActionListener.wrap(taskStarted -> listener.onResponse(new StartTransformAction.Response(true)), listener::onFailure)
@@ -160,7 +176,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                     transformTask.getId(),
                     TransformTaskParams.NAME,
                     transformTask,
-                    null,
+                    request.masterNodeTimeout(),
                     newPersistentTaskActionListener
                 );
             } else {
@@ -196,7 +212,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 return;
             }
             TransformIndex.createDestinationIndex(
-                client,
+                parentClient,
                 auditor,
                 indexNameExpressionResolver,
                 state,
@@ -257,7 +273,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 )
             );
             ClientHelper.executeAsyncWithOrigin(
-                client,
+                parentClient,
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
                 new ValidateTransformAction.Request(config, false, request.ackTimeout()),
@@ -288,7 +304,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     }
 
     private void cancelTransformTask(String taskId, String transformId, Exception exception, Consumer<Exception> onFailure) {
-        persistentTasksService.sendRemoveRequest(taskId, null, new ActionListener<>() {
+        persistentTasksService.sendRemoveRequest(taskId, Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                 // We succeeded in canceling the persistent task, but the

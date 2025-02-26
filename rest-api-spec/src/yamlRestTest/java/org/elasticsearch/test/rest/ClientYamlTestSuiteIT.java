@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest;
@@ -13,7 +14,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -35,21 +35,18 @@ public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("health-shards-availability")
         .module("data-streams")
         .feature(FeatureFlag.TIME_SERIES_MODE)
+        .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
+        .feature(FeatureFlag.INDEX_RECOVERY_USE_SYNTHETIC_SOURCE)
+        .feature(FeatureFlag.DOC_VALUES_SKIPPER)
         .build();
 
     public ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
-    @UpdateForV9 // remove restCompat check
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        String restCompatProperty = System.getProperty("tests.restCompat");
-        if ("true".equals(restCompatProperty)) {
-            return createParametersWithLegacyNodeSelectorSupport();
-        } else {
-            return createParameters();
-        }
+        return createParameters();
     }
 
     @Override

@@ -14,7 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class ToVersionTests extends AbstractFunctionTestCase {
+public class ToVersionTests extends AbstractScalarFunctionTestCase {
     public ToVersionTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -49,7 +49,7 @@ public class ToVersionTests extends AbstractFunctionTestCase {
         );
 
         // But strings that are shaped like versions do parse to valid versions
-        for (DataType inputType : AbstractConvertFunction.STRING_TYPES) {
+        for (DataType inputType : DataType.stringTypes()) {
             TestCaseSupplier.unary(
                 suppliers,
                 read,
@@ -60,7 +60,7 @@ public class ToVersionTests extends AbstractFunctionTestCase {
             );
         }
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

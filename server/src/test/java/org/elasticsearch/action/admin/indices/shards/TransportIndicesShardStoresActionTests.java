@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.shards;
@@ -46,6 +47,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 
@@ -68,7 +70,7 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
                     future
                 );
 
-                final var response = future.result();
+                final var response = safeGet(future);
                 assertThat(response.getFailures(), empty());
                 assertThat(response.getStoreStatuses(), anEmptyMap());
                 assertThat(shardsWithFailures, empty());
@@ -138,7 +140,7 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
                 listExpected = false;
                 assertFalse(future.isDone());
                 deterministicTaskQueue.runAllTasks();
-                expectThrows(TaskCancelledException.class, future::result);
+                expectThrows(ExecutionException.class, TaskCancelledException.class, future::result);
             }
         });
     }
@@ -159,7 +161,10 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
                 failOneRequest = true;
                 deterministicTaskQueue.runAllTasks();
                 assertFalse(failOneRequest);
-                assertEquals("simulated", expectThrows(ElasticsearchException.class, future::result).getMessage());
+                assertEquals(
+                    "simulated",
+                    expectThrows(ExecutionException.class, ElasticsearchException.class, future::result).getMessage()
+                );
             }
         });
     }

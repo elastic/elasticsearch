@@ -2,6 +2,12 @@
 [[searchable-snapshots-apis]]
 == Searchable snapshots APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-searchable_snapshots[Searchable snapshots APIs].
+--
+
 You can use the following APIs to perform searchable snapshots operations.
 
 * <<searchable-snapshots-api-mount-snapshot,Mount snapshot>>

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.release;
@@ -11,7 +12,6 @@ package org.elasticsearch.gradle.internal.release;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.FieldDeclaration;
-import com.github.javaparser.ast.expr.IntegerLiteralExpr;
 
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -53,11 +53,11 @@ public class ExtractCurrentVersionsTask extends AbstractVersionsTask {
         LOGGER.lifecycle("Extracting latest version information");
 
         List<String> output = new ArrayList<>();
-        int transportVersion = readLatestVersion(rootDir.resolve(TRANSPORT_VERSION_FILE_PATH));
+        int transportVersion = readLatestVersion(rootDir.resolve(TRANSPORT_VERSIONS_FILE_PATH));
         LOGGER.lifecycle("Transport version: {}", transportVersion);
         output.add(TRANSPORT_VERSION_TYPE + ":" + transportVersion);
 
-        int indexVersion = readLatestVersion(rootDir.resolve(INDEX_VERSION_FILE_PATH));
+        int indexVersion = readLatestVersion(rootDir.resolve(INDEX_VERSIONS_FILE_PATH));
         LOGGER.lifecycle("Index version: {}", indexVersion);
         output.add(INDEX_VERSION_TYPE + ":" + indexVersion);
 
@@ -74,21 +74,13 @@ public class ExtractCurrentVersionsTask extends AbstractVersionsTask {
 
         @Override
         public void accept(FieldDeclaration fieldDeclaration) {
-            var ints = fieldDeclaration.findAll(IntegerLiteralExpr.class);
-            switch (ints.size()) {
-                case 0 -> {
-                    // No ints in the field declaration, ignore
+            findSingleIntegerExpr(fieldDeclaration).ifPresent(id -> {
+                if (highestVersionId != null && highestVersionId > id) {
+                    LOGGER.warn("Version ids [{}, {}] out of order", highestVersionId, id);
+                } else {
+                    highestVersionId = id;
                 }
-                case 1 -> {
-                    int id = ints.get(0).asNumber().intValue();
-                    if (highestVersionId != null && highestVersionId > id) {
-                        LOGGER.warn("Version ids [{}, {}] out of order", highestVersionId, id);
-                    } else {
-                        highestVersionId = id;
-                    }
-                }
-                default -> LOGGER.warn("Multiple integers found in version field declaration [{}]", fieldDeclaration); // and ignore it
-            }
+            });
         }
     }
 

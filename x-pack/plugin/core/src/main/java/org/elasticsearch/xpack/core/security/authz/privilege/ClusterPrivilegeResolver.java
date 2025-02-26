@@ -67,6 +67,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -109,6 +110,8 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MONITOR_WATCHER_PATTERN = Set.of("cluster:monitor/xpack/watcher/*");
     private static final Set<String> MONITOR_ROLLUP_PATTERN = Set.of("cluster:monitor/xpack/rollup/*");
     private static final Set<String> MONITOR_ENRICH_PATTERN = Set.of("cluster:monitor/xpack/enrich/*", "cluster:admin/xpack/enrich/get");
+    // intentionally cluster:monitor/stats* to match cluster:monitor/stats, cluster:monitor/stats[n] and cluster:monitor/stats/remote
+    private static final Set<String> MONITOR_STATS_PATTERN = Set.of("cluster:monitor/stats*");
 
     private static final Set<String> ALL_CLUSTER_PATTERN = Set.of(
         "cluster:*",
@@ -174,6 +177,23 @@ public class ClusterPrivilegeResolver {
     );
 
     private static final Set<String> MANAGE_SEARCH_APPLICATION_PATTERN = Set.of("cluster:admin/xpack/application/search_application/*");
+    private static final Set<String> MANAGE_CONNECTOR_PATTERN = Set.of("cluster:admin/xpack/connector/*");
+    private static final Set<String> MONITOR_CONNECTOR_PATTERN = Set.of(
+        "cluster:admin/xpack/connector/get",
+        "cluster:admin/xpack/connector/list",
+        "cluster:admin/xpack/connector/sync_job/get",
+        "cluster:admin/xpack/connector/sync_job/list"
+    );
+    private static final Set<String> READ_CONNECTOR_SECRETS_PATTERN = Set.of("cluster:admin/xpack/connector/secret/get");
+    private static final Set<String> WRITE_CONNECTOR_SECRETS_PATTERN = Set.of(
+        "cluster:admin/xpack/connector/secret/delete",
+        "cluster:admin/xpack/connector/secret/post",
+        "cluster:admin/xpack/connector/secret/put"
+    );
+    private static final Set<String> CONNECTOR_SECRETS_PATTERN = Stream.concat(
+        READ_CONNECTOR_SECRETS_PATTERN.stream(),
+        WRITE_CONNECTOR_SECRETS_PATTERN.stream()
+    ).collect(Collectors.toSet());
     private static final Set<String> MANAGE_SEARCH_QUERY_RULES_PATTERN = Set.of("cluster:admin/xpack/query_rules/*");
     private static final Set<String> MANAGE_SEARCH_SYNONYMS_PATTERN = Set.of(
         "cluster:admin/synonyms/*",
@@ -190,7 +210,11 @@ public class ClusterPrivilegeResolver {
         // esql enrich
         "cluster:monitor/xpack/enrich/esql/resolve_policy",
         "cluster:internal:data/read/esql/open_exchange",
-        "cluster:internal:data/read/esql/exchange"
+        "cluster:internal:data/read/esql/exchange",
+        // cluster stats for remote clusters
+        "cluster:monitor/stats/remote",
+        "cluster:monitor/stats",
+        "cluster:monitor/stats[n]"
     );
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
@@ -225,6 +249,7 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MONITOR_WATCHER = new ActionClusterPrivilege("monitor_watcher", MONITOR_WATCHER_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ROLLUP = new ActionClusterPrivilege("monitor_rollup", MONITOR_ROLLUP_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ENRICH = new ActionClusterPrivilege("monitor_enrich", MONITOR_ENRICH_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_STATS = new ActionClusterPrivilege("monitor_stats", MONITOR_STATS_PATTERN);
     public static final NamedClusterPrivilege MANAGE = new ActionClusterPrivilege("manage", ALL_CLUSTER_PATTERN, ALL_SECURITY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_INFERENCE = new ActionClusterPrivilege("manage_inference", MANAGE_INFERENCE_PATTERN);
     public static final NamedClusterPrivilege MANAGE_ML = new ActionClusterPrivilege("manage_ml", MANAGE_ML_PATTERN);
@@ -262,6 +287,7 @@ public class ClusterPrivilegeResolver {
             ProfileHasPrivilegesAction.NAME,
             SuggestProfilesAction.NAME,
             GetRolesAction.NAME,
+            ActionTypes.QUERY_ROLE_ACTION.name(),
             GetRoleMappingsAction.NAME,
             GetServiceAccountAction.NAME,
             GetServiceAccountCredentialsAction.NAME + "*",
@@ -269,7 +295,7 @@ public class ClusterPrivilegeResolver {
             ActionTypes.QUERY_USER_ACTION.name(),
             GetUserPrivilegesAction.NAME, // normally authorized under the "same-user" authz check, but added here for uniformity
             HasPrivilegesAction.NAME,
-            GetSecuritySettingsAction.NAME
+            GetSecuritySettingsAction.INSTANCE.name()
         )
     );
     public static final NamedClusterPrivilege MANAGE_SAML = new ActionClusterPrivilege("manage_saml", MANAGE_SAML_PATTERN);
@@ -332,6 +358,15 @@ public class ClusterPrivilegeResolver {
         "manage_search_application",
         MANAGE_SEARCH_APPLICATION_PATTERN
     );
+    public static final NamedClusterPrivilege MANAGE_CONNECTOR = new ActionClusterPrivilege(
+        "manage_connector",
+        MANAGE_CONNECTOR_PATTERN,
+        CONNECTOR_SECRETS_PATTERN
+    );
+    public static final NamedClusterPrivilege MONITOR_CONNECTOR = new ActionClusterPrivilege(
+        "monitor_connector",
+        MONITOR_CONNECTOR_PATTERN
+    );
     public static final NamedClusterPrivilege MANAGE_SEARCH_SYNONYMS = new ActionClusterPrivilege(
         "manage_search_synonyms",
         MANAGE_SEARCH_SYNONYMS_PATTERN
@@ -362,31 +397,32 @@ public class ClusterPrivilegeResolver {
 
     public static final NamedClusterPrivilege READ_CONNECTOR_SECRETS = new ActionClusterPrivilege(
         "read_connector_secrets",
-        Set.of("cluster:admin/xpack/connector/secret/get")
+        READ_CONNECTOR_SECRETS_PATTERN
     );
 
     public static final NamedClusterPrivilege WRITE_CONNECTOR_SECRETS = new ActionClusterPrivilege(
         "write_connector_secrets",
-        Set.of(
-            "cluster:admin/xpack/connector/secret/delete",
-            "cluster:admin/xpack/connector/secret/post",
-            "cluster:admin/xpack/connector/secret/put"
-        )
+        WRITE_CONNECTOR_SECRETS_PATTERN
     );
     public static final NamedClusterPrivilege MONITOR_GLOBAL_RETENTION = new ActionClusterPrivilege(
         "monitor_data_stream_global_retention",
-        Set.of("cluster:monitor/data_stream/global_retention/*")
+        Set.of()
     );
     public static final NamedClusterPrivilege MANAGE_GLOBAL_RETENTION = new ActionClusterPrivilege(
         "manage_data_stream_global_retention",
-        Set.of("cluster:admin/data_stream/global_retention/*", "cluster:monitor/data_stream/global_retention/*")
+        Set.of()
     );
 
+    /**
+     * If you are adding a new named cluster privilege, also add it to the
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-privileges.html#privileges-list-cluster">docs</a>.
+     */
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(
         Stream.of(
             NONE,
             ALL,
             MONITOR,
+            MONITOR_CONNECTOR,
             MONITOR_INFERENCE,
             MONITOR_ML,
             MONITOR_TEXT_STRUCTURE,
@@ -395,7 +431,9 @@ public class ClusterPrivilegeResolver {
             MONITOR_WATCHER,
             MONITOR_ROLLUP,
             MONITOR_ENRICH,
+            MONITOR_STATS,
             MANAGE,
+            MANAGE_CONNECTOR,
             MANAGE_INFERENCE,
             MANAGE_ML,
             MANAGE_TRANSFORM_DEPRECATED,
@@ -469,7 +507,7 @@ public class ClusterPrivilegeResolver {
             + Strings.collectionToCommaDelimitedString(VALUES.keySet())
             + "] or a pattern over one of the available "
             + "cluster actions";
-        logger.debug(errorMessage);
+        logger.warn(errorMessage);
         throw new IllegalArgumentException(errorMessage);
 
     }

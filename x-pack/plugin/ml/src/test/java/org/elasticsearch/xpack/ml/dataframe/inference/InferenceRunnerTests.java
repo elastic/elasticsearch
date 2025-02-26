@@ -15,11 +15,11 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.search.DocValueFormat;
@@ -28,8 +28,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
-import org.elasticsearch.search.profile.SearchProfileResults;
-import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,18 +54,22 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -115,7 +117,7 @@ public class InferenceRunnerTests extends ESTestCase {
             return null;
         }).when(modelLoadingService).getModelForInternalInference(anyString(), any());
 
-        createInferenceRunner(extractedFields, testDocsIterator).run("model id");
+        run(createInferenceRunner(extractedFields, testDocsIterator)).assertSuccess();
 
         var argumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
 
@@ -146,8 +148,7 @@ public class InferenceRunnerTests extends ESTestCase {
 
         InferenceRunner inferenceRunner = createInferenceRunner(extractedFields, infiniteDocsIterator);
         inferenceRunner.cancel();
-
-        inferenceRunner.run("model id");
+        run(inferenceRunner).assertSuccess();
 
         Mockito.verifyNoMoreInteractions(localModel, resultsPersisterService);
         assertThat(progressTracker.getInferenceProgressPercent(), equalTo(0));
@@ -178,7 +179,14 @@ public class InferenceRunnerTests extends ESTestCase {
         return localModel;
     }
 
+    private InferenceRunner createInferenceRunner(ExtractedFields extractedFields) {
+        return createInferenceRunner(extractedFields, mock(TestDocsIterator.class));
+    }
+
     private InferenceRunner createInferenceRunner(ExtractedFields extractedFields, TestDocsIterator testDocsIterator) {
+        var threadpool = mock(ThreadPool.class);
+        when(threadpool.executor(any())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(threadpool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         return new InferenceRunner(
             Settings.EMPTY,
             client,
@@ -189,8 +197,50 @@ public class InferenceRunnerTests extends ESTestCase {
             extractedFields,
             progressTracker,
             new DataCountsTracker(new DataCounts(config.getId())),
-            id -> testDocsIterator
+            id -> testDocsIterator,
+            threadpool
         );
+    }
+
+    private TestListener run(InferenceRunner inferenceRunner) {
+        var listener = new TestListener();
+        inferenceRunner.run("id", listener);
+        return listener;
+    }
+
+    /**
+     * When an exception is returned in a chained listener's onFailure call
+     * Then InferenceRunner should wrap it in an ElasticsearchException
+     */
+    public void testModelLoadingServiceResponseWithAnException() {
+        var expectedCause = new IllegalArgumentException("this is a test");
+        doAnswer(ans -> {
+            ActionListener<LocalModel> responseListener = ans.getArgument(1);
+            responseListener.onFailure(expectedCause);
+            return null;
+        }).when(modelLoadingService).getModelForInternalInference(anyString(), any());
+
+        var actualException = run(createInferenceRunner(mock(ExtractedFields.class))).assertFailure();
+        inferenceRunnerHandledException(actualException, expectedCause);
+    }
+
+    /**
+     * When an exception is thrown within InferenceRunner
+     * Then InferenceRunner should wrap it in an ElasticsearchException
+     */
+    public void testExceptionCallingModelLoadingService() {
+        var expectedCause = new IllegalArgumentException("this is a test");
+
+        doThrow(expectedCause).when(modelLoadingService).getModelForInternalInference(anyString(), any());
+
+        var actualException = run(createInferenceRunner(mock(ExtractedFields.class))).assertFailure();
+        inferenceRunnerHandledException(actualException, expectedCause);
+    }
+
+    private void inferenceRunnerHandledException(Exception actual, Exception expectedCause) {
+        assertThat(actual, instanceOf(ElasticsearchException.class));
+        assertThat(actual.getCause(), is(expectedCause));
+        assertThat(actual.getMessage(), equalTo("[test] failed running inference on model [id]; cause was [this is a test]"));
     }
 
     private Client mockClient() {
@@ -199,39 +249,12 @@ public class InferenceRunnerTests extends ESTestCase {
         when(threadpool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(threadpool);
 
-        Supplier<SearchResponse> withHits = () -> new SearchResponse(
-            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-            InternalAggregations.from(List.of(new Max(DestinationIndex.INCREMENTAL_ID, 1, DocValueFormat.RAW, Map.of()))),
-            new Suggest(new ArrayList<>()),
-            false,
-            false,
-            new SearchProfileResults(Map.of()),
-            1,
-            "",
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
-        Supplier<SearchResponse> withNoHits = () -> new SearchResponse(
-            SearchHits.EMPTY_WITH_TOTAL_HITS,
-            // Simulate completely null aggs
-            null,
-            new Suggest(new ArrayList<>()),
-            false,
-            false,
-            new SearchProfileResults(Map.of()),
-            1,
-            "",
-            1,
-            1,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        Supplier<SearchResponse> withHits = () -> SearchResponseUtils.response(
+            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
+        )
+            .aggregations(InternalAggregations.from(List.of(new Max(DestinationIndex.INCREMENTAL_ID, 1, DocValueFormat.RAW, Map.of()))))
+            .build();
+        Supplier<SearchResponse> withNoHits = () -> SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
 
         when(client.search(any())).thenReturn(response(withHits)).thenReturn(response(withNoHits));
         return client;
@@ -245,5 +268,29 @@ public class InferenceRunnerTests extends ESTestCase {
                 return searchResponse.get();
             }
         };
+    }
+
+    private static class TestListener implements ActionListener<Void> {
+        private final AtomicBoolean success = new AtomicBoolean(false);
+        private final AtomicReference<Exception> failure = new AtomicReference<>();
+
+        @Override
+        public void onResponse(Void t) {
+            success.set(true);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            failure.set(e);
+        }
+
+        public void assertSuccess() {
+            assertTrue(success.get());
+        }
+
+        public Exception assertFailure() {
+            assertNotNull(failure.get());
+            return failure.get();
+        }
     }
 }

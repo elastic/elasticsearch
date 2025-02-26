@@ -8,15 +8,16 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -42,7 +43,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
         }
     }
 
-    private final EsIndex index;
+    private final String indexPattern;
     private final QueryBuilder query;
     private final Expression limit;
     private final List<Attribute> attrs;
@@ -50,14 +51,14 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     public EsStatsQueryExec(
         Source source,
-        EsIndex index,
+        String indexPattern,
         QueryBuilder query,
         Expression limit,
         List<Attribute> attributes,
         List<Stat> stats
     ) {
         super(source);
-        this.index = index;
+        this.indexPattern = indexPattern;
         this.query = query;
         this.limit = limit;
         this.attrs = attributes;
@@ -65,12 +66,18 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     @Override
-    protected NodeInfo<EsStatsQueryExec> info() {
-        return NodeInfo.create(this, EsStatsQueryExec::new, index, query, limit, attrs, stats);
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException("not serialized");
     }
 
-    public EsIndex index() {
-        return index;
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
+    protected NodeInfo<EsStatsQueryExec> info() {
+        return NodeInfo.create(this, EsStatsQueryExec::new, indexPattern, query, limit, attrs, stats);
     }
 
     public QueryBuilder query() {
@@ -101,7 +108,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, query, limit, attrs, stats);
+        return Objects.hash(indexPattern, query, limit, attrs, stats);
     }
 
     @Override
@@ -115,7 +122,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
         }
 
         EsStatsQueryExec other = (EsStatsQueryExec) obj;
-        return Objects.equals(index, other.index)
+        return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(attrs, other.attrs)
             && Objects.equals(query, other.query)
             && Objects.equals(limit, other.limit)
@@ -126,7 +133,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
     public String nodeString() {
         return nodeName()
             + "["
-            + index
+            + indexPattern
             + "], stats"
             + stats
             + "], query["

@@ -135,7 +135,8 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
     private void setupRemoteCluster() throws Exception {
         var remoteMaxPendingConnectionListeners = getRemoteMaxPendingConnectionListeners();
 
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .masterNodeTimeout(TimeValue.MAX_VALUE);
         String address = getLeaderCluster().getAnyMasterNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
         updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", address));
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
@@ -161,7 +162,8 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
     }
 
     private void cleanRemoteCluster() throws Exception {
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .masterNodeTimeout(TimeValue.MAX_VALUE);
         updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", (String) null));
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 

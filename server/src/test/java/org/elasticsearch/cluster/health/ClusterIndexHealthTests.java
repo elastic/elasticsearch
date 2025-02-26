@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.health;
 
@@ -22,7 +23,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -68,6 +68,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
         assertThat(indexHealth.getRelocatingShards(), equalTo(counter.relocating));
         assertThat(indexHealth.getInitializingShards(), equalTo(counter.initializing));
         assertThat(indexHealth.getUnassignedShards(), equalTo(counter.unassigned));
+        assertThat(indexHealth.getUnassignedPrimaryShards(), equalTo(counter.unassignedPrimary));
         assertThat(indexHealth.getShards().size(), equalTo(indexMetadata.getNumberOfShards()));
         int totalShards = 0;
         for (ClusterShardHealth shardHealth : indexHealth.getShards().values()) {
@@ -91,6 +92,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
         }
         return new ClusterIndexHealth(
             indexName,
+            randomInt(1000),
             randomInt(1000),
             randomInt(1000),
             randomInt(1000),
@@ -139,162 +141,52 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
 
     @Override
     protected ClusterIndexHealth mutateInstance(ClusterIndexHealth instance) {
-        String mutate = randomFrom(
-            "index",
-            "numberOfShards",
-            "numberOfReplicas",
-            "activeShards",
-            "relocatingShards",
-            "initializingShards",
-            "unassignedShards",
-            "activePrimaryShards",
-            "status",
-            "shards"
-        );
-        switch (mutate) {
-            case "index":
-                return new ClusterIndexHealth(
-                    instance.getIndex() + randomAlphaOfLengthBetween(2, 5),
-                    instance.getNumberOfShards(),
-                    instance.getNumberOfReplicas(),
-                    instance.getActiveShards(),
-                    instance.getRelocatingShards(),
-                    instance.getInitializingShards(),
-                    instance.getUnassignedShards(),
-                    instance.getActivePrimaryShards(),
-                    instance.getStatus(),
-                    instance.getShards()
-                );
-            case "numberOfShards":
-                return new ClusterIndexHealth(
-                    instance.getIndex(),
-                    instance.getNumberOfShards() + between(1, 10),
-                    instance.getNumberOfReplicas(),
-                    instance.getActiveShards(),
-                    instance.getRelocatingShards(),
-                    instance.getInitializingShards(),
-                    instance.getUnassignedShards(),
-                    instance.getActivePrimaryShards(),
-                    instance.getStatus(),
-                    instance.getShards()
-                );
-            case "numberOfReplicas":
-                return new ClusterIndexHealth(
-                    instance.getIndex(),
-                    instance.getNumberOfShards(),
-                    instance.getNumberOfReplicas() + between(1, 10),
-                    instance.getActiveShards(),
-                    instance.getRelocatingShards(),
-                    instance.getInitializingShards(),
-                    instance.getUnassignedShards(),
-                    instance.getActivePrimaryShards(),
-                    instance.getStatus(),
-                    instance.getShards()
-                );
-            case "activeShards":
-                return new ClusterIndexHealth(
-                    instance.getIndex(),
-                    instance.getNumberOfShards(),
-                    instance.getNumberOfReplicas(),
-                    instance.getActiveShards() + between(1, 10),
-                    instance.getRelocatingShards(),
-                    instance.getInitializingShards(),
-                    instance.getUnassignedShards(),
-                    instance.getActivePrimaryShards(),
-                    instance.getStatus(),
-                    instance.getShards()
-                );
-            case "relocatingShards":
-                return new ClusterIndexHealth(
-                    instance.getIndex(),
-                    instance.getNumberOfShards(),
-                    instance.getNumberOfReplicas(),
-                    instance.getActiveShards(),
-                    instance.getRelocatingShards() + between(1, 10),
-                    instance.getInitializingShards(),
-                    instance.getUnassignedShards(),
-                    instance.getActivePrimaryShards(),
-                    instance.getStatus(),
-                    instance.getShards()
-                );
-            case "initializingShards":
-                return new ClusterIndexHealth(
-                    instance.getIndex(),
-                    instance.getNumberOfShards(),
-                    instance.getNumberOfReplicas(),
-                    instance.getActiveShards(),
-                    instance.getRelocatingShards(),
-                    instance.getInitializingShards() + between(1, 10),
-                    instance.getUnassignedShards(),
-                    instance.getActivePrimaryShards(),
-                    instance.getStatus(),
-                    instance.getShards()
-                );
-            case "unassignedShards":
-                return new ClusterIndexHealth(
-                    instance.getIndex(),
-                    instance.getNumberOfShards(),
-                    instance.getNumberOfReplicas(),
-                    instance.getActiveShards(),
-                    instance.getRelocatingShards(),
-                    instance.getInitializingShards(),
-                    instance.getUnassignedShards() + between(1, 10),
-                    instance.getActivePrimaryShards(),
-                    instance.getStatus(),
-                    instance.getShards()
-                );
-            case "activePrimaryShards":
-                return new ClusterIndexHealth(
-                    instance.getIndex(),
-                    instance.getNumberOfShards(),
-                    instance.getNumberOfReplicas(),
-                    instance.getActiveShards(),
-                    instance.getRelocatingShards(),
-                    instance.getInitializingShards(),
-                    instance.getUnassignedShards(),
-                    instance.getActivePrimaryShards() + between(1, 10),
-                    instance.getStatus(),
-                    instance.getShards()
-                );
-            case "status":
-                ClusterHealthStatus status = randomFrom(
-                    Arrays.stream(ClusterHealthStatus.values()).filter(value -> value.equals(instance.getStatus()) == false).toList()
-                );
-                return new ClusterIndexHealth(
-                    instance.getIndex(),
-                    instance.getNumberOfShards(),
-                    instance.getNumberOfReplicas(),
-                    instance.getActiveShards(),
-                    instance.getRelocatingShards(),
-                    instance.getInitializingShards(),
-                    instance.getUnassignedShards(),
-                    instance.getActivePrimaryShards(),
-                    status,
-                    instance.getShards()
-                );
-            case "shards":
-                Map<Integer, ClusterShardHealth> map;
+        String index = instance.getIndex();
+        int numberOfShards = instance.getNumberOfShards();
+        int numberOfReplicas = instance.getNumberOfReplicas();
+        int activeShards = instance.getActiveShards();
+        int relocatingShards = instance.getRelocatingShards();
+        int initializingShards = instance.getInitializingShards();
+        int unassignedShards = instance.getUnassignedShards();
+        int unassignedPrimaryShards = instance.getUnassignedPrimaryShards();
+        int activePrimaryShards = instance.getActivePrimaryShards();
+        ClusterHealthStatus status = instance.getStatus();
+        Map<Integer, ClusterShardHealth> shards = new HashMap<>(instance.getShards());
+
+        switch (randomIntBetween(0, 10)) {
+            case 0 -> index += randomAlphaOfLengthBetween(2, 5);
+            case 1 -> numberOfShards += between(1, 10);
+            case 2 -> numberOfReplicas += between(1, 10);
+            case 3 -> activeShards += between(1, 10);
+            case 4 -> relocatingShards += between(1, 10);
+            case 5 -> initializingShards += between(1, 10);
+            case 6 -> unassignedShards += between(1, 10);
+            case 7 -> unassignedPrimaryShards += between(1, 10);
+            case 8 -> activePrimaryShards += between(1, 10);
+            case 9 -> status = randomValueOtherThan(instance.getStatus(), () -> randomFrom(ClusterHealthStatus.values()));
+            case 10 -> {
                 if (instance.getShards().isEmpty()) {
-                    map = Collections.singletonMap(0, ClusterShardHealthTests.randomShardHealth(0));
+                    shards = Map.of(0, ClusterShardHealthTests.randomShardHealth(0));
                 } else {
-                    map = new HashMap<>(instance.getShards());
-                    map.remove(map.keySet().iterator().next());
+                    shards.remove(shards.keySet().iterator().next());
                 }
-                return new ClusterIndexHealth(
-                    instance.getIndex(),
-                    instance.getNumberOfShards(),
-                    instance.getNumberOfReplicas(),
-                    instance.getActiveShards(),
-                    instance.getRelocatingShards(),
-                    instance.getInitializingShards(),
-                    instance.getUnassignedShards(),
-                    instance.getActivePrimaryShards(),
-                    instance.getStatus(),
-                    map
-                );
-            default:
-                throw new UnsupportedOperationException();
+            }
+            default -> throw new UnsupportedOperationException();
         }
+
+        return new ClusterIndexHealth(
+            index,
+            numberOfShards,
+            numberOfReplicas,
+            activeShards,
+            relocatingShards,
+            initializingShards,
+            unassignedShards,
+            unassignedPrimaryShards,
+            activePrimaryShards,
+            status,
+            shards
+        );
     }
 
     private static final ConstructingObjectParser<ClusterIndexHealth, String> PARSER = new ConstructingObjectParser<>(
@@ -308,6 +200,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
             int relocatingShards = (int) parsedObjects[i++];
             int initializingShards = (int) parsedObjects[i++];
             int unassignedShards = (int) parsedObjects[i++];
+            int unassignedPrimaryShards = (int) parsedObjects[i++];
             int activePrimaryShards = (int) parsedObjects[i++];
             String statusStr = (String) parsedObjects[i++];
             ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
@@ -330,6 +223,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
                 relocatingShards,
                 initializingShards,
                 unassignedShards,
+                unassignedPrimaryShards,
                 activePrimaryShards,
                 status,
                 shards
@@ -349,6 +243,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
         PARSER.declareInt(constructorArg(), new ParseField(ClusterIndexHealth.RELOCATING_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ClusterIndexHealth.INITIALIZING_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ClusterIndexHealth.UNASSIGNED_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterIndexHealth.UNASSIGNED_PRIMARY_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ClusterIndexHealth.ACTIVE_PRIMARY_SHARDS));
         PARSER.declareString(constructorArg(), new ParseField(ClusterIndexHealth.STATUS));
         // Can be absent if LEVEL == 'indices' or 'cluster'

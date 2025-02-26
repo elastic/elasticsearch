@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
@@ -18,6 +18,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
@@ -47,6 +48,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -341,8 +343,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     /**
-     * If scrolling was enabled ({@link SearchRequest#scroll(org.elasticsearch.search.Scroll)}, the
-     * scroll id that can be used to continue scrolling.
+     * If scrolling was enabled ({@link SearchRequest#scroll(TimeValue)}, the scroll id that can be used to continue scrolling.
      */
     public String getScrollId() {
         return scrollId;
@@ -381,38 +382,23 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         assert hasReferences();
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(),
-            this.innerToXContentChunked(params),
-            ChunkedToXContentHelper.endObject()
-        );
+        return getToXContentIterator(true, params);
     }
 
     public Iterator<? extends ToXContent> innerToXContentChunked(ToXContent.Params params) {
+        return getToXContentIterator(false, params);
+    }
+
+    private Iterator<ToXContent> getToXContentIterator(boolean wrapInObject, ToXContent.Params params) {
         return Iterators.concat(
-            ChunkedToXContentHelper.singleChunk(SearchResponse.this::headerToXContent),
+            wrapInObject ? ChunkedToXContentHelper.startObject() : Collections.emptyIterator(),
+            ChunkedToXContentHelper.chunk(SearchResponse.this::headerToXContent),
             Iterators.single(clusters),
-            Iterators.concat(
-                Iterators.flatMap(Iterators.single(hits), r -> r.toXContentChunked(params)),
-                Iterators.single((ToXContent) (b, p) -> {
-                    if (aggregations != null) {
-                        aggregations.toXContent(b, p);
-                    }
-                    return b;
-                }),
-                Iterators.single((b, p) -> {
-                    if (suggest != null) {
-                        suggest.toXContent(b, p);
-                    }
-                    return b;
-                }),
-                Iterators.single((b, p) -> {
-                    if (profileResults != null) {
-                        profileResults.toXContent(b, p);
-                    }
-                    return b;
-                })
-            )
+            hits.toXContentChunked(params),
+            aggregations == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(aggregations),
+            suggest == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(suggest),
+            profileResults == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(profileResults),
+            wrapInObject ? ChunkedToXContentHelper.endObject() : Collections.emptyIterator()
         );
     }
 
@@ -702,6 +688,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
+         * @return collection of cluster aliases in the search response (including "(local)" if was searched).
+         */
+        public Set<String> getClusterAliases() {
+            return clusterInfo.keySet();
+        }
+
+        /**
          * Utility to swap a Cluster object. Guidelines for the remapping function:
          * <ul>
          * <li> The remapping function should return a new Cluster object to swap it for
@@ -801,8 +794,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          *              This will be false for local-cluster (non-CCS) only searches.
          */
         public boolean hasRemoteClusters() {
-            return total > 1 || clusterInfo.keySet().stream().anyMatch(alias -> alias != RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            return total > 1
+                || clusterInfo.keySet().stream().anyMatch(alias -> alias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false);
         }
+
     }
 
     /**
@@ -1154,7 +1149,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     // public for tests
     public static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
         return new SearchResponse(
-            SearchHits.empty(new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN),
+            SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN),
             InternalAggregations.EMPTY,
             null,
             false,

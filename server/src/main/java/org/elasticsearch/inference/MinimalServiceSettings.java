@@ -162,7 +162,6 @@ public record MinimalServiceSettings(
                 validateFieldPresent(DIMENSIONS_FIELD, dimensions);
                 validateFieldPresent(SIMILARITY_FIELD, similarity);
                 validateFieldPresent(ELEMENT_TYPE_FIELD, elementType);
-                // TODO: Validate similarity and dimensions are valid for element type here?
                 break;
 
             default:

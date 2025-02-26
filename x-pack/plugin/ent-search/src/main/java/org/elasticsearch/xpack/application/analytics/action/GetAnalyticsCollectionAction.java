@@ -25,6 +25,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 public class GetAnalyticsCollectionAction {
 
     public static final String NAME = "cluster:admin/xpack/application/analytics/get";

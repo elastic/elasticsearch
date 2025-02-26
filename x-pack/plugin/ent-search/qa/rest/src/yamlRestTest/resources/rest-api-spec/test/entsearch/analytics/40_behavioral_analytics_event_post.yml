@@ -1,11 +1,19 @@
 setup:
+  - requires:
+      test_runner_features: [ allowed_warnings ]
   - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.put_behavioral_analytics:
         name: my-test-analytics-collection
 
 ---
 teardown:
+  - requires:
+      test_runner_features: [ allowed_warnings ]
   - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.delete_behavioral_analytics:
         name: my-test-analytics-collection
 
@@ -13,30 +21,34 @@ teardown:
 # Page view event tests #########################################
 ---
 "Post page_view analytics event":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
         body:
-            session:
-              id: "123"
-            user:
-              id: "456"
-            page:
-              url: "https://www.elastic.co"
+          session:
+            id: "123"
+          user:
+            id: "456"
+          page:
+            url: "https://www.elastic.co"
 
 ---
 "Post page_view analytics event - Missing page.url":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       catch: "bad_request"
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
@@ -49,11 +61,13 @@ teardown:
 
 ---
 "Post page_view analytics event - With document":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
@@ -70,11 +84,13 @@ teardown:
 
 ---
 "Post page_view analytics event - With page title":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
@@ -89,11 +105,13 @@ teardown:
 
 ---
 "Post page_view analytics event - With referrer":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
@@ -108,14 +126,16 @@ teardown:
 
 ---
 "Post page_view analytics event - debug and session information":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       headers:
         X-Forwarded-For: 192.23.12.12
         User-Agent: Mozilla/5.0
         Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ="  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
@@ -152,11 +172,13 @@ teardown:
 # Search event tests ############################################
 ---
 "Post search analytics event":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -170,12 +192,14 @@ teardown:
 
 ---
 "Post search analytics event – Missing search query":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       catch: "bad_request"
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -188,11 +212,13 @@ teardown:
 
 ---
 "Post search analytics event - With sort order":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -208,11 +234,13 @@ teardown:
 
 ---
 "Post search analytics event - With sort name and direction":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -229,11 +257,13 @@ teardown:
 
 ---
 "Post search analytics event - With pagination":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -250,11 +280,13 @@ teardown:
 
 ---
 "Post search analytics event - With search application":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -269,10 +301,12 @@ teardown:
 
 ---
 "Post search analytics event - With search results":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
@@ -287,7 +321,7 @@ teardown:
             results:
               total_results: 150
               items:
-                - document :
+                - document:
                     id: doc-1
                 - document:
                     id: doc-2
@@ -302,11 +336,13 @@ teardown:
 
 ---
 "Post search analytics event - With filters":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -324,14 +360,16 @@ teardown:
 
 ---
 "Post search analytics event - debug and session information":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       headers:
         X-Forwarded-For: 192.23.12.12
         User-Agent: Mozilla/5.0
         Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ="  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -393,11 +431,13 @@ teardown:
 # Search click event tests #######################################
 ---
 "Post search_click analytics event":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
@@ -415,14 +455,16 @@ teardown:
 
 ---
 "Post search_click analytics event - debug and session information":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       headers:
         X-Forwarded-For: 192.23.12.12
         User-Agent: Mozilla/5.0
         Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ="  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
@@ -455,11 +497,13 @@ teardown:
 
 ---
 "Post search_click analytics event - Page Only":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
@@ -475,11 +519,13 @@ teardown:
 
 ---
 "Post search_click analytics event - Document Only":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
@@ -496,12 +542,14 @@ teardown:
 
 ---
 "Post search_click analytics event – Missing search query":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       catch: "bad_request"
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
@@ -516,12 +564,14 @@ teardown:
 
 ---
 "Post search_click analytics event – Missing page url and document":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       catch: "bad_request"
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
@@ -537,12 +587,14 @@ teardown:
 # Generic errors tests ###############################################
 ---
 "Post analytics event - Analytics collection does not exist":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       catch: "missing"
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: test-nonexistent-analytics-collection
         event_type: "page_view"
@@ -556,12 +608,14 @@ teardown:
 
 ---
 "Post analytics event - Event type does not exist":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       catch: "bad_request"
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "nonexistent-event-type"
@@ -577,12 +631,14 @@ teardown:
 
 ---
 "Post page_view analytics event - Missing session.id":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       catch: "bad_request"
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
@@ -595,12 +651,14 @@ teardown:
 
 ---
 "Post page_view analytics event - Missing user.id":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       catch: "bad_request"
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
@@ -613,12 +671,14 @@ teardown:
 
 ---
 "Post analytics event - Unknown event field":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ allowed_warnings, headers ]
 
   - do:
       catch: "bad_request"
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "nonexistent-event-type"

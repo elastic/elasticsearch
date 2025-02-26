@@ -295,8 +295,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  issue: https://github.com/elastic/elasticsearch/issues/122810
 - class: org.elasticsearch.snapshots.DedicatedClusterSnapshotRestoreIT
   method: testRestoreShrinkIndex
   issue: https://github.com/elastic/elasticsearch/issues/121717
@@ -315,9 +313,6 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
   method: testClientsAreNotSharedAcrossRepositories
   issue: https://github.com/elastic/elasticsearch/issues/123090
-- class: org.elasticsearch.xpack.esql.action.EnrichIT
-  method: testAvgDurationByArtist
-  issue: https://github.com/elastic/elasticsearch/issues/123093
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/troubleshooting/common-issues/disk-usage-exceeded/line_65}
   issue: https://github.com/elastic/elasticsearch/issues/123094
@@ -342,6 +337,12 @@ tests:
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testCompletionField
   issue: https://github.com/elastic/elasticsearch/issues/123269
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test151MachineDependentHeapWithSizeOverride
+  issue: https://github.com/elastic/elasticsearch/issues/123437
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testOneRemoteClusterPartial
+  issue: https://github.com/elastic/elasticsearch/issues/123451
 
 # Examples:
 #

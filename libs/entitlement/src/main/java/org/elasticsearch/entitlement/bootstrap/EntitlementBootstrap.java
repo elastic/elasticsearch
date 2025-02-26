@@ -28,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 
@@ -36,18 +37,28 @@ public class EntitlementBootstrap {
     public record BootstrapArgs(
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
+        Function<String, String> settingResolver,
+        Function<String, Stream<String>> settingGlobResolver,
         Path[] dataDirs,
+        Path[] sharedRepoDirs,
         Path configDir,
+        Path libDir,
+        Path logsDir,
         Path tempDir
     ) {
         public BootstrapArgs {
             requireNonNull(pluginPolicies);
             requireNonNull(pluginResolver);
+            requireNonNull(settingResolver);
+            requireNonNull(settingGlobResolver);
             requireNonNull(dataDirs);
             if (dataDirs.length == 0) {
                 throw new IllegalArgumentException("must provide at least one data directory");
             }
+            requireNonNull(sharedRepoDirs);
             requireNonNull(configDir);
+            requireNonNull(libDir);
+            requireNonNull(logsDir);
             requireNonNull(tempDir);
         }
     }
@@ -64,22 +75,43 @@ public class EntitlementBootstrap {
      *
      * @param pluginPolicies a map holding policies for plugins (and modules), by plugin (or module) name.
      * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
-     * @param dataDirs data directories for Elasticsearch
-     * @param configDir the config directory for Elasticsearch
-     * @param tempDir the temp directory for Elasticsearch
+     * @param settingResolver a functor to resolve the value of an Elasticsearch setting.
+     * @param settingGlobResolver a functor to resolve a glob expression for one or more Elasticsearch settings.
+     * @param dataDirs       data directories for Elasticsearch
+     * @param sharedRepoDirs       shared repository directories for Elasticsearch
+     * @param configDir      the config directory for Elasticsearch
+     * @param libDir         the lib directory for Elasticsearch
+     * @param tempDir        the temp directory for Elasticsearch
+     * @param logsDir        the log directory for Elasticsearch
      */
     public static void bootstrap(
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
+        Function<String, String> settingResolver,
+        Function<String, Stream<String>> settingGlobResolver,
         Path[] dataDirs,
+        Path[] sharedRepoDirs,
         Path configDir,
+        Path libDir,
+        Path logsDir,
         Path tempDir
     ) {
         logger.debug("Loading entitlement agent");
         if (EntitlementBootstrap.bootstrapArgs != null) {
             throw new IllegalStateException("plugin data is already set");
         }
-        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(pluginPolicies, pluginResolver, dataDirs, configDir, tempDir);
+        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(
+            pluginPolicies,
+            pluginResolver,
+            settingResolver,
+            settingGlobResolver,
+            dataDirs,
+            sharedRepoDirs,
+            configDir,
+            libDir,
+            logsDir,
+            tempDir
+        );
         exportInitializationToAgent();
         loadAgent(findAgentJar());
         selfTest();

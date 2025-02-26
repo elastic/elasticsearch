@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.initialization;
 
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
@@ -18,6 +19,7 @@ import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
+import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
@@ -45,10 +47,12 @@ import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +63,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.DATA;
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.SHARED_REPO;
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
 /**
@@ -95,6 +102,7 @@ public class EntitlementInitialization {
         Stream.of(
             fileSystemProviderChecks(),
             fileStoreChecks(),
+            pathChecks(),
             Stream.of(
                 INSTRUMENTATION_SERVICE.lookupImplementationMethod(
                     SelectorProvider.class,
@@ -126,47 +134,131 @@ public class EntitlementInitialization {
     }
 
     private static PolicyManager createPolicyManager() {
-        Map<String, Policy> pluginPolicies = EntitlementBootstrap.bootstrapArgs().pluginPolicies();
-        Path[] dataDirs = EntitlementBootstrap.bootstrapArgs().dataDirs();
-        Path tempDir = EntitlementBootstrap.bootstrapArgs().tempDir();
+        EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
+        Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
+        var pathLookup = new PathLookup(
+            getUserHome(),
+            bootstrapArgs.configDir(),
+            bootstrapArgs.dataDirs(),
+            bootstrapArgs.sharedRepoDirs(),
+            bootstrapArgs.tempDir(),
+            bootstrapArgs.settingResolver(),
+            bootstrapArgs.settingGlobResolver()
+        );
 
-        // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
-        var serverPolicy = new Policy(
-            "server",
-            List.of(
-                new Scope("org.elasticsearch.base", List.of(new CreateClassLoaderEntitlement())),
-                new Scope("org.elasticsearch.xcontent", List.of(new CreateClassLoaderEntitlement())),
-                new Scope(
-                    "org.elasticsearch.server",
-                    List.of(
-                        new ExitVMEntitlement(),
-                        new ReadStoreAttributesEntitlement(),
-                        new CreateClassLoaderEntitlement(),
-                        new InboundNetworkEntitlement(),
-                        new OutboundNetworkEntitlement(),
-                        new LoadNativeLibrariesEntitlement(),
-                        new ManageThreadsEntitlement(),
-                        new FilesEntitlement(
-                            List.of(new FilesEntitlement.FileData(EntitlementBootstrap.bootstrapArgs().tempDir().toString(), READ_WRITE))
+        List<Scope> serverScopes = new ArrayList<>();
+        Collections.addAll(
+            serverScopes,
+            new Scope(
+                "org.elasticsearch.base",
+                List.of(
+                    new CreateClassLoaderEntitlement(),
+                    new FilesEntitlement(
+                        List.of(
+                            FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
+                            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)
                         )
                     )
-                ),
-                new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
-                new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
-                new Scope("org.apache.lucene.core", List.of(new LoadNativeLibrariesEntitlement(), new ManageThreadsEntitlement())),
-                new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
-                new Scope(
-                    "org.elasticsearch.nativeaccess",
-                    List.of(
-                        new LoadNativeLibrariesEntitlement(),
-                        new FilesEntitlement(Arrays.stream(dataDirs).map(d -> new FileData(d.toString(), READ_WRITE)).toList())
+                )
+            ),
+            new Scope("org.elasticsearch.xcontent", List.of(new CreateClassLoaderEntitlement())),
+            new Scope(
+                "org.elasticsearch.server",
+                List.of(
+                    new ExitVMEntitlement(),
+                    new ReadStoreAttributesEntitlement(),
+                    new CreateClassLoaderEntitlement(),
+                    new InboundNetworkEntitlement(),
+                    new OutboundNetworkEntitlement(),
+                    new LoadNativeLibrariesEntitlement(),
+                    new ManageThreadsEntitlement(),
+                    new FilesEntitlement(
+                        List.of(
+                            // Base ES directories
+                            FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
+                            FileData.ofPath(bootstrapArgs.configDir(), READ),
+                            FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+                            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
+                            FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
+
+                            // OS release on Linux
+                            FileData.ofPath(Path.of("/etc/os-release"), READ),
+                            FileData.ofPath(Path.of("/etc/system-release"), READ),
+                            FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
+                            // read max virtual memory areas
+                            FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
+                            FileData.ofPath(Path.of("/proc/meminfo"), READ),
+                            // load averages on Linux
+                            FileData.ofPath(Path.of("/proc/loadavg"), READ),
+                            // control group stats on Linux. cgroup v2 stats are in an unpredicable
+                            // location under `/sys/fs/cgroup`, so unfortunately we have to allow
+                            // read access to the entire directory hierarchy.
+                            FileData.ofPath(Path.of("/proc/self/cgroup"), READ),
+                            FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
+                            // // io stats on Linux
+                            FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
+                            FileData.ofPath(Path.of("/proc/diskstats"), READ)
+                        )
                     )
+                )
+            ),
+            new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
+            new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
+            new Scope(
+                "org.apache.lucene.core",
+                List.of(
+                    new LoadNativeLibrariesEntitlement(),
+                    new ManageThreadsEntitlement(),
+                    new FilesEntitlement(
+                        List.of(
+                            FileData.ofPath(bootstrapArgs.configDir(), READ),
+                            FileData.ofPath(bootstrapArgs.tempDir(), READ),
+                            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)
+                        )
+                    )
+                )
+            ),
+            new Scope(
+                "org.apache.lucene.misc",
+                List.of(new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))))
+            ),
+            new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
+            new Scope(
+                "org.elasticsearch.nativeaccess",
+                List.of(
+                    new LoadNativeLibrariesEntitlement(),
+                    new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)))
                 )
             )
         );
+
+        Path trustStorePath = trustStorePath();
+        if (trustStorePath != null) {
+            Collections.addAll(
+                serverScopes,
+                new Scope("org.bouncycastle.fips.tls", List.of(new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ))))),
+                new Scope(
+                    "org.bouncycastle.fips.core",
+                    // read to lib dir is required for checksum validation
+                    List.of(new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.libDir(), READ))), new ManageThreadsEntitlement())
+                )
+            );
+        }
+
+        // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
+        var serverPolicy = new Policy("server", serverScopes);
         // agents run without a module, so this is a special hack for the apm agent
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
-        List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement(), new ManageThreadsEntitlement());
+        List<Entitlement> agentEntitlements = List.of(
+            new CreateClassLoaderEntitlement(),
+            new ManageThreadsEntitlement(),
+            new FilesEntitlement(
+                List.of(
+                    FileData.ofPath(Path.of("/co/elastic/apm/agent/"), READ),
+                    FileData.ofPath(Path.of("/agent/co/elastic/apm/agent/"), READ)
+                )
+            )
+        );
         var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
         return new PolicyManager(
             serverPolicy,
@@ -175,8 +267,21 @@ public class EntitlementInitialization {
             resolver,
             AGENTS_PACKAGE_NAME,
             ENTITLEMENTS_MODULE,
-            tempDir
+            pathLookup
         );
+    }
+
+    private static Path getUserHome() {
+        String userHome = System.getProperty("user.home");
+        if (userHome == null) {
+            throw new IllegalStateException("user.home system property is required");
+        }
+        return PathUtils.get(userHome);
+    }
+
+    private static Path trustStorePath() {
+        String trustStore = System.getProperty("javax.net.ssl.trustStore");
+        return trustStore != null ? Path.of(trustStore) : null;
     }
 
     private static Stream<InstrumentationService.InstrumentationInfo> fileSystemProviderChecks() throws ClassNotFoundException,
@@ -260,6 +365,33 @@ public class EntitlementInitialization {
                     instrumentation.of("name"),
                     instrumentation.of("type")
 
+                );
+            } catch (NoSuchMethodException | ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private static Stream<InstrumentationService.InstrumentationInfo> pathChecks() {
+        var pathClasses = StreamSupport.stream(FileSystems.getDefault().getRootDirectories().spliterator(), false)
+            .map(Path::getClass)
+            .distinct();
+        return pathClasses.flatMap(pathClass -> {
+            InstrumentationInfoFactory instrumentation = (String methodName, Class<?>... parameterTypes) -> INSTRUMENTATION_SERVICE
+                .lookupImplementationMethod(
+                    Path.class,
+                    methodName,
+                    pathClass,
+                    EntitlementChecker.class,
+                    "checkPath" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1),
+                    parameterTypes
+                );
+
+            try {
+                return Stream.of(
+                    instrumentation.of("toRealPath", LinkOption[].class),
+                    instrumentation.of("register", WatchService.class, WatchEvent.Kind[].class),
+                    instrumentation.of("register", WatchService.class, WatchEvent.Kind[].class, WatchEvent.Modifier[].class)
                 );
             } catch (NoSuchMethodException | ClassNotFoundException e) {
                 throw new RuntimeException(e);

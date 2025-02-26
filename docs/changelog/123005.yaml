@@ -1,0 +1,6 @@
+pr: 123005
+summary: Use min node version to guard injecting settings in logs provider
+area: Logs
+type: bug
+issues:
+ - 122950

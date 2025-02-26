@@ -81,7 +81,7 @@ class NetworkAccessCheckActions {
         assert urlConnection != null;
     }
 
-    static void createLDAPCertStore() throws NoSuchAlgorithmException {
+    static void createLDAPCertStore() {
         try {
             // We pass down null params to provoke a InvalidAlgorithmParameterException
             CertStore.getInstance("LDAP", null);

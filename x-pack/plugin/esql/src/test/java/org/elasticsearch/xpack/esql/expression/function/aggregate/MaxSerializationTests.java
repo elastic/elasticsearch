@@ -21,9 +21,4 @@ public class MaxSerializationTests extends AbstractExpressionSerializationTests<
     protected Max mutateInstance(Max instance) throws IOException {
         return new Max(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

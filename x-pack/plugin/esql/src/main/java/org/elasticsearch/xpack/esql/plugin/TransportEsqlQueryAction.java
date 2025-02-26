@@ -206,7 +206,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.query(),
             request.profile(),
             request.tables(),
-            System.nanoTime()
+            System.nanoTime(),
+            request.allowPartialResults()
         );
         String sessionId = sessionID(task);
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
@@ -233,16 +234,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             planRunner,
             services,
             ActionListener.wrap(result -> {
-                // If we had any skipped or partial clusters, the result is partial
-                if (executionInfo.getClusters()
-                    .values()
-                    .stream()
-                    .anyMatch(
-                        c -> c.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED
-                            || c.getStatus() == EsqlExecutionInfo.Cluster.Status.PARTIAL
-                    )) {
-                    executionInfo.markAsPartial();
-                }
                 recordCCSTelemetry(task, executionInfo, request, null);
                 listener.onResponse(toResponse(task, request, configuration, result));
             }, ex -> {

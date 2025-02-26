@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
@@ -61,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.joni.exception.SyntaxException;
@@ -77,6 +80,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
@@ -622,5 +626,64 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             return new LookupJoin(source, p, right, joinFields);
         };
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
+        List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
+        if (subQueries.size() < 2) {
+            throw new ParsingException(source(ctx), "Fork requires at least two branches");
+        }
+        return input -> {
+            var stub = StubRelation.EMPTY;
+            List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(stub)).toList();
+            return new Fork(source(ctx), input, subPlans);
+        };
+    }
+
+    @Override
+    public List<PlanFactory> visitForkSubQueries(EsqlBaseParser.ForkSubQueriesContext ctx) {
+        ArrayList<PlanFactory> list = new ArrayList<>();
+        int count = 1; // automatic fork branch ids start at 1
+        NameId firstForkNameId = null;  // stores the id of the first _fork
+
+        for (var subQueryCtx : ctx.forkSubQuery()) {
+            var subQuery = visitForkSubQuery(subQueryCtx);
+            var literal = new Literal(source(ctx), "fork" + count++, KEYWORD);
+
+            // align _fork id across all fork branches
+            Alias alias = null;
+            if (firstForkNameId == null) {
+                alias = new Alias(source(ctx), "_fork", literal);
+                firstForkNameId = alias.id();
+            } else {
+                alias = new Alias(source(ctx), "_fork", literal, firstForkNameId);
+            }
+
+            var finalAlias = alias;
+            PlanFactory eval = p -> new Eval(source(ctx), subQuery.apply(p), List.of(finalAlias));
+            list.add(eval);
+        }
+        return List.copyOf(list);
+    }
+
+    @Override
+    public PlanFactory visitForkSubQuery(EsqlBaseParser.ForkSubQueryContext ctx) {
+        var subCtx = ctx.forkSubQueryCommand();
+        if (subCtx instanceof EsqlBaseParser.SingleForkSubQueryCommandContext sglCtx) {
+            return typedParsing(this, sglCtx.forkSubQueryProcessingCommand(), PlanFactory.class);
+        } else if (subCtx instanceof EsqlBaseParser.CompositeForkSubQueryContext compCtx) {
+            return visitCompositeForkSubQuery(compCtx);
+        } else {
+            throw new AssertionError("Unknown context: " + ctx);
+        }
+    }
+
+    @Override
+    public PlanFactory visitCompositeForkSubQuery(EsqlBaseParser.CompositeForkSubQueryContext ctx) {
+        PlanFactory lowerPlan = ParserUtils.typedParsing(this, ctx.forkSubQueryCommand(), PlanFactory.class);
+        PlanFactory makePlan = typedParsing(this, ctx.forkSubQueryProcessingCommand(), PlanFactory.class);
+        return input -> makePlan.apply(lowerPlan.apply(input));
     }
 }

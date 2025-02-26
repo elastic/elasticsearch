@@ -123,12 +123,18 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
             // as should a normal get *
             assertBusy(() -> testGetStar(List.of("my-index-00001"), maybeSecurityIndex));
+
+            // and getting data streams
+            assertBusy(() -> testGetDatastreams());
         } else {
             // after the upgrade, but before the migration, Kibana should work
             assertBusy(() -> testGetStarAsKibana(List.of("my-index-00001"), maybeSecurityIndex));
 
             // as should a normal get *
             assertBusy(() -> testGetStar(List.of("my-index-00001"), maybeSecurityIndex));
+
+            // and getting data streams
+            assertBusy(() -> testGetDatastreams());
 
             // migrate the system features and give the cluster a moment to settle
             Request migrateSystemFeatures = new Request("POST", "/_migration/system_features");
@@ -143,6 +149,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
             // as should a normal get *
             assertBusy(() -> testGetStar(List.of("my-index-00001"), maybeSecurityIndexReindexed));
+
+            // and getting data streams
+            assertBusy(() -> testGetDatastreams());
 
             Request disableDownloader = new Request("PUT", "/_cluster/settings");
             disableDownloader.setJsonEntity("""
@@ -256,5 +265,16 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
         Map<String, Object> map = responseAsMap(response);
         assertThat(map.keySet(), is(new HashSet<>(indexNames)));
+    }
+
+    private void testGetDatastreams() throws IOException {
+        Request getStar = new Request("GET", "_data_stream");
+        getStar.setOptions(
+            RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE) // we don't care about warnings, just errors
+        );
+        Response response = client().performRequest(getStar);
+        assertOK(response);
+
+        // note: we don't actually care about the response, just that there was one and that it didn't error out on us
     }
 }

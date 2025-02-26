@@ -52,6 +52,8 @@ import static org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeRequ
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -88,7 +90,11 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     public void testEmpty() {
-        var future = sendRequests(List.of(), (node, shardIds, aliasFilters, listener) -> fail("expect no data-node request is sent"));
+        var future = sendRequests(
+            List.of(),
+            randomBoolean(),
+            (node, shardIds, aliasFilters, listener) -> fail("expect no data-node request is sent")
+        );
         var resp = safeGet(future);
         assertThat(resp.totalShards, equalTo(0));
     }
@@ -101,7 +107,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             targetShard(shard4, node2, node3)
         );
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
-        var future = sendRequests(targetShards, (node, shardIds, aliasFilters, listener) -> {
+        var future = sendRequests(targetShards, randomBoolean(), (node, shardIds, aliasFilters, listener) -> {
             sent.add(new NodeRequest(node, shardIds, aliasFilters));
             var resp = new DataNodeComputeResponse(List.of(), Map.of());
             runWithDelay(() -> listener.onResponse(resp));
@@ -112,12 +118,25 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     public void testMissingShards() {
-        var targetShards = List.of(targetShard(shard1, node1), targetShard(shard3), targetShard(shard4, node2, node3));
-        var future = sendRequests(targetShards, (node, shardIds, aliasFilters, listener) -> {
-            fail("expect no data-node request is sent when target shards are missing");
-        });
-        var error = expectThrows(NoShardAvailableActionException.class, future::actionGet);
-        assertThat(error.getMessage(), containsString("no shard copies found"));
+        {
+            var targetShards = List.of(targetShard(shard1, node1), targetShard(shard3), targetShard(shard4, node2, node3));
+            var future = sendRequests(targetShards, false, (node, shardIds, aliasFilters, listener) -> {
+                fail("expect no data-node request is sent when target shards are missing");
+            });
+            var error = expectThrows(NoShardAvailableActionException.class, future::actionGet);
+            assertThat(error.getMessage(), containsString("no shard copies found"));
+        }
+        {
+            var targetShards = List.of(targetShard(shard1, node1), targetShard(shard3), targetShard(shard4, node2, node3));
+            var future = sendRequests(targetShards, true, (node, shardIds, aliasFilters, listener) -> {
+                assertThat(shard3, not(in(shardIds)));
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
+            });
+            ComputeResponse resp = safeGet(future);
+            assertThat(resp.totalShards, equalTo(3));
+            assertThat(resp.failedShards, equalTo(1));
+            assertThat(resp.successfulShards, equalTo(2));
+        }
     }
 
     public void testRetryThenSuccess() {
@@ -129,7 +148,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             targetShard(shard5, node1, node3, node2)
         );
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
-        var future = sendRequests(targetShards, (node, shardIds, aliasFilters, listener) -> {
+        var future = sendRequests(targetShards, randomBoolean(), (node, shardIds, aliasFilters, listener) -> {
             sent.add(new NodeRequest(node, shardIds, aliasFilters));
             Map<ShardId, Exception> failures = new HashMap<>();
             if (node.equals(node1) && shardIds.contains(shard5)) {
@@ -161,7 +180,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             targetShard(shard5, node1, node3, node2)
         );
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
-        var future = sendRequests(targetShards, (node, shardIds, aliasFilters, listener) -> {
+        var future = sendRequests(targetShards, false, (node, shardIds, aliasFilters, listener) -> {
             sent.add(new NodeRequest(node, shardIds, aliasFilters));
             Map<ShardId, Exception> failures = new HashMap<>();
             if (shardIds.contains(shard5)) {
@@ -187,7 +206,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var targetShards = List.of(targetShard(shard1, node1), targetShard(shard2, node2), targetShard(shard3, node1));
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
         AtomicBoolean failed = new AtomicBoolean();
-        var future = sendRequests(targetShards, (node, shardIds, aliasFilters, listener) -> {
+        var future = sendRequests(targetShards, false, (node, shardIds, aliasFilters, listener) -> {
             sent.add(new NodeRequest(node, shardIds, aliasFilters));
             if (node1.equals(node) && failed.compareAndSet(false, true)) {
                 runWithDelay(() -> listener.onFailure(new IOException("test request level failure"), true));
@@ -201,6 +220,28 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(sent.size(), equalTo(2));
         var firstRound = groupRequests(sent, 2);
         assertThat(firstRound, equalTo(Map.of(node1, List.of(shard1, shard3), node2, List.of(shard2))));
+    }
+
+    public void testAllowPartialResults() {
+        var targetShards = List.of(targetShard(shard1, node1), targetShard(shard2, node2), targetShard(shard3, node1, node2));
+        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        AtomicBoolean failed = new AtomicBoolean();
+        var future = sendRequests(targetShards, true, (node, shardIds, aliasFilters, listener) -> {
+            sent.add(new NodeRequest(node, shardIds, aliasFilters));
+            if (node1.equals(node) && failed.compareAndSet(false, true)) {
+                runWithDelay(() -> listener.onFailure(new IOException("test request level failure"), true));
+            } else {
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
+            }
+        });
+        ComputeResponse resp = safeGet(future);
+        // one round: {node-1, node-2}
+        assertThat(sent.size(), equalTo(2));
+        var firstRound = groupRequests(sent, 2);
+        assertThat(firstRound, equalTo(Map.of(node1, List.of(shard1, shard3), node2, List.of(shard2))));
+        assertThat(resp.totalShards, equalTo(3));
+        assertThat(resp.failedShards, equalTo(2));
+        assertThat(resp.successfulShards, equalTo(1));
     }
 
     static DataNodeRequestSender.TargetShard targetShard(ShardId shardId, DiscoveryNode... nodes) {
@@ -224,7 +265,11 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         }
     }
 
-    PlainActionFuture<ComputeResponse> sendRequests(List<DataNodeRequestSender.TargetShard> shards, Sender sender) {
+    PlainActionFuture<ComputeResponse> sendRequests(
+        List<DataNodeRequestSender.TargetShard> shards,
+        boolean allowPartialResults,
+        Sender sender
+    ) {
         PlainActionFuture<ComputeResponse> future = new PlainActionFuture<>();
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
@@ -236,7 +281,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             TaskId.EMPTY_TASK_ID,
             Collections.emptyMap()
         );
-        DataNodeRequestSender requestSender = new DataNodeRequestSender(transportService, executor, task) {
+        DataNodeRequestSender requestSender = new DataNodeRequestSender(transportService, executor, task, allowPartialResults) {
             @Override
             void searchShards(
                 Task parentTask,

@@ -78,7 +78,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
             assertNotNull(threadPoolMergeExecutorService);
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
-            int mergeTaskCount = randomIntBetween(3, 30);
+            int mergeTaskCount = randomIntBetween(5, 50);
             CountDownLatch mergeTasksDoneLatch = new CountDownLatch(mergeTaskCount);
             CountDownLatch mergeTasksReadyLatch = new CountDownLatch(mergeTaskCount);
             CountDownLatch submitTaskLatch = new CountDownLatch(1);

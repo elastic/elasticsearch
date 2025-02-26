@@ -44,7 +44,7 @@ public class DiscoveryEc2InstanceProfileIT extends DiscoveryEc2ClusterFormationT
         .setting(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), Ec2DiscoveryPlugin.EC2_SEED_HOSTS_PROVIDER_NAME)
         .setting("logger." + AwsEc2SeedHostsProvider.class.getCanonicalName(), "DEBUG")
         .setting(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), ec2ApiFixture::getAddress)
-        .systemProperty(Ec2ImdsHttpFixture.ENDPOINT_OVERRIDE_SYSPROP_NAME, ec2ImdsHttpFixture::getAddress)
+        .systemProperty(Ec2ImdsHttpFixture.ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, ec2ImdsHttpFixture::getAddress)
         .build();
 
     private static List<String> getAvailableTransportEndpoints() {

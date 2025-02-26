@@ -8,25 +8,23 @@
  */
 
 
-import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
-import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 
-import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.Version
+<<<<<<< HEAD
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
+=======
+>>>>>>> b6d3ee1457e9 ([Gradle] Rework all project configuration to better support Isolated Projects)
 import org.elasticsearch.gradle.util.GradleUtils
-import org.gradle.plugins.ide.eclipse.model.AccessRule
 
 import groovy.xml.XmlParser;
 import groovy.xml.XmlNodePrinter;
 import java.nio.file.Files
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
-import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
 buildscript {
   repositories {
@@ -277,173 +275,49 @@ def upgradeCompatibilityZip = tasks.register("upgradeCompatibilityZip", Zip) {
 // longer used for that purpose, but instead a way to run only functional tests. We should
 // rework the functionalTests task to be more explicit about which tasks it wants to run
 // so that that this flag is no longer needed.
-boolean bwc_tests_enabled = true
+boolean bwcTestsEnabled = true
 if (project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'functionalTests' }) {
   // Disable BWC tests for checkPart* tasks and platform support tests as it's expected that this will run on it's own check
-  bwc_tests_enabled = false
-}
-
-subprojects { proj ->
-  apply plugin: 'elasticsearch.base'
+  bwcTestsEnabled = false
 }
 
 allprojects {
-  // We disable this plugin for now till we shaked out the issues we see
-  // e.g. see https://github.com/elastic/elasticsearch/issues/72169
-  // apply plugin:'elasticsearch.internal-test-rerun'
 
-  plugins.withType(BaseInternalPluginBuildPlugin).whenPluginAdded {
-    project.dependencies {
-      compileOnly project(":server")
-      testImplementation project(":test:framework")
-    }
-  }
 
-  ext.bwc_tests_enabled = bwc_tests_enabled
+//  project.afterEvaluate {
+//    // Ensure similar tasks in dependent projects run first. The projectsEvaluated here is
+//    // important because, while dependencies.all will pickup future dependencies,
+//    // it is not necessarily true that the task exists in both projects at the time
+//    // the dependency is added.
+//    if (project.path == ':test:framework') {
+//      // :test:framework:test cannot run before and after :server:test
+//      return
+//    }
+//    tasks.matching { it.name.equals('integTest') }.configureEach { integTestTask ->
+//      integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
+//    }
+//
+///*    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
+//      dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
+//        Project upstreamProject = dep.dependencyProject
+//        if (project.path != upstreamProject?.path) {
+//          for (String taskName : ['test', 'integTest']) {
+//            project.tasks.matching { it.name == taskName }.configureEach { task ->
+//              task.shouldRunAfter(upstreamProject.tasks.matching { upStreamTask -> upStreamTask.name == taskName })
+//            }
+//          }
+//        }
+//      }
+//    }*/
+//  }
+//
+//  apply plugin: 'elasticsearch.formatting'
+}
 
-  // eclipse configuration
-  apply plugin: 'elasticsearch.eclipse'
 
-  /*
-   * Allow accessing com/sun/net/httpserver in projects that have
-   * configured forbidden apis to allow it.
-   */
-  plugins.withType(ForbiddenApisPlugin) {
-    eclipse.classpath.file.whenMerged { classpath ->
-      if (false == forbiddenApisTest.bundledSignatures.contains('jdk-non-portable')) {
-        classpath.entries
-          .findAll { it.kind == "con" && it.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER") }
-          .each {
-            it.accessRules.add(new AccessRule("accessible", "com/sun/net/httpserver/*"))
-          }
-      }
-    }
-  }
 
-  tasks.register('resolveAllDependencies', ResolveAllDependencies) {
-    def ignoredPrefixes = [DistributionDownloadPlugin.ES_DISTRO_CONFIG_PREFIX, "jdbcDriver"]
-    configs = project.configurations.matching { config -> ignoredPrefixes.any { config.name.startsWith(it) } == false }
-    if (project.path == ':') {
-      resolveJavaToolChain = true
-
-      // ensure we have best possible caching of bwc builds
-      dependsOn ":distribution:bwc:bugfix:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:bugfix2:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:bugfix3:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:bugfix4:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:bugfix5:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:minor:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:staged:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:staged2:buildBwcLinuxTar"
-    }
-    if (project.path.contains("fixture")) {
-      dependsOn tasks.withType(ComposePull)
-    }
-    if (project.path.contains(":distribution:docker")) {
-      enabled = false
-    }
-    if (project.path.contains(":libs:cli")) {
-      // ensure we resolve p2 dependencies for the spotless eclipse formatter
-      dependsOn "spotlessJavaCheck"
-    }
-
-  }
-
-  ext.withReleaseBuild = { Closure config ->
-    if (buildParams.snapshotBuild == false) {
-      config.call()
-    }
-  }
-
-  def splitForCI = { proj, partString ->
-    proj.tasks.register("check$partString") {
-      dependsOn 'check'
-      withReleaseBuild {
-        dependsOn 'assemble'
-      }
-    }
-
-    proj.tasks.addRule("Pattern: v<BWC_VERSION>#bwcTest$partString") { name ->
-      if(name.endsWith("#bwcTest$partString")) {
-        proj.project.getTasks().register(name) {
-          task -> task.dependsOn(proj.tasks.named { tskName -> tskName == (name - partString) })
-        }
-      }
-    }
-
-    proj.tasks.register("bcUpgradeTest$partString") {
-      dependsOn tasks.matching { it.name == 'bcUpgradeTest' }
-      withReleaseBuild {
-        dependsOn 'assemble'
-      }
-    }
-  }
-
-  plugins.withId('lifecycle-base') {
-    if (project.path.startsWith(":x-pack:")) {
-      if (project.path.contains("security") || project.path.contains(":ml")) {
-        splitForCI(project, "Part4")
-      } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") || project.path.contains("smoke-test")) {
-        splitForCI(project, "Part3")
-      } else if (project.path.contains("multi-node")) {
-        splitForCI(project, "Part5")
-      } else {
-        splitForCI(project, "Part2")
-      }
-    } else if(project.path.startsWith(":qa:")) {
-      splitForCI(project, "Part6")
-    } else {
-      splitForCI(project, "Part1")
-    }
-    tasks.register('functionalTests') {
-      dependsOn 'check'
-      withReleaseBuild {
-        dependsOn 'assemble'
-      }
-    }
-  }
-
-  /*
-   * Remove assemble/dependenciesInfo on all qa projects because we don't
-   * need to publish artifacts for them.
-   */
-  if (project.name.equals('qa') || project.path.contains(':qa:')) {
-    maybeConfigure(project.tasks, 'assemble') {
-      it.enabled = false
-    }
-    maybeConfigure(project.tasks, 'dependenciesInfo') {
-      it.enabled = false
-    }
-  }
-
-  project.afterEvaluate {
-    // Ensure similar tasks in dependent projects run first. The projectsEvaluated here is
-    // important because, while dependencies.all will pickup future dependencies,
-    // it is not necessarily true that the task exists in both projects at the time
-    // the dependency is added.
-    if (project.path == ':test:framework') {
-      // :test:framework:test cannot run before and after :server:test
-      return
-    }
-    tasks.matching { it.name.equals('integTest') }.configureEach { integTestTask ->
-      integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
-    }
-
-/*    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
-      dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
-        Project upstreamProject = dep.dependencyProject
-        if (project.path != upstreamProject?.path) {
-          for (String taskName : ['test', 'integTest']) {
-            project.tasks.matching { it.name == taskName }.configureEach { task ->
-              task.shouldRunAfter(upstreamProject.tasks.matching { upStreamTask -> upStreamTask.name == taskName })
-            }
-          }
-        }
-      }
-    }*/
-  }
-
-  apply plugin: 'elasticsearch.formatting'
+  // bwc_tests_enabled is a ext flag defined in 'elasticsearch.all-projects.gradle'
+  bwc_tests_enabled = bwcTestsEnabled
 }
 
 tasks.named("updateDaemonJvm") {
@@ -507,24 +381,6 @@ tasks.named("wrapper").configure {
     // TODO: we can remove this once we have tests to make sure older versions work.
     minimumGradleVersionFile.text = gradleVersion
     println "Updated minimum Gradle Version"
-  }
-}
-
-gradle.projectsEvaluated {
-  // Having the same group and name for distinct projects causes Gradle to consider them equal when resolving
-  // dependencies leading to hard to debug failures. Run a check across all project to prevent this from happening.
-  // see: https://github.com/gradle/gradle/issues/847
-  Map coordsToProject = [:]
-  project.allprojects.forEach { p ->
-    String coords = "${p.group}:${p.name}"
-    if (false == coordsToProject.putIfAbsent(coords, p)) {
-      throw new GradleException(
-        "Detected that two projects: ${p.path} and ${coordsToProject[coords].path} " +
-          "have the same name and group: ${coords}. " +
-          "This doesn't currently work correctly in Gradle, see: " +
-          "https://github.com/gradle/gradle/issues/847"
-      )
-    }
   }
 }
 

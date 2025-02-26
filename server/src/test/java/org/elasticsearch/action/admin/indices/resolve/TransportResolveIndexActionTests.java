@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -85,7 +86,7 @@ public class TransportResolveIndexActionTests extends ESTestCase {
 
             IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> action.doExecute(null, request, ActionListener.noop())
+                () -> action.resolveIndices(request, ClusterState.EMPTY_STATE, ActionListener.noop())
             );
 
             assertThat(ex.getMessage(), containsString("not compatible with version"));

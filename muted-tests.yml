@@ -122,9 +122,6 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   method: test {p0=data_stream/120_data_streams_stats/Multiple data stream}
   issue: https://github.com/elastic/elasticsearch/issues/118217
-- class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
-  method: testSearcherId
-  issue: https://github.com/elastic/elasticsearch/issues/118374
 - class: org.elasticsearch.xpack.ccr.rest.ShardChangesRestIT
   method: testShardChangesNoOperation
   issue: https://github.com/elastic/elasticsearch/issues/118800
@@ -164,9 +161,6 @@ tests:
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldSourceOnlyRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/120080
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=snapshot/10_basic/Failed to snapshot indices with synthetic source}
-  issue: https://github.com/elastic/elasticsearch/issues/120332
 - class: org.elasticsearch.xpack.ccr.FollowIndexSecurityIT
   method: testCleanShardFollowTaskAfterDeleteFollower
   issue: https://github.com/elastic/elasticsearch/issues/120339
@@ -260,9 +254,6 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
   issue: https://github.com/elastic/elasticsearch/issues/122102
-- class: org.elasticsearch.search.SearchCancellationIT
-  method: testCancelFailedSearchWhenPartialResultDisallowed
-  issue: https://github.com/elastic/elasticsearch/issues/121719
 - class: org.elasticsearch.datastreams.TSDBPassthroughIndexingIT
   issue: https://github.com/elastic/elasticsearch/issues/121716
 - class: org.elasticsearch.smoketest.SmokeTestMonitoringWithSecurityIT
@@ -301,8 +292,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  issue: https://github.com/elastic/elasticsearch/issues/122810
 - class: org.elasticsearch.snapshots.DedicatedClusterSnapshotRestoreIT
   method: testRestoreShrinkIndex
   issue: https://github.com/elastic/elasticsearch/issues/121717
@@ -312,8 +301,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testEnrichExplosionManyMatches
   issue: https://github.com/elastic/elasticsearch/issues/122913
-- class: org.elasticsearch.xpack.search.AsyncSearchSecurityIT
-  issue: https://github.com/elastic/elasticsearch/issues/122940
 - class: org.elasticsearch.test.apmintegration.TracesApmIT
   method: testApmIntegration
   issue: https://github.com/elastic/elasticsearch/issues/122129
@@ -323,27 +310,36 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
   method: testClientsAreNotSharedAcrossRepositories
   issue: https://github.com/elastic/elasticsearch/issues/123090
-- class: org.elasticsearch.xpack.esql.action.EnrichIT
-  method: testAvgDurationByArtist
-  issue: https://github.com/elastic/elasticsearch/issues/123093
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/troubleshooting/common-issues/disk-usage-exceeded/line_65}
   issue: https://github.com/elastic/elasticsearch/issues/123094
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/123101
-- class: org.elasticsearch.index.mapper.extras.ScaledFloatFieldMapperTests
-  method: testBlockLoaderFromRowStrideReader
-  issue: https://github.com/elastic/elasticsearch/issues/123126
-- class: org.elasticsearch.index.mapper.extras.ScaledFloatFieldMapperTests
-  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/123145
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/121672
-- class: org.elasticsearch.index.mapper.extras.ScaledFloatFieldMapperTests
-  method: testBlockLoaderFromColumnReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/123149
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/snapshot-restore/restore-snapshot/line_408}
+  issue: https://github.com/elastic/elasticsearch/issues/123192
+- class: org.elasticsearch.xpack.ilm.actions.SearchableSnapshotActionIT
+  method: testRestoredIndexManagedByLocalPolicySkipsIllegalActions
+  issue: https://github.com/elastic/elasticsearch/issues/123202
+- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
+  method: testHistoryIsWrittenWithFailure
+  issue: https://github.com/elastic/elasticsearch/issues/123203
+- class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
+  method: testSearchableSnapshotAction
+  issue: https://github.com/elastic/elasticsearch/issues/123214
+- class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
+  method: testCompletionField
+  issue: https://github.com/elastic/elasticsearch/issues/123269
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test151MachineDependentHeapWithSizeOverride
+  issue: https://github.com/elastic/elasticsearch/issues/123437
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testOneRemoteClusterPartial
+  issue: https://github.com/elastic/elasticsearch/issues/123451
 
 # Examples:
 #

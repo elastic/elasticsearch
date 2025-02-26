@@ -76,7 +76,7 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Inf
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            return Iterators.concat(Iterators.flatMap(chunks.iterator(), c -> c.toXContentChunked(params)));
+            return Iterators.flatMap(chunks.iterator(), c -> c.toXContentChunked(params));
         }
 
         @Override

@@ -130,10 +130,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
                         if (allowPartialResults) {
-                            groupTask = computeService.createGroupTask(
-                                parentTask,
-                                () -> "compute group: data-node [" + node.getName() + "], " + shardIds + " [" + shardIds + "]"
-                            );
+                            try {
+                                groupTask = computeService.createGroupTask(
+                                    parentTask,
+                                    () -> "compute group: data-node [" + node.getName() + "], " + shardIds + " [" + shardIds + "]"
+                                );
+                            } catch (Exception e) {
+                                assert e instanceof TaskCancelledException : new AssertionError(e);
+                                l.onFailure(e);
+                                return;
+                            }
                             onGroupFailure = computeService.cancelQueryOnFailure(groupTask);
                             l = ActionListener.runAfter(l, () -> transportService.getTaskManager().unregister(groupTask));
                         } else {

@@ -22,6 +22,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
 import org.junit.Before;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,6 +41,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class QueryRuleTests extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
+    private static final Logger logger = LoggerFactory.getLogger(QueryRuleTests.class);
 
     @Before
     public void registerNamedObjects() {
@@ -83,7 +86,13 @@ public class QueryRuleTests extends ESTestCase {
                 "ids": ["id1"]
               }
             }""");
-        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        logger.info("Actual error message for invalid values: " + e.getMessage());
+        assertTrue("Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'", 
+                  e.getMessage().contains("Failed to build [query_rule]"));
     }
 
     public void testNumericValidationWithMixedValues() throws IOException {
@@ -98,7 +107,13 @@ public class QueryRuleTests extends ESTestCase {
                 "ids": ["id1"]
               }
             }""");
-        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        logger.info("Actual error message for mixed values: " + e.getMessage());
+        assertTrue("Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'", 
+                  e.getMessage().contains("Failed to build [query_rule]"));
     }
 
     public void testNumericValidationWithEmptyValues() throws IOException {
@@ -113,7 +128,12 @@ public class QueryRuleTests extends ESTestCase {
                 "ids": ["id1"]
               }
             }""");
-        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        logger.info("Actual error message: " + e.getMessage());
+        assertTrue(e.getMessage().contains("failed to parse field [criteria]"));
     }
 
     public void testToXContent() throws IOException {
@@ -140,7 +160,13 @@ public class QueryRuleTests extends ESTestCase {
               "criteria": [],
               "actions": {}
             }""");
-        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        logger.info("Actual error message for empty criteria: " + e.getMessage());
+        assertTrue("Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'", 
+                  e.getMessage().contains("Failed to build [query_rule]"));
     }
 
     public void testToXContentValidPinnedRulesWithIds() throws IOException {

@@ -99,27 +99,28 @@ public final class EnterpriseSearchModuleTestUtils {
         return new QueryRule(ruleId, type, criteria, randomQueryRuleActions(), randomQueryRulePriority());
     }
 
+    private static List<Object> generateRandomValues(QueryRuleCriteriaType criteriaType, int numValues) {
+        if (criteriaType == QueryRuleCriteriaType.ALWAYS) {
+            return null;
+        }
+        
+        List<Object> values = new ArrayList<>();
+        for (int i = 0; i < numValues; i++) {
+            values.add(
+                List.of(QueryRuleCriteriaType.GT, QueryRuleCriteriaType.GTE, QueryRuleCriteriaType.LT, QueryRuleCriteriaType.LTE)
+                    .contains(criteriaType)
+                    ? BigDecimal.valueOf(randomDoubleBetween(0, 1000, true)).setScale(2, RoundingMode.HALF_UP).toString()
+                    : randomAlphaOfLengthBetween(3, 10)
+            );
+        }
+        return values;
+    }
+
     public static QueryRuleCriteria randomQueryRuleCriteria() {
         QueryRuleCriteriaType criteriaType = randomFrom(QueryRuleCriteriaType.values());
-        String metadata = randomAlphaOfLengthBetween(3, 10);
-        List<Object> values = new ArrayList<>();
+        String metadata = criteriaType == QueryRuleCriteriaType.ALWAYS ? null : randomAlphaOfLengthBetween(3, 10);
         int numValues = randomIntBetween(1, 3);
-
-        if (List.of(QueryRuleCriteriaType.GT, QueryRuleCriteriaType.GTE, QueryRuleCriteriaType.LT, QueryRuleCriteriaType.LTE)
-            .contains(criteriaType)) {
-            for (int i = 0; i < numValues; i++) {
-                BigDecimal value = BigDecimal.valueOf(randomDoubleBetween(0, 1000, true)).setScale(2, RoundingMode.HALF_UP);
-                values.add(value.toString());
-            }
-        } else if (criteriaType == QueryRuleCriteriaType.ALWAYS) {
-            metadata = null;
-            values = null;
-        } else {
-            for (int i = 0; i < numValues; i++) {
-                values.add(randomAlphaOfLengthBetween(3, 10));
-            }
-        }
-
+        List<Object> values = generateRandomValues(criteriaType, numValues);
         return new QueryRuleCriteria(criteriaType, metadata, values);
     }
 

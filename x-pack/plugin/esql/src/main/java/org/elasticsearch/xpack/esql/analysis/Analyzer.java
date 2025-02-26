@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
@@ -83,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Unpivot;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -112,6 +114,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -485,6 +488,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveMvExpand(p, childrenOutput);
             }
 
+            if (plan instanceof Unpivot p) {
+                return resolveUnpivot(p, childrenOutput);
+            }
+
             if (plan instanceof Lookup l) {
                 return resolveLookup(l, childrenOutput);
             }
@@ -572,6 +579,43 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     resolved.resolved()
                         ? new ReferenceAttribute(resolved.source(), resolved.name(), resolved.dataType(), resolved.nullable(), null, false)
                         : resolved
+                );
+            }
+            return p;
+        }
+
+        private LogicalPlan resolveUnpivot(Unpivot p, List<Attribute> childrenOutput) {
+            boolean changed = false;
+            Set<NamedExpression> resolvedAttributes = new LinkedHashSet<>();
+            for (NamedExpression sourceColumn : p.sourceColumns()) {
+                if (sourceColumn instanceof UnresolvedAttribute ua) {
+                    Attribute resolved = maybeResolveAttribute(ua, childrenOutput);
+                    if (resolved == ua) {
+                        return p;
+                    }
+                    resolvedAttributes.add(resolved);
+                } else if (sourceColumn instanceof UnresolvedNamePattern pattern) {
+                    resolvedAttributes.addAll(
+                        resolveAgainstList(pattern, childrenOutput).stream().filter(x -> (x instanceof Unresolvable) == false).toList()
+                    );
+                } else {
+                    throw new IllegalArgumentException("Invalid input for UNPIVOT: [" + sourceColumn.name() + "]");
+                }
+                changed = true;
+            }
+            List<NamedExpression> resolvedList = resolvedAttributes.stream().toList();
+            if (changed) {
+                DataType type = childrenOutput.stream()
+                    .filter(x -> x.name().equals(resolvedList.get(0).name()))
+                    .map(Expression::dataType)
+                    .findFirst()
+                    .orElse(null);
+                return new Unpivot(
+                    p.source(),
+                    p.child(),
+                    resolvedList,
+                    new ReferenceAttribute(p.keyColumn().source(), p.keyColumn().name(), KEYWORD, Nullability.FALSE, null, false),
+                    new ReferenceAttribute(p.valueColumn().source(), p.valueColumn().name(), type, Nullability.TRUE, null, false)
                 );
             }
             return p;

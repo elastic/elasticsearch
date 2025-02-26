@@ -84,9 +84,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static final String MAPPING_ALL_TYPES;
 
+    private static final String MAPPING_ALL_TYPES_LOOKUP;
+
     static {
         String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-all-types.json");
         MAPPING_ALL_TYPES = "{\"mappings\": " + properties + "}";
+        String settings = "{\"settings\" : {\"mode\" : \"lookup\"}";
+        MAPPING_ALL_TYPES_LOOKUP = settings + ", " + "\"mappings\": " + properties + "}";
     }
 
     private static final String DOCUMENT_TEMPLATE = """
@@ -942,6 +946,40 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    public void testDoubleParamsWithLookupJoin() throws IOException {
+        assumeTrue(
+            "double parameters markers for identifiers requires snapshot build",
+            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
+        );
+        bulkLoadTestDataLookupMode(10);
+        var query = requestObjectBuilder().query(
+            format(
+                null,
+                "from {} | eval x1 = ??n1 | where ??n2 == x1 | lookup join {} on ??n3 | keep ??n4 | sort ??n4",
+                testIndexName(),
+                testIndexName()
+            )
+        ).params("[{\"n1\" : \"integer\"}, {\"n2\" : \"short\"}, {\"n3\" : \"double\"}, {\"n4\" : \"boolean\"}]");
+        Map<String, Object> result = runEsql(query);
+        Map<String, String> colA = Map.of("name", "boolean", "type", "boolean");
+        assertEquals(List.of(colA), result.get("columns"));
+        assertEquals(
+            List.of(
+                List.of(false),
+                List.of(false),
+                List.of(false),
+                List.of(false),
+                List.of(false),
+                List.of(true),
+                List.of(true),
+                List.of(true),
+                List.of(true),
+                List.of(true)
+            ),
+            result.get("values")
+        );
+    }
+
     private void validateResultsOfDoubleParametersForIdentifiers(RequestObjectBuilder query) throws IOException {
         Map<String, Object> result = runEsql(query);
         Map<String, String> colA = Map.of("name", "boolean", "type", "boolean");
@@ -1531,13 +1569,22 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         bulkLoadTestData(count, 0, true, RestEsqlTestCase::createDocument);
     }
 
+    private static void bulkLoadTestDataLookupMode(int count) throws IOException {
+        createIndex(testIndexName(), true);
+        bulkLoadTestData(count, 0, false, RestEsqlTestCase::createDocument);
+    }
+
+    private static void createIndex(String indexName, boolean lookupMode) throws IOException {
+        Request request = new Request("PUT", "/" + indexName);
+        request.setJsonEntity(lookupMode ? MAPPING_ALL_TYPES_LOOKUP : MAPPING_ALL_TYPES);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+    }
+
     private static void bulkLoadTestData(int count, int firstIndex, boolean createIndex, IntFunction<String> createDocument)
         throws IOException {
         Request request;
         if (createIndex) {
-            request = new Request("PUT", "/" + testIndexName());
-            request.setJsonEntity(MAPPING_ALL_TYPES);
-            assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+            createIndex(testIndexName(), false);
         }
 
         if (count > 0) {

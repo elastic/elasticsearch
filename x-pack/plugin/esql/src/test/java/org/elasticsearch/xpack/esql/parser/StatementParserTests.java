@@ -3354,10 +3354,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             );
         }
 
-        // keep, drop, rename, grok, dissect
-        namedDoubleParams = List.of("??f1", "??f2", "??f3", "??f4", "??f5", "??f6", "??f7", "??f8");
-        positionalDoubleParams = List.of("??1", "??2", "??3", "??4", "??5", "??6", "??7", "??8");
-        anonymousDoubleParams = List.of("??", "??", "??", "??", "??", "??", "??", "??");
+        // keep, drop, rename, grok, dissect, lookup join
+        namedDoubleParams = List.of("??f1", "??f2", "??f3", "??f4", "??f5", "??f6", "??f7", "??f8", "??f9");
+        positionalDoubleParams = List.of("??1", "??2", "??3", "??4", "??5", "??6", "??7", "??8", "??9");
+        anonymousDoubleParams = List.of("??", "??", "??", "??", "??", "??", "??", "??", "??");
         doubleParams.clear();
         doubleParams.add(namedDoubleParams);
         doubleParams.add(positionalDoubleParams);
@@ -3372,6 +3372,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     | dissect {} "%{bar}"
                     | grok {} "%{WORD:foo}"
                     | rename {} as {}
+                    | lookup join idx on {}
                     | limit 1""",
                 params.get(0),
                 params.get(1),
@@ -3380,7 +3381,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 params.get(4),
                 params.get(5),
                 params.get(6),
-                params.get(7)
+                params.get(7),
+                params.get(8)
             );
             LogicalPlan plan = statement(
                 query,
@@ -3393,12 +3395,19 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         paramAsConstant("f5", "f.5*"),
                         paramAsConstant("f6", "f.6."),
                         paramAsConstant("f7", "f7*."),
-                        paramAsConstant("f8", "f.8")
+                        paramAsConstant("f8", "f.8"),
+                        paramAsConstant("f9", "f9")
                     )
                 )
             );
             Limit limit = as(plan, Limit.class);
-            Rename rename = as(limit.child(), Rename.class);
+            LookupJoin join = as(limit.child(), LookupJoin.class);
+            UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
+            assertEquals(ur.indexPattern().indexPattern(), "idx");
+            JoinTypes.UsingJoinType joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
+            assertEquals(joinType.coreJoin().joinName(), "LEFT OUTER");
+            assertEquals(joinType.columns(), List.of(attribute("f9")));
+            Rename rename = as(join.left(), Rename.class);
             assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f.8", attribute("f7*."))));
             Grok grok = as(rename.child(), Grok.class);
             assertEquals(grok.input(), attribute("f.6."));
@@ -3416,9 +3425,39 @@ public class StatementParserTests extends AbstractStatementParserTests {
             assertEquals(keep.projections(), List.of(attribute("f.1.*"), attribute("f.2")));
         }
 
-        namedDoubleParams = List.of("??f1", "??f2", "??f3", "??f4", "??f5", "??f6", "??f7", "??f8", "??f9", "??f10", "??f11", "??f12");
-        positionalDoubleParams = List.of("??1", "??2", "??3", "??4", "??5", "??6", "??7", "??8", "??9", "??10", "??11", "??12");
-        anonymousDoubleParams = List.of("??", "??", "??", "??", "??", "??", "??", "??", "??", "??", "??", "??");
+        namedDoubleParams = List.of(
+            "??f1",
+            "??f2",
+            "??f3",
+            "??f4",
+            "??f5",
+            "??f6",
+            "??f7",
+            "??f8",
+            "??f9",
+            "??f10",
+            "??f11",
+            "??f12",
+            "??f13",
+            "??f14"
+        );
+        positionalDoubleParams = List.of(
+            "??1",
+            "??2",
+            "??3",
+            "??4",
+            "??5",
+            "??6",
+            "??7",
+            "??8",
+            "??9",
+            "??10",
+            "??11",
+            "??12",
+            "??13",
+            "??14"
+        );
+        anonymousDoubleParams = List.of("??", "??", "??", "??", "??", "??", "??", "??", "??", "??", "??", "??", "??", "??");
         doubleParams.clear();
         doubleParams.add(namedDoubleParams);
         doubleParams.add(positionalDoubleParams);
@@ -3433,6 +3472,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     | dissect {}.{} "%{bar}"
                     | grok {}.{} "%{WORD:foo}"
                     | rename {}.{} as {}.{}
+                    | lookup join idx on {}.{}
                     | limit 1""",
                 params.get(0),
                 params.get(1),
@@ -3445,7 +3485,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 params.get(8),
                 params.get(9),
                 params.get(10),
-                params.get(11)
+                params.get(11),
+                params.get(12),
+                params.get(13)
             );
             LogicalPlan plan = statement(
                 query,
@@ -3462,12 +3504,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
                         paramAsConstant("f9", "f.9*"),
                         paramAsConstant("f10", "f.10."),
                         paramAsConstant("f11", "f11*."),
-                        paramAsConstant("f12", "f.12")
+                        paramAsConstant("f12", "f.12"),
+                        paramAsConstant("f13", "f13"),
+                        paramAsConstant("f14", "f14")
                     )
                 )
             );
             Limit limit = as(plan, Limit.class);
-            Rename rename = as(limit.child(), Rename.class);
+            LookupJoin join = as(limit.child(), LookupJoin.class);
+            UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
+            assertEquals(ur.indexPattern().indexPattern(), "idx");
+            JoinTypes.UsingJoinType joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
+            assertEquals(joinType.coreJoin().joinName(), "LEFT OUTER");
+            assertEquals(joinType.columns(), List.of(attribute("f13.f14")));
+            Rename rename = as(join.left(), Rename.class);
             assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f11*..f.12", attribute("f.9*.f.10."))));
             Grok grok = as(rename.child(), Grok.class);
             assertEquals(grok.input(), attribute("f7*..f.8"));
@@ -3485,7 +3535,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             assertEquals(keep.projections(), List.of(attribute("f.1.*.f.2")));
         }
 
-        // enrich
+        // enrich, lookup join
         namedDoubleParams = List.of("??f1", "??f2", "??f3");
         positionalDoubleParams = List.of("??1", "??2", "??3");
         anonymousDoubleParams = List.of("??", "??", "??");
@@ -3665,18 +3715,25 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         // mixed field name and field name pattern
         LogicalPlan plan = statement(
-            "from test | keep ??f1, ?f2 | drop ?f3, ??f4",
+            "from test | keep ??f1, ?f2 | drop ?f3, ??f4 | lookup join idx on ??f5",
             new QueryParams(
                 List.of(
                     paramAsConstant("f1", "f*1."),
                     paramAsPattern("f2", "f.2*"),
                     paramAsPattern("f3", "f3.*"),
-                    paramAsConstant("f4", "f.4.*")
+                    paramAsConstant("f4", "f.4.*"),
+                    paramAsConstant("f5", "f5")
                 )
             )
         );
 
-        Drop drop = as(plan, Drop.class);
+        LookupJoin join = as(plan, LookupJoin.class);
+        UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
+        assertEquals(ur.indexPattern().indexPattern(), "idx");
+        JoinTypes.UsingJoinType joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
+        assertEquals(joinType.coreJoin().joinName(), "LEFT OUTER");
+        assertEquals(joinType.columns(), List.of(attribute("f5")));
+        Drop drop = as(join.left(), Drop.class);
         List<? extends NamedExpression> removals = drop.removals();
         assertEquals(removals.size(), 2);
         UnresolvedNamePattern up = as(removals.get(0), UnresolvedNamePattern.class);
@@ -3691,7 +3748,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         up = as(keep.projections().get(1), UnresolvedNamePattern.class);
         assertEquals(up.name(), "f.2*");
         assertEquals(up.pattern(), "f.2*");
-        UnresolvedRelation ur = as(keep.child(), UnresolvedRelation.class);
+        ur = as(keep.child(), UnresolvedRelation.class);
         assertEquals(ur, relation("test"));
     }
 
@@ -3765,7 +3822,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "enrich idx2 ON ??f1 WITH ??f2 = ??f3",
             "keep ??f1",
             "drop ??f1",
-            "mv_expand ??f1"
+            "mv_expand ??f1",
+            "lookup join idx on ??f1"
         );
         for (String command : commandWithDoubleParams) {
             expectError(

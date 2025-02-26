@@ -2631,6 +2631,26 @@ public class AnalyzerTests extends ESTestCase {
             "bar",
             "foo"
         );
+
+        assertProjectionWithMapping(
+            """
+                FROM test
+                | EVAL ??f1 = ??f2
+                | LOOKUP JOIN languages_lookup ON ??f1
+                | KEEP ??f3.??f6.??f7
+                """,
+            "mapping-multi-field-with-nested.json",
+            new QueryParams(
+                List.of(
+                    paramAsConstant("f1", "language_code"),
+                    paramAsConstant("f2", "int"),
+                    paramAsConstant("f3", "some"),
+                    paramAsConstant("f6", "string"),
+                    paramAsConstant("f7", "typical")
+                )
+            ),
+            "some.string.typical"
+        );
     }
 
     public void testInvalidNamedDoubleParamsForIdentifiers() {
@@ -2664,7 +2684,8 @@ public class AnalyzerTests extends ESTestCase {
             "stats x = count(??f1)",
             "sort ??f1",
             "dissect ??f1 \"%{bar}\"",
-            "grok ??f1 \"%{WORD:foo}\""
+            "grok ??f1 \"%{WORD:foo}\"",
+            "lookup join languages_lookup on ??f1"
         )) {
             for (String pattern : List.of("keyword*", "*")) {
                 assertError(
@@ -2694,7 +2715,8 @@ public class AnalyzerTests extends ESTestCase {
             "sort ??f1",
             "dissect ??f1 \"%{bar}\"",
             "grok ??f1 \"%{WORD:foo}\"",
-            "mv_expand ??f1"
+            "mv_expand ??f1",
+            "lookup join languages_lookup on ??f1"
         );
         for (Object command : commands) {
             assertError(

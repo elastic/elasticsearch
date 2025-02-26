@@ -103,14 +103,14 @@ public final class EnterpriseSearchModuleTestUtils {
         if (criteriaType == QueryRuleCriteriaType.ALWAYS) {
             return null;
         }
-        
+
         List<Object> values = new ArrayList<>();
         for (int i = 0; i < numValues; i++) {
             values.add(
                 List.of(QueryRuleCriteriaType.GT, QueryRuleCriteriaType.GTE, QueryRuleCriteriaType.LT, QueryRuleCriteriaType.LTE)
                     .contains(criteriaType)
-                    ? BigDecimal.valueOf(randomDoubleBetween(0, 1000, true)).setScale(2, RoundingMode.HALF_UP).toString()
-                    : randomAlphaOfLengthBetween(3, 10)
+                        ? BigDecimal.valueOf(randomDoubleBetween(0, 1000, true)).setScale(2, RoundingMode.HALF_UP).toString()
+                        : randomAlphaOfLengthBetween(3, 10)
             );
         }
         return values;

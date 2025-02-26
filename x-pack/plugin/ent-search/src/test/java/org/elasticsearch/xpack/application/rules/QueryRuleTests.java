@@ -91,8 +91,10 @@ public class QueryRuleTests extends ESTestCase {
             () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
         );
         logger.info("Actual error message for invalid values: " + e.getMessage());
-        assertTrue("Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'", 
-                  e.getMessage().contains("Failed to build [query_rule]"));
+        assertTrue(
+            "Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'",
+            e.getMessage().contains("Failed to build [query_rule]")
+        );
     }
 
     public void testNumericValidationWithMixedValues() throws IOException {
@@ -112,8 +114,10 @@ public class QueryRuleTests extends ESTestCase {
             () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
         );
         logger.info("Actual error message for mixed values: " + e.getMessage());
-        assertTrue("Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'", 
-                  e.getMessage().contains("Failed to build [query_rule]"));
+        assertTrue(
+            "Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'",
+            e.getMessage().contains("Failed to build [query_rule]")
+        );
     }
 
     public void testNumericValidationWithEmptyValues() throws IOException {
@@ -165,8 +169,10 @@ public class QueryRuleTests extends ESTestCase {
             () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
         );
         logger.info("Actual error message for empty criteria: " + e.getMessage());
-        assertTrue("Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'", 
-                  e.getMessage().contains("Failed to build [query_rule]"));
+        assertTrue(
+            "Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'",
+            e.getMessage().contains("Failed to build [query_rule]")
+        );
     }
 
     public void testToXContentValidPinnedRulesWithIds() throws IOException {

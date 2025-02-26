@@ -74,16 +74,31 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
      */
     public static class Names {
         /**
-         * All the tasks that do not relate to the purpose of one of the other thread pools should use this thread pool. Try to pick one of
-         * the other more specific thread pools where possible.
+         * A thread pool with a very high (but finite) maximum size for when there really is no other choice.
+         * <p>
+         * This pool may be used for one-off CPU-bound activities, but the maximum size is so high that it doesn't really work well to do a
+         * lot of CPU-bound work in parallel here. Likewise you can do IO on this pool, but using it for lots of concurrent IO is likely
+         * harmful in clusters with poor concurrent IO performance (especially if using spinning disks). Blocking on a future on this pool
+         * risks deadlock if there's a chance that the completion of the future depends on work being done on this pool. Unfortunately
+         * that's pretty likely in most cases because of how often this pool is used; it's really rare because of the high limit on the pool
+         * size, but when it happens  it is extremely harmful to the node.
+         * <p>
+         * This pool is also used for recovery-related work. The recovery subsystem bounds its own concurrency, and therefore the amount of
+         * recovery work done on the {@code #GENERIC} pool, via {@code cluster.routing.allocation.node_concurrent_recoveries} and related
+         * settings.
+         * <p>
+         * This pool does not reject any task. If you submit a task after the pool starts to shut down, it may simply never run.
          */
         public static final String GENERIC = "generic";
+
         /**
-         * Important management tasks that keep the cluster from falling apart.
-         * This thread pool ensures cluster coordination tasks do not get blocked by less critical tasks and can continue to make progress.
-         * This thread pool also defaults to a single thread, reducing contention on the Coordinator mutex.
+         * A thread pool solely for the use of the cluster coordination subsystem that relates to cluster state updates, master elections,
+         * cluster membership and so on.
+         * <p>
+         * This pool defaults to a single thread to avoid contention on {@code Coordinator#mutex}.
          */
         public static final String CLUSTER_COORDINATION = "cluster_coordination";
+
         public static final String GET = "get";
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
@@ -91,11 +106,18 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         public static final String SEARCH_COORDINATION = "search_coordination";
         public static final String AUTO_COMPLETE = "auto_complete";
         public static final String SEARCH_THROTTLED = "search_throttled";
+
         /**
-         * Cluster management tasks. Tasks that manage data, and tasks that report on cluster health via statistics etc.
-         * Not a latency sensitive thread pool: some tasks may time be long-running; and the thread pool size is limited / relatively small.
+         * A thread pool for running tasks related to cluster management, including collecting and exposing stats in APIs and certain other
+         * internal tasks.
+         * <p>
+         * This pool is deliberately small in order to throttle the rate at which such tasks are executed and avoid diverting resources away
+         * from production-critical work such as indexing and search. You may run long-running (CPU-bound or IO-bound) tasks on this pool,
+         * but if the work relates to a REST API call then it must be cancellable in order to prevent an overexcited client from blocking or
+         * delaying other management work.
          */
         public static final String MANAGEMENT = "management";
+
         public static final String FLUSH = "flush";
         public static final String REFRESH = "refresh";
         public static final String WARMER = "warmer";

@@ -74,6 +74,15 @@ ROW date="1985-01-01T00:00:00Z"::datetime, zero=0::datetime
 1985-01-01T00:00:00.000Z|1970-01-01T00:00:00.000Z
 ;
 
+convertToDate
+required_capability: casting_operator
+ROW date="1985-01-01T00:00:00Z"::date, zero=0::date
+;
+
+ date:datetime          | zero:datetime
+1985-01-01T00:00:00.000Z|1970-01-01T00:00:00.000Z
+;
+
 convertToVersion
 required_capability: casting_operator
 ROW ver="1.2.3"::version

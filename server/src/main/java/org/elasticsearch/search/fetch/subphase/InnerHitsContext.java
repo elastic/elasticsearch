@@ -22,6 +22,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
@@ -71,6 +72,7 @@ public final class InnerHitsContext {
     public abstract static class InnerHitSubContext extends SubSearchContext {
 
         private final String name;
+        private final QueryBuilder query;
         protected final SearchContext context;
         private InnerHitsContext childInnerHits;
         private Weight innerHitQueryWeight;
@@ -78,16 +80,22 @@ public final class InnerHitsContext {
         private String rootId;
         private Source rootSource;
 
-        protected InnerHitSubContext(String name, SearchContext context) {
+        protected InnerHitSubContext(String name, QueryBuilder query, SearchContext context) {
             super(context);
             this.name = name;
             this.context = context;
+            this.query = query;
         }
 
         public abstract TopDocsAndMaxScore topDocs(SearchHit hit) throws IOException;
 
         public String getName() {
             return name;
+        }
+
+        @Override
+        public QueryBuilder userQueryBuilder() {
+            return query;
         }
 
         @Override

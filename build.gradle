@@ -225,8 +225,6 @@ if (project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || 
 }
 
 allprojects {
-  apply plugin: 'elasticsearch.eclipse'
-  apply plugin: 'elasticsearch.formatting'
   // bwc_tests_enabled is a ext flag defined in 'elasticsearch.all-projects.gradle'
   bwc_tests_enabled = bwcTestsEnabled
 }

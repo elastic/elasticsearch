@@ -14,9 +14,55 @@ import org.gradle.testkit.runner.TaskOutcome
 
 class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
 
-    def setup() {
-        // see https://github.com/gradle/gradle/issues/24172
-        configurationCacheCompatible = false
+    def "can disable assertions via cmdline param"() {
+        given:
+        file("src/test/java/acme/SomeTests.java").text = """
+        public class SomeTests {
+            @org.junit.Test
+            public void testAsserts() {
+                assert false;
+            }
+        }
+        """
+        buildFile.text = """
+            plugins {
+             id 'java'
+             id 'elasticsearch.test-base'
+            }
+
+            repositories {
+                mavenCentral()
+            }
+
+            dependencies {
+                testImplementation 'junit:junit:4.12'
+            }
+        """
+
+        when:
+        def result = gradleRunner("test").buildAndFail()
+        then:
+        result.task(':test').outcome == TaskOutcome.FAILED
+
+        when:
+        result = gradleRunner("test", "-Dtests.asserts=false").build()
+        then:
+        result.task(':test').outcome == TaskOutcome.SUCCESS
+
+        when:
+        result = gradleRunner("test", "-Dtests.jvm.argline=-da").build()
+        then:
+        result.task(':test').outcome == TaskOutcome.SUCCESS
+
+        when:
+        result = gradleRunner("test", "-Dtests.jvm.argline=-disableassertions").build()
+        then:
+        result.task(':test').outcome == TaskOutcome.SUCCESS
+
+        when:
+        result = gradleRunner("test", "-Dtests.asserts=false", "-Dtests.jvm.argline=-da").build()
+        then:
+        result.task(':test').outcome == TaskOutcome.SUCCESS
     }
 
     def "can configure nonInputProperties for test tasks"() {

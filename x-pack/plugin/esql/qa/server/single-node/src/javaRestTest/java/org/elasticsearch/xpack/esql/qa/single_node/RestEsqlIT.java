@@ -531,7 +531,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     private MapMatcher commonProfile() {
-        return matchesMap().entry("task_description", any(String.class))
+        return matchesMap() //
+            .entry("task_description", any(String.class))
+            .entry("cluster_name", any(String.class))
+            .entry("node_name", any(String.class))
             .entry("start_millis", greaterThan(0L))
             .entry("stop_millis", greaterThan(0L))
             .entry("iterations", greaterThan(0L))

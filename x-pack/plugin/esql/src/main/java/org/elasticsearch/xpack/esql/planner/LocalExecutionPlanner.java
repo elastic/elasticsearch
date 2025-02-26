@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
@@ -51,6 +52,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -131,7 +133,6 @@ public class LocalExecutionPlanner {
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
     private final Settings settings;
-    private final NodeInfoSupplier nodeInfoSupplier;
     private final Configuration configuration;
     private final Supplier<ExchangeSource> exchangeSourceSupplier;
     private final Supplier<ExchangeSink> exchangeSinkSupplier;
@@ -147,7 +148,6 @@ public class LocalExecutionPlanner {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         Settings settings,
-        NodeInfoSupplier nodeInfoSupplier,
         Configuration configuration,
         Supplier<ExchangeSource> exchangeSourceSupplier,
         Supplier<ExchangeSink> exchangeSinkSupplier,
@@ -163,7 +163,6 @@ public class LocalExecutionPlanner {
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
         this.settings = settings;
-        this.nodeInfoSupplier = nodeInfoSupplier;
         this.configuration = configuration;
         this.exchangeSourceSupplier = exchangeSourceSupplier;
         this.exchangeSinkSupplier = exchangeSinkSupplier;
@@ -199,8 +198,8 @@ public class LocalExecutionPlanner {
             new DriverFactory(
                 new DriverSupplier(
                     taskDescription,
-                    nodeInfoSupplier.clusterName(),
-                    nodeInfoSupplier.nodeName(),
+                    Node.NODE_NAME_SETTING.get(settings),
+                    ClusterName.CLUSTER_NAME_SETTING.get(settings).value(),
                     context.bigArrays,
                     context.blockFactory,
                     physicalOperation,

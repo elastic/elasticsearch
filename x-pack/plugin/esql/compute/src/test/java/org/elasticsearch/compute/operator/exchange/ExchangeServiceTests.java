@@ -37,7 +37,6 @@ import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.MockBlockFactory;
-import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;

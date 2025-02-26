@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.planner.NodeInfoSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -366,7 +365,6 @@ public class ComputeService {
                 bigArrays,
                 blockFactory,
                 clusterService.getSettings(),
-                NodeInfoSupplier.from(clusterService),
                 context.configuration(),
                 context.exchangeSourceSupplier(),
                 context.exchangeSinkSupplier(),

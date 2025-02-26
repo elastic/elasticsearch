@@ -643,7 +643,6 @@ public class CsvTests extends ESTestCase {
             bigArrays,
             blockFactory,
             randomNodeSettings(),
-            TestNodeInfoSupplier.INSTANCE,
             configuration,
             exchangeSource::createExchangeSource,
             () -> exchangeSink.createExchangeSink(() -> {}),

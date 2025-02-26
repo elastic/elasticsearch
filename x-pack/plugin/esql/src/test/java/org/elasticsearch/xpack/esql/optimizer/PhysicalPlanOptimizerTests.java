@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats.Config;
-import org.elasticsearch.xpack.esql.TestNodeInfoSupplier;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -7596,7 +7595,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             TestBlockFactory.getNonBreakingInstance(),
             Settings.EMPTY,
-            TestNodeInfoSupplier.INSTANCE,
             config,
             new ExchangeSourceHandler(10, null)::createExchangeSource,
             () -> exchangeSinkHandler.createExchangeSink(() -> {}),

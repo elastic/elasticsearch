@@ -117,6 +117,8 @@ public class Driver implements Releasable, Describable {
     public Driver(
         String sessionId,
         String taskDescription,
+        String clusterName,
+        String nodeName,
         long startTime,
         long startNanos,
         DriverContext driverContext,
@@ -143,6 +145,8 @@ public class Driver implements Releasable, Describable {
             new DriverStatus(
                 sessionId,
                 taskDescription,
+                clusterName,
+                nodeName,
                 startTime,
                 System.currentTimeMillis(),
                 0,
@@ -471,6 +475,8 @@ public class Driver implements Releasable, Describable {
         }
         return new DriverProfile(
             status.taskDescription(),
+            status.clusterName(),
+            status.nodeName(),
             status.started(),
             status.lastUpdated(),
             finishNanos - startNanos,
@@ -518,6 +524,8 @@ public class Driver implements Releasable, Describable {
             return new DriverStatus(
                 sessionId,
                 taskDescription,
+                prev.clusterName(),
+                prev.nodeName(),
                 startTime,
                 now,
                 prev.cpuNanos() + extraCpuNanos,

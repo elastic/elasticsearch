@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -33,6 +31,8 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         DriverStatus status = new DriverStatus(
             "ABC:123",
             "test",
+            "elasticsearch",
+            "node-1",
             123413220000L,
             123413243214L,
             123213L,
@@ -53,6 +53,8 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             {
               "session_id" : "ABC:123",
               "task_description" : "test",
+              "cluster_name" : "elasticsearch",
+              "node_name" : "node-1",
               "started" : "1973-11-29T09:27:00.000Z",
               "last_updated" : "1973-11-29T09:27:23.214Z",
               "cpu_nanos" : 123213,
@@ -115,8 +117,10 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
     @Override
     protected DriverStatus createTestInstance() {
         return new DriverStatus(
-            randomSessionId(),
-            randomTaskDescription(),
+            randomIdentifier(),
+            randomIdentifier(),
+            randomIdentifier(),
+            randomIdentifier(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -126,14 +130,6 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             randomOperatorStatuses(),
             DriverSleepsTests.randomDriverSleeps()
         );
-    }
-
-    private String randomSessionId() {
-        return RandomStrings.randomAsciiLettersOfLengthBetween(random(), 1, 15);
-    }
-
-    public static String randomTaskDescription() {
-        return RandomStrings.randomAsciiLettersOfLength(random(), 5);
     }
 
     private DriverStatus.Status randomStatus() {
@@ -158,6 +154,8 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
     protected DriverStatus mutateInstance(DriverStatus instance) throws IOException {
         var sessionId = instance.sessionId();
         var taskDescription = instance.taskDescription();
+        var clusterName = instance.clusterName();
+        var nodeName = instance.nodeName();
         long started = instance.started();
         long lastUpdated = instance.lastUpdated();
         long cpuNanos = instance.cpuNanos();
@@ -166,22 +164,26 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         var completedOperators = instance.completedOperators();
         var activeOperators = instance.activeOperators();
         var sleeps = instance.sleeps();
-        switch (between(0, 9)) {
-            case 0 -> sessionId = randomValueOtherThan(sessionId, this::randomSessionId);
-            case 1 -> taskDescription = randomValueOtherThan(taskDescription, DriverStatusTests::randomTaskDescription);
-            case 2 -> started = randomValueOtherThan(started, ESTestCase::randomNonNegativeLong);
-            case 3 -> lastUpdated = randomValueOtherThan(lastUpdated, ESTestCase::randomNonNegativeLong);
-            case 4 -> cpuNanos = randomValueOtherThan(cpuNanos, ESTestCase::randomNonNegativeLong);
-            case 5 -> iterations = randomValueOtherThan(iterations, ESTestCase::randomNonNegativeLong);
-            case 6 -> status = randomValueOtherThan(status, this::randomStatus);
-            case 7 -> completedOperators = randomValueOtherThan(completedOperators, DriverStatusTests::randomOperatorStatuses);
-            case 8 -> activeOperators = randomValueOtherThan(activeOperators, DriverStatusTests::randomOperatorStatuses);
-            case 9 -> sleeps = randomValueOtherThan(sleeps, DriverSleepsTests::randomDriverSleeps);
+        switch (between(0, 11)) {
+            case 0 -> sessionId = randomValueOtherThan(sessionId, ESTestCase::randomIdentifier);
+            case 1 -> taskDescription = randomValueOtherThan(taskDescription, ESTestCase::randomIdentifier);
+            case 2 -> clusterName = randomValueOtherThan(clusterName, ESTestCase::randomIdentifier);
+            case 3 -> nodeName = randomValueOtherThan(nodeName, ESTestCase::randomIdentifier);
+            case 4 -> started = randomValueOtherThan(started, ESTestCase::randomNonNegativeLong);
+            case 5 -> lastUpdated = randomValueOtherThan(lastUpdated, ESTestCase::randomNonNegativeLong);
+            case 6 -> cpuNanos = randomValueOtherThan(cpuNanos, ESTestCase::randomNonNegativeLong);
+            case 7 -> iterations = randomValueOtherThan(iterations, ESTestCase::randomNonNegativeLong);
+            case 8 -> status = randomValueOtherThan(status, this::randomStatus);
+            case 9 -> completedOperators = randomValueOtherThan(completedOperators, DriverStatusTests::randomOperatorStatuses);
+            case 10 -> activeOperators = randomValueOtherThan(activeOperators, DriverStatusTests::randomOperatorStatuses);
+            case 11 -> sleeps = randomValueOtherThan(sleeps, DriverSleepsTests::randomDriverSleeps);
             default -> throw new UnsupportedOperationException();
         }
         return new DriverStatus(
             sessionId,
             taskDescription,
+            clusterName,
+            nodeName,
             started,
             lastUpdated,
             cpuNanos,

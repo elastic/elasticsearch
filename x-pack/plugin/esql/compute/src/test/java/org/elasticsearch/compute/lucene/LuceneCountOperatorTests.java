@@ -95,7 +95,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return matchesRegex("LuceneCountOperator\\[maxPageSize = \\d+, remainingDocs=100]");
+        return matchesRegex("LuceneCountOperator\\[shards = \\[test], maxPageSize = \\d+, remainingDocs=100]");
     }
 
     @Override

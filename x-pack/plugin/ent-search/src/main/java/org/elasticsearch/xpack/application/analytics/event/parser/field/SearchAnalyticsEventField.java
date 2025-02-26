@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,6 +25,7 @@ import static org.elasticsearch.xpack.application.analytics.event.parser.field.S
  * @deprecated in 9.0
  */
 @Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class SearchAnalyticsEventField {
     public static final ParseField SEARCH_FIELD = new ParseField("search");
 

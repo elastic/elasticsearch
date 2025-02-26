@@ -279,7 +279,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         return client().performRequest(request);
     }
 
-    private static List<String> generateData(
+    static List<String> generateData(
         long timestamp,
         TimeValue bucketSpan,
         int bucketCount,

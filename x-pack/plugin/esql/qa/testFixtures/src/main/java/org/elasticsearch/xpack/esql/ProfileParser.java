@@ -97,15 +97,19 @@ public class ProfileParser {
         String taskDescription = (String) driver.get("task_description");
         String name = taskDescription + driverIndex;
 
-        /// Start event
         builder.startObject();
-        builder.field("ph", "B");
+        builder.field("ph", "X");
         builder.field("name", name);
         builder.field("cat", taskDescription);
         builder.field("pid", 0);
-        builder.field("ts", readIntOrLong(driver, "start_millis") * 1000);
-        builder.field("args");
+        long startMicros = readIntOrLong(driver, "start_millis") * 1000;
+        builder.field("ts", startMicros);
+        double durationMicros = ((double) readIntOrLong(driver, "took_nanos")) / 1000.0;
+        builder.field("dur", durationMicros);
+        double cpuDurationMicros = ((double) readIntOrLong(driver, "cpu_nanos")) / 1000.0;
+        builder.field("tdur", cpuDurationMicros);
 
+        builder.field("args");
         builder.startObject();
         builder.field("cpu_nanos", readIntOrLong(driver, "cpu_nanos"));
         builder.field("took_nanos", readIntOrLong(driver, "took_nanos"));
@@ -113,7 +117,6 @@ public class ProfileParser {
         // TODO: Sleeps have more details
         int sleeps = ((Map<?, ?>) driver.get("sleeps")).size();
         builder.field("sleeps", sleeps);
-
         builder.field("operators");
         builder.startArray();
         for (Map<String, Object> operator : (List<Map<String, Object>>) driver.get("operators")) {
@@ -121,17 +124,8 @@ public class ProfileParser {
             // TODO: Add status; needs standardizing the operatur statuses, probably.
         }
         builder.endArray();
-
         builder.endObject();
 
-        builder.endObject();
-
-        /// End event
-        builder.startObject();
-        builder.field("ph", "E");
-        builder.field("name", name);
-        builder.field("pid", 0);
-        builder.field("ts", readIntOrLong(driver, "stop_millis") * 1000);
         builder.endObject();
     }
 

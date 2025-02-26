@@ -121,11 +121,15 @@ newly split index.
 A split operation:
 
 . Creates a new target index with the same definition as the source
-  index, but with a larger number of primary shards.
+  index, but with a larger number of primary shards. Created shards allocate
+  to the same nodes as their correlating source primary shard, so it must
+  already have sufficient disk to host the copy of the data.
 
 . Hard-links segments from the source index into the target index. (If
   the file system doesn't support hard-linking, then all segments are copied
   into the new index, which is a much more time consuming process.)
++
+TIP: Elastic Cloud's backing file systems do not support hard linking.
 
 . Hashes all documents again, after low level files are created, to delete
   documents that belong to a different shard.

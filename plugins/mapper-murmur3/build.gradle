@@ -14,7 +14,7 @@ esplugin {
   classname ='org.elasticsearch.plugin.mapper.MapperMurmur3Plugin'
   extendedPluginProjects {
     "lang-painless" {
-      projectPath = ':modules:lang-painless'
+      path = ':modules:lang-painless'
     }
   }
 }

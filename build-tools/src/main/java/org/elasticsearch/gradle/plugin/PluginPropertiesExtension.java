@@ -19,7 +19,6 @@ import org.gradle.api.plugins.ExtensionAware;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -172,10 +171,10 @@ abstract public class PluginPropertiesExtension implements ExtensionAware {
         return bundleSpec;
     }
 
-
     public static class ExtendedPlugin implements Named {
 
         private final String name;
+
         public ExtendedPlugin(String name) {
             this.name = name;
         }

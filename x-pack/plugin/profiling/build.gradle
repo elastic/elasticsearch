@@ -13,7 +13,7 @@ esplugin {
   classname = 'org.elasticsearch.xpack.profiling.ProfilingPlugin'
   extendedPluginProjects {
     "x-pack-core" {
-      projectPath = ':x-pack:plugin:core'
+      path = ':x-pack:plugin:core'
     }
   }
 }

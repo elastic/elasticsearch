@@ -7,7 +7,7 @@ esplugin {
   classname ='org.elasticsearch.xpack.stack.StackPlugin'
   extendedPluginProjects {
     "x-pack-core" {
-      projectPath = ':x-pack:plugin:core'
+      path = ':x-pack:plugin:core'
     }
   }
   hasNativeController =false

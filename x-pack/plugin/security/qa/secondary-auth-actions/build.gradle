@@ -9,7 +9,7 @@ esplugin {
   classname ='org.elasticsearch.secondary.auth.actions.SecondaryAuthActionsPlugin'
   extendedPluginProjects {
     "x-pack-security" {
-      projectPath = ':x-pack:plugin:security'
+      path = ':x-pack:plugin:security'
     }
   }
 }

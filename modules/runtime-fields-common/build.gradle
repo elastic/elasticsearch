@@ -16,7 +16,7 @@ esplugin {
   classname = 'org.elasticsearch.runtimefields.RuntimeFieldsCommonPlugin'
   extendedPluginProjects {
     "lang-painless" {
-      projectPath = ':modules:lang-painless'
+      path = ':modules:lang-painless'
     }
   }
 }

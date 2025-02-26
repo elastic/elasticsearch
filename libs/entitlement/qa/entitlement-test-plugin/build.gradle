@@ -19,7 +19,7 @@ esplugin {
   classname = 'org.elasticsearch.entitlement.qa.test.EntitlementTestPlugin'
   extendedPluginProjects {
     entitled {
-      projectPath = ':libs:entitlement:qa:entitled-plugin'
+      path = ':libs:entitlement:qa:entitled-plugin'
     }
   }
 }

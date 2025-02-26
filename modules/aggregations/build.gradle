@@ -15,7 +15,7 @@ esplugin {
   classname ='org.elasticsearch.aggregations.AggregationsPlugin'
   extendedPluginProjects {
     "lang-painless" {
-      projectPath = ':modules:lang-painless'
+      path = ':modules:lang-painless'
     }
   }
 }

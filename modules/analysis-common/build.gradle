@@ -17,7 +17,7 @@ esplugin {
   classname = 'org.elasticsearch.analysis.common.CommonAnalysisPlugin'
   extendedPluginProjects {
     "lang-painless" {
-      projectPath = ':modules:lang-painless'
+      path = ':modules:lang-painless'
     }
   }
 }

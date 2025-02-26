@@ -21,7 +21,7 @@ esplugin {
   classname ='org.elasticsearch.xpack.vectortile.VectorTilePlugin'
   extendedPluginProjects {
     "spatial" {
-      projectPath = ':x-pack:plugin:spatial'
+      path = ':x-pack:plugin:spatial'
     }
   }
 }

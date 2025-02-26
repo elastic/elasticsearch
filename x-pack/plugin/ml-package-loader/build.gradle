@@ -16,7 +16,7 @@ esplugin {
   classname ='org.elasticsearch.xpack.ml.packageloader.MachineLearningPackageLoader'
   extendedPluginProjects {
     "x-pack-core" {
-      projectPath = ':x-pack:plugin:core'
+      path = ':x-pack:plugin:core'
     }
   }
 }

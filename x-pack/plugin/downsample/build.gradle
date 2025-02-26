@@ -6,7 +6,7 @@ esplugin {
   classname ='org.elasticsearch.xpack.downsample.Downsample'
   extendedPluginProjects {
     "x-pack-aggregate-metric" {
-      projectPath = ':x-pack:plugin:mapper-aggregate-metric'
+      path = ':x-pack:plugin:mapper-aggregate-metric'
     }
   }
 }

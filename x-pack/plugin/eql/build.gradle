@@ -13,10 +13,10 @@ esplugin {
   classname ='org.elasticsearch.xpack.eql.plugin.EqlPlugin'
   extendedPluginProjects {
     "x-pack-ql" {
-      projectPath = ':x-pack:plugin:ql'
+      path = ':x-pack:plugin:ql'
     }
     "lang-painless" {
-      projectPath = ':modules:lang-painless'
+      path = ':modules:lang-painless'
     }
   }
 }

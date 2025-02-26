@@ -17,10 +17,10 @@ esplugin {
   hasNativeController =true
   extendedPluginProjects {
     "lang-painless" {
-      projectPath = ':modules:lang-painless'
+      path = ':modules:lang-painless'
     }
     "x-pack-autoscaling" {
-      projectPath = ':x-pack:plugin:autoscaling'
+      path = ':x-pack:plugin:autoscaling'
     }
   }
 }

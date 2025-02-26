@@ -24,13 +24,13 @@ esplugin {
   classname ='org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
   extendedPluginProjects {
     "x-pack-esql-core" {
-      projectPath = ':x-pack:plugin:esql-core'
+      path = ':x-pack:plugin:esql-core'
     }
     "x-pack-ml" {
-      projectPath = ':x-pack:plugin:ml'
+      path = ':x-pack:plugin:ml'
     }
     "lang-painless" {
-      projectPath = ':modules:lang-painless'
+      path = ':modules:lang-painless'
     }
   }
 }

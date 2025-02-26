@@ -19,10 +19,10 @@ esplugin {
   classname ='org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin'
   extendedPluginProjects {
     "lang-painless" {
-      projectPath = ':modules:lang-painless'
+      path = ':modules:lang-painless'
     }
     "x-pack-core" {
-      projectPath = ':x-pack:plugin:core'
+      path = ':x-pack:plugin:core'
     }
   }
 }

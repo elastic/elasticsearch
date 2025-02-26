@@ -6,7 +6,7 @@ esplugin {
   classname ='org.elasticsearch.cluster.coordination.votingonly.VotingOnlyNodePlugin'
   extendedPluginProjects {
     "x-pack-core" {
-      projectPath = ':x-pack:plugin:core'
+      path = ':x-pack:plugin:core'
     }
   }
 }

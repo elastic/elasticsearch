@@ -7,7 +7,7 @@ esplugin {
   classname ='org.elasticsearch.example.AuthorizationEnginePlugin'
   extendedPluginProjects {
     "x-pack-security" {
-      projectPath = ':x-pack:plugin:security'
+      path = ':x-pack:plugin:security'
     }
   }
 

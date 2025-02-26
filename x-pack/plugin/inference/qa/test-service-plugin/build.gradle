@@ -8,7 +8,7 @@ esplugin {
   classname = 'org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin'
   extendedPluginProjects {
     "x-pack-inference" {
-      projectPath = ':x-pack:plugin:inference'
+      path = ':x-pack:plugin:inference'
     }
   }
 }

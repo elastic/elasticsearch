@@ -10,7 +10,7 @@ esplugin {
   requiresKeystore =true
   extendedPluginProjects {
     "x-pack-core" {
-      projectPath = ':x-pack:plugin:core'
+      path = ':x-pack:plugin:core'
     }
   }
 }

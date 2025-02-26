@@ -15,7 +15,7 @@ esplugin {
   classname ='org.elasticsearch.example.painlesswhitelist.MyWhitelistPlugin'
   extendedPluginProjects {
     "lang-painless" {
-      projectPath = ':modules:lang-painless'
+      path = ':modules:lang-painless'
     }
   }
   licenseFile = rootProject.file('AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt')

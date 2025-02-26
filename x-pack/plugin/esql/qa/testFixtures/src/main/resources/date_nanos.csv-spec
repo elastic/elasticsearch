@@ -1296,3 +1296,14 @@ diff_sec:integer | diff_sec_m:integer | n:date_nanos
 -18489600        | -18489599        | 2023-03-23T12:15:03.360103847Z
 -18489600        | -18489599        | 2023-03-23T12:15:03.360103847Z
 ;
+
+DateAndDateNanos
+from employees,employees_incompatible
+| keep emp_no, birth_date
+| sort emp_no
+| limit 1
+;
+
+emp_no:integer |birth_date:date
+10001          |1953-09-02T00:00:00Z
+;

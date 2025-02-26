@@ -396,6 +396,9 @@ public class EsqlDataTypeConverter {
             if (isNullOrDatePeriod(left) && isNullOrDatePeriod(right)) {
                 return DATE_PERIOD;
             }
+            if ((isDateTime(left) && right == DATE_NANOS) || (left == DATE_NANOS && isDateTime(right))) {
+                return DATE_NANOS;
+            }
         }
         if (isString(left) && isString(right)) {
             // Both TEXT and SEMANTIC_TEXT are processed as KEYWORD

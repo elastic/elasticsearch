@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 
@@ -91,6 +93,16 @@ public class Verifier {
             // if the children are unresolved, so will this node; counting it will only add noise
             if (p.childrenResolved() == false) {
                 return;
+            }
+
+            if (p instanceof EsqlProject proj) {
+                for (NamedExpression projection : proj.projections()) {
+                    // don't call dataType() - it will fail on UnresolvedAttribute
+                    String className = String.valueOf(projection.getClass());
+                    if (projection.resolved() == false && projection instanceof UnsupportedAttribute == false) {
+
+                    }
+                }
             }
 
             planCheckers.forEach(c -> c.accept(p, failures));

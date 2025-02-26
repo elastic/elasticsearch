@@ -48,10 +48,6 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 
 {esql} does not yet support the following field types:
 
-* TSDB metrics
-** `counter`
-** `position`
-** `aggregate_metric_double`
 * Date/time
 ** `date_range`
 * Other types
@@ -240,9 +236,12 @@ data streams, or aliases. However, there are some limitations to be aware of:
 
 [discrete]
 [[esql-tsdb]]
-=== Time series data streams are not supported
-
-{esql} does not support querying time series data streams (TSDS).
+=== Time series data streams
+ES|QL supports time-series data streams (TSDS) with limitations:
+* Counter fields such as `counter_long`, `counter_integer`, and `counter_double` are not supported except
+through explicit casting.
+* aggregate_metric_double` types are supported in max, min, sum, avg, and count aggregations;
+however, this functionality is experimental and available in snapshot builds or requires enabling via its feature flag.
 
 [discrete]
 [[esql-limitations-date-math]]

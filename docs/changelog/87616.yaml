@@ -1,0 +1,6 @@
+pr: 87616
+summary: Moving full inspection of all indices to MasterFailOver condition
+area: Data Management/ILM+SLM
+type: refactoring
+issues:
+  - 80407

@@ -304,6 +304,13 @@ tests:
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: bugfix, expectedAssembleTaskName:
     extractedAssemble, #2]"
   issue: https://github.com/elastic/elasticsearch/issues/119871
+- class: org.elasticsearch.gradle.internal.InternalBwcGitPluginFuncTest
+  method: current repository can be cloned
+  issue: https://github.com/elastic/elasticsearch/issues/123297
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.4.0, bwcProject: minor, expectedAssembleTaskName:
+    extractedAssemble, #0]"
+  issue: https://github.com/elastic/elasticsearch/issues/123219
 
 # Examples:
 #

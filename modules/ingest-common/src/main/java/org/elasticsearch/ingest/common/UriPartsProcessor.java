@@ -117,9 +117,9 @@ public class UriPartsProcessor extends AbstractProcessor {
         if (uri != null) {
             domain = uri.getHost();
             fragment = uri.getFragment();
-            path = uri.getPath();
+            path = uri.getRawPath();
             port = uri.getPort();
-            query = uri.getQuery();
+            query = uri.getRawQuery();
             scheme = uri.getScheme();
             userInfo = uri.getUserInfo();
         } else if (fallbackUrl != null) {
@@ -165,7 +165,7 @@ public class UriPartsProcessor extends AbstractProcessor {
             if (userInfo.contains(":")) {
                 int colonIndex = userInfo.indexOf(':');
                 uriParts.put("username", userInfo.substring(0, colonIndex));
-                uriParts.put("password", colonIndex < userInfo.length() ? userInfo.substring(colonIndex + 1) : "");
+                uriParts.put("password", userInfo.substring(colonIndex + 1));
             }
         }
 

@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -55,11 +56,13 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
 
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.METADATA;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.READ_ONLY;
 
 public class ReindexDataStreamIndexTransportAction extends HandledTransportAction<
     ReindexDataStreamIndexAction.Request,
@@ -145,19 +148,10 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             );
         }
 
-        if (settingsBefore.getAsBoolean(IndexMetadata.SETTING_BLOCKS_READ, false)) {
-            var errorMessage = String.format(Locale.ROOT, "Cannot reindex index [%s] which has a read block.", destIndexName);
-            listener.onFailure(new ElasticsearchException(errorMessage));
-            return;
-        }
-        if (settingsBefore.getAsBoolean(IndexMetadata.SETTING_BLOCKS_METADATA, false)) {
-            var errorMessage = String.format(Locale.ROOT, "Cannot reindex index [%s] which has a metadata block.", destIndexName);
-            listener.onFailure(new ElasticsearchException(errorMessage));
-            return;
-        }
         final boolean wasClosed = isClosed(sourceIndex);
-        SubscribableListener.<AcknowledgedResponse>newForked(l -> setBlockWrites(sourceIndexName, l, taskId))
+        SubscribableListener.<AcknowledgedResponse>newForked(l -> removeMetadataBlocks(sourceIndexName, taskId, l))
             .<OpenIndexResponse>andThen(l -> openIndexIfClosed(sourceIndexName, wasClosed, l, taskId))
+            .<AcknowledgedResponse>andThen(l -> setReadOnly(sourceIndexName, l, taskId))
             .<BroadcastResponse>andThen(l -> refresh(sourceIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l, taskId))
@@ -166,6 +160,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             .<AcknowledgedResponse>andThen(l -> copyIndexMetadataToDest(sourceIndexName, destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> sanityCheck(sourceIndexName, destIndexName, l, taskId))
             .<CloseIndexResponse>andThen(l -> closeIndexIfWasClosed(destIndexName, wasClosed, l, taskId))
+            .<AcknowledgedResponse>andThen(l -> removeAPIBlocks(sourceIndexName, taskId, l, READ_ONLY))
             .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName))
             .addListener(listener);
     }
@@ -201,9 +196,9 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         return indexMetadata.getState().equals(IndexMetadata.State.CLOSE);
     }
 
-    private void setBlockWrites(String sourceIndexName, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
-        logger.debug("Setting write block on source index [{}]", sourceIndexName);
-        addBlockToIndex(WRITE, sourceIndexName, new ActionListener<>() {
+    private void setReadOnly(String sourceIndexName, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
+        logger.debug("Setting read-only on source index [{}]", sourceIndexName);
+        addBlockToIndex(READ_ONLY, sourceIndexName, new ActionListener<>() {
             @Override
             public void onResponse(AddIndexBlockResponse response) {
                 if (response.isAcknowledged()) {
@@ -254,6 +249,8 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         var settingsOverride = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+            // remove lifecycle so that ILM does not start processing before the index is added to data stream
+            .putNull(IndexMetadata.LIFECYCLE_NAME)
             .build();
 
         var request = new CreateIndexFromSourceAction.Request(
@@ -395,6 +392,29 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         addIndexBlockRequest.markVerified(false);
         addIndexBlockRequest.setParentTask(parentTaskId);
         client.admin().indices().execute(TransportAddIndexBlockAction.TYPE, addIndexBlockRequest, listener);
+    }
+
+    /**
+     * All metadata blocks need to be removed at the start for the following reasons:
+     * 1) If the source index has a metadata only block, the read-only block can't be added.
+     * 2) If the source index is read-only and closed, it can't be opened.
+     */
+    private void removeMetadataBlocks(String indexName, TaskId parentTaskId, ActionListener<AcknowledgedResponse> listener) {
+        logger.debug("Removing metadata blocks from index [{}]", indexName);
+        removeAPIBlocks(indexName, parentTaskId, listener, METADATA, READ_ONLY);
+    }
+
+    private void removeAPIBlocks(
+        String indexName,
+        TaskId parentTaskId,
+        ActionListener<AcknowledgedResponse> listener,
+        IndexMetadata.APIBlock... blocks
+    ) {
+        Settings.Builder settings = Settings.builder();
+        Arrays.stream(blocks).forEach(b -> settings.putNull(b.settingName()));
+        var updateSettingsRequest = new UpdateSettingsRequest(settings.build(), indexName);
+        updateSettingsRequest.setParentTask(parentTaskId);
+        client.execute(TransportUpdateSettingsAction.TYPE, updateSettingsRequest, listener);
     }
 
     private void getIndexDocCount(String index, TaskId parentTaskId, ActionListener<Long> listener) {

@@ -42,14 +42,13 @@ public class NodesStatsResponse extends BaseNodesXContentResponse<NodeStats> {
 
     @Override
     protected Iterator<? extends ToXContent> xContentChunks(ToXContent.Params outerParams) {
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject("nodes"),
+        return ChunkedToXContentHelper.object(
+            "nodes",
             Iterators.flatMap(getNodes().iterator(), nodeStats -> Iterators.concat(Iterators.single((builder, params) -> {
                 builder.startObject(nodeStats.getNode().getId());
                 builder.field("timestamp", nodeStats.getTimestamp());
                 return builder;
-            }), nodeStats.toXContentChunked(outerParams), ChunkedToXContentHelper.endObject())),
-            ChunkedToXContentHelper.endObject()
+            }), nodeStats.toXContentChunked(outerParams), ChunkedToXContentHelper.endObject()))
         );
     }
 

@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
@@ -46,7 +45,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<IngestGeoIpMetadata, Void> PARSER = new ConstructingObjectParser<>(
-        "ingest_geoip_metadata",
+        TYPE,
         a -> new IngestGeoIpMetadata(
             ((List<DatabaseConfigurationMetadata>) a[0]).stream().collect(Collectors.toMap((m) -> m.database().id(), Function.identity()))
         )
@@ -92,7 +91,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.concat(ChunkedToXContentHelper.xContentObjectFields(DATABASES_FIELD.getPreferredName(), databases));
+        return ChunkedToXContentHelper.xContentObjectFields(DATABASES_FIELD.getPreferredName(), databases);
     }
 
     @Override

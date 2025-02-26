@@ -12,18 +12,23 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -50,6 +55,8 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(InternalExchangePlugin.class);
         plugins.add(InternalTransportSettingPlugin.class);
+        assertTrue(plugins.removeIf(p -> p.isAssignableFrom(EsqlPlugin.class)));
+        plugins.add(EsqlTestPluginWithMockBlockFactory.class);
         return plugins;
     }
 
@@ -77,6 +84,17 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
             // allow reading pages from network can trip the circuit breaker
             .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true)
             .build();
+    }
+
+    public static class EsqlTestPluginWithMockBlockFactory extends EsqlPlugin {
+        @Override
+        protected BlockFactoryProvider blockFactoryProvider(
+            CircuitBreaker breaker,
+            BigArrays bigArrays,
+            ByteSizeValue maxPrimitiveArraySize
+        ) {
+            return new BlockFactoryProvider(new MockBlockFactory(breaker, bigArrays, maxPrimitiveArraySize));
+        }
     }
 
     private EsqlQueryResponse runWithBreaking(EsqlQueryRequest request) throws CircuitBreakingException {

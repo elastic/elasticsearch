@@ -266,10 +266,11 @@ height:double | languages.long:long | still_hired:boolean
 ;
 
 simpleEvalWithSortAndLimitOne
+required_capability: fix_precision_of_scaled_float_fields
 from employees | eval x = languages + 7 | sort x, avg_worked_seconds | limit 1;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer | salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean | x:integer
-208374744         |1956-11-14T00:00:00.000Z|10033          |null           |M              |1.63           |1.6299999952316284|1.6298828125     |1.6300000000000001 |1987-03-18T00:00:00.000Z|true           |null           |1              |1              |1              |1              |Merlo          |70011          |null           |null             |null                 |null              |false          |8                                          
+208374744         |1956-11-14T00:00:00.000Z|10033          |null           |M              |1.63           |1.6299999952316284|1.6298828125     |1.63        |1987-03-18T00:00:00.000Z|true           |null           |1              |1              |1              |1              |Merlo          |70011          |null           |null             |null                 |null              |false          |8                                          
 ;
 
 evalOfAverageValue

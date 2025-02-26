@@ -17,6 +17,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
@@ -24,6 +25,7 @@ import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Objects;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -31,9 +33,8 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 /**
  * A query that matches the provided docs with their scores.
  *
- * Note: this query was adapted from Lucene's DocAndScoreQuery from the class
+ * Note: this query was originally adapted from Lucene's DocAndScoreQuery from the class
  * {@link org.apache.lucene.search.KnnFloatVectorQuery}, which is package-private.
- * There are no changes to the behavior, just some renames.
  */
 public class KnnScoreDocQuery extends Query {
     private final int[] docs;
@@ -50,13 +51,18 @@ public class KnnScoreDocQuery extends Query {
     /**
      * Creates a query.
      *
-     * @param docs the global doc IDs of documents that match, in ascending order
-     * @param scores the scores of the matching documents
+     * @param scoreDocs an array of ScoreDocs to use for the query
      * @param reader IndexReader
      */
-    KnnScoreDocQuery(int[] docs, float[] scores, IndexReader reader) {
-        this.docs = docs;
-        this.scores = scores;
+    KnnScoreDocQuery(ScoreDoc[] scoreDocs, IndexReader reader) {
+        // Ensure that the docs are sorted by docId, as they are later searched using binary search
+        Arrays.sort(scoreDocs, Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
+        this.docs = new int[scoreDocs.length];
+        this.scores = new float[scoreDocs.length];
+        for (int i = 0; i < scoreDocs.length; i++) {
+            docs[i] = scoreDocs[i].doc;
+            scores[i] = scoreDocs[i].score;
+        }
         this.segmentStarts = findSegmentStarts(reader, docs);
         this.contextIdentity = reader.getContext().id();
     }

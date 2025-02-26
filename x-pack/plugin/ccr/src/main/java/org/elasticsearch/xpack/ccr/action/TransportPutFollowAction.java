@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -77,7 +76,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         final ClusterService clusterService,
         final IndexScopedSettings indexScopedSettings,
         final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final Client client,
         final RestoreService restoreService,
         final CcrLicenseChecker ccrLicenseChecker

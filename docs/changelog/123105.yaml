@@ -1,0 +1,6 @@
+pr: 123105
+summary: fix stale data in synthetic source for string stored field
+area: Mapping
+type: bug
+issues:
+  - 123110

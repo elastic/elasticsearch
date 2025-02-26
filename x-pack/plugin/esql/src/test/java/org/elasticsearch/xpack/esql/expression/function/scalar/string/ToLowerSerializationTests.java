@@ -25,9 +25,4 @@ public class ToLowerSerializationTests extends AbstractExpressionSerializationTe
         Expression child = randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild);
         return new ToLower(source, child, configuration());
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

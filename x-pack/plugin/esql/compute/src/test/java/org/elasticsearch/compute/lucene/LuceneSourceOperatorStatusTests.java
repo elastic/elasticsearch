@@ -46,8 +46,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
                 "a:0",
                 "a:1"
               ],
-              "processing_nanos" : 1002,
-              "processing_time" : "1micros",
+              "process_nanos" : 1002,
+              "process_time" : "1micros",
               "slice_index" : 0,
               "total_slices" : 1,
               "pages_emitted" : 5,

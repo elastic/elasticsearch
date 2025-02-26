@@ -24,6 +24,10 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutAnalyticsCollectionAction extends EnterpriseSearchBaseRestHandler {
     public RestPutAnalyticsCollectionAction(XPackLicenseState licenseState) {

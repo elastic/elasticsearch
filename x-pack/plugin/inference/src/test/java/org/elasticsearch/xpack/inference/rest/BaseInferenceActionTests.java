@@ -22,8 +22,7 @@ import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
-import org.elasticsearch.xpack.core.inference.results.InferenceByteEmbedding;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -149,7 +148,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
 
     static InferenceAction.Response createResponse() {
         return new InferenceAction.Response(
-            new InferenceTextEmbeddingByteResults(List.of(new InferenceByteEmbedding(new byte[] { (byte) -1 })))
+            new TextEmbeddingByteResults(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { (byte) -1 })))
         );
     }
 }

@@ -9,17 +9,17 @@
 
 package org.elasticsearch.indices;
 
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.Index;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.indices.AssociatedIndexDescriptor.buildAutomaton;
+import java.util.stream.Stream;
 
 /**
  * Describes a {@link DataStream} that is reserved for use by a system feature.
@@ -53,7 +53,6 @@ public class SystemDataStreamDescriptor {
     private final Map<String, ComponentTemplate> componentTemplates;
     private final List<String> allowedElasticProductOrigins;
     private final ExecutorNames executorNames;
-    private final CharacterRunAutomaton characterRunAutomaton;
 
     /**
      * Creates a new descriptor for a system data descriptor
@@ -96,8 +95,6 @@ public class SystemDataStreamDescriptor {
             throw new IllegalArgumentException("External system data stream without allowed products is not a valid combination");
         }
         this.executorNames = Objects.nonNull(executorNames) ? executorNames : ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS;
-
-        this.characterRunAutomaton = new CharacterRunAutomaton(buildAutomaton(backingIndexPatternForDataStream(this.dataStreamName)));
     }
 
     public String getDataStreamName() {
@@ -110,7 +107,11 @@ public class SystemDataStreamDescriptor {
      * @return List of names of backing indices
      */
     public List<String> getBackingIndexNames(Metadata metadata) {
-        return metadata.indices().keySet().stream().filter(this.characterRunAutomaton::run).toList();
+        DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+        if (dataStream == null) {
+            return Collections.emptyList();
+        }
+        return Stream.concat(dataStream.getIndices().stream(), dataStream.getFailureIndices().stream()).map(Index::getName).toList();
     }
 
     public String getDescription() {

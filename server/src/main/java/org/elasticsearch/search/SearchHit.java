@@ -111,7 +111,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
 
     private final RefCounted refCounted;
 
-    // used only in tests
     public SearchHit(int docId) {
         this(docId, null);
     }
@@ -293,6 +292,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     public static SearchHit unpooled(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
+        // always referenced search hits do NOT call #deallocate
         return new SearchHit(nestedTopDocId, id, nestedIdentity, ALWAYS_REFERENCED);
     }
 

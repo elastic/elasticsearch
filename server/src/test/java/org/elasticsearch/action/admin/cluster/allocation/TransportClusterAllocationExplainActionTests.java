@@ -53,7 +53,6 @@ public class TransportClusterAllocationExplainActionTests extends ESTestCase {
             clusterService,
             threadPool,
             new ActionFilters(Set.of()),
-            null,
             () -> ClusterInfo.EMPTY,
             EmptySnapshotsInfoService.INSTANCE,
             new AllocationDeciders(List.of()),

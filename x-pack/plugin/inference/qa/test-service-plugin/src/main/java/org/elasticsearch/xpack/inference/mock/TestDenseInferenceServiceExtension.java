@@ -34,8 +34,8 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -164,24 +164,24 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             }
         }
 
-        private InferenceTextEmbeddingFloatResults makeResults(List<String> input, int dimensions) {
-            List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding> embeddings = new ArrayList<>();
+        private TextEmbeddingFloatResults makeResults(List<String> input, int dimensions) {
+            List<TextEmbeddingFloatResults.Embedding> embeddings = new ArrayList<>();
             for (String inputString : input) {
                 List<Float> floatEmbeddings = generateEmbedding(inputString, dimensions);
-                embeddings.add(InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(floatEmbeddings));
+                embeddings.add(TextEmbeddingFloatResults.Embedding.of(floatEmbeddings));
             }
-            return new InferenceTextEmbeddingFloatResults(embeddings);
+            return new TextEmbeddingFloatResults(embeddings);
         }
 
         private List<ChunkedInference> makeChunkedResults(List<String> input, int dimensions) {
-            InferenceTextEmbeddingFloatResults nonChunkedResults = makeResults(input, dimensions);
+            TextEmbeddingFloatResults nonChunkedResults = makeResults(input, dimensions);
 
             var results = new ArrayList<ChunkedInference>();
             for (int i = 0; i < input.size(); i++) {
                 results.add(
-                    new ChunkedInferenceEmbeddingFloat(
+                    new ChunkedInferenceEmbedding(
                         List.of(
-                            new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(
+                            new TextEmbeddingFloatResults.Chunk(
                                 nonChunkedResults.embeddings().get(i).values(),
                                 input.get(i),
                                 new ChunkedInference.TextOffset(0, input.get(i).length())

@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -226,8 +227,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             );
             DriverContext driverContext = driverContext();
             try (
-                var driver = new Driver(
-                    "test",
+                var driver = TestDriverFactory.create(
                     driverContext,
                     source.get(driverContext),
                     List.of(reader.get(driverContext), lookup.get(driverContext)),
@@ -247,8 +247,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                         } finally {
                             page.releaseBlocks();
                         }
-                    }),
-                    () -> {}
+                    })
                 )
             ) {
                 PlainActionFuture<Void> future = new PlainActionFuture<>();

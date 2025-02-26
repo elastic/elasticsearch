@@ -156,7 +156,7 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
                 try (EsqlQueryResponse asyncResponse = getAsyncResponse(client(), asyncExecutionId)) {
                     EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
                     assertNotNull(executionInfo);
-                    assertThat(executionInfo.isPartial(), is(true));
+                    assertThat(executionInfo.isStopped(), is(true));
                 }
             });
             // allow local query to proceed

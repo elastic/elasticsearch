@@ -38,9 +38,12 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
@@ -57,6 +60,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 
 /**
  * A {@link MappedActionFilter} that intercepts {@link BulkShardRequest} to apply inference on fields specified
@@ -76,25 +81,29 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private final ClusterService clusterService;
     private final InferenceServiceRegistry inferenceServiceRegistry;
     private final ModelRegistry modelRegistry;
+    private final XPackLicenseState licenseState;
     private final int batchSize;
 
     public ShardBulkInferenceActionFilter(
         ClusterService clusterService,
         InferenceServiceRegistry inferenceServiceRegistry,
-        ModelRegistry modelRegistry
+        ModelRegistry modelRegistry,
+        XPackLicenseState licenseState
     ) {
-        this(clusterService, inferenceServiceRegistry, modelRegistry, DEFAULT_BATCH_SIZE);
+        this(clusterService, inferenceServiceRegistry, modelRegistry, licenseState, DEFAULT_BATCH_SIZE);
     }
 
     public ShardBulkInferenceActionFilter(
         ClusterService clusterService,
         InferenceServiceRegistry inferenceServiceRegistry,
         ModelRegistry modelRegistry,
+        XPackLicenseState licenseState,
         int batchSize
     ) {
         this.clusterService = clusterService;
         this.inferenceServiceRegistry = inferenceServiceRegistry;
         this.modelRegistry = modelRegistry;
+        this.licenseState = licenseState;
         this.batchSize = batchSize;
     }
 
@@ -558,6 +567,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             values = SemanticTextUtils.nodeStringValues(field, valueObj);
                         } catch (Exception exc) {
                             addInferenceResponseFailure(itemIndex, exc);
+                            break;
+                        }
+
+                        if (INFERENCE_API_FEATURE.check(licenseState) == false) {
+                            addInferenceResponseFailure(itemIndex, LicenseUtils.newComplianceException(XPackField.INFERENCE));
                             break;
                         }
 

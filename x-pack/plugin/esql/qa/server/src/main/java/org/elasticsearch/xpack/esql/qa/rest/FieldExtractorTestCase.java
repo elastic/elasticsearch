@@ -221,6 +221,11 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     public void testScaledFloat() throws IOException {
+        // Running this on 17 when nodes in cluster run JDK >17 triggers an assert due to a mismatch
+        // of results produced by Double#toString for some specific numbers.
+        // See https://github.com/elastic/elasticsearch/issues/122984.
+        assumeTrue("JDK version greater than 17", Runtime.version().feature() > 17);
+
         double value = randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
         // Scale factors less than about 5.6e-309 will result in NaN (due to 1/scaleFactor being infinity)
         double scalingFactor = randomDoubleBetween(1e-308, Double.MAX_VALUE, false);

@@ -46,8 +46,9 @@ grant {
 grant codeBase "${codebase.netty-common}" {
    // for reading the system-wide configuration for the backlog of established sockets
    permission java.io.FilePermission "/proc/sys/net/core/somaxconn", "read";
-   // Netty sets custom classloader for some of its internal threads
+   // Netty gets and sets classloaders for some of its internal threads
    permission java.lang.RuntimePermission "setContextClassLoader";
+   permission java.lang.RuntimePermission "getClassLoader";
 };
 
 grant codeBase "${codebase.netty-transport}" {

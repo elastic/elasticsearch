@@ -196,11 +196,7 @@ public final class ClusterAllocationExplanation implements ChunkedToXContentObje
             return builder;
         }),
             this.clusterInfo != null
-                ? Iterators.concat(
-                    ChunkedToXContentHelper.startObject("cluster_info"),
-                    this.clusterInfo.toXContentChunked(params),
-                    ChunkedToXContentHelper.endObject()
-                )
+                ? ChunkedToXContentHelper.object("cluster_info", this.clusterInfo.toXContentChunked(params))
                 : Collections.emptyIterator(),
             getShardAllocationDecisionChunked(params),
             Iterators.single((builder, p) -> builder.endObject())

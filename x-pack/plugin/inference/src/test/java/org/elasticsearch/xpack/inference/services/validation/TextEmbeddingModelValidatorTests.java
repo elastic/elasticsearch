@@ -14,12 +14,12 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.EmptyTaskSettingsTests;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
-import org.elasticsearch.xpack.inference.results.InferenceTextEmbeddingByteResultsTests;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
+import org.elasticsearch.xpack.inference.results.TextEmbeddingByteResultsTests;
 import org.junit.Before;
 import org.mockito.Mock;
 
@@ -89,7 +89,7 @@ public class TextEmbeddingModelValidatorTests extends ESTestCase {
     }
 
     public void testValidate_RetrievingEmbeddingSizeThrowsIllegalStateException() {
-        InferenceTextEmbeddingFloatResults results = new InferenceTextEmbeddingFloatResults(List.of());
+        TextEmbeddingFloatResults results = new TextEmbeddingFloatResults(List.of());
 
         when(mockServiceSettings.dimensionsSetByUser()).thenReturn(true);
         when(mockServiceSettings.dimensions()).thenReturn(randomNonNegativeInt());
@@ -102,7 +102,7 @@ public class TextEmbeddingModelValidatorTests extends ESTestCase {
     }
 
     public void testValidate_DimensionsSetByUserDoNotEqualEmbeddingSize() {
-        InferenceTextEmbeddingByteResults results = InferenceTextEmbeddingByteResultsTests.createRandomResults();
+        TextEmbeddingByteResults results = TextEmbeddingByteResultsTests.createRandomResults();
         var dimensions = randomValueOtherThan(results.getFirstEmbeddingSize(), ESTestCase::randomNonNegativeInt);
 
         when(mockServiceSettings.dimensionsSetByUser()).thenReturn(true);
@@ -126,7 +126,7 @@ public class TextEmbeddingModelValidatorTests extends ESTestCase {
     }
 
     private void mockSuccessfulValidation(Boolean dimensionsSetByUser) {
-        InferenceTextEmbeddingByteResults results = InferenceTextEmbeddingByteResultsTests.createRandomResults();
+        TextEmbeddingByteResults results = TextEmbeddingByteResultsTests.createRandomResults();
         when(mockModel.getConfigurations()).thenReturn(ModelConfigurationsTests.createRandomInstance());
         when(mockModel.getTaskSettings()).thenReturn(EmptyTaskSettingsTests.createRandom());
         when(mockServiceSettings.dimensionsSetByUser()).thenReturn(dimensionsSetByUser);

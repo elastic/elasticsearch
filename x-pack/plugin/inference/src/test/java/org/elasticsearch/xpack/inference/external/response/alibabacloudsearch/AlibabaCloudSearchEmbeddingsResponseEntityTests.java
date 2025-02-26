@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.response.alibabacloudsearch;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.alibabacloudsearch.AlibabaCloudSearchRequest;
 
@@ -50,20 +50,14 @@ public class AlibabaCloudSearchEmbeddingsResponseEntityTests extends ESTestCase 
         URI uri = new URI("mock_uri");
         when(request.getURI()).thenReturn(uri);
 
-        InferenceTextEmbeddingFloatResults parsedResults = AlibabaCloudSearchEmbeddingsResponseEntity.fromResponse(
+        TextEmbeddingFloatResults parsedResults = AlibabaCloudSearchEmbeddingsResponseEntity.fromResponse(
             request,
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
         assertThat(
             parsedResults.embeddings(),
-            is(
-                List.of(
-                    new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(
-                        new float[] { -0.02868066355586052f, 0.022033605724573135f }
-                    )
-                )
-            )
+            is(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { -0.02868066355586052f, 0.022033605724573135f })))
         );
     }
 }

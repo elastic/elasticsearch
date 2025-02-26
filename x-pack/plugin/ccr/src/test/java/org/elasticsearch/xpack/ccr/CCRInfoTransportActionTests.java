@@ -148,7 +148,6 @@ public class CCRInfoTransportActionTests extends ESTestCase {
             null,
             threadPool,
             mock(ActionFilters.class),
-            null,
             Settings.EMPTY,
             licenseState
         );

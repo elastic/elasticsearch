@@ -205,6 +205,7 @@ tasks.register("regenLexer", JavaExec) {
     '-package', 'org.elasticsearch.xpack.esql.parser',
     '-listener',
     '-visitor',
+    '-lib', "${file(grammarPath)}/lexer",
     '-o', outputPath,
     "${file(grammarPath)}/EsqlBaseLexer.g4"
 }
@@ -222,8 +223,9 @@ tasks.register("regenParser", JavaExec) {
     '-package', 'org.elasticsearch.xpack.esql.parser',
     '-listener',
     '-visitor',
-    '-o', outputPath,
     '-lib', outputPath,
+    '-lib', "${file(grammarPath)}/parser",
+    '-o', outputPath,
     "${file(grammarPath)}/EsqlBaseParser.g4"
 }
 

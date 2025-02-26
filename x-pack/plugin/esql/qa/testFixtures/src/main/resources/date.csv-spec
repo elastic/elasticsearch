@@ -366,6 +366,27 @@ date1:date               | dd_ms:integer
 2023-12-02T11:00:00.000Z | 1000
 ;
 
+dateDiffTestWarnings
+required_capability: functions_source_serialization_warnings
+
+FROM employees
+| WHERE first_name IN ("Alejandro", "Mary")
+| SORT first_name ASC
+| EVAL date = TO_DATETIME("2023-12-02T11:00:00.000Z")
+| EVAL dd_ms = DATE_DIFF(first_name, date, date)
+| KEEP date, dd_ms
+| LIMIT 2
+;
+
+warning:Line 5:16: evaluation of [DATE_DIFF(first_name, date, date)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:16: java.lang.IllegalArgumentException: A value of [YEAR, QUARTER, MONTH, DAYOFYEAR, DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND] or their aliases is required; received [Alejandro]
+warning:Line 5:16: java.lang.IllegalArgumentException: Received value [Mary] is not valid date part to add; did you mean [day]? 
+
+date:date                | dd_ms:integer
+2023-12-02T11:00:00.000Z | null
+2023-12-02T11:00:00.000Z | null
+;
+
 evalDateDiffMonthAsWhole0Months#[skip:-8.14.1, reason:omitting millis/timezone not allowed before 8.14]
 
 ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-01-01T00:00:00")

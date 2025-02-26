@@ -33,11 +33,15 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         String url(String os, String arch, String extension);
     }
 
-    record ReleasedJdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber, String hash) implements JdkBuild {
+    record ReleaseJdkBuild(JavaLanguageVersion languageVersion, String host, String version, String buildNumber, String hash)
+        implements
+            JdkBuild {
 
         @Override
         public String url(String os, String arch, String extension) {
-            return "https://download.oracle.com/java/GA/jdk"
+            return "https://"
+                + host
+                + "/java/GA/jdk"
                 + version
                 + "/"
                 + hash
@@ -111,7 +115,8 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
     // package private so it can be replaced by tests
     List<JdkBuild> builds = List.of(
         getBundledJdkBuild(),
-        new EarlyAccessJdkBuild(JavaLanguageVersion.of(24)),
+        // release candidate of JDK 24
+        new ReleaseJdkBuild(JavaLanguageVersion.of(24), "download.java.net", "24", "36", "1f9ff9062db4449d8ca828c504ffae90"),
         new EarlyAccessJdkBuild(JavaLanguageVersion.of(25))
     );
 
@@ -125,7 +130,7 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         String baseVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
         String build = jdkVersionMatcher.group(3);
         String hash = jdkVersionMatcher.group(5);
-        return new ReleasedJdkBuild(bundledJdkMajorVersion, baseVersion, build, hash);
+        return new ReleaseJdkBuild(bundledJdkMajorVersion, "download.oracle.com", baseVersion, build, hash);
     }
 
     /**

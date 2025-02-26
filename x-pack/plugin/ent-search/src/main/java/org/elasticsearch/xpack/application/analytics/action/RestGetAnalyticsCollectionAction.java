@@ -23,6 +23,10 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetAnalyticsCollectionAction extends EnterpriseSearchBaseRestHandler {
     public RestGetAnalyticsCollectionAction(XPackLicenseState licenseState) {

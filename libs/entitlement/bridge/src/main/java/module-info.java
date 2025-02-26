@@ -12,6 +12,7 @@
 module org.elasticsearch.entitlement.bridge {
     requires java.net.http;
     requires jdk.net;
+    requires java.logging;
 
     exports org.elasticsearch.entitlement.bridge;
 }

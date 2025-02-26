@@ -19,10 +19,10 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
-import org.elasticsearch.xpack.inference.results.InferenceTextEmbeddingByteResultsTests;
+import org.elasticsearch.xpack.inference.results.TextEmbeddingByteResultsTests;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
 
 import java.util.EnumSet;
@@ -911,7 +911,7 @@ public class ServiceUtilsTests extends ESTestCase {
 
         doAnswer(invocation -> {
             ActionListener<InferenceServiceResults> listener = invocation.getArgument(7);
-            listener.onResponse(new InferenceTextEmbeddingFloatResults(List.of()));
+            listener.onResponse(new TextEmbeddingFloatResults(List.of()));
 
             return Void.TYPE;
         }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
@@ -933,7 +933,7 @@ public class ServiceUtilsTests extends ESTestCase {
 
         doAnswer(invocation -> {
             ActionListener<InferenceServiceResults> listener = invocation.getArgument(7);
-            listener.onResponse(new InferenceTextEmbeddingByteResults(List.of()));
+            listener.onResponse(new TextEmbeddingByteResults(List.of()));
 
             return Void.TYPE;
         }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
@@ -967,7 +967,7 @@ public class ServiceUtilsTests extends ESTestCase {
 
         var size = listener.actionGet(TIMEOUT);
 
-        assertThat(size, is(textEmbedding.embeddings().get(0).getSize()));
+        assertThat(size, is(textEmbedding.embeddings().get(0).values().length));
     }
 
     public void testGetEmbeddingSize_ReturnsSize_ForTextEmbeddingByteResults() {
@@ -976,7 +976,7 @@ public class ServiceUtilsTests extends ESTestCase {
         var model = mock(Model.class);
         when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
-        var textEmbedding = InferenceTextEmbeddingByteResultsTests.createRandomResults();
+        var textEmbedding = TextEmbeddingByteResultsTests.createRandomResults();
 
         doAnswer(invocation -> {
             ActionListener<InferenceServiceResults> listener = invocation.getArgument(7);
@@ -990,7 +990,7 @@ public class ServiceUtilsTests extends ESTestCase {
 
         var size = listener.actionGet(TIMEOUT);
 
-        assertThat(size, is(textEmbedding.embeddings().get(0).getSize()));
+        assertThat(size, is(textEmbedding.embeddings().get(0).values().length));
     }
 
     private static <K, V> Map<K, V> modifiableMap(Map<K, V> aMap) {

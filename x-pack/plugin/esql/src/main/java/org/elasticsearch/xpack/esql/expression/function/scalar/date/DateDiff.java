@@ -197,7 +197,7 @@ public class DateDiff extends EsqlScalarFunction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        source().writeTo(out);
         out.writeNamedWriteable(unit);
         out.writeNamedWriteable(startTimestamp);
         out.writeNamedWriteable(endTimestamp);

@@ -6,6 +6,10 @@
     },
     "stability": "experimental",
     "visibility": "public",
+    "deprecated": {
+      "version": "9.0.0",
+      "description": "Behavioral Analytics has been deprecated and will be removed in a future release."
+    },
     "headers": {
       "accept": [
         "application/json"
@@ -24,10 +28,10 @@
           "methods": [
             "GET"
           ],
-          "parts":{
-            "name":{
-              "type":"list",
-              "description":"A comma-separated list of analytics collections to limit the returned information"
+          "parts": {
+            "name": {
+              "type": "list",
+              "description": "A comma-separated list of analytics collections to limit the returned information"
             }
           }
         }

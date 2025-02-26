@@ -340,6 +340,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     // 'size' specifies the max number of host ID we support per request.
                     .size(MAX_TRACE_EVENTS_RESULT_SIZE)
                     .field("host.id")
+                    // missing("") is used to include documents where the field is missing.
+                    .missing("")
                     // 'execution_hint: map' skips the slow building of ordinals that we don't need.
                     // Especially with high cardinality fields, this makes aggregations really slow.
                     .executionHint("map")

@@ -160,14 +160,14 @@ public class AbstractTransportSetUpgradeModeActionTests extends ESTestCase {
         private final Consumer<ActionListener<AcknowledgedResponse>> successFunc;
 
         TestTransportSetUpgradeModeAction(boolean upgradeMode, Consumer<ActionListener<AcknowledgedResponse>> successFunc) {
-            super("actionName", "taskQueuePrefix", mock(), clusterService(), mock(), mock(), mock());
+            super("actionName", "taskQueuePrefix", mock(), clusterService(), mock(), mock());
             this.upgradeMode = upgradeMode;
             this.updatedClusterState = ClusterState.EMPTY_STATE;
             this.successFunc = successFunc;
         }
 
         TestTransportSetUpgradeModeAction(ClusterService clusterService, boolean upgradeMode) {
-            super("actionName", "taskQueuePrefix", mock(), clusterService, mock(), mock(), mock());
+            super("actionName", "taskQueuePrefix", mock(), clusterService, mock(), mock());
             this.upgradeMode = upgradeMode;
             this.updatedClusterState = ClusterState.EMPTY_STATE;
             this.successFunc = listener -> {};

@@ -15,6 +15,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -76,6 +78,157 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public enum SearchResponseUtils {
     ;
 
+    public static SearchResponseBuilder response() {
+        return new SearchResponseBuilder();
+    }
+
+    public static SearchResponseBuilder response(SearchHits hits) {
+        return new SearchResponseBuilder().searchHits(hits).numReducePhases(1).shards(1, 1, 0).tookInMillis(100);
+    }
+
+    public static SearchResponse successfulResponse(SearchHits hits) {
+        return response(hits).build();
+    }
+
+    public static SearchResponse emptyWithTotalHits(
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        SearchResponse.Clusters clusters
+    ) {
+        return new SearchResponse(
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
+            null,
+            null,
+            false,
+            null,
+            null,
+            1,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters
+        );
+    }
+
+    public static class SearchResponseBuilder {
+        private SearchHits searchHits = SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN);
+        private InternalAggregations aggregations;
+        private Suggest suggest;
+        private boolean timedOut;
+        private Boolean terminatedEarly;
+        private SearchProfileResults profileResults;
+        private int numReducePhases;
+        private String scrollId;
+        private int totalShards;
+        private int successfulShards;
+        private int skippedShards;
+        private long tookInMillis;
+        private List<ShardSearchFailure> shardFailures;
+        private Clusters clusters = Clusters.EMPTY;
+        private BytesReference pointInTimeId;
+
+        private SearchResponseBuilder() {}
+
+        public SearchResponseBuilder searchHits(SearchHits searchHits) {
+            this.searchHits = searchHits;
+            return this;
+        }
+
+        public SearchResponseBuilder aggregations(InternalAggregations aggregations) {
+            this.aggregations = aggregations;
+            return this;
+        }
+
+        public SearchResponseBuilder suggest(Suggest suggest) {
+            this.suggest = suggest;
+            return this;
+        }
+
+        public SearchResponseBuilder timedOut(boolean timedOut) {
+            this.timedOut = timedOut;
+            return this;
+        }
+
+        public SearchResponseBuilder terminatedEarly(Boolean terminatedEarly) {
+            this.terminatedEarly = terminatedEarly;
+            return this;
+        }
+
+        public SearchResponseBuilder profileResults(SearchProfileResults profileResults) {
+            this.profileResults = profileResults;
+            return this;
+        }
+
+        public SearchResponseBuilder numReducePhases(int numReducePhases) {
+            this.numReducePhases = numReducePhases;
+            return this;
+        }
+
+        public SearchResponseBuilder scrollId(String scrollId) {
+            this.scrollId = scrollId;
+            return this;
+        }
+
+        public SearchResponseBuilder shards(int total, int successful, int skipped) {
+            this.totalShards = total;
+            this.successfulShards = successful;
+            this.skippedShards = skipped;
+            return this;
+        }
+
+        public SearchResponseBuilder tookInMillis(long tookInMillis) {
+            this.tookInMillis = tookInMillis;
+            return this;
+        }
+
+        public SearchResponseBuilder shardFailures(ShardSearchFailure... failures) {
+            shardFailures = List.of(failures);
+            return this;
+        }
+
+        public SearchResponseBuilder shardFailures(List<ShardSearchFailure> failures) {
+            shardFailures = List.copyOf(failures);
+            return this;
+        }
+
+        public SearchResponseBuilder clusters(Clusters clusters) {
+            this.clusters = clusters;
+            return this;
+        }
+
+        public SearchResponseBuilder pointInTimeId(BytesReference pointInTimeId) {
+            this.pointInTimeId = pointInTimeId;
+            return this;
+        }
+
+        public SearchResponse build() {
+            return new SearchResponse(
+                searchHits,
+                aggregations,
+                suggest,
+                timedOut,
+                terminatedEarly,
+                profileResults,
+                numReducePhases,
+                scrollId,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                tookInMillis,
+                shardFailures == null ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
+                clusters,
+                pointInTimeId
+            );
+        }
+    }
+
     // All fields on the root level of the parsed SearchHit are interpreted as metadata fields
     // public because we use it in a completion suggestion option
     @SuppressWarnings("unchecked")
@@ -108,33 +261,6 @@ public enum SearchResponseUtils {
         try (var parser = ESRestTestCase.responseAsParser(searchResponse)) {
             return parseSearchResponse(parser);
         }
-    }
-
-    public static SearchResponse emptyWithTotalHits(
-        String scrollId,
-        int totalShards,
-        int successfulShards,
-        int skippedShards,
-        long tookInMillis,
-        ShardSearchFailure[] shardFailures,
-        SearchResponse.Clusters clusters
-    ) {
-        return new SearchResponse(
-            SearchHits.EMPTY_WITH_TOTAL_HITS,
-            null,
-            null,
-            false,
-            null,
-            null,
-            1,
-            scrollId,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            tookInMillis,
-            shardFailures,
-            clusters
-        );
     }
 
     public static SearchResponse parseSearchResponse(XContentParser parser) throws IOException {

@@ -14,6 +14,8 @@ import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpResponseInterceptor;
 
+import org.elasticsearch.common.blobstore.OperationPurpose;
+
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
@@ -43,10 +45,12 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
     );
 
     private final GoogleCloudStorageOperationsStats gcsOperationStats;
+    private final OperationPurpose operationPurpose;
     private final List<HttpRequestTracker> trackers;
 
-    GoogleCloudStorageHttpStatsCollector(final GoogleCloudStorageOperationsStats gcsOperationStats) {
+    GoogleCloudStorageHttpStatsCollector(final GoogleCloudStorageOperationsStats gcsOperationStats, OperationPurpose operationPurpose) {
         this.gcsOperationStats = gcsOperationStats;
+        this.operationPurpose = operationPurpose;
         this.trackers = trackerFactories.stream()
             .map(trackerFactory -> trackerFactory.apply(gcsOperationStats.getTrackedBucket()))
             .toList();

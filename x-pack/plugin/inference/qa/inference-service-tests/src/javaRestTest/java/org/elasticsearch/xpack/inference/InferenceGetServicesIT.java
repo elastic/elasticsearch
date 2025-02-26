@@ -25,7 +25,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithoutTaskType() throws IOException {
         List<Object> services = getAllServices();
-        assertThat(services.size(), equalTo(19));
+        assertThat(services.size(), equalTo(20));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -53,6 +53,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 "test_reranking_service",
                 "test_service",
                 "text_embedding_test_service",
+                "voyageai",
                 "watsonxai"
             ).toArray(),
             providers
@@ -62,7 +63,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithTextEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.TEXT_EMBEDDING);
-        assertThat(services.size(), equalTo(14));
+        assertThat(services.size(), equalTo(15));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -85,6 +86,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 "mistral",
                 "openai",
                 "text_embedding_test_service",
+                "voyageai",
                 "watsonxai"
             ).toArray(),
             providers
@@ -94,7 +96,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithRerankTaskType() throws IOException {
         List<Object> services = getServices(TaskType.RERANK);
-        assertThat(services.size(), equalTo(6));
+        assertThat(services.size(), equalTo(7));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -103,7 +105,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
         }
 
         assertArrayEquals(
-            List.of("alibabacloud-ai-search", "cohere", "elasticsearch", "googlevertexai", "jinaai", "test_reranking_service").toArray(),
+            List.of("alibabacloud-ai-search", "cohere", "elasticsearch", "googlevertexai", "jinaai", "test_reranking_service", "voyageai")
+                .toArray(),
             providers
         );
     }

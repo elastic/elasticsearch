@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongLongHash;
@@ -151,44 +152,125 @@ class ValuesBytesRefAggregator {
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
         }
 
+        /**
+         * Builds a {@link Block} with the unique values collected for the {@code #selected}
+         * groups. This is the implementation of the final and intermediate results of the agg.
+         */
         Block toBlock(BlockFactory blockFactory, IntVector selected) {
             if (values.size() == 0) {
                 return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
-            BytesRef scratch = new BytesRef();
-            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
-                for (int s = 0; s < selected.getPositionCount(); s++) {
-                    int selectedGroup = selected.getInt(s);
-                    /*
-                     * Count can effectively be in three states - 0, 1, many. We use those
-                     * states to buffer the first value, so we can avoid calling
-                     * beginPositionEntry on single valued fields.
-                     */
-                    int count = 0;
-                    long first = 0;
-                    for (int id = 0; id < values.size(); id++) {
-                        if (values.getKey1(id) == selectedGroup) {
-                            long value = values.getKey2(id);
-                            switch (count) {
-                                case 0 -> first = value;
-                                case 1 -> {
-                                    builder.beginPositionEntry();
-                                    builder.appendBytesRef(bytes.get(first, scratch));
-                                    builder.appendBytesRef(bytes.get(value, scratch));
-                                }
-                                default -> builder.appendBytesRef(bytes.get(value, scratch));
-                            }
-                            count++;
-                        }
-                    }
-                    switch (count) {
-                        case 0 -> builder.appendNull();
-                        case 1 -> builder.appendBytesRef(bytes.get(first, scratch));
-                        default -> builder.endPositionEntry();
+
+            long selectedCountsSize = 0;
+            long idsSize = 0;
+            try {
+                /*
+                 * Get a count of all groups less than the maximum selected group. Count
+                 * *downwards* so that we can flip the sign on all of the actually selected
+                 * groups. Negative values in this array are always unselected groups.
+                 */
+                int selectedCountsLen = selected.max() + 1;
+                long adjust = RamUsageEstimator.alignObjectSize(
+                    RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + selectedCountsLen * Integer.BYTES
+                );
+                blockFactory.adjustBreaker(adjust);
+                selectedCountsSize = adjust;
+                int[] selectedCounts = new int[selectedCountsLen];
+                for (int id = 0; id < values.size(); id++) {
+                    int group = (int) values.getKey1(id);
+                    if (group < selectedCounts.length) {
+                        selectedCounts[group]--;
                     }
                 }
-                return builder.build();
+
+                /*
+                 * Total the selected groups and turn the counts into the start index into a sort-of
+                 * off-by-one running count. It's really the number of values that have been inserted
+                 * into the results before starting on this group. Unselected groups will still
+                 * have negative counts.
+                 *
+                 * For example, if
+                 * | Group | Value Count | Selected |
+                 * |-------|-------------|----------|
+                 * |     0 | 3           | <-       |
+                 * |     1 | 1           | <-       |
+                 * |     2 | 2           |          |
+                 * |     3 | 1           | <-       |
+                 * |     4 | 4           | <-       |
+                 *
+                 * Then the total is 9 and the counts array will contain 0, 3, -2, 4, 5
+                 */
+                int total = 0;
+                for (int s = 0; s < selected.getPositionCount(); s++) {
+                    int group = selected.getInt(s);
+                    int count = -selectedCounts[group];
+                    selectedCounts[group] = total;
+                    total += count;
+                }
+
+                /*
+                 * Build a list of ids to insert in order *and* convert the running
+                 * count in selectedCounts[group] into the end index (exclusive) in
+                 * ids for each group.
+                 * Here we use the negative counts to signal that a group hasn't been
+                 * selected and the id containing values for that group is ignored.
+                 *
+                 * For example, if
+                 * | Group | Value Count | Selected |
+                 * |-------|-------------|----------|
+                 * |     0 | 3           | <-       |
+                 * |     1 | 1           | <-       |
+                 * |     2 | 2           |          |
+                 * |     3 | 1           | <-       |
+                 * |     4 | 4           | <-       |
+                 *
+                 * Then the total is 9 and the counts array will start with 0, 3, -2, 4, 5.
+                 * The counts will end with 3, 4, -2, 5, 9.
+                 */
+                adjust = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + total * Integer.BYTES);
+                blockFactory.adjustBreaker(adjust);
+                idsSize = adjust;
+                int[] ids = new int[total];
+                for (int id = 0; id < values.size(); id++) {
+                    int group = (int) values.getKey1(id);
+                    if (group < selectedCounts.length && selectedCounts[group] >= 0) {
+                        ids[selectedCounts[group]++] = id;
+                    }
+                }
+
+                /*
+                 * Insert the ids in order.
+                 */
+                BytesRef scratch = new BytesRef();
+                try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
+                    int start = 0;
+                    for (int s = 0; s < selected.getPositionCount(); s++) {
+                        int group = selected.getInt(s);
+                        int end = selectedCounts[group];
+                        int count = end - start;
+                        switch (count) {
+                            case 0 -> builder.appendNull();
+                            case 1 -> append(builder, ids[start], scratch);
+                            default -> {
+                                builder.beginPositionEntry();
+                                for (int i = start; i < end; i++) {
+                                    append(builder, ids[i], scratch);
+                                }
+                                builder.endPositionEntry();
+                            }
+                        }
+                        start = end;
+                    }
+                    return builder.build();
+                }
+            } finally {
+                blockFactory.adjustBreaker(-selectedCountsSize - idsSize);
             }
+        }
+
+        private void append(BytesRefBlock.Builder builder, int id, BytesRef scratch) {
+            BytesRef value = bytes.get(values.getKey2(id), scratch);
+            builder.appendBytesRef(value);
         }
 
         @Override

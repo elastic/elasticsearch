@@ -3085,7 +3085,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "line 1:20: mismatched input 'FORK' expecting {'limit', 'sort', 'where'}"
         );
         expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1' expecting {'limit', 'sort', 'where'}");
-        expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y' expecting {'limit', 'sort', 'where'}");
+        expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2' expecting {'limit', 'sort', 'where'}");
+    }
+
+    public void testFieldNamesAsCommands() throws Exception {
+        String[] keywords = new String[] {
+            "dissect",
+            "drop",
+            "enrich",
+            "eval",
+            "explain",
+            "from",
+            "grok",
+            "keep",
+            "limit",
+            "mv_expand",
+            "rename",
+            "sort",
+            "stats" };
+        for (String keyword : keywords) {
+            var plan = statement("FROM test | STATS avg(" + keyword + ")");
+            var aggregate = as(plan, Aggregate.class);
+        }
     }
 
     static Alias alias(String name, Expression value) {

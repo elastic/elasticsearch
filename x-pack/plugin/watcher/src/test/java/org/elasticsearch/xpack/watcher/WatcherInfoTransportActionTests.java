@@ -138,7 +138,6 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
             clusterService,
             threadPool,
             mock(ActionFilters.class),
-            null,
             Settings.EMPTY,
             licenseState,
             client

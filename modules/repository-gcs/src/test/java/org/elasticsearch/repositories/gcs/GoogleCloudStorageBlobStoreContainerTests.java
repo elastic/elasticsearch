@@ -21,6 +21,7 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 
@@ -79,7 +80,14 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         when(storage.batch()).thenReturn(batch);
 
         final GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
-        when(storageService.client(any(String.class), any(String.class), any(GoogleCloudStorageOperationsStats.class))).thenReturn(storage);
+        when(
+            storageService.client(
+                any(String.class),
+                any(String.class),
+                any(OperationPurpose.class),
+                any(GoogleCloudStorageOperationsStats.class)
+            )
+        ).thenReturn(storage);
 
         try (
             BlobStore store = new GoogleCloudStorageBlobStore(

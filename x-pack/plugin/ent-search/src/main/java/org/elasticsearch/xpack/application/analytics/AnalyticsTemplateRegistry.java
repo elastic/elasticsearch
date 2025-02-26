@@ -31,6 +31,10 @@ import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.R
 import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.TEMPLATE_VERSION_VARIABLE;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
 
     // This number must be incremented when we make changes to built-in templates.

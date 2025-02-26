@@ -324,9 +324,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             }
 
             if (currentDesiredBalanceRef.compareAndSet(oldDesiredBalance, newDesiredBalance)) {
-                balancerRoundSummaryService.addBalancerRoundSummary(
-                    AllocationBalancingRoundSummaryService.createBalancerRoundSummary(oldDesiredBalance, newDesiredBalance)
-                );
+                balancerRoundSummaryService.addBalancerRoundSummary(oldDesiredBalance, newDesiredBalance);
                 if (logger.isTraceEnabled()) {
                     var diff = DesiredBalance.hasChanges(oldDesiredBalance, newDesiredBalance)
                         ? "Diff: " + DesiredBalance.humanReadableDiff(oldDesiredBalance, newDesiredBalance)

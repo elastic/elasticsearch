@@ -337,8 +337,6 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         assertBusy(() -> {
             assertThat(translogReplicator.getActiveTranslogFiles().size(), equalTo(0));
-            assertThat(translogReplicator.getTranslogFilesToDelete().size(), equalTo(0));
-
             assertTranslogBlobsDoNotExist(activeTranslogFiles, indexObjectStoreService);
         });
     }
@@ -472,8 +470,6 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         assertBusy(() -> {
             assertThat(translogReplicator.getActiveTranslogFiles().size(), equalTo(0));
-            assertThat(translogReplicator.getTranslogFilesToDelete().size(), equalTo(0));
-
             assertTranslogBlobsDoNotExist(activeTranslogFiles, indexObjectStoreService);
         });
         long millisForDeletions = System.currentTimeMillis() - millisBeforeDeletions;
@@ -513,9 +509,17 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         flush(indexNameA);
 
+        HashSet<TranslogReplicator.BlobTranslogFile> toDelete = new HashSet<>();
+        Set<TranslogReplicator.BlobTranslogFile> stillActive = translogReplicator.getActiveTranslogFiles();
+        for (TranslogReplicator.BlobTranslogFile file : activeTranslogFiles) {
+            if (stillActive.contains(file) == false) {
+                toDelete.add(file);
+            }
+        }
+
         assertBusy(() -> {
             assertThat(translogReplicator.getActiveTranslogFiles().size(), greaterThan(0));
-            assertThat(translogReplicator.getTranslogFilesToDelete(), empty());
+            assertTranslogBlobsDoNotExist(toDelete, objectStoreService);
         });
 
         // TODO: Implement the mechanism to allow translog file prune when index deleted
@@ -529,7 +533,6 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         assertBusy(() -> {
             assertThat(translogReplicator.getActiveTranslogFiles(), empty());
-            assertThat(translogReplicator.getTranslogFilesToDelete(), empty());
 
             assertTranslogBlobsDoNotExist(activeTranslogFiles, objectStoreService);
         });
@@ -600,10 +603,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
             client(indexNodeA).admin().indices().prepareFlush(indexName).execute().actionGet();
 
-            assertBusy(() -> {
-                assertThat(translogReplicator.getActiveTranslogFiles().size(), equalTo(0));
-                assertThat(translogReplicator.getTranslogFilesToDelete().size(), greaterThan(0));
-            });
+            assertBusy(() -> { assertThat(translogReplicator.getActiveTranslogFiles().size(), equalTo(0)); });
             assertTranslogBlobsExist(activeTranslogFiles, indexNodeAObjectStoreService);
 
         } finally {
@@ -611,15 +611,11 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         }
 
         assertThat(translogReplicator.getActiveTranslogFiles().size(), equalTo(0));
-        assertThat(translogReplicator.getTranslogFilesToDelete().size(), greaterThan(0));
         assertTranslogBlobsExist(activeTranslogFiles, indexNodeAObjectStoreService);
 
         repository.unblock();
 
-        assertBusy(() -> {
-            assertThat(translogReplicator.getTranslogFilesToDelete().size(), equalTo(0));
-            assertTranslogBlobsDoNotExist(activeTranslogFiles, indexNodeAObjectStoreService);
-        });
+        assertBusy(() -> assertTranslogBlobsDoNotExist(activeTranslogFiles, indexNodeAObjectStoreService));
 
         ensureGreen(indexName);
 

@@ -167,10 +167,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         return Set.copyOf(nodeState.activeTranslogFiles);
     }
 
-    public Set<BlobTranslogFile> getTranslogFilesToDelete() {
-        return Set.copyOf(nodeState.translogFilesToDelete);
-    }
-
     public BigArrays bigArrays() {
         return bigArrays;
     }
@@ -708,7 +704,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private final PriorityQueue<ValidateClusterStateForUploadTask> ongoingValidateClusterState = new PriorityQueue<>();
 
         private final Set<BlobTranslogFile> activeTranslogFiles = ConcurrentCollections.newConcurrentSet();
-        private final Set<BlobTranslogFile> translogFilesToDelete = ConcurrentCollections.newConcurrentSet();
 
         private void markUploadStarting(final UploadTranslogTask uploadTranslogTask) {
             synchronized (ongoingUploads) {
@@ -840,7 +835,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }
 
         private void clusterStateValidateForFileDelete(BlobTranslogFile fileToDelete) {
-            translogFilesToDelete.add(fileToDelete);
             boolean removed = activeTranslogFiles.remove(fileToDelete);
             // If the file is not safe for delete just ignore. We clean it up in memory by removing it from activeTranslogFiles, but it is
             // left on the object store for potential recovery usage.
@@ -897,7 +891,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                     shardSyncState.markTranslogDeleted(fileToDelete.generation());
                 }
             }
-            translogFilesToDelete.remove(fileToDelete);
             logger.debug(() -> format("scheduling translog file [%s] for async delete", fileToDelete.blobName()));
             objectStoreService.asyncDeleteTranslogFile(fileToDelete.blobName);
         }

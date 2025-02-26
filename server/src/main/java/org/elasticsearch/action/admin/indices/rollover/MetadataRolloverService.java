@@ -450,6 +450,7 @@ public class MetadataRolloverService {
             );
         }
 
+        writeLoadForecaster.refreshLicense();
         metadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStreamName, metadataBuilder);
         metadataBuilder = withShardSizeForecastForWriteIndex(dataStreamName, metadataBuilder);
 

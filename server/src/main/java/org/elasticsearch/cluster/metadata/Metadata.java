@@ -551,6 +551,18 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     }
 
     /**
+     * @return {code true} if there are any indices in any project in this cluster
+     */
+    public boolean hasAnyIndices() {
+        for (ProjectMetadata project : projects().values()) {
+            if (project.indices().isEmpty() == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * @return The oldest {@link IndexVersion} of indices across all projects
      */
     public IndexVersion oldestIndexVersionAllProjects() {

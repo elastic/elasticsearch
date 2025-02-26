@@ -275,7 +275,7 @@ public class TransportVersions {
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.
      */
-    public static final TransportVersion MINIMUM_COMPATIBLE = BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
+    public static final TransportVersion MINIMUM_COMPATIBLE = INITIAL_ELASTICSEARCH_8_19;
 
     /**
      * Reference to the minimum transport version that can be used with CCS.

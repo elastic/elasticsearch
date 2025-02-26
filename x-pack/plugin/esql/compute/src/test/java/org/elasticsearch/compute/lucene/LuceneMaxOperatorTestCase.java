@@ -195,7 +195,7 @@ public abstract class LuceneMaxOperatorTestCase extends AnyOperatorTestCase {
 
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
-        return matchesRegex("LuceneMinMaxOperator\\[maxPageSize = \\d+, remainingDocs=100]");
+        return matchesRegex("LuceneMinMaxOperator\\[shards = \\[test\\], maxPageSize = \\d+, remainingDocs=100]");
     }
 
     @Override

@@ -40,9 +40,14 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
     public void setUpThreadPool() {
         deterministicTaskQueue = new DeterministicTaskQueue();
         testThreadPool = deterministicTaskQueue.getThreadPool();
-        settingsWithMergeScheduler = Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true).build();
+        settingsWithMergeScheduler = Settings.builder()
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .build();
         indexSettings = IndexSettingsModule.newIndexSettings("index", settingsWithMergeScheduler);
-        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(testThreadPool, settingsWithMergeScheduler);
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            testThreadPool,
+            settingsWithMergeScheduler
+        );
     }
 
     public void testAutoIOThrottleForMergeTasksWhenSchedulerDisablesIt() throws Exception {
@@ -55,13 +60,19 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
         MergePolicy.OneMergeProgress oneMergeProgress = new MergePolicy.OneMergeProgress();
         MergePolicy.OneMerge oneMerge = mock(MergePolicy.OneMerge.class);
-        when(oneMerge.getStoreMergeInfo()).thenReturn(new MergeInfo(randomNonNegativeInt(), randomNonNegativeLong(), randomBoolean(),
-                randomFrom(-1, randomNonNegativeInt())));
+        when(oneMerge.getStoreMergeInfo()).thenReturn(
+            new MergeInfo(randomNonNegativeInt(), randomNonNegativeLong(), randomBoolean(), randomFrom(-1, randomNonNegativeInt()))
+        );
         when(oneMerge.getMergeProgress()).thenReturn(oneMergeProgress);
         MergeScheduler.MergeSource mergeSource = mock(MergeScheduler.MergeSource.class);
         when(mergeSource.getNextMerge()).thenReturn(oneMerge);
-        try (ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(new ShardId("index", "_na_", 1),
-                indexSettings, threadPoolMergeExecutorService)) {
+        try (
+            ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
+                new ShardId("index", "_na_", 1),
+                indexSettings,
+                threadPoolMergeExecutorService
+            )
+        ) {
             threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
             var submittedMergeTaskCaptor = ArgumentCaptor.forClass(ThreadPoolMergeScheduler.MergeTask.class);
             verify(threadPoolMergeExecutorService).submitMergeTask(submittedMergeTaskCaptor.capture());
@@ -91,8 +102,13 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         MergeScheduler.MergeSource mergeSource = mock(MergeScheduler.MergeSource.class);
         when(mergeSource.getNextMerge()).thenReturn(oneMerge);
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
-        try (ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(new ShardId("index", "_na_", 1),
-                indexSettings, threadPoolMergeExecutorService)) {
+        try (
+            ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
+                new ShardId("index", "_na_", 1),
+                indexSettings,
+                threadPoolMergeExecutorService
+            )
+        ) {
             threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
             var submittedMergeTaskCaptor = ArgumentCaptor.forClass(ThreadPoolMergeScheduler.MergeTask.class);
             verify(threadPoolMergeExecutorService).submitMergeTask(submittedMergeTaskCaptor.capture());
@@ -102,8 +118,13 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         // NOT a forced merge
         when(oneMerge.getStoreMergeInfo()).thenReturn(new MergeInfo(randomNonNegativeInt(), randomNonNegativeLong(), randomBoolean(), -1));
         threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
-        try (ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(new ShardId("index", "_na_", 1),
-                indexSettings, threadPoolMergeExecutorService)) {
+        try (
+            ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
+                new ShardId("index", "_na_", 1),
+                indexSettings,
+                threadPoolMergeExecutorService
+            )
+        ) {
             // merge submitted upon closing
             threadPoolMergeScheduler.merge(mergeSource, MergeTrigger.CLOSING);
             var submittedMergeTaskCaptor = ArgumentCaptor.forClass(ThreadPoolMergeScheduler.MergeTask.class);
@@ -113,8 +134,13 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         }
         // otherwise, merge tasks should be auto IO throttled
         threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
-        try (ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(new ShardId("index", "_na_", 1),
-                indexSettings, threadPoolMergeExecutorService)) {
+        try (
+            ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
+                new ShardId("index", "_na_", 1),
+                indexSettings,
+                threadPoolMergeExecutorService
+            )
+        ) {
             // merge submitted upon closing
             threadPoolMergeScheduler.merge(
                 mergeSource,

@@ -1,4 +1,6 @@
 setup:
+  - requires:
+      test_runner_features: [ allowed_warnings ]
   - do:
       indices.create:
         index: test-search-index1
@@ -27,6 +29,8 @@ setup:
               number_of_replicas: 0
 
   - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.put:
         name: test-search-application
         body:
@@ -51,6 +55,8 @@ setup:
                   type: string
 
   - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.put:
         name: test-search-application-1
         body:
@@ -110,10 +116,14 @@ setup:
         refresh: true
 
   - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.put_behavioral_analytics:
         name: my-test-analytics-collection
 ---
 teardown:
+  - requires:
+      test_runner_features: [ allowed_warnings ]
   - do:
       search_application.delete:
         name: test-search-application
@@ -145,18 +155,20 @@ teardown:
         ignore: 404
 
   - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.delete_behavioral_analytics:
         name: my-test-analytics-collection
 
 ---
 "Query Search Application with API key":
-  - skip:
-      features: headers
+  - requires:
+      test_runner_features: [ headers, allowed_warnings ]
 
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       security.create_api_key:
-        body:  >
+        body: >
           {
             "name": "search-application-api-key",
             "role_descriptors": {
@@ -176,10 +188,10 @@ teardown:
           }
 
   - match: { name: "search-application-api-key" }
-  - set: { encoded: api_key_encoded  }
+  - set: { encoded: api_key_encoded }
   - set: { id: api_key_id }
 
-# Query Search Application with default parameters:
+  # Query Search Application with default parameters:
   - do:
       headers:
         Authorization: ApiKey ${api_key_encoded}
@@ -191,7 +203,7 @@ teardown:
   - match: { hits.hits.1._id: "doc2" }
 
 
-# Query Search Application overriding part of the parameters:
+  # Query Search Application overriding part of the parameters:
   - do:
       headers:
         Authorization: ApiKey ${api_key_encoded}
@@ -205,7 +217,7 @@ teardown:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc1" }
 
-# Query Search Application overriding all parameters:
+  # Query Search Application overriding all parameters:
   - do:
       headers:
         Authorization: ApiKey ${api_key_encoded}
@@ -220,7 +232,7 @@ teardown:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc2" }
 
-# Query Search Application with list of parameters:
+  # Query Search Application with list of parameters:
   - do:
       headers:
         Authorization: ApiKey ${api_key_encoded}
@@ -241,7 +253,7 @@ teardown:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc2" }
 
-# Query Search Application with invalid parameter validation:
+  # Query Search Application with invalid parameter validation:
   - do:
       catch: "bad_request"
       headers:
@@ -253,7 +265,7 @@ teardown:
             field_name: field3
             field_value: 35
 
-# Query Search Application without required parameter:
+  # Query Search Application without required parameter:
   - do:
       catch: "bad_request"
       headers:
@@ -264,7 +276,7 @@ teardown:
           params:
             field_value: test
 
-# Query Search Application - not found:
+  # Query Search Application - not found:
   - do:
       catch: forbidden
       headers:
@@ -276,11 +288,13 @@ teardown:
             field_name: field3
             field_value: value3
 
-# Get Analytics Collection should be rejected due to a workflow restriction
+  # Get Analytics Collection should be rejected due to a workflow restriction
   - do:
       catch: forbidden
       headers:
         Authorization: ApiKey ${api_key_encoded}
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.get_behavioral_analytics:
         name:
   - match: { status: 403 }
@@ -288,7 +302,7 @@ teardown:
   - match: { error.root_cause.0.type: role_restriction_exception }
   - match: { error.root_cause.0.reason: "access restricted by workflow" }
 
-# Get API key should not be allowed
+  # Get API key should not be allowed
   - do:
       catch: forbidden
       headers:
@@ -300,18 +314,18 @@ teardown:
   - match: { error.root_cause.0.type: role_restriction_exception }
   - match: { error.root_cause.0.reason: "access restricted by workflow" }
 
-# Authenticate with API key should not be allowed
+  # Authenticate with API key should not be allowed
   - do:
       catch: forbidden
       headers:
         Authorization: ApiKey ${api_key_encoded}
-      security.authenticate: {}
+      security.authenticate: { }
   - match: { status: 403 }
   - match: { error.type: security_exception }
   - match: { error.root_cause.0.type: role_restriction_exception }
   - match: { error.root_cause.0.reason: "access restricted by workflow" }
 
-# Direct index search should be rejected due to a workflow restriction
+  # Direct index search should be rejected due to a workflow restriction
   - do:
       catch: forbidden
       headers:
@@ -327,11 +341,11 @@ teardown:
   - match: { error.root_cause.0.type: role_restriction_exception }
   - match: { error.root_cause.0.reason: "access restricted by workflow" }
 
-# Creating an API key which can only search 'test-search-application-1'
+  # Creating an API key which can only search 'test-search-application-1'
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       security.create_api_key:
-        body:  >
+        body: >
           {
             "name": "search-application-1-api-key",
             "role_descriptors": {
@@ -350,10 +364,10 @@ teardown:
           }
 
   - match: { name: "search-application-1-api-key" }
-  - set: { encoded: api_key_encoded_1  }
+  - set: { encoded: api_key_encoded_1 }
   - set: { id: api_key_id_1 }
 
-# Query Search Application 'test-search-application' should be denied since API key (api_key_encoded_1) does not have required index privilege
+  # Query Search Application 'test-search-application' should be denied since API key (api_key_encoded_1) does not have required index privilege
   - do:
       catch: forbidden
       headers:
@@ -364,7 +378,7 @@ teardown:
   - match: { error.type: security_exception }
   - match: { error.reason: "action [indices:data/read/xpack/application/search_application/search] is unauthorized for API key id [${api_key_id_1}] of user [entsearch-user] on indices [test-search-application], this action is granted by the index privileges [read,all]" }
 
-# Query Search Application 'test-search-application-1' with new API key (api_key_encoded_1) should be allowed:
+  # Query Search Application 'test-search-application-1' with new API key (api_key_encoded_1) should be allowed:
   - do:
       headers:
         Authorization: ApiKey ${api_key_encoded_1}

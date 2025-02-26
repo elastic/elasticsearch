@@ -20,6 +20,10 @@ import static org.elasticsearch.xpack.application.analytics.event.parser.field.P
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchFiltersAnalyticsEventField.SEARCH_FILTERS_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SortOrderAnalyticsEventField.SORT_FIELD;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 public class SearchAnalyticsEventField {
     public static final ParseField SEARCH_FIELD = new ParseField("search");
 

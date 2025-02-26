@@ -1,0 +1,6 @@
+pr: 121827
+summary: Updates to allow using Cohere binary embedding response in semantic search
+  queries
+area: Machine Learning
+type: bug
+issues: []

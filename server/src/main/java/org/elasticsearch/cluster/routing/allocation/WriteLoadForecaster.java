@@ -21,6 +21,8 @@ public interface WriteLoadForecaster {
 
     OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata);
 
+    void refreshLicense();
+
     class DefaultWriteLoadForecaster implements WriteLoadForecaster {
         @Override
         public ProjectMetadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, ProjectMetadata.Builder metadata) {
@@ -31,5 +33,8 @@ public interface WriteLoadForecaster {
         public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
             return OptionalDouble.empty();
         }
+
+        @Override
+        public void refreshLicense() {}
     }
 }

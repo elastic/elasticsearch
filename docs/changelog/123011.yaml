@@ -1,0 +1,5 @@
+pr: 123011
+summary: Update 101 and 912 `CompletionPostingFormats` to use off-heap FST load mode
+area: Search
+type: enhancement
+issues: []

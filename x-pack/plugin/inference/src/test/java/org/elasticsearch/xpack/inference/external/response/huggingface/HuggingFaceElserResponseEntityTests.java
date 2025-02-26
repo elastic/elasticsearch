@@ -309,7 +309,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
-        assertThat(thrownException.getMessage(), containsString("[5:1] Unexpected end-of-input"));
+        assertThat(thrownException.getMessage(), containsString("[5:1] Unexpected end of file"));
         assertThat(thrownException.getCause().getMessage(), containsString("expected close marker for Array (start marker at"));
     }
 

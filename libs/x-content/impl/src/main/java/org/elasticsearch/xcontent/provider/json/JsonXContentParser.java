@@ -70,7 +70,7 @@ public class JsonXContentParser extends AbstractXContentParser {
      */
     private static IOException handleParserException(IOException e) throws IOException {
         switch (e) {
-            case JsonEOFException eof -> throw new XContentEOFException(getLocation(eof), eof.getMessage(), e);
+            case JsonEOFException eof -> throw new XContentEOFException(getLocation(eof), "Unexpected end of file", e);
             case JsonParseException pe -> throw newXContentParseException(pe);
             case InputCoercionException ice -> throw newXContentParseException(ice);
             case CharConversionException cce -> throw new XContentParseException(null, cce.getMessage(), cce);

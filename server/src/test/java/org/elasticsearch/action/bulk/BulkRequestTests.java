@@ -432,7 +432,7 @@ public class BulkRequestTests extends ESTestCase {
             () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
         );
 
-        assertThat(ex.getMessage(), containsString("Unexpected end-of-input"));
+        assertThat(ex.getMessage(), containsString("Unexpected end of file"));
     }
 
     public void testBulkActionWithAdditionalKeys() throws Exception {

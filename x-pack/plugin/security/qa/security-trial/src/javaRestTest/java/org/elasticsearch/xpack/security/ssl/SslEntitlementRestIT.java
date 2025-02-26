@@ -43,8 +43,8 @@ public class SslEntitlementRestIT extends ESRestTestCase {
     public void testSslEntitlementInaccessiblePath() throws IOException {
         settingsProvider.put("xpack.security.transport.ssl.keystore.path", "/bad/path");
         expectThrows(Exception.class, () -> cluster.restart(false));
+        AtomicBoolean found = new AtomicBoolean(false);
         for (int i = 0; i < cluster.getNumNodes(); i++) {
-            AtomicBoolean found = new AtomicBoolean(false);
             try (InputStream log = cluster.getNodeLog(i, LogType.SERVER)) {
                 Streams.readAllLines(log, line -> {
                     if (line.contains(
@@ -56,8 +56,8 @@ public class SslEntitlementRestIT extends ESRestTestCase {
                     }
                 });
             }
-            assertThat(found.get(), is(true));
         }
+        assertThat(found.get(), is(true));
     }
 
     @Override

@@ -187,14 +187,20 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             aliases = Set.of(new Alias(descriptor.getAliasName()).isHidden(true).writeIndex(true));
         }
 
-        // Throw an error if we are trying to directly create a system index other than the primary system index (or the alias)
-        if (request.index().equals(descriptor.getPrimaryIndex()) == false && request.index().equals(descriptor.getAliasName()) == false) {
+        boolean indexMigrationInProgress = request.index().endsWith(SystemIndices.UPGRADED_INDEX_SUFFIX);
+
+        // Throw an error if we are trying to directly create a system index other
+        // than the primary system index (or the alias, or we are migrating the index)
+        if (request.index().equals(descriptor.getPrimaryIndex()) == false
+            && request.index().equals(descriptor.getAliasName()) == false
+            && indexMigrationInProgress == false) {
             throw new IllegalArgumentException(
                 "Cannot create system index with name " + request.index() + "; descriptor primary index is " + descriptor.getPrimaryIndex()
             );
         }
 
-        return new CreateIndexClusterStateUpdateRequest(cause, descriptor.getPrimaryIndex(), request.index()).aliases(aliases)
+        String indexName = (indexMigrationInProgress) ? request.index() : descriptor.getPrimaryIndex();
+        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).aliases(aliases)
             .waitForActiveShards(ActiveShardCount.ALL)
             .mappings(descriptor.getMappings())
             .settings(settings);

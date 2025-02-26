@@ -46,7 +46,7 @@ public final class LuceneSliceQueue {
         return totalSlices;
     }
 
-    public Collection<String> remainingShards() {
+    public Collection<String> remainingShardsIdentifiers() {
         return slices.stream().map(slice -> slice.shardContext().shardIdentifier()).toList();
     }
 

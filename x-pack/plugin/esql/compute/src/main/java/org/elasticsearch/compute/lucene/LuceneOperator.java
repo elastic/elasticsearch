@@ -232,7 +232,7 @@ public abstract class LuceneOperator extends SourceOperator {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("shards = ").append(sortedUnion(processedShards, sliceQueue.remainingShards()));
+        sb.append("shards = ").append(sortedUnion(processedShards, sliceQueue.remainingShardsIdentifiers()));
         sb.append(", maxPageSize = ").append(maxPageSize);
         describe(sb);
         sb.append("]");

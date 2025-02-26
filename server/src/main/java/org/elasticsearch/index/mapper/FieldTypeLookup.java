@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 /**
  * An immutable container for looking up {@link MappedFieldType}s by their name.
  */
-final class FieldTypeLookup {
+public final class FieldTypeLookup {
     private final Map<String, MappedFieldType> fullNameToFieldType;
     private final Map<String, String> fullSubfieldNameToParentPath;
     private final Map<String, DynamicFieldType> dynamicFieldTypes;
@@ -164,7 +164,7 @@ final class FieldTypeLookup {
     /**
      * Returns the mapped field type for the given field name.
      */
-    MappedFieldType get(String field) {
+    public MappedFieldType get(String field) {
         MappedFieldType fieldType = fullNameToFieldType.get(field);
         if (fieldType != null) {
             return fieldType;

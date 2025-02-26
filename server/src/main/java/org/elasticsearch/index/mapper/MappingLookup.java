@@ -237,7 +237,7 @@ public final class MappingLookup {
         return fieldMappers.get(field);
     }
 
-    FieldTypeLookup fieldTypesLookup() {
+    public FieldTypeLookup fieldTypesLookup() {
         return fieldTypeLookup;
     }
 

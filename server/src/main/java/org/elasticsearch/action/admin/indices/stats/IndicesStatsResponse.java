@@ -232,22 +232,20 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                         }),
 
                         level == ClusterStatsLevel.SHARDS
-                            ? Iterators.concat(
-                                ChunkedToXContentHelper.startObject(Fields.SHARDS),
+                            ? ChunkedToXContentHelper.object(
+                                Fields.SHARDS,
                                 Iterators.flatMap(
                                     indexStats.iterator(),
-                                    indexShardStats -> Iterators.concat(
-                                        ChunkedToXContentHelper.startArray(Integer.toString(indexShardStats.getShardId().id())),
-                                        Iterators.<ShardStats, ToXContent>map(indexShardStats.iterator(), shardStats -> (builder, p) -> {
+                                    indexShardStats -> ChunkedToXContentHelper.array(
+                                        Integer.toString(indexShardStats.getShardId().id()),
+                                        Iterators.map(indexShardStats.iterator(), shardStats -> (builder, p) -> {
                                             builder.startObject();
                                             shardStats.toXContent(builder, p);
                                             builder.endObject();
                                             return builder;
-                                        }),
-                                        ChunkedToXContentHelper.endArray()
+                                        })
                                     )
-                                ),
-                                ChunkedToXContentHelper.endObject()
+                                )
                             )
                             : Collections.emptyIterator(),
 

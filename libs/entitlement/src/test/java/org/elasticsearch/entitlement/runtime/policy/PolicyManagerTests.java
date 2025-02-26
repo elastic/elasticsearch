@@ -69,6 +69,7 @@ public class PolicyManagerTests extends ESTestCase {
                 TEST_BASE_DIR.resolve("/user/home"),
                 TEST_BASE_DIR.resolve("/config"),
                 new Path[] { TEST_BASE_DIR.resolve("/data1/"), TEST_BASE_DIR.resolve("/data2") },
+                new Path[] { TEST_BASE_DIR.resolve("/shared1"), TEST_BASE_DIR.resolve("/shared2") },
                 TEST_BASE_DIR.resolve("/temp"),
                 Settings.EMPTY::get,
                 Settings.EMPTY::getGlobValues
@@ -86,7 +87,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "plugin1",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
 
         // Any class from the current module (unnamed) will do
@@ -110,7 +112,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "plugin1",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
 
         // Any class from the current module (unnamed) will do
@@ -130,7 +133,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "plugin1",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
 
         // Any class from the current module (unnamed) will do
@@ -155,7 +159,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "plugin2",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
 
         // Any class from the current module (unnamed) will do
@@ -173,7 +178,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> null,
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
 
         // Tests do not run modular, so we cannot use a server class.
@@ -203,7 +209,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> null,
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
 
         // Tests do not run modular, so we cannot use a server class.
@@ -229,7 +236,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "mock-plugin",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
 
         var layer = createLayerForJar(jar, "org.example.plugin");
@@ -248,7 +256,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "plugin2",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
 
         // Any class from the current module (unnamed) will do
@@ -307,7 +316,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> c.getPackageName().startsWith(TEST_AGENTS_PACKAGE_NAME) ? null : "test",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
         ModuleEntitlements agentsEntitlements = policyManager.getEntitlements(TestAgent.class);
         assertThat(agentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
@@ -335,7 +345,8 @@ public class PolicyManagerTests extends ESTestCase {
                 c -> "test",
                 TEST_AGENTS_PACKAGE_NAME,
                 NO_ENTITLEMENTS_MODULE,
-                TEST_PATH_LOOKUP
+                TEST_PATH_LOOKUP,
+                Set.of()
             )
         );
         assertEquals(
@@ -352,7 +363,8 @@ public class PolicyManagerTests extends ESTestCase {
                 c -> "test",
                 TEST_AGENTS_PACKAGE_NAME,
                 NO_ENTITLEMENTS_MODULE,
-                TEST_PATH_LOOKUP
+                TEST_PATH_LOOKUP,
+                Set.of()
             )
         );
         assertEquals(
@@ -386,7 +398,8 @@ public class PolicyManagerTests extends ESTestCase {
                 c -> "plugin1",
                 TEST_AGENTS_PACKAGE_NAME,
                 NO_ENTITLEMENTS_MODULE,
-                TEST_PATH_LOOKUP
+                TEST_PATH_LOOKUP,
+                Set.of()
             )
         );
         assertEquals(
@@ -406,7 +419,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "test", // Insist that the class is in a plugin
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
         ModuleEntitlements notAgentsEntitlements = policyManager.getEntitlements(TestAgent.class);
         assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
@@ -427,7 +441,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "test",
             agentsPackageName,
             entitlementsModule,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
     }
 

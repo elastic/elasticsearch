@@ -20,6 +20,10 @@ import java.util.Map;
 
 import static org.elasticsearch.common.Strings.requireNonBlank;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 public class SessionAnalyticsEventField {
     public static final ParseField SESSION_FIELD = new ParseField("session");
 

@@ -31,6 +31,7 @@ import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.xpack.esql.TestNodeInfoSupplier;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -180,6 +181,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             BigArrays.NON_RECYCLING_INSTANCE,
             TestBlockFactory.getNonBreakingInstance(),
             Settings.EMPTY,
+            TestNodeInfoSupplier.INSTANCE,
             config(),
             null,
             null,

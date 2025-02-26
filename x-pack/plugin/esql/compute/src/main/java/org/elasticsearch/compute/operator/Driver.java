@@ -60,6 +60,16 @@ public class Driver implements Releasable, Describable {
     private final String taskDescription;
 
     /**
+     * Name of the cluster executing this driver.
+     */
+    private final String clusterName;
+
+    /**
+     * Name of the node executing this driver.
+     */
+    private final String nodeName;
+
+    /**
      * The wall clock time when this driver was created in milliseconds since epoch.
      * Compared to {@link #startNanos} this is less accurate and is measured by a
      * timer that can go backwards. This is only useful for presenting times to a
@@ -117,6 +127,8 @@ public class Driver implements Releasable, Describable {
     public Driver(
         String sessionId,
         String taskDescription,
+        String clusterName,
+        String nodeName,
         long startTime,
         long startNanos,
         DriverContext driverContext,
@@ -129,6 +141,8 @@ public class Driver implements Releasable, Describable {
     ) {
         this.sessionId = sessionId;
         this.taskDescription = taskDescription;
+        this.clusterName = clusterName;
+        this.nodeName = nodeName;
         this.startTime = startTime;
         this.startNanos = startNanos;
         this.driverContext = driverContext;
@@ -143,6 +157,8 @@ public class Driver implements Releasable, Describable {
             new DriverStatus(
                 sessionId,
                 taskDescription,
+                clusterName,
+                nodeName,
                 startTime,
                 System.currentTimeMillis(),
                 0,
@@ -471,6 +487,8 @@ public class Driver implements Releasable, Describable {
         }
         return new DriverProfile(
             status.taskDescription(),
+            status.clusterName(),
+            status.nodeName(),
             status.started(),
             status.lastUpdated(),
             finishNanos - startNanos,
@@ -518,6 +536,8 @@ public class Driver implements Releasable, Describable {
             return new DriverStatus(
                 sessionId,
                 taskDescription,
+                clusterName,
+                nodeName,
                 startTime,
                 now,
                 prev.cpuNanos() + extraCpuNanos,

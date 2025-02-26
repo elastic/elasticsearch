@@ -66,19 +66,7 @@ public class DriverTests extends ESTestCase {
         long waitTime = randomLongBetween(1000, 100000);
         long tickTime = randomLongBetween(1, 10000);
 
-        Driver driver = new Driver(
-            "unset",
-            "test",
-            startEpoch,
-            startNanos,
-            driverContext,
-            () -> "unset",
-            new CannedSourceOperator(inPages.iterator()),
-            List.of(),
-            new TestResultPageSinkOperator(outPages::add),
-            TimeValue.timeValueDays(10),
-            () -> {}
-        );
+        Driver driver = createDriver(startEpoch, startNanos, driverContext, inPages, outPages, TimeValue.timeValueDays(10));
 
         NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
 
@@ -116,19 +104,7 @@ public class DriverTests extends ESTestCase {
         long waitTime = randomLongBetween(1000, 100000);
         long tickTime = randomLongBetween(1, 10000);
 
-        Driver driver = new Driver(
-            "unset",
-            "test",
-            startEpoch,
-            startNanos,
-            driverContext,
-            () -> "unset",
-            new CannedSourceOperator(inPages.iterator()),
-            List.of(),
-            new TestResultPageSinkOperator(outPages::add),
-            TimeValue.timeValueDays(10),
-            () -> {}
-        );
+        Driver driver = createDriver(startEpoch, startNanos, driverContext, inPages, outPages, TimeValue.timeValueDays(10));
 
         NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
         for (int i = 0; i < inPages.size(); i++) {
@@ -167,19 +143,7 @@ public class DriverTests extends ESTestCase {
         long waitTime = randomLongBetween(1000, 100000);
         long tickTime = randomLongBetween(1, 10000);
 
-        Driver driver = new Driver(
-            "unset",
-            "test",
-            startEpoch,
-            startNanos,
-            driverContext,
-            () -> "unset",
-            new CannedSourceOperator(inPages.iterator()),
-            List.of(),
-            new TestResultPageSinkOperator(outPages::add),
-            TimeValue.timeValueNanos(tickTime),
-            () -> {}
-        );
+        Driver driver = createDriver(startEpoch, startNanos, driverContext, inPages, outPages, TimeValue.timeValueNanos(tickTime));
 
         NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
         for (int i = 0; i < inPages.size(); i++) {
@@ -203,7 +167,32 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
     }
 
-    class NowSupplier implements LongSupplier {
+    private static Driver createDriver(
+        long startEpoch,
+        long startNanos,
+        DriverContext driverContext,
+        List<Page> inPages,
+        List<Page> outPages,
+        TimeValue statusInterval
+    ) {
+        return new Driver(
+            "unset",
+            "test",
+            "test",
+            "test",
+            startEpoch,
+            startNanos,
+            driverContext,
+            () -> "unset",
+            new CannedSourceOperator(inPages.iterator()),
+            List.of(),
+            new TestResultPageSinkOperator(outPages::add),
+            statusInterval,
+            () -> {}
+        );
+    }
+
+    static class NowSupplier implements LongSupplier {
         private final long startNanos;
         private final long waitTime;
         private final long tickTime;

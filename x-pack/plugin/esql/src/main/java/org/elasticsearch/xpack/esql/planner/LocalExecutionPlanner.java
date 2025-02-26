@@ -131,6 +131,7 @@ public class LocalExecutionPlanner {
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
     private final Settings settings;
+    private final NodeInfoSupplier nodeInfoSupplier;
     private final Configuration configuration;
     private final Supplier<ExchangeSource> exchangeSourceSupplier;
     private final Supplier<ExchangeSink> exchangeSinkSupplier;
@@ -146,6 +147,7 @@ public class LocalExecutionPlanner {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         Settings settings,
+        NodeInfoSupplier nodeInfoSupplier,
         Configuration configuration,
         Supplier<ExchangeSource> exchangeSourceSupplier,
         Supplier<ExchangeSink> exchangeSinkSupplier,
@@ -161,12 +163,13 @@ public class LocalExecutionPlanner {
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
         this.settings = settings;
+        this.nodeInfoSupplier = nodeInfoSupplier;
+        this.configuration = configuration;
         this.exchangeSourceSupplier = exchangeSourceSupplier;
         this.exchangeSinkSupplier = exchangeSinkSupplier;
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.physicalOperationProviders = physicalOperationProviders;
-        this.configuration = configuration;
         this.shardContexts = shardContexts;
     }
 
@@ -194,7 +197,16 @@ public class LocalExecutionPlanner {
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
         context.addDriverFactory(
             new DriverFactory(
-                new DriverSupplier(taskDescription, context.bigArrays, context.blockFactory, physicalOperation, statusInterval, settings),
+                new DriverSupplier(
+                    taskDescription,
+                    nodeInfoSupplier.clusterName(),
+                    nodeInfoSupplier.nodeName(),
+                    context.bigArrays,
+                    context.blockFactory,
+                    physicalOperation,
+                    statusInterval,
+                    settings
+                ),
                 context.driverParallelism().get()
             )
         );
@@ -861,6 +873,8 @@ public class LocalExecutionPlanner {
 
     record DriverSupplier(
         String taskDescription,
+        String clusterName,
+        String nodeName,
         BigArrays bigArrays,
         BlockFactory blockFactory,
         PhysicalOperation physicalOperation,
@@ -888,6 +902,8 @@ public class LocalExecutionPlanner {
                 return new Driver(
                     sessionId,
                     taskDescription,
+                    clusterName,
+                    nodeName,
                     System.currentTimeMillis(),
                     System.nanoTime(),
                     driverContext,

@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgra
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.XContentTestUtils;
+import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.List;
@@ -28,6 +29,11 @@ public class FeatureUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     public FeatureUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    @BeforeClass
+    public static void ensureNotForwardCompatTest() {
+        assumeFalse("Only supported by bwc tests", Boolean.parseBoolean(System.getProperty("tests.fwc", "false")));
     }
 
     public void testGetFeatureUpgradeStatus() throws Exception {

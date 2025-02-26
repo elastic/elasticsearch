@@ -322,8 +322,48 @@ public interface EntitlementChecker {
 
     void check$java_net_Socket$connect(Class<?> callerClass, Socket that, SocketAddress endpoint, int backlog);
 
-    // Network miscellanea
+    // URLConnection (java.net + sun.net.www)
+
     void check$java_net_URL$openConnection(Class<?> callerClass, java.net.URL that, Proxy proxy);
+
+    void check$java_net_URLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getContentLengthLong(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getContentType(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getContentEncoding(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getExpiration(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getDate(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getLastModified(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getHeaderFieldInt(Class<?> callerClass, java.net.URLConnection that, String name, int defaultValue);
+
+    void check$java_net_URLConnection$getHeaderFieldLong(Class<?> callerClass, java.net.URLConnection that, String name, long defaultValue);
+
+    void check$java_net_URLConnection$getHeaderFieldDate(Class<?> callerClass, java.net.URLConnection that, String name, long defaultValue);
+
+    void check$java_net_URLConnection$getContent(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_URLConnection$getContent(Class<?> callerClass, java.net.URLConnection that, Class<?>[] classes);
+
+    // Using java.net.URLConnection for "that" as sun.net.www.URLConnection is not exported
+    void check$sun_net_www_URLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, String name);
+
+    void check$sun_net_www_URLConnection$getHeaderFields(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_URLConnection$getHeaderFieldKey(Class<?> callerClass, java.net.URLConnection that, int n);
+
+    void check$sun_net_www_URLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, int n);
+
+    void check$sun_net_www_URLConnection$getContentType(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_URLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that);
+
+    // Network miscellanea
 
     // HttpClient#send and sendAsync are abstract, so we instrument their internal implementations
     void check$jdk_internal_net_http_HttpClientImpl$send(

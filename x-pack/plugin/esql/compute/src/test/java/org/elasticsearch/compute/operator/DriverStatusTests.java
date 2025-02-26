@@ -39,10 +39,10 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             55L,
             DriverStatus.Status.RUNNING,
             List.of(
-                new DriverStatus.OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
-                new DriverStatus.OperatorStatus("ValuesSourceReader", ValuesSourceReaderOperatorStatusTests.simple())
+                new OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
+                new OperatorStatus("ValuesSourceReader", ValuesSourceReaderOperatorStatusTests.simple())
             ),
-            List.of(new DriverStatus.OperatorStatus("ExchangeSink", ExchangeSinkOperatorStatusTests.simple())),
+            List.of(new OperatorStatus("ExchangeSink", ExchangeSinkOperatorStatusTests.simple())),
             new DriverSleeps(
                 Map.of("driver time", 1L),
                 List.of(new DriverSleeps.Sleep("driver time", 1, 1)),
@@ -109,7 +109,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
 
     @Override
     protected Writeable.Reader<DriverStatus> instanceReader() {
-        return DriverStatus::new;
+        return DriverStatus::readFrom;
     }
 
     @Override
@@ -140,18 +140,18 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         return randomFrom(DriverStatus.Status.values());
     }
 
-    static List<DriverStatus.OperatorStatus> randomOperatorStatuses() {
+    static List<OperatorStatus> randomOperatorStatuses() {
         return randomList(0, 5, DriverStatusTests::randomOperatorStatus);
     }
 
-    private static DriverStatus.OperatorStatus randomOperatorStatus() {
+    private static OperatorStatus randomOperatorStatus() {
         Supplier<Operator.Status> status = randomFrom(
             new LuceneSourceOperatorStatusTests()::createTestInstance,
             new ValuesSourceReaderOperatorStatusTests()::createTestInstance,
             new ExchangeSinkOperatorStatusTests()::createTestInstance,
             () -> null
         );
-        return new DriverStatus.OperatorStatus(randomAlphaOfLength(3), status.get());
+        return new OperatorStatus(randomAlphaOfLength(3), status.get());
     }
 
     @Override

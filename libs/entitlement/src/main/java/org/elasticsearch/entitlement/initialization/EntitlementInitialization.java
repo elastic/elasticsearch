@@ -152,6 +152,7 @@ public class EntitlementInitialization {
         Collections.addAll(
             serverModuleFileDatas,
             // Base ES directories
+            FileData.ofPath(bootstrapArgs.pluginsDir(), READ),
             FileData.ofPath(bootstrapArgs.configDir(), READ),
             FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
             FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
@@ -178,6 +179,7 @@ public class EntitlementInitialization {
         if (bootstrapArgs.pidFile() != null) {
             serverModuleFileDatas.add(FileData.ofPath(bootstrapArgs.pidFile(), READ_WRITE));
         }
+
         Collections.addAll(
             serverScopes,
             new Scope(
@@ -186,6 +188,7 @@ public class EntitlementInitialization {
                     new CreateClassLoaderEntitlement(),
                     new FilesEntitlement(
                         List.of(
+                            // TODO: what in es.base is accessing shared repo?
                             FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
                             FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)
                         )

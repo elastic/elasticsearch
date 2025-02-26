@@ -1,0 +1,5 @@
+pr: 118222
+summary: Allowlist specific metadata fields under field-level security
+area: Authorization
+type: bug
+issues: []

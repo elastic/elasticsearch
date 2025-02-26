@@ -283,6 +283,11 @@ public final class Automatons {
         return minimize(res);
     }
 
+    public static Automaton unionAndMinimize(Automaton a1, Automaton a2) {
+        Automaton res = union(a1, a2);
+        return minimize(res);
+    }
+
     public static Automaton minusAndMinimize(Automaton a1, Automaton a2) {
         Automaton res = minus(a1, a2, maxDeterminizedStates);
         return minimize(res);

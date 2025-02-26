@@ -1145,7 +1145,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     private static void checkIfExceptFieldsIsSubsetOfGrantedFields(String roleName, String[] grantedFields, String[] deniedFields) {
         try {
-            fieldPermissionsCache.getFieldPermissions(new FieldPermissionsDefinition(grantedFields, deniedFields));
+            fieldPermissionsCache.validateFieldPermissionsWithCache(roleName, new FieldPermissionsDefinition(grantedFields, deniedFields));
         } catch (ElasticsearchSecurityException e) {
             throw new ElasticsearchParseException("failed to parse indices privileges for role [{}] - {}", e, roleName, e.getMessage());
         }

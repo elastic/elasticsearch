@@ -342,6 +342,8 @@ public class ExchangeServiceTests extends ESTestCase {
         return new Driver(
             sessionId,
             "test",
+            "unset",
+            "unset",
             0,
             0,
             dc,

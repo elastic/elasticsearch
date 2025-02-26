@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BulkRequestParserTests extends ESTestCase {
@@ -394,7 +395,7 @@ public class BulkRequestParserTests extends ESTestCase {
                 req -> fail("expected failure before we got this far")
             )
         );
-        assertEquals("[1:14] Unexpected end of file", ex.getMessage());
+        assertThat(ex.getMessage(), containsString("[1:14] Unexpected end-of-input"));
     }
 
     public void testFailExtraKeys() {

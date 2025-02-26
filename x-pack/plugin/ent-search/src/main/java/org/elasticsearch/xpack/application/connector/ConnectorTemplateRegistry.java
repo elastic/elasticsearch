@@ -8,25 +8,23 @@
 package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 import org.elasticsearch.xpack.core.template.JsonIngestPipelineConfig;
 
-import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ClientHelper.CLOUD_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.KIBANA_ORIGIN;
 
 public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
 
@@ -34,13 +32,6 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     static final int REGISTRY_VERSION = 3;
 
     // Connector indices constants
-
-    public static final String CONNECTOR_INDEX_NAME_PATTERN = ".elastic-connectors-v1";
-    public static final String CONNECTOR_TEMPLATE_NAME = "elastic-connectors";
-
-    public static final String CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN = ".elastic-connectors-sync-jobs-v1";
-    public static final String CONNECTOR_SYNC_JOBS_TEMPLATE_NAME = "elastic-connectors-sync-jobs";
-
     public static final String ACCESS_CONTROL_INDEX_PREFIX = ".search-acl-filter-";
     public static final String ACCESS_CONTROL_INDEX_NAME_PATTERN = ".search-acl-filter-*";
     public static final String ACCESS_CONTROL_TEMPLATE_NAME = "search-acl-filter";
@@ -58,51 +49,8 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     // Variable used to replace template version in index templates
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.application.connector.template.version";
 
-    private static final String MAPPINGS_SUFFIX = "-mappings";
-
-    private static final String SETTINGS_SUFFIX = "-settings";
-
-    private static final String JSON_EXTENSION = ".json";
-
-    static final Map<String, ComponentTemplate> COMPONENT_TEMPLATES;
-
-    static {
-        final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
-        for (IndexTemplateConfig config : List.of(
-            new IndexTemplateConfig(
-                CONNECTOR_TEMPLATE_NAME + MAPPINGS_SUFFIX,
-                ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_TEMPLATE_NAME + MAPPINGS_SUFFIX + JSON_EXTENSION,
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE
-            ),
-            new IndexTemplateConfig(
-                CONNECTOR_TEMPLATE_NAME + SETTINGS_SUFFIX,
-                ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_TEMPLATE_NAME + SETTINGS_SUFFIX + JSON_EXTENSION,
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE
-            ),
-            new IndexTemplateConfig(
-                CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + MAPPINGS_SUFFIX,
-                ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + MAPPINGS_SUFFIX + JSON_EXTENSION,
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE
-            ),
-            new IndexTemplateConfig(
-                CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + SETTINGS_SUFFIX,
-                ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_TEMPLATE_NAME + SETTINGS_SUFFIX + JSON_EXTENSION,
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE
-            )
-        )) {
-
-            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes())) {
-                componentTemplates.put(config.getTemplateName(), ComponentTemplate.parse(parser));
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        }
-        COMPONENT_TEMPLATES = Map.copyOf(componentTemplates);
-    }
+    // Sources allowed to access system indices using X-elastic-product-origin header
+    public static final List<String> CONNECTORS_ALLOWED_PRODUCT_ORIGINS = List.of(KIBANA_ORIGIN, CONNECTORS_ORIGIN, CLOUD_ORIGIN);
 
     @Override
     protected List<IngestPipelineConfig> getIngestPipelines() {
@@ -117,20 +65,6 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     }
 
     static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATES = parseComposableTemplates(
-        new IndexTemplateConfig(
-            CONNECTOR_TEMPLATE_NAME,
-            ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_TEMPLATE_NAME + ".json",
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            Map.of("connectors.index_pattern", CONNECTOR_INDEX_NAME_PATTERN)
-        ),
-        new IndexTemplateConfig(
-            CONNECTOR_SYNC_JOBS_TEMPLATE_NAME,
-            ROOT_TEMPLATE_RESOURCE_PATH + CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + ".json",
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            Map.of("connectors-sync-jobs.index_pattern", CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN)
-        ),
         new IndexTemplateConfig(
             ACCESS_CONTROL_TEMPLATE_NAME,
             ROOT_TEMPLATE_RESOURCE_PATH + ACCESS_CONTROL_TEMPLATE_NAME + ".json",
@@ -152,11 +86,6 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected String getOrigin() {
         return ENT_SEARCH_ORIGIN;
-    }
-
-    @Override
-    protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        return COMPONENT_TEMPLATES;
     }
 
     @Override

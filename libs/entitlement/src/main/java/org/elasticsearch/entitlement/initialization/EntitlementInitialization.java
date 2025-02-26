@@ -152,6 +152,7 @@ public class EntitlementInitialization {
         Collections.addAll(
             serverModuleFileDatas,
             // Base ES directories
+            FileData.ofPath(bootstrapArgs.pluginsDir(), READ),
             FileData.ofPath(bootstrapArgs.configDir(), READ),
             FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
             FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
@@ -224,7 +225,10 @@ public class EntitlementInitialization {
                 "org.apache.lucene.misc",
                 List.of(new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))))
             ),
-            new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
+            new Scope(
+                "org.apache.logging.log4j.core",
+                List.of(new ManageThreadsEntitlement(), new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE))))
+            ),
             new Scope(
                 "org.elasticsearch.nativeaccess",
                 List.of(

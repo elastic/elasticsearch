@@ -15,7 +15,7 @@ Use a Painless script to create a [script field](/reference/elasticsearch/rest-a
 `doc` (`Map`, read-only)
 :   Contains the fields of the specified document where each field is a `List` of values.
 
-[`params['_source']`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-source-field.md) (`Map`, read-only)
+[`params['_source']`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) (`Map`, read-only)
 :   Contains extracted JSON in a `Map` and `List` structure for the fields existing in a stored document.
 
 **Return**

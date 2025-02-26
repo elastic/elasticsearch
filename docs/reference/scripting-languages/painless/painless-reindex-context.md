@@ -15,19 +15,19 @@ Use a Painless script in a [reindex](https://www.elastic.co/docs/api/doc/elastic
 `ctx['op']` (`String`)
 :   The name of the operation.
 
-[`ctx['_routing']`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-routing-field.md) (`String`)
+[`ctx['_routing']`](/reference/elasticsearch/mapping-reference/mapping-routing-field.md) (`String`)
 :   The value used to select a shard for document storage.
 
-[`ctx['_index']`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-index-field.md) (`String`)
+[`ctx['_index']`](/reference/elasticsearch/mapping-reference/mapping-index-field.md) (`String`)
 :   The name of the index.
 
-[`ctx['_id']`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-id-field.md) (`String`)
+[`ctx['_id']`](/reference/elasticsearch/mapping-reference/mapping-id-field.md) (`String`)
 :   The unique document id.
 
 `ctx['_version']` (`int`)
 :   The current version of the document.
 
-[`ctx['_source']`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-source-field.md) (`Map`)
+[`ctx['_source']`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) (`Map`)
 :   Contains extracted JSON in a `Map` and `List` structure for the fields existing in a stored document.
 
 **Side Effects**
@@ -35,19 +35,19 @@ Use a Painless script in a [reindex](https://www.elastic.co/docs/api/doc/elastic
 `ctx['op']`
 :   Use the default of `index` to update a document. Set to `noop` to specify no operation or `delete` to delete the current document from the index.
 
-[`ctx['_routing']`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-routing-field.md)
+[`ctx['_routing']`](/reference/elasticsearch/mapping-reference/mapping-routing-field.md)
 :   Modify this to change the routing value for the current document.
 
-[`ctx['_index']`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-index-field.md)
+[`ctx['_index']`](/reference/elasticsearch/mapping-reference/mapping-index-field.md)
 :   Modify this to change the destination index for the current document.
 
-[`ctx['_id']`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-id-field.md)
+[`ctx['_id']`](/reference/elasticsearch/mapping-reference/mapping-id-field.md)
 :   Modify this to change the id for the current document.
 
 `ctx['_version']` (`int`)
 :   Modify this to modify the version for the current document.
 
-[`ctx['_source']`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-source-field.md)
+[`ctx['_source']`](/reference/elasticsearch/mapping-reference/mapping-source-field.md)
 :   Modify the values in the `Map/List` structure to add, modify, or delete the fields of a document.
 
 **Return**

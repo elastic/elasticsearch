@@ -510,11 +510,11 @@ Next, we show how the computed score looks like for each of the three possible d
 
 When choosing `gauss` as the decay function in the above example, the contour and surface plot of the multiplier looks like this:
 
-:::{image} ../../../../images/cd0e18a6-e898-11e2-9b3c-f0145078bd6f.png
+:::{image} https://f.cloud.github.com/assets/4320215/768157/cd0e18a6-e898-11e2-9b3c-f0145078bd6f.png
 :alt: cd0e18a6 e898 11e2 9b3c f0145078bd6f
 :::
 
-:::{image} ../../../../images/ec43c928-e898-11e2-8e0d-f3c4519dbd89.png
+:::{image} https://f.cloud.github.com/assets/4320215/768160/ec43c928-e898-11e2-8e0d-f3c4519dbd89.png
 :alt: ec43c928 e898 11e2 8e0d f3c4519dbd89
 :::
 
@@ -531,11 +531,11 @@ Suppose your original search results matches three hotels :
 
 When choosing `exp` as the decay function in the above example, the contour and surface plot of the multiplier looks like this:
 
-:::{image} ../../../../images/082975c0-e899-11e2-86f7-174c3a729d64.png
+:::{image} https://f.cloud.github.com/assets/4320215/768161/082975c0-e899-11e2-86f7-174c3a729d64.png
 :alt: 082975c0 e899 11e2 86f7 174c3a729d64
 :::
 
-:::{image} ../../../../images/0b606884-e899-11e2-907b-aefc77eefef6.png
+:::{image} https://f.cloud.github.com/assets/4320215/768162/0b606884-e899-11e2-907b-aefc77eefef6.png
 :alt: 0b606884 e899 11e2 907b aefc77eefef6
 :::
 
@@ -544,11 +544,11 @@ When choosing `exp` as the decay function in the above example, the contour and 
 
 When choosing `linear` as the decay function in the above example, the contour and surface plot of the multiplier looks like this:
 
-:::{image} ../../../../images/1775b0ca-e899-11e2-9f4a-776b406305c6.png
+:::{image} https://f.cloud.github.com/assets/4320215/768164/1775b0ca-e899-11e2-9f4a-776b406305c6.png
 :alt: 1775b0ca e899 11e2 9f4a 776b406305c6
 :::
 
-:::{image} ../../../../images/19d8b1aa-e899-11e2-91bc-6b0553e8d722.png
+:::{image} https://f.cloud.github.com/assets/4320215/768165/19d8b1aa-e899-11e2-91bc-6b0553e8d722.png
 :alt: 19d8b1aa e899 11e2 91bc 6b0553e8d722
 :::
 

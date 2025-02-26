@@ -12,7 +12,7 @@ Use a Painless script in an [ingest processor](/reference/ingestion-tools/enrich
 `params` (`Map`, read-only)
 :   User-defined parameters passed in as part of the query.
 
-[`ctx['_index']`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-index-field.md) (`String`)
+[`ctx['_index']`](/reference/elasticsearch/mapping-reference/mapping-index-field.md) (`String`)
 :   The name of the index.
 
 `ctx` (`Map`)
@@ -20,7 +20,7 @@ Use a Painless script in an [ingest processor](/reference/ingestion-tools/enrich
 
 **Side Effects**
 
-[`ctx['_index']`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-index-field.md)
+[`ctx['_index']`](/reference/elasticsearch/mapping-reference/mapping-index-field.md)
 :   Modify this to change the destination index for the current document.
 
 `ctx` (`Map`)

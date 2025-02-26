@@ -30,7 +30,7 @@ $$$cluster-indices-close-enable$$$
 $$$stack-templates-enabled$$$
 
 `stack.templates.enabled`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) If `true`, enables built-in index and component templates. [{{agent}}](docs-content://docs/reference/ingestion-tools/fleet/index.md) uses these templates to create data streams. If `false`, {{es}} disables these index and component templates. Defaults to `true`.
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) If `true`, enables built-in index and component templates. [{{agent}}](docs-content://reference/ingestion-tools/fleet/index.md) uses these templates to create data streams. If `false`, {{es}} disables these index and component templates. Defaults to `true`.
 
 ::::{note}
 It is not recommended to disable the built-in stack templates, as some functionality of {{es}} or Kibana will not work correctly when disabled. Features like log and metric collection, as well as Kibana reporting, may malfunction without the built-in stack templates. Stack templates should only be disabled temporarily, if necessary, to resolve upgrade issues, then re-enabled after any issues have been resolved.

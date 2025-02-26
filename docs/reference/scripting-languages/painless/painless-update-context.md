@@ -15,13 +15,13 @@ Use a Painless script in an [update](https://www.elastic.co/docs/api/doc/elastic
 `ctx['op']` (`String`)
 :   The name of the operation.
 
-[`ctx['_routing']`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-routing-field.md) (`String`, read-only)
+[`ctx['_routing']`](/reference/elasticsearch/mapping-reference/mapping-routing-field.md) (`String`, read-only)
 :   The value used to select a shard for document storage.
 
-[`ctx['_index']`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-index-field.md) (`String`, read-only)
+[`ctx['_index']`](/reference/elasticsearch/mapping-reference/mapping-index-field.md) (`String`, read-only)
 :   The name of the index.
 
-[`ctx['_id']`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-id-field.md) (`String`, read-only)
+[`ctx['_id']`](/reference/elasticsearch/mapping-reference/mapping-id-field.md) (`String`, read-only)
 :   The unique document id.
 
 `ctx['_version']` (`int`, read-only)
@@ -30,7 +30,7 @@ Use a Painless script in an [update](https://www.elastic.co/docs/api/doc/elastic
 `ctx['_now']` (`long`, read-only)
 :   The current timestamp in milliseconds.
 
-[`ctx['_source']`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-source-field.md) (`Map`)
+[`ctx['_source']`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) (`Map`)
 :   Contains extracted JSON in a `Map` and `List` structure for the fields existing in a stored document.
 
 **Side Effects**
@@ -38,7 +38,7 @@ Use a Painless script in an [update](https://www.elastic.co/docs/api/doc/elastic
 `ctx['op']`
 :   Use the default of `index` to update a document. Set to `none` to specify no operation or `delete` to delete the current document from the index.
 
-[`ctx['_source']`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-source-field.md)
+[`ctx['_source']`](/reference/elasticsearch/mapping-reference/mapping-source-field.md)
 :   Modify the values in the `Map/List` structure to add, modify, or delete the fields of a document.
 
 **Return**

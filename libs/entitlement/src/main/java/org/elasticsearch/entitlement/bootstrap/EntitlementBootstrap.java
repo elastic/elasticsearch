@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -40,9 +41,11 @@ public class EntitlementBootstrap {
         Path[] sharedRepoDirs,
         Path configDir,
         Path libDir,
+        Path pluginsDir,
         Path logsDir,
         Path tempDir,
-        Path pidFile
+        Path pidFile,
+        Set<Class<?>> suppressFailureLogClasses
     ) {
         public BootstrapArgs {
             requireNonNull(pluginPolicies);
@@ -56,8 +59,10 @@ public class EntitlementBootstrap {
             requireNonNull(sharedRepoDirs);
             requireNonNull(configDir);
             requireNonNull(libDir);
+            requireNonNull(pluginsDir);
             requireNonNull(logsDir);
             requireNonNull(tempDir);
+            requireNonNull(suppressFailureLogClasses);
         }
     }
 
@@ -79,9 +84,11 @@ public class EntitlementBootstrap {
      * @param sharedRepoDirs       shared repository directories for Elasticsearch
      * @param configDir      the config directory for Elasticsearch
      * @param libDir         the lib directory for Elasticsearch
+     * @param pluginsDir     the directory where plugins are installed for Elasticsearch
      * @param tempDir        the temp directory for Elasticsearch
      * @param logsDir        the log directory for Elasticsearch
      * @param pidFile        path to a pid file for Elasticsearch, or {@code null} if one was not specified
+     * @param suppressFailureLogClasses   classes for which we do not need or want to log Entitlements failures
      */
     public static void bootstrap(
         Map<String, Policy> pluginPolicies,
@@ -92,9 +99,11 @@ public class EntitlementBootstrap {
         Path[] sharedRepoDirs,
         Path configDir,
         Path libDir,
+        Path pluginsDir,
         Path logsDir,
         Path tempDir,
-        Path pidFile
+        Path pidFile,
+        Set<Class<?>> suppressFailureLogClasses
     ) {
         logger.debug("Loading entitlement agent");
         if (EntitlementBootstrap.bootstrapArgs != null) {
@@ -109,9 +118,11 @@ public class EntitlementBootstrap {
             sharedRepoDirs,
             configDir,
             libDir,
+            pluginsDir,
             logsDir,
             tempDir,
-            pidFile
+            pidFile,
+            suppressFailureLogClasses
         );
         exportInitializationToAgent();
         loadAgent(findAgentJar());

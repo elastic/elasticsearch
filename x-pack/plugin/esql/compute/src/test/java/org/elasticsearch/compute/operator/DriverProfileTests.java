@@ -34,8 +34,8 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
             10000,
             12,
             List.of(
-                new DriverStatus.OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
-                new DriverStatus.OperatorStatus("ValuesSourceReader", ValuesSourceReaderOperatorStatusTests.simple())
+                new OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
+                new OperatorStatus("ValuesSourceReader", ValuesSourceReaderOperatorStatusTests.simple())
             ),
             new DriverSleeps(
                 Map.of("driver time", 1L),
@@ -97,7 +97,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
 
     @Override
     protected Writeable.Reader<DriverProfile> instanceReader() {
-        return DriverProfile::new;
+        return DriverProfile::readFrom;
     }
 
     @Override

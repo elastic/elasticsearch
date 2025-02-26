@@ -287,22 +287,15 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         int dummyDrivers = between(0, 10);
         for (int i = 0; i < dummyDrivers; i++) {
             drivers.add(
-                new Driver(
-                    "test",
-                    "dummy-session",
-                    0,
-                    0,
+                TestDriverFactory.create(
                     new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance()),
-                    () -> "dummy-driver",
                     new SequenceLongBlockSourceOperator(
                         TestBlockFactory.getNonBreakingInstance(),
                         LongStream.range(0, between(1, 100)),
                         between(1, 100)
                     ),
                     List.of(),
-                    new PageConsumerOperator(page -> page.releaseBlocks()),
-                    Driver.DEFAULT_STATUS_INTERVAL,
-                    () -> {}
+                    new PageConsumerOperator(Page::releaseBlocks)
                 )
             );
         }

@@ -37,6 +37,7 @@ import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
@@ -300,41 +301,15 @@ public class ExchangeServiceTests extends ESTestCase {
         int numSources = randomIntBetween(1, 8);
         List<Driver> drivers = new ArrayList<>(numSinks + numSources);
         for (int i = 0; i < numSinks; i++) {
-            String description = "sink-" + i;
             ExchangeSinkOperator sinkOperator = new ExchangeSinkOperator(exchangeSink.get(), Function.identity());
             DriverContext dc = driverContext();
-            Driver d = new Driver(
-                "test-session:1",
-                "test",
-                0,
-                0,
-                dc,
-                () -> description,
-                seqNoGenerator.get(dc),
-                List.of(),
-                sinkOperator,
-                Driver.DEFAULT_STATUS_INTERVAL,
-                () -> {}
-            );
+            Driver d = TestDriverFactory.create(dc, seqNoGenerator.get(dc), List.of(), sinkOperator, () -> {});
             drivers.add(d);
         }
         for (int i = 0; i < numSources; i++) {
-            String description = "source-" + i;
             ExchangeSourceOperator sourceOperator = new ExchangeSourceOperator(exchangeSource.get());
             DriverContext dc = driverContext();
-            Driver d = new Driver(
-                "test-session:2",
-                "test",
-                0,
-                0,
-                dc,
-                () -> description,
-                sourceOperator,
-                List.of(),
-                seqNoCollector.get(dc),
-                Driver.DEFAULT_STATUS_INTERVAL,
-                () -> {}
-            );
+            Driver d = TestDriverFactory.create(dc, sourceOperator, List.of(), seqNoCollector.get(dc));
             drivers.add(d);
         }
         PlainActionFuture<Void> future = new PlainActionFuture<>();

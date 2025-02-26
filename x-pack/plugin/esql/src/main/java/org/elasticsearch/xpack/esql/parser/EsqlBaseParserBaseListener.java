@@ -685,6 +685,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterUnpivotCommand(EsqlBaseParser.UnpivotCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitUnpivotCommand(EsqlBaseParser.UnpivotCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterMatchExpression(EsqlBaseParser.MatchExpressionContext ctx) { }
   /**
    * {@inheritDoc}

@@ -2218,6 +2218,15 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testUnpivotWrongTypes() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        assertThat(
+            error("FROM test | UNPIVOT fieldName FOR fieldValue IN (first_name, salary)"),
+            containsString("1:13: Cannot UNPIVOT columns of different types: [first_name] type [KEYWORD], [salary] type [INTEGER]")
+        );
+    }
+
     private void query(String query) {
         query(query, defaultAnalyzer);
     }

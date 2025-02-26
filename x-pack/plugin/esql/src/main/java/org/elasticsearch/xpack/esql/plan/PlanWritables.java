@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.Unpivot;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SubqueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnpivotExec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -79,7 +81,8 @@ public class PlanWritables {
             MvExpand.ENTRY,
             OrderBy.ENTRY,
             Project.ENTRY,
-            TopN.ENTRY
+            TopN.ENTRY,
+            Unpivot.ENTRY
         );
     }
 
@@ -105,7 +108,8 @@ public class PlanWritables {
             ProjectExec.ENTRY,
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,
-            TopNExec.ENTRY
+            TopNExec.ENTRY,
+            UnpivotExec.ENTRY
         );
     }
 }

@@ -39,6 +39,7 @@ import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
+import org.elasticsearch.compute.operator.UnpivotOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
@@ -97,6 +98,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnpivotExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -227,6 +229,8 @@ public class LocalExecutionPlanner {
             return planMvExpand(mvExpand, context);
         } else if (node instanceof ChangePointExec changePoint) {
             return planChangePoint(changePoint, context);
+        } else if (node instanceof UnpivotExec unpivot) {
+            return planUnpivot(unpivot, context);
         }
         // source nodes
         else if (node instanceof EsQueryExec esQuery) {
@@ -725,6 +729,28 @@ public class LocalExecutionPlanner {
         layout.append(mergeExec.output());
         MergeOperator.BlockSuppliers suppliers = () -> mergeExec.suppliers().stream().map(s -> s.get()).toList();
         return PhysicalOperation.fromSource(new MergeOperator.MergeOperatorFactory(suppliers), layout.build());
+    }
+
+    private PhysicalOperation planUnpivot(UnpivotExec unpivotExec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(unpivotExec.child(), context);
+        Layout.Builder layout = new Layout.Builder();
+        for (Attribute attribute : unpivotExec.child().output()) {
+            if (unpivotExec.sourceColumns().contains(attribute) == false) {
+                layout.append(attribute);
+            }
+        }
+        layout.append(unpivotExec.keyColumn());
+        layout.append(unpivotExec.valueColumn());
+
+        List<NameId> nameIds = unpivotExec.sourceColumns().stream().map(NamedExpression::id).toList();
+        int[] channels = new int[nameIds.size()];
+        for (int i = 0; i < nameIds.size(); i++) {
+            channels[i] = source.layout.get(nameIds.get(i)).channel();
+        }
+        return source.with(
+            new UnpivotOperator.Factory(channels, unpivotExec.sourceColumns().stream().map(NamedExpression::name).toList()),
+            layout.build()
+        );
     }
 
     /**

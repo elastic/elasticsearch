@@ -102,6 +102,9 @@
                     "unprivileged": {
                       "type": "boolean"
                     },
+                    "fips": {
+                      "type": "boolean"
+                    },
                     "version": {
                       "type": "text",
                       "fields": {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy.entitlements;
 
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
@@ -17,6 +18,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -89,12 +91,12 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             return new RelativePathFileData(relativePath, baseDir, mode, null, false);
         }
 
-        static FileData ofPathSetting(String setting, Mode mode) {
-            return new PathSettingFileData(setting, mode, null, false);
+        static FileData ofPathSetting(String setting, Mode mode, boolean ignoreUrl) {
+            return new PathSettingFileData(setting, mode, ignoreUrl, null, false);
         }
 
-        static FileData ofRelativePathSetting(String setting, BaseDir baseDir, Mode mode) {
-            return new RelativePathSettingFileData(setting, baseDir, mode, null, false);
+        static FileData ofRelativePathSetting(String setting, BaseDir baseDir, Mode mode, boolean ignoreUrl) {
+            return new RelativePathSettingFileData(setting, baseDir, mode, ignoreUrl, null, false);
         }
 
         /**
@@ -223,16 +225,18 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
     }
 
-    private record PathSettingFileData(String setting, Mode mode, Platform platform, boolean exclusive) implements FileData {
+    private record PathSettingFileData(String setting, Mode mode, boolean ignoreUrl, Platform platform, boolean exclusive)
+        implements
+            FileData {
 
         @Override
         public PathSettingFileData withExclusive(boolean exclusive) {
-            return new PathSettingFileData(setting, mode, platform, exclusive);
+            return new PathSettingFileData(setting, mode, ignoreUrl, platform, exclusive);
         }
 
         @Override
         public Stream<Path> resolvePaths(PathLookup pathLookup) {
-            return resolvePathSettings(pathLookup, setting);
+            return resolvePathSettings(pathLookup, setting, ignoreUrl);
         }
 
         @Override
@@ -240,23 +244,27 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             if (platform == platform()) {
                 return this;
             }
-            return new PathSettingFileData(setting, mode, platform, exclusive);
+            return new PathSettingFileData(setting, mode, ignoreUrl, platform, exclusive);
         }
     }
 
-    private record RelativePathSettingFileData(String setting, BaseDir baseDir, Mode mode, Platform platform, boolean exclusive)
-        implements
-            FileData,
-            RelativeFileData {
+    private record RelativePathSettingFileData(
+        String setting,
+        BaseDir baseDir,
+        Mode mode,
+        boolean ignoreUrl,
+        Platform platform,
+        boolean exclusive
+    ) implements FileData, RelativeFileData {
 
         @Override
         public RelativePathSettingFileData withExclusive(boolean exclusive) {
-            return new RelativePathSettingFileData(setting, baseDir, mode, platform, exclusive);
+            return new RelativePathSettingFileData(setting, baseDir, mode, ignoreUrl, platform, exclusive);
         }
 
         @Override
         public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
-            return resolvePathSettings(pathLookup, setting);
+            return resolvePathSettings(pathLookup, setting, ignoreUrl);
         }
 
         @Override
@@ -264,16 +272,22 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             if (platform == platform()) {
                 return this;
             }
-            return new RelativePathSettingFileData(setting, baseDir, mode, platform, exclusive);
+            return new RelativePathSettingFileData(setting, baseDir, mode, ignoreUrl, platform, exclusive);
         }
     }
 
-    private static Stream<Path> resolvePathSettings(PathLookup pathLookup, String setting) {
+    private static Stream<Path> resolvePathSettings(PathLookup pathLookup, String setting, boolean ignoreUrl) {
+        Stream<String> result;
         if (setting.contains("*")) {
-            return pathLookup.settingGlobResolver().apply(setting).map(Path::of);
+            result = pathLookup.settingGlobResolver().apply(setting);
+        } else {
+            String path = pathLookup.settingResolver().apply(setting);
+            result = path == null ? Stream.of() : Stream.of(path);
         }
-        String path = pathLookup.settingResolver().apply(setting);
-        return path == null ? Stream.of() : Stream.of(Path.of(path));
+        if (ignoreUrl) {
+            result = result.filter(s -> s.toLowerCase(Locale.ROOT).startsWith("https://") == false);
+        }
+        return result.map(Path::of);
     }
 
     private static Mode parseMode(String mode) {
@@ -318,7 +332,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
         List<FileData> filesData = new ArrayList<>();
         for (Object object : paths) {
-            Map<String, Object> file = new HashMap<>((Map<String, Object>) object);
+            Map<String, Object> file = new HashMap<>((Map<String, String>) object);
             String pathAsString = (String) file.remove("path");
             String relativePathAsString = (String) file.remove("relative_path");
             String relativeTo = (String) file.remove("relative_to");
@@ -326,6 +340,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             String relativePathSetting = (String) file.remove("relative_path_setting");
             String modeAsString = (String) file.remove("mode");
             String platformAsString = (String) file.remove("platform");
+            String ignoreUrlAsString = (String) file.remove("ignore_url");
             Boolean exclusiveBoolean = (Boolean) file.remove("exclusive");
             boolean exclusive = exclusiveBoolean != null && exclusiveBoolean;
 
@@ -354,6 +369,14 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 baseDir = parseBaseDir(relativeTo);
             }
 
+            boolean ignoreUrl = false;
+            if (ignoreUrlAsString != null) {
+                if (relativePathAsString != null || pathAsString != null) {
+                    throw new PolicyValidationException("'ignore_url' may only be used with `path_setting` or `relative_path_setting`");
+                }
+                ignoreUrl = Booleans.parseBoolean(ignoreUrlAsString);
+            }
+
             final FileData fileData;
             if (relativePathAsString != null) {
                 if (baseDir == null) {
@@ -371,12 +394,12 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 }
                 fileData = FileData.ofPath(path, mode);
             } else if (pathSetting != null) {
-                fileData = FileData.ofPathSetting(pathSetting, mode);
+                fileData = FileData.ofPathSetting(pathSetting, mode, ignoreUrl);
             } else if (relativePathSetting != null) {
                 if (baseDir == null) {
                     throw new PolicyValidationException("files entitlement with a 'relative_path_setting' must specify 'relative_to'");
                 }
-                fileData = FileData.ofRelativePathSetting(relativePathSetting, baseDir, mode);
+                fileData = FileData.ofRelativePathSetting(relativePathSetting, baseDir, mode, ignoreUrl);
             } else {
                 throw new AssertionError("File entry validation error");
             }

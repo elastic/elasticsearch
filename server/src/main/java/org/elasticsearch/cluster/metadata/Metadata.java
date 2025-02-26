@@ -1347,116 +1347,140 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
             getSingleProject().put(indexMetadataBuilder);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder put(IndexMetadata indexMetadata, boolean incrementVersion) {
             getSingleProject().put(indexMetadata, incrementVersion);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public IndexMetadata get(String index) {
             return getSingleProject().get(index);
         }
 
+        @Deprecated(forRemoval = true)
         public IndexMetadata getSafe(Index index) {
             return getSingleProject().getSafe(index);
         }
 
+        @Deprecated(forRemoval = true)
         public Builder remove(String index) {
             getSingleProject().remove(index);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder removeAllIndices() {
             getSingleProject().removeAllIndices();
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder indices(Map<String, IndexMetadata> indices) {
             getSingleProject().indices(indices);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder put(IndexTemplateMetadata.Builder template) {
             getSingleProject().put(template);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder put(IndexTemplateMetadata template) {
             getSingleProject().put(template);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder removeTemplate(String templateName) {
             getSingleProject().removeTemplate(templateName);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder templates(Map<String, IndexTemplateMetadata> templates) {
             getSingleProject().templates(templates);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder put(String name, ComponentTemplate componentTemplate) {
             getSingleProject().put(name, componentTemplate);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder removeComponentTemplate(String name) {
             getSingleProject().removeComponentTemplate(name);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder componentTemplates(Map<String, ComponentTemplate> componentTemplates) {
             getSingleProject().componentTemplates(componentTemplates);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder indexTemplates(Map<String, ComposableIndexTemplate> indexTemplates) {
             getSingleProject().indexTemplates(indexTemplates);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder put(String name, ComposableIndexTemplate indexTemplate) {
             getSingleProject().put(name, indexTemplate);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder removeIndexTemplate(String name) {
             getSingleProject().removeIndexTemplate(name);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public DataStream dataStream(String dataStreamName) {
             return getSingleProject().dataStream(dataStreamName);
         }
 
+        @Deprecated(forRemoval = true)
         public Builder dataStreams(Map<String, DataStream> dataStreams, Map<String, DataStreamAlias> dataStreamAliases) {
             getSingleProject().dataStreams(dataStreams, dataStreamAliases);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder put(DataStream dataStream) {
             getSingleProject().put(dataStream);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public DataStreamMetadata dataStreamMetadata() {
             return getSingleProject().dataStreamMetadata();
         }
 
+        @Deprecated(forRemoval = true)
         public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
             return getSingleProject().put(aliasName, dataStream, isWriteDataStream, filter);
         }
 
+        @Deprecated(forRemoval = true)
         public Builder removeDataStream(String name) {
             getSingleProject().removeDataStream(name);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public boolean removeDataStreamAlias(String aliasName, String dataStreamName, boolean mustExist) {
             return getSingleProject().removeDataStreamAlias(aliasName, dataStreamName, mustExist);
         }
@@ -1490,21 +1514,25 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder putProjectCustom(String type, ProjectCustom custom) {
             getSingleProject().putCustom(type, Objects.requireNonNull(custom, type));
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder removeProjectCustom(String type) {
             getSingleProject().removeCustom(type);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder removeProjectCustomIf(BiPredicate<String, ? super ProjectCustom> p) {
             getSingleProject().removeCustomIf(p);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder projectCustoms(Map<String, ProjectCustom> projectCustoms) {
             projectCustoms.forEach((key, value) -> Objects.requireNonNull(value, key));
             getSingleProject().customs(projectCustoms);
@@ -1541,20 +1569,18 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return this;
         }
 
-        public Builder putProjectReservedState(ReservedStateMetadata metadata) {
-            getSingleProject().put(metadata);
-            return this;
-        }
-
+        @Deprecated(forRemoval = true)
         public Builder indexGraveyard(final IndexGraveyard indexGraveyard) {
             getSingleProject().indexGraveyard(indexGraveyard);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public IndexGraveyard indexGraveyard() {
             return getSingleProject().indexGraveyard();
         }
 
+        @Deprecated(forRemoval = true)
         public Builder updateSettings(Settings settings, String... indices) {
             getSingleProject().updateSettings(settings, indices);
             return this;
@@ -1567,6 +1593,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
          * @param indices          the indices to update the number of replicas for
          * @return the builder
          */
+        @Deprecated(forRemoval = true)
         public Builder updateNumberOfReplicas(final int numberOfReplicas, final String[] indices) {
             getSingleProject().updateNumberOfReplicas(numberOfReplicas, indices);
             return this;

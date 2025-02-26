@@ -52,6 +52,7 @@ import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -1306,8 +1307,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             false // no scoring
         );
         try (
-            Driver driver = new Driver(
-                "test",
+            Driver driver = TestDriverFactory.create(
                 driverContext,
                 luceneFactory.get(driverContext),
                 List.of(
@@ -1336,8 +1336,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     } finally {
                         page.releaseBlocks();
                     }
-                }),
-                () -> {}
+                })
             )
         ) {
             runDriver(driver);
@@ -1409,8 +1408,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         DriverContext driverContext = driverContext();
         int[] pages = new int[] { 0 };
         try (
-            Driver d = new Driver(
-                "test",
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 simpleInput(driverContext.blockFactory(), 10),
                 List.of(
@@ -1433,8 +1431,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     } finally {
                         page.releaseBlocks();
                     }
-                }),
-                () -> {}
+                })
             )
         ) {
             runDriver(d);

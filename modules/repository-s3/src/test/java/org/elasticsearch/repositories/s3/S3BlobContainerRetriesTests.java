@@ -21,6 +21,8 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.BackoffPolicy;
@@ -78,6 +80,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
@@ -332,6 +335,57 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(exception.getCause().getCause().getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
     }
 
+    /**
+     * This test shows that the AWS SDKv1 defers the closing of the InputStream used to upload a blob after the HTTP request has been sent
+     * to S3, swallowing any exception thrown at closing time.
+     */
+    public void testWriteBlobWithExceptionThrownAtClosingTime() throws Exception {
+        var maxRetries = randomInt(3);
+        var blobLength = randomIntBetween(1, 4096 * 3);
+        var blobName = getTestName().toLowerCase(Locale.ROOT);
+        var blobContainer = createBlobContainer(maxRetries, null, true, null);
+
+        var uploadedBytes = new AtomicReference<BytesReference>();
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, blobName), exchange -> {
+            var requestComponents = S3HttpHandler.parseRequestComponents(S3HttpHandler.getRawRequestString(exchange));
+            if ("PUT".equals(requestComponents.method()) && requestComponents.query().isEmpty()) {
+                var body = Streams.readFully(exchange.getRequestBody());
+                if (uploadedBytes.compareAndSet(null, body)) {
+                    exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
+                    exchange.close();
+                    return;
+                }
+            }
+            exchange.sendResponseHeaders(HttpStatus.SC_BAD_REQUEST, -1);
+            exchange.close();
+        });
+
+        final byte[] bytes = randomByteArrayOfLength(blobLength);
+
+        var exceptionThrown = new AtomicBoolean();
+        blobContainer.writeBlobAtomic(randomPurpose(), blobName, new FilterInputStream(new ByteArrayInputStream(bytes)) {
+            @Override
+            public void close() throws IOException {
+                if (exceptionThrown.compareAndSet(false, true)) {
+                    switch (randomInt(3)) {
+                        case 0:
+                            throw new CorruptIndexException("simulated", blobName);
+                        case 1:
+                            throw new AlreadyClosedException("simulated");
+                        case 2:
+                            throw new RuntimeException("simulated");
+                        case 3:
+                        default:
+                            throw new IOException("simulated");
+                    }
+                }
+            }
+        }, blobLength, true);
+
+        assertThat(exceptionThrown.get(), is(true));
+        assertArrayEquals(bytes, BytesReference.toBytes(uploadedBytes.get()));
+    }
+
     public void testWriteLargeBlob() throws Exception {
         final boolean useTimeout = rarely();
         final TimeValue readTimeout = useTimeout ? TimeValue.timeValueMillis(randomIntBetween(100, 500)) : null;
@@ -372,36 +426,36 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             } else if ("PUT".equals(requestComponents.method())
                 && requestComponents.query().contains("uploadId=TEST")
                 && requestComponents.query().contains("partNumber=")) {
-                    // upload part request
-                    MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
-                    BytesReference bytes = Streams.readFully(md5);
-                    assertThat((long) bytes.length(), anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
-                    assertThat(contentLength, anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
+                // upload part request
+                MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
+                BytesReference bytes = Streams.readFully(md5);
+                assertThat((long) bytes.length(), anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
+                assertThat(contentLength, anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
 
-                    if (countDownUploads.decrementAndGet() % 2 == 0) {
-                        exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
-                        exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
-                        exchange.close();
-                        return;
-                    }
+                if (countDownUploads.decrementAndGet() % 2 == 0) {
+                    exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
+                    exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
+                    exchange.close();
+                    return;
+                }
 
-                } else if ("POST".equals(requestComponents.method()) && requestComponents.query().equals("uploadId=TEST")) {
-                    // complete multipart upload request
-                    if (countDownComplete.countDown()) {
-                        Streams.readFully(exchange.getRequestBody());
-                        byte[] response = ("""
+            } else if ("POST".equals(requestComponents.method()) && requestComponents.query().equals("uploadId=TEST")) {
+                // complete multipart upload request
+                if (countDownComplete.countDown()) {
+                    Streams.readFully(exchange.getRequestBody());
+                    byte[] response = ("""
                             <?xml version="1.0" encoding="UTF-8"?>
                             <CompleteMultipartUploadResult>
                               <Bucket>bucket</Bucket>
                               <Key>write_large_blob</Key>
                             </CompleteMultipartUploadResult>""").getBytes(StandardCharsets.UTF_8);
-                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                        exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
-                        exchange.getResponseBody().write(response);
-                        exchange.close();
-                        return;
-                    }
+                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                    exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                    return;
                 }
+            }
 
             // sends an error back or let the request time out
             if (useTimeout == false) {
@@ -474,35 +528,35 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             } else if ("PUT".equals(requestComponents.method())
                 && requestComponents.query().contains("uploadId=TEST")
                 && requestComponents.query().contains("partNumber=")) {
-                    // upload part request
-                    MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
-                    BytesReference bytes = Streams.readFully(md5);
+                // upload part request
+                MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
+                BytesReference bytes = Streams.readFully(md5);
 
-                    if (counterUploads.incrementAndGet() % 2 == 0) {
-                        bytesReceived.addAndGet(bytes.length());
-                        exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
-                        exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
-                        exchange.close();
-                        return;
-                    }
+                if (counterUploads.incrementAndGet() % 2 == 0) {
+                    bytesReceived.addAndGet(bytes.length());
+                    exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
+                    exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
+                    exchange.close();
+                    return;
+                }
 
-                } else if ("POST".equals(requestComponents.method()) && requestComponents.query().equals("uploadId=TEST")) {
-                    // complete multipart upload request
-                    if (countDownComplete.countDown()) {
-                        Streams.readFully(exchange.getRequestBody());
-                        byte[] response = ("""
+            } else if ("POST".equals(requestComponents.method()) && requestComponents.query().equals("uploadId=TEST")) {
+                // complete multipart upload request
+                if (countDownComplete.countDown()) {
+                    Streams.readFully(exchange.getRequestBody());
+                    byte[] response = ("""
                             <?xml version="1.0" encoding="UTF-8"?>
                             <CompleteMultipartUploadResult>
                               <Bucket>bucket</Bucket>
                               <Key>write_large_blob_streaming</Key>
                             </CompleteMultipartUploadResult>""").getBytes(StandardCharsets.UTF_8);
-                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                        exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
-                        exchange.getResponseBody().write(response);
-                        exchange.close();
-                        return;
-                    }
+                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                    exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                    return;
                 }
+            }
 
             // sends an error back or let the request time out
             if (useTimeout == false) {

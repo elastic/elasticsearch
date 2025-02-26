@@ -6,5 +6,9 @@ issues: []
 deprecation:
   title: Add deprecation warning to `TransportHandshaker`
   area: REST API
-  details: This PR adds a deprecation log to versions < v8.18.
-  impact: Users will now see deprecation logs during CCS/CCR requests for clusters with nodes < v8.18, warning them that they will need to upgrade remote nodes to maintain compatability.
+  details: >
+    Users will now see a deprecation log when a remote node, who's version is < v8.18, performs a transport handshake
+    request with nodes >= v8.18 (e.g. during a CCS/CCR request). The remote cluster will need to be upgraded to >= v8.18
+    to maintain compatibility with clusters that have been upgraded to v9.
+  impact: >
+   Users should upgrade any clusters older than v8.18 to >= 8.18 to maintain compatibility with clusters upgraded to v9.

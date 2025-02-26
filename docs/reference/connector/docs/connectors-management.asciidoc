@@ -1,9 +1,0 @@
-[#es-connectors-management]
-== Management topics
-
-Refer to the following sections:
-
-* <<es-connectors-troubleshooting, Troubleshooting>>
-* <<es-connectors-logs, Logs>>
-* <<es-connectors-scalability, Scalability>>
-* <<es-connectors-security, Security>>

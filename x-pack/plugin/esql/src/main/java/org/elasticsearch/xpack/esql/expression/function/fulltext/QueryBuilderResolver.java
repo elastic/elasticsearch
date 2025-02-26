@@ -27,8 +27,8 @@ import java.util.Set;
 /**
  * Some {@link FullTextFunction} implementations such as {@link org.elasticsearch.xpack.esql.expression.function.fulltext.Match}
  * will be translated to a {@link QueryBuilder} that require a rewrite phase on the coordinator.
- * {@link QueryBuilderResolver#resolveQueryBuilders(LogicalPlan, FoldContext, TransportActionServices, ActionListener)} will rewrite the plan by
- * replacing {@link FullTextFunction} expression with new ones that hold rewritten {@link QueryBuilder}s.
+ * {@link QueryBuilderResolver#resolveQueryBuilders(LogicalPlan, FoldContext, TransportActionServices, ActionListener)} will rewrite
+ * the plan by replacing {@link FullTextFunction} expression with new ones that hold rewritten {@link QueryBuilder}s.
  */
 public final class QueryBuilderResolver {
 

@@ -23,8 +23,8 @@ public final class NoShardAvailableActionException extends ElasticsearchExceptio
     // It isn't necessary to serialize this field over the wire as the empty stack trace is serialized instead.
     private final boolean onShardFailureWrapper;
 
-    public static NoShardAvailableActionException forOnShardFailureWrapper(String msg) {
-        return new NoShardAvailableActionException(null, msg, null, true);
+    public static NoShardAvailableActionException forOnShardFailureWrapper(Exception e, Throwable cause) {
+        return new NoShardAvailableActionException(null, e + ", cause: " + cause, null, true);
     }
 
     public NoShardAvailableActionException(ShardId shardId) {

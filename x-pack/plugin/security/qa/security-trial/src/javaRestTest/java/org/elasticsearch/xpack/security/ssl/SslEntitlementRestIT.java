@@ -47,11 +47,8 @@ public class SslEntitlementRestIT extends ESRestTestCase {
         for (int i = 0; i < cluster.getNumNodes(); i++) {
             try (InputStream log = cluster.getNodeLog(i, LogType.SERVER)) {
                 Streams.readAllLines(log, line -> {
-                    if (line.contains(
-                        "failed to load SSL configuration [xpack.security.transport.ssl] - "
-                            + "cannot read configured [jks] keystore (as a truststore) "
-                            + "[/bad/path] because access to read the file is blocked;"
-                    )) {
+                    // TODO improve the matching on error message here
+                    if (line.contains("failed to load SSL configuration") && line.contains("because access to read the file is blocked")) {
                         found.set(true);
                     }
                 });

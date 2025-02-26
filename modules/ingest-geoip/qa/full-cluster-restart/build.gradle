@@ -18,7 +18,7 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart"), "javaRestTest"))
 }
 
-buildParams.bwcVersions.withWireCompatible(v -> v.before("9.0.0")) { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("8.15.0")) { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)

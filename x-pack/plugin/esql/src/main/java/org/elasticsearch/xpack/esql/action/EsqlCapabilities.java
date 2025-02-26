@@ -82,6 +82,11 @@ public class EsqlCapabilities {
         AGG_VALUES,
 
         /**
+         * Expand the {@code VALUES} agg to cover spatial types.
+         */
+        AGG_VALUES_SPATIAL,
+
+        /**
          * Does ESQL support async queries.
          */
         ASYNC_QUERY,
@@ -203,6 +208,11 @@ public class EsqlCapabilities {
          * Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
          */
         FN_ROUND_UL_FIXES,
+
+        /**
+         * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
+         */
+        FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
 
         /**
          * All functions that take TEXT should never emit TEXT, only KEYWORD. #114334

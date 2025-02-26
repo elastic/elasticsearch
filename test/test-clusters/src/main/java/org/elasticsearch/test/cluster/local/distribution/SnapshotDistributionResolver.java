@@ -36,7 +36,7 @@ public class SnapshotDistributionResolver implements DistributionResolver {
                     "Cannot locate Elasticsearch distribution. Directory at '" + distributionDir + "' does not exist."
                 );
             }
-            
+
             boolean isSnapshot = System.getProperty("tests.bwc.snapshot", "true").equals("false") == false;
             return new DefaultDistributionDescriptor(version, isSnapshot, distributionDir, DistributionType.DEFAULT);
         }

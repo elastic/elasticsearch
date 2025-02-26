@@ -377,7 +377,8 @@ public class TransportServiceHandshakeTests extends ESTestCase {
     public void testAcceptsMismatchedServerlessBuildHash() {
         assumeTrue("Current build needs to be a snapshot", Build.current().isSnapshot());
         assumeTrue("Security manager needs to be disabled", System.getSecurityManager() == null);
-        System.setProperty("es.serverless", Boolean.TRUE.toString());   // security manager blocks this
+        System.setProperty(TransportService.SERVERLESS_TRANSPORT_SYSTEM_PROPERTY, Boolean.TRUE.toString());   // security manager blocks
+                                                                                                              // this
         try {
             final DisruptingTransportInterceptor transportInterceptorA = new DisruptingTransportInterceptor();
             final DisruptingTransportInterceptor transportInterceptorB = new DisruptingTransportInterceptor();
@@ -404,7 +405,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             AbstractSimpleTransportTestCase.connectToNode(transportServiceA, transportServiceB.getLocalNode(), TestProfiles.LIGHT_PROFILE);
             assertTrue(transportServiceA.nodeConnected(transportServiceB.getLocalNode()));
         } finally {
-            System.clearProperty("es.serverless");
+            System.clearProperty(TransportService.SERVERLESS_TRANSPORT_SYSTEM_PROPERTY);
         }
     }
 

@@ -1,0 +1,21 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  javaRestTestImplementation(platform("org.junit:junit-bom:5.12.0"))
+  javaRestTestImplementation("org.junit.jupiter:junit-jupiter:5.12.0")
+  javaRestTestImplementation("net.jqwik:jqwik:1.9.2")
+}
+
+tasks.withType(Test).configureEach {
+  useJUnitPlatform {
+    includeEngines 'jqwik'
+  }
+
+  include '**/*Properties.class'
+  include '**/*Test.class'
+  include '**/*Tests.class'
+}
+
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution()
+}

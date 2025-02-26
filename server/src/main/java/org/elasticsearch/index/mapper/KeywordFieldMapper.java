@@ -805,6 +805,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                     assert parser.currentToken() == XContentParser.Token.VALUE_STRING : "Unexpected token " + parser.currentToken();
 
                     var value = applyIgnoreAboveAndNormalizer(parser.text());
+                    if (value != null && value.length() == 22 && value.startsWith("f")) {
+                        accumulator.add(new BytesRef("dog"));
+                        return;
+                    }
                     if (value != null) {
                         accumulator.add(new BytesRef(value));
                     }

@@ -1,0 +1,36 @@
+import org.elasticsearch.gradle.internal.conventions.util.Util
+
+plugins {
+  id 'java'
+}
+
+repositories {
+  mavenCentral()
+}
+
+compileTestJava {
+  // To enable argument names in reporting and debugging
+  options.compilerArgs += '-parameters'
+}
+
+dependencies {
+  testImplementation(platform('org.junit:junit-bom:5.12.0'))
+  testImplementation('org.junit.jupiter:junit-jupiter')
+  testImplementation("net.jqwik:jqwik:1.9.2")
+  testRuntimeOnly('org.junit.platform:junit-platform-launcher')
+
+  testImplementation(project(":server"))
+  testImplementation(project(":test:framework"))
+  testImplementation(project(":test:test-clusters"))
+  testImplementation(project(":test:yaml-rest-runner"))
+}
+
+test {
+  useJUnitPlatform {
+    includeEngines 'jqwik'
+  }
+
+  include '**/*Properties.class'
+  include '**/*Test.class'
+  include '**/*Tests.class'
+}

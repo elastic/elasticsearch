@@ -1,5 +1,0 @@
-pr: 122371
-summary: Upgrade Netty to `4.1.118.Final`
-area: Network
-type: upgrade
-issues: []

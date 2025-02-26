@@ -33,7 +33,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
@@ -135,8 +135,6 @@ public class ElasticInferenceService extends SenderService {
 
         configuration = new Configuration(authRef.get().taskTypesAndModels.getAuthorizedTaskTypes());
         defaultModelsConfigs = initDefaultEndpoints(elasticInferenceServiceComponents);
-
-        getAuthorization();
     }
 
     private static Map<String, DefaultModelConfig> initDefaultEndpoints(
@@ -283,9 +281,24 @@ public class ElasticInferenceService extends SenderService {
             authorizationCompletedLatch.countDown();
         });
 
-        getServiceComponents().threadPool()
-            .executor(UTILITY_THREAD_POOL_NAME)
-            .execute(() -> modelRegistry.removeDefaultConfigs(unauthorizedDefaultInferenceEndpointIds, deleteInferenceEndpointsListener));
+        Runnable removeFromRegistry = () -> {
+            logger.debug("Synchronizing default inference endpoints");
+            modelRegistry.removeDefaultConfigs(unauthorizedDefaultInferenceEndpointIds, deleteInferenceEndpointsListener);
+        };
+
+        var delay = elasticInferenceServiceComponents.revokeAuthorizationDelay();
+        if (delay == null) {
+            getServiceComponents().threadPool().executor(UTILITY_THREAD_POOL_NAME).execute(removeFromRegistry);
+        } else {
+            getServiceComponents().threadPool()
+                .schedule(removeFromRegistry, delay, getServiceComponents().threadPool().executor(UTILITY_THREAD_POOL_NAME));
+        }
+
+    }
+
+    @Override
+    public void onNodeStarted() {
+        getServiceComponents().threadPool().executor(UTILITY_THREAD_POOL_NAME).execute(this::getAuthorization);
     }
 
     /**
@@ -565,7 +578,7 @@ public class ElasticInferenceService extends SenderService {
     private static List<ChunkedInference> translateToChunkedResults(InferenceInputs inputs, InferenceServiceResults inferenceResults) {
         if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
             var inputsAsList = DocumentsOnlyInput.of(inputs).getInputs();
-            return ChunkedInferenceEmbeddingSparse.listOf(inputsAsList, sparseEmbeddingResults);
+            return ChunkedInferenceEmbedding.listOf(inputsAsList, sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
             return List.of(new ChunkedInferenceError(error.getException()));
         } else {

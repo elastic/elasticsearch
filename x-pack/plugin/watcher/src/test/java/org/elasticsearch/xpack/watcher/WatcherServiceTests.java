@@ -216,25 +216,7 @@ public class WatcherServiceTests extends ESTestCase {
         SearchHits searchHits = SearchHits.unpooled(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1.0f);
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
-            ActionListener.respondAndRelease(
-                listener,
-                new SearchResponse(
-                    searchHits,
-                    null,
-                    null,
-                    false,
-                    false,
-                    null,
-                    1,
-                    "scrollId",
-                    1,
-                    1,
-                    0,
-                    10,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY
-                )
-            );
+            ActionListener.respondAndRelease(listener, SearchResponseUtils.response(searchHits).scrollId("scrollId").build());
             return null;
         }).when(client).execute(eq(TransportSearchAction.TYPE), any(SearchRequest.class), anyActionListener());
 

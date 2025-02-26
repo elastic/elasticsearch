@@ -85,6 +85,7 @@ import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.IndexSettings.USE_DOC_VALUES_SKIPPER;
+import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -95,7 +96,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
     private static final String HOST_NAME = "host.name";
-    public static final String OFFSETS_FIELD_NAME_SUFFIX = ".offsets";
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
@@ -439,26 +439,15 @@ public final class KeywordFieldMapper extends FieldMapper {
             super.hasScript = script.get() != null;
             super.onScriptError = onScriptError.getValue();
 
-            var sourceKeepMode = this.sourceKeepMode.orElse(indexSourceKeepMode);
-            String offsetsFieldName;
-            if (context.isSourceSynthetic()
-                && sourceKeepMode == SourceKeepMode.ARRAYS
-                && hasDocValues()
-                && fieldtype.stored() == false
-                && copyTo.copyToFields().isEmpty()
-                && multiFieldsBuilder.hasMultiFields() == false
-                && indexCreatedVersion.onOrAfter(IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD)) {
-                // Skip stored, we will be synthesizing from stored fields, no point to keep track of the offsets
-                // Skip copy_to and multi fields, supporting that requires more work. However, copy_to usage is rare in metrics and
-                // logging use cases
-
-                // keep track of value offsets so that we can reconstruct arrays from doc values in order as was specified during indexing
-                // (if field is stored then there is no point of doing this)
-                offsetsFieldName = context.buildFullName(leafName() + OFFSETS_FIELD_NAME_SUFFIX);
-            } else {
-                offsetsFieldName = null;
-            }
-
+            String offsetsFieldName = getOffsetsFieldName(
+                context,
+                indexSourceKeepMode,
+                hasDocValues.getValue(),
+                stored.getValue(),
+                this,
+                indexCreatedVersion,
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD
+            );
             return new KeywordFieldMapper(
                 leafName(),
                 fieldtype,
@@ -1119,7 +1108,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         boolean indexed = indexValue(context, value);
-        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.getRecordedSource() == false) {
+        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (indexed) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value);
             } else if (value == null) {

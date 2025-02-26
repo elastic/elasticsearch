@@ -1187,7 +1187,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             return plan.transformExpressionsUp(
                 org.elasticsearch.xpack.esql.core.expression.function.Function.class,
-                e -> ImplicitCasting.cast(e, context.functionRegistry())
+                e -> ImplicitCasting.cast(e, context.functionRegistry().snapshotRegistry())
             );
         }
 

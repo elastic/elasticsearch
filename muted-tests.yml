@@ -161,9 +161,6 @@ tests:
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldSourceOnlyRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/120080
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=snapshot/10_basic/Failed to snapshot indices with synthetic source}
-  issue: https://github.com/elastic/elasticsearch/issues/120332
 - class: org.elasticsearch.xpack.ccr.FollowIndexSecurityIT
   method: testCleanShardFollowTaskAfterDeleteFollower
   issue: https://github.com/elastic/elasticsearch/issues/120339

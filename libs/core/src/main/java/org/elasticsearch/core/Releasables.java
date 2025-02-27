@@ -88,7 +88,7 @@ public enum Releasables {
     }
 
     private static RuntimeException useOrSuppress(RuntimeException firstException, RuntimeException e) {
-        if (firstException == null) {
+        if (firstException == null || firstException == e) {
             return e;
         }
         firstException.addSuppressed(e);

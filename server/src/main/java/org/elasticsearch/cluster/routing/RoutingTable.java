@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +29,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -146,7 +147,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return shardRoutingTable == null ? null : shardRoutingTable.getByAllocationId(allocationId);
     }
 
-    public boolean validate(Metadata metadata) {
+    public boolean validate(ProjectMetadata metadata) {
         for (IndexRoutingTable indexRoutingTable : this) {
             if (indexRoutingTable.validate(metadata) == false) {
                 return false;
@@ -360,6 +361,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
         @Override
         public RoutingTable apply(RoutingTable part) {
+            if (part == null) {
+                part = EMPTY_ROUTING_TABLE;
+            }
             final ImmutableOpenMap<String, IndexRoutingTable> updatedRouting = indicesRouting.apply(part.indicesRouting);
             if (updatedRouting == part.indicesRouting) {
                 return part;
@@ -376,20 +380,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
     }
 
-    public static RoutingTable of(RoutingNodes routingNodes) {
+    static RoutingTable of(Collection<ShardRouting> shardRouting) {
         Map<String, IndexRoutingTable.Builder> indexRoutingTableBuilders = new HashMap<>();
-        for (RoutingNode routingNode : routingNodes) {
-            for (ShardRouting shardRoutingEntry : routingNode) {
-                // every relocating shard has a double entry, ignore the target one.
-                if (shardRoutingEntry.initializing() && shardRoutingEntry.relocatingNodeId() != null) continue;
-                Builder.addShard(indexRoutingTableBuilders, shardRoutingEntry);
-            }
-        }
-
-        for (ShardRouting shardRoutingEntry : routingNodes.unassigned()) {
-            Builder.addShard(indexRoutingTableBuilders, shardRoutingEntry);
-        }
-        for (ShardRouting shardRoutingEntry : routingNodes.unassigned().ignored()) {
+        for (ShardRouting shardRoutingEntry : shardRouting) {
             Builder.addShard(indexRoutingTableBuilders, shardRoutingEntry);
         }
 

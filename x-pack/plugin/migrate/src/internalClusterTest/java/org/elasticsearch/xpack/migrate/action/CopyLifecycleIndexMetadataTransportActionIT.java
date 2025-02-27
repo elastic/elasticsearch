@@ -150,15 +150,15 @@ public class CopyLifecycleIndexMetadataTransportActionIT extends ESIntegTestCase
             var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
             safeGet(indicesAdmin().create(new CreateIndexRequest(destIndex)));
 
-            IndexMetadata destBefore = getClusterMetadata(destIndex).index(destIndex);
+            IndexMetadata destBefore = getClusterMetadata(destIndex).getProject().index(destIndex);
             assertNull(destBefore.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY));
 
             // copy over the metadata
             copyMetadata(backingIndex, destIndex);
 
             var metadataAfter = getClusterMetadata(backingIndex, destIndex);
-            IndexMetadata sourceAfter = metadataAfter.index(backingIndex);
-            IndexMetadata destAfter = metadataAfter.index(destIndex);
+            IndexMetadata sourceAfter = metadataAfter.getProject().index(backingIndex);
+            IndexMetadata destAfter = metadataAfter.getProject().index(destIndex);
             assertNotNull(destAfter.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY));
             assertEquals(
                 sourceAfter.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY),
@@ -186,8 +186,8 @@ public class CopyLifecycleIndexMetadataTransportActionIT extends ESIntegTestCase
             safeGet(indicesAdmin().create(new CreateIndexRequest(destIndex)));
 
             var metadataBefore = getClusterMetadata(backingIndex, destIndex);
-            IndexMetadata source = metadataBefore.index(backingIndex);
-            IndexMetadata destBefore = metadataBefore.index(destIndex);
+            IndexMetadata source = metadataBefore.getProject().index(backingIndex);
+            IndexMetadata destBefore = metadataBefore.getProject().index(destIndex);
 
             // sanity check not equal before the copy
             if (backingIndex.equals(writeIndex)) {
@@ -201,7 +201,7 @@ public class CopyLifecycleIndexMetadataTransportActionIT extends ESIntegTestCase
             copyMetadata(backingIndex, destIndex);
 
             // now rollover info should be equal
-            IndexMetadata destAfter = getClusterMetadata(destIndex).index(destIndex);
+            IndexMetadata destAfter = getClusterMetadata(destIndex).getProject().index(destIndex);
             assertEquals(source.getRolloverInfos(), destAfter.getRolloverInfos());
         }
     }

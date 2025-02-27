@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -20,6 +21,7 @@ import java.util.Map;
  * @deprecated in 9.0
  */
 @Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class PageAnalyticsEventField {
     public static final ParseField PAGE_FIELD = new ParseField("page");
 

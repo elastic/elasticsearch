@@ -155,7 +155,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         int numPipelinesToBeReloaded = randomInt(4);
         List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).toList();
-        when(ingestService.getPipelineWithProcessorType(any(), any())).thenReturn(pipelineIds);
+        when(ingestService.getPipelineWithProcessorType(any(), any(), any())).thenReturn(pipelineIds);
 
         assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         // Nothing should be downloaded, since the database is no longer valid (older than 30 days)
@@ -163,7 +163,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         DatabaseReaderLazyLoader database = databaseNodeService.getDatabaseReaderLazyLoader("GeoIP2-City.mmdb");
         assertThat(database, nullValue());
         verify(client, times(0)).search(any());
-        verify(ingestService, times(0)).reloadPipeline(anyString());
+        verify(ingestService, times(0)).reloadPipeline(any(), anyString());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertEquals(0, files.count());
         }
@@ -185,7 +185,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             assertThat(files.count(), greaterThanOrEqualTo(1L));
         }
         // First time GeoIP2-City.mmdb is downloaded, so a pipeline reload can happen:
-        verify(ingestService, times(numPipelinesToBeReloaded)).reloadPipeline(anyString());
+        verify(ingestService, times(numPipelinesToBeReloaded)).reloadPipeline(any(), anyString());
         // 30 days check passed but we mocked mmdb data so parsing will fail
         expectThrows(InvalidDatabaseException.class, database::get);
     }
@@ -292,14 +292,14 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     public void testUpdateDatabase() throws Exception {
         int numPipelinesToBeReloaded = randomInt(4);
         List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).toList();
-        when(ingestService.getPipelineWithProcessorType(any(), any())).thenReturn(pipelineIds);
+        when(ingestService.getPipelineWithProcessorType(any(), any(), any())).thenReturn(pipelineIds);
 
         databaseNodeService.updateDatabase("_name", "_md5", geoIpTmpDir.resolve("some-file"));
 
         // Updating the first time may trigger a reload.
         verify(clusterService, times(1)).addListener(any());
-        verify(ingestService, times(1)).getPipelineWithProcessorType(any(), any());
-        verify(ingestService, times(numPipelinesToBeReloaded)).reloadPipeline(anyString());
+        verify(ingestService, times(1)).getPipelineWithProcessorType(any(), any(), any());
+        verify(ingestService, times(numPipelinesToBeReloaded)).reloadPipeline(any(), anyString());
         verifyNoMoreInteractions(clusterService);
         verifyNoMoreInteractions(ingestService);
         reset(clusterService);

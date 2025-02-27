@@ -128,7 +128,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final List<X509Credential> spEncryptionCredentials = buildOpenSamlCredential(spEncryptionCertificatePairs).stream()
             .map((cred) -> (X509Credential) cred)
             .collect(Collectors.<X509Credential>toList());
-        final SpConfiguration sp = new SpConfiguration(
+        final SpConfiguration sp = new SingleSamlSpConfiguration(
             SP_ENTITY_ID,
             SP_ACS_URL,
             null,

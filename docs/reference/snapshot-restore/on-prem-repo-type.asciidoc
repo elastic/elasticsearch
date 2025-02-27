@@ -1,2 +1,0 @@
-NOTE: This repository type is only available if you run {es} on your own
-hardware. If you use {ess}, see <<ess-repo-types>>.

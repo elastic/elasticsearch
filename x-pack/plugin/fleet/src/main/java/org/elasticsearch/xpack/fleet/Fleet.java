@@ -22,6 +22,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -287,7 +288,12 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     }
 
     @Override
-    public void cleanUpFeature(ClusterService clusterService, Client client, ActionListener<ResetFeatureStateStatus> listener) {
+    public void cleanUpFeature(
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        Client client,
+        ActionListener<ResetFeatureStateStatus> listener
+    ) {
         Collection<SystemDataStreamDescriptor> dataStreamDescriptors = getSystemDataStreamDescriptors();
         if (dataStreamDescriptors.isEmpty() == false) {
             try {
@@ -304,25 +310,28 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                 client.execute(
                     DeleteDataStreamAction.INSTANCE,
                     request,
-                    ActionListener.wrap(response -> SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener), e -> {
-                        Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
-                        if (unwrapped instanceof ResourceNotFoundException) {
-                            SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
-                        } else {
-                            listener.onFailure(e);
+                    ActionListener.wrap(
+                        response -> SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener),
+                        e -> {
+                            Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                            if (unwrapped instanceof ResourceNotFoundException) {
+                                SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
+                            } else {
+                                listener.onFailure(e);
+                            }
                         }
-                    })
+                    )
                 );
             } catch (Exception e) {
                 Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
                 if (unwrapped instanceof ResourceNotFoundException) {
-                    SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
                 } else {
                     listener.onFailure(e);
                 }
             }
         } else {
-            SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
+            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, listener);
         }
     }
 

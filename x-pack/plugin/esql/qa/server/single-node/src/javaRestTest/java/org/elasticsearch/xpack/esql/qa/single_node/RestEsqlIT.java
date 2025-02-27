@@ -531,7 +531,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     private MapMatcher commonProfile() {
-        return matchesMap().entry("task_description", any(String.class))
+        return matchesMap() //
+            .entry("task_description", any(String.class))
+            .entry("cluster_name", any(String.class))
+            .entry("node_name", any(String.class))
             .entry("start_millis", greaterThan(0L))
             .entry("stop_millis", greaterThan(0L))
             .entry("iterations", greaterThan(0L))
@@ -565,7 +568,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("current", DocIdSetIterator.NO_MORE_DOCS)
                 .entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))
-                .entry("processing_nanos", greaterThan(0))
+                .entry("process_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"));
             case "ValuesSourceReaderOperator" -> basicProfile().entry("readers_built", matchesMap().extraOk());
             case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
@@ -599,7 +602,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("total_slices", greaterThan(0))
                 .entry("slice_max", 0)
                 .entry("slice_min", 0)
-                .entry("processing_nanos", greaterThan(0))
+                .entry("process_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"))
                 .entry("slice_index", 0);
             default -> throw new AssertionError("unexpected status: " + o);

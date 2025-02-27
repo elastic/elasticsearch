@@ -28,11 +28,11 @@ import static java.util.stream.Collectors.toList;
  */
 public class MetadataUpgrader {
     public final UnaryOperator<Map<String, IndexTemplateMetadata>> indexTemplateMetadataUpgraders;
-    public final Map<String, UnaryOperator<Metadata.Custom>> customMetadataUpgraders;
+    public final Map<String, UnaryOperator<Metadata.ProjectCustom>> customMetadataUpgraders;
 
     public MetadataUpgrader(
         Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders,
-        Collection<Map<String, UnaryOperator<Metadata.Custom>>> customMetadataUpgraders
+        Collection<Map<String, UnaryOperator<Metadata.ProjectCustom>>> customMetadataUpgraders
     ) {
         this.indexTemplateMetadataUpgraders = templates -> {
             Map<String, IndexTemplateMetadata> upgradedTemplates = new HashMap<>(templates);
@@ -54,12 +54,14 @@ public class MetadataUpgrader {
             );
     }
 
-    private record CombiningCustomUpgrader(List<UnaryOperator<Metadata.Custom>> upgraders) implements UnaryOperator<Metadata.Custom> {
+    private record CombiningCustomUpgrader(List<UnaryOperator<Metadata.ProjectCustom>> upgraders)
+        implements
+            UnaryOperator<Metadata.ProjectCustom> {
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom custom) {
-            Metadata.Custom upgraded = custom;
-            for (UnaryOperator<Metadata.Custom> upgrader : upgraders) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom custom) {
+            Metadata.ProjectCustom upgraded = custom;
+            for (UnaryOperator<Metadata.ProjectCustom> upgrader : upgraders) {
                 upgraded = upgrader.apply(upgraded);
             }
             return upgraded;

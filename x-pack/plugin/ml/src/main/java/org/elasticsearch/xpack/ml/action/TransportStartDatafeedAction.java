@@ -197,7 +197,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         );
 
         AtomicReference<DatafeedConfig> datafeedConfigHolder = new AtomicReference<>();
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
 
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> waitForTaskListener =
             new ActionListener<>() {

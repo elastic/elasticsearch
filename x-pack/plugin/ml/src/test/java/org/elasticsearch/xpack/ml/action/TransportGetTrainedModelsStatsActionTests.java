@@ -13,6 +13,7 @@ import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -145,7 +146,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             Collections.singletonList(SKINNY_INGEST_PLUGIN),
             client,
             null,
-            FailureStoreMetrics.NOOP
+            FailureStoreMetrics.NOOP,
+            TestProjectResolvers.singleProjectOnly()
         );
     }
 

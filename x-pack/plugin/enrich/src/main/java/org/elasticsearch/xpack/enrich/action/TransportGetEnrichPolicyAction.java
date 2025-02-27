@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.enrich.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.UpdateForV10;
@@ -27,7 +28,7 @@ import org.elasticsearch.xpack.enrich.EnrichStore;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportGetEnrichPolicyAction extends TransportLocalClusterStateAction<
+public class TransportGetEnrichPolicyAction extends TransportLocalProjectMetadataAction<
     GetEnrichPolicyAction.Request,
     GetEnrichPolicyAction.Response> {
 
@@ -38,13 +39,19 @@ public class TransportGetEnrichPolicyAction extends TransportLocalClusterStateAc
     @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     @SuppressWarnings("this-escape")
     @Inject
-    public TransportGetEnrichPolicyAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters) {
+    public TransportGetEnrichPolicyAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
+    ) {
         super(
             GetEnrichPolicyAction.NAME,
             actionFilters,
             transportService.getTaskManager(),
             clusterService,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            projectResolver
         );
 
         transportService.registerRequestHandler(
@@ -61,17 +68,17 @@ public class TransportGetEnrichPolicyAction extends TransportLocalClusterStateAc
     protected void localClusterStateOperation(
         Task task,
         GetEnrichPolicyAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetEnrichPolicyAction.Response> listener
     ) throws Exception {
         Map<String, EnrichPolicy> policies;
         if (request.getNames() == null || request.getNames().isEmpty()) {
-            policies = EnrichStore.getPolicies(state);
+            policies = EnrichStore.getPolicies(state.metadata());
         } else {
             policies = new HashMap<>();
             for (String name : request.getNames()) {
                 if (name.isEmpty() == false) {
-                    EnrichPolicy policy = EnrichStore.getPolicy(name, state);
+                    EnrichPolicy policy = EnrichStore.getPolicy(name, state.metadata());
                     if (policy != null) {
                         policies.put(name, policy);
                     }
@@ -83,7 +90,7 @@ public class TransportGetEnrichPolicyAction extends TransportLocalClusterStateAc
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetEnrichPolicyAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetEnrichPolicyAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

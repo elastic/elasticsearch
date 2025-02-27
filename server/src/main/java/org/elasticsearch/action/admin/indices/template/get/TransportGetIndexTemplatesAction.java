@@ -11,11 +11,12 @@ package org.elasticsearch.action.admin.indices.template.get;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -29,7 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class TransportGetIndexTemplatesAction extends TransportLocalClusterStateAction<
+public class TransportGetIndexTemplatesAction extends TransportLocalProjectMetadataAction<
     GetIndexTemplatesRequest,
     GetIndexTemplatesResponse> {
 
@@ -40,13 +41,19 @@ public class TransportGetIndexTemplatesAction extends TransportLocalClusterState
     @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     @SuppressWarnings("this-escape")
     @Inject
-    public TransportGetIndexTemplatesAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters) {
+    public TransportGetIndexTemplatesAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
+    ) {
         super(
             GetIndexTemplatesAction.NAME,
             actionFilters,
             transportService.getTaskManager(),
             clusterService,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            projectResolver
         );
 
         transportService.registerRequestHandler(
@@ -60,7 +67,7 @@ public class TransportGetIndexTemplatesAction extends TransportLocalClusterState
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetIndexTemplatesRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetIndexTemplatesRequest request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
@@ -68,7 +75,7 @@ public class TransportGetIndexTemplatesAction extends TransportLocalClusterState
     protected void localClusterStateOperation(
         Task task,
         GetIndexTemplatesRequest request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetIndexTemplatesResponse> listener
     ) {
         final var cancellableTask = (CancellableTask) task;

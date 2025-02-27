@@ -241,7 +241,15 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertThat(response.isShardsAcknowledged(), equalTo(false));
         assertBusy(
             () -> assertThat(
-                client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index("test").getState(),
+                client.admin()
+                    .cluster()
+                    .prepareState(TEST_REQUEST_TIMEOUT)
+                    .get()
+                    .getState()
+                    .metadata()
+                    .getProject()
+                    .index("test")
+                    .getState(),
                 equalTo(IndexMetadata.State.OPEN)
             )
         );

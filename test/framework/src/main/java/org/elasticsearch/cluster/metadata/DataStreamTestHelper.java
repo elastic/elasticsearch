@@ -20,6 +20,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -417,25 +418,29 @@ public final class DataStreamTestHelper {
      * @param dataStreams The names of the data streams to create with their respective number of backing indices
      * @param indexNames  The names of indices to create that do not back any data streams
      */
+    @FixForMultiProject(description = "Don't use default project id")
+    @Deprecated(forRemoval = true)
     public static ClusterState getClusterStateWithDataStreams(List<Tuple<String, Integer>> dataStreams, List<String> indexNames) {
-        return getClusterStateWithDataStreams(dataStreams, indexNames, 1);
+        return getClusterStateWithDataStreams(Metadata.DEFAULT_PROJECT_ID, dataStreams, indexNames);
     }
 
     /**
      * Constructs {@code ClusterState} with the specified data streams and indices.
      *
+     * @param projectId The id of the project to which the data streams should be added to
      * @param dataStreams The names of the data streams to create with their respective number of backing indices
-     * @param indexNames  The names of indices to create that do not back any data streams
-     * @param replicas number of replicas
+     * @param indexNames The names of indices to create that do not back any data streams
      */
     public static ClusterState getClusterStateWithDataStreams(
+        ProjectId projectId,
         List<Tuple<String, Integer>> dataStreams,
-        List<String> indexNames,
-        int replicas
+        List<String> indexNames
     ) {
-        return getClusterStateWithDataStreams(dataStreams, indexNames, System.currentTimeMillis(), Settings.EMPTY, replicas);
+        return getClusterStateWithDataStreams(projectId, dataStreams, indexNames, System.currentTimeMillis(), Settings.EMPTY, 1);
     }
 
+    @FixForMultiProject(description = "Don't use default project id")
+    @Deprecated(forRemoval = true)
     public static ClusterState getClusterStateWithDataStreams(
         List<Tuple<String, Integer>> dataStreams,
         List<String> indexNames,
@@ -443,10 +448,22 @@ public final class DataStreamTestHelper {
         Settings settings,
         int replicas
     ) {
-        return getClusterStateWithDataStreams(dataStreams, indexNames, currentTime, settings, replicas, false);
+        return getClusterStateWithDataStreams(Metadata.DEFAULT_PROJECT_ID, dataStreams, indexNames, currentTime, settings, replicas);
     }
 
     public static ClusterState getClusterStateWithDataStreams(
+        ProjectId projectId,
+        List<Tuple<String, Integer>> dataStreams,
+        List<String> indexNames,
+        long currentTime,
+        Settings settings,
+        int replicas
+    ) {
+        return getClusterStateWithDataStreams(projectId, dataStreams, indexNames, currentTime, settings, replicas, false);
+    }
+
+    public static ClusterState getClusterStateWithDataStreams(
+        ProjectId projectId,
         List<Tuple<String, Integer>> dataStreams,
         List<String> indexNames,
         long currentTime,
@@ -454,25 +471,11 @@ public final class DataStreamTestHelper {
         int replicas,
         boolean replicated
     ) {
-        return getClusterStateWithDataStreams(dataStreams, indexNames, currentTime, settings, replicas, replicated, false);
+        return getClusterStateWithDataStreams(projectId, dataStreams, indexNames, currentTime, settings, replicas, replicated, false);
     }
 
     public static ClusterState getClusterStateWithDataStreams(
-        List<Tuple<String, Integer>> dataStreams,
-        List<String> indexNames,
-        long currentTime,
-        Settings settings,
-        int replicas,
-        boolean replicated,
-        boolean storeFailures
-    ) {
-        Metadata.Builder builder = Metadata.builder();
-        getClusterStateWithDataStreams(builder, dataStreams, indexNames, currentTime, settings, replicas, replicated, storeFailures);
-        return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
-    }
-
-    public static void getClusterStateWithDataStreams(
-        Metadata.Builder builder,
+        ProjectId projectId,
         List<Tuple<String, Integer>> dataStreams,
         List<String> indexNames,
         long currentTime,
@@ -481,6 +484,7 @@ public final class DataStreamTestHelper {
         boolean replicated,
         Boolean storeFailures
     ) {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         builder.put(
             "template_1",
             ComposableIndexTemplate.builder()
@@ -539,16 +543,29 @@ public final class DataStreamTestHelper {
         for (IndexMetadata index : allIndices) {
             builder.put(index, false);
         }
+        return ClusterState.builder(new ClusterName("_name")).putProjectMetadata(builder.build()).build();
     }
 
+    @FixForMultiProject(description = "Don't use default project id")
+    @Deprecated(forRemoval = true)
     public static ClusterState getClusterStateWithDataStream(String dataStream, List<Tuple<Instant, Instant>> timeSlices) {
-        Metadata.Builder builder = Metadata.builder();
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(getProjectWithDataStream(Metadata.DEFAULT_PROJECT_ID, dataStream, timeSlices))
+            .build();
+    }
+
+    public static ProjectMetadata getProjectWithDataStream(
+        ProjectId projectId,
+        String dataStream,
+        List<Tuple<Instant, Instant>> timeSlices
+    ) {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         getClusterStateWithDataStream(builder, dataStream, timeSlices);
-        return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
+        return builder.build();
     }
 
     public static void getClusterStateWithDataStream(
-        Metadata.Builder builder,
+        ProjectMetadata.Builder builder,
         String dataStreamName,
         List<Tuple<Instant, Instant>> timeSlices
     ) {

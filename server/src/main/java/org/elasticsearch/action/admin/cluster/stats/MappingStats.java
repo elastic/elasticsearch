@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -62,20 +63,30 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         // Account different source modes based on index.mapping.source.mode setting:
         Map<String, Integer> sourceModeUsageCount = new HashMap<>();
         Map<String, RuntimeFieldStats> runtimeFieldTypes = new HashMap<>();
-        final Map<MappingMetadata, Integer> mappingCounts = new IdentityHashMap<>(metadata.getMappingsByHash().size());
-        for (IndexMetadata indexMetadata : metadata) {
-            if (indexMetadata.isSystem()) {
-                // Don't include system indices in statistics about mappings,
-                // we care about the user's indices.
-                continue;
-            }
-            AnalysisStats.countMapping(mappingCounts, indexMetadata);
+        final int mappingCount = metadata.projects().values().stream().mapToInt(p -> p.getMappingsByHash().size()).sum();
+        final Map<MappingMetadata, Integer> mappingCounts = new IdentityHashMap<>(mappingCount);
 
-            var sourceMode = IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings());
-            sourceModeUsageCount.merge(sourceMode.toString().toLowerCase(Locale.ENGLISH), 1, Integer::sum);
-        }
         final AtomicLong totalFieldCount = new AtomicLong();
         final AtomicLong totalDeduplicatedFieldCount = new AtomicLong();
+        long totalMappingSizeBytes = 0L;
+
+        for (ProjectMetadata project : metadata.projects().values()) {
+            for (IndexMetadata indexMetadata : project) {
+                if (indexMetadata.isSystem()) {
+                    // Don't include system indices in statistics about mappings,
+                    // we care about the user's indices.
+                    continue;
+                }
+                AnalysisStats.countMapping(mappingCounts, indexMetadata);
+
+                var sourceMode = IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings());
+                sourceModeUsageCount.merge(sourceMode.toString().toLowerCase(Locale.ENGLISH), 1, Integer::sum);
+            }
+            for (MappingMetadata mappingMetadata : project.getMappingsByHash().values()) {
+                totalMappingSizeBytes += mappingMetadata.source().compressed().length;
+            }
+        }
+
         for (Map.Entry<MappingMetadata, Integer> mappingAndCount : mappingCounts.entrySet()) {
             ensureNotCancelled.run();
             Set<String> indexFieldTypes = new HashSet<>();
@@ -181,10 +192,6 @@ public final class MappingStats implements ToXContentFragment, Writeable {
                     }
                 }
             });
-        }
-        long totalMappingSizeBytes = 0L;
-        for (MappingMetadata mappingMetadata : metadata.getMappingsByHash().values()) {
-            totalMappingSizeBytes += mappingMetadata.source().compressed().length;
         }
 
         return new MappingStats(

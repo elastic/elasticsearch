@@ -9,10 +9,10 @@
 
 package org.elasticsearch.reservedstate;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -50,15 +50,20 @@ public interface ActionWithReservedState<T> {
 
     /**
      * Helper method that verifies for key clashes on reserved state updates
-     * @param state the current cluster state
+     * @param reservedStateMetadata the metadata to check
      * @param handlerName the name of the reserved state handler related to this implementation
      * @param modified the set of modified keys by the related request
      * @param request a string representation of the request for error reporting purposes
      */
-    default void validateForReservedState(ClusterState state, String handlerName, Set<String> modified, String request) {
+    default void validateForReservedState(
+        Collection<ReservedStateMetadata> reservedStateMetadata,
+        String handlerName,
+        Set<String> modified,
+        String request
+    ) {
         List<String> errors = new ArrayList<>();
 
-        for (ReservedStateMetadata metadata : state.metadata().reservedStateMetadata().values()) {
+        for (ReservedStateMetadata metadata : reservedStateMetadata) {
             Set<String> conflicts = metadata.conflicts(handlerName, modified);
             if (conflicts.isEmpty() == false) {
                 errors.add(format("[%s] set as read-only by [%s]", String.join(", ", conflicts), metadata.namespace()));

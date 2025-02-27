@@ -21,6 +21,8 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.BackoffPolicy;
@@ -78,6 +80,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
@@ -330,6 +333,57 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         assertThat(exception.getCause().getCause(), instanceOf(SocketTimeoutException.class));
         assertThat(exception.getCause().getCause().getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
+    }
+
+    /**
+     * This test shows that the AWS SDKv1 defers the closing of the InputStream used to upload a blob after the HTTP request has been sent
+     * to S3, swallowing any exception thrown at closing time.
+     */
+    public void testWriteBlobWithExceptionThrownAtClosingTime() throws Exception {
+        var maxRetries = randomInt(3);
+        var blobLength = randomIntBetween(1, 4096 * 3);
+        var blobName = getTestName().toLowerCase(Locale.ROOT);
+        var blobContainer = createBlobContainer(maxRetries, null, true, null);
+
+        var uploadedBytes = new AtomicReference<BytesReference>();
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, blobName), exchange -> {
+            var requestComponents = S3HttpHandler.parseRequestComponents(S3HttpHandler.getRawRequestString(exchange));
+            if ("PUT".equals(requestComponents.method()) && requestComponents.query().isEmpty()) {
+                var body = Streams.readFully(exchange.getRequestBody());
+                if (uploadedBytes.compareAndSet(null, body)) {
+                    exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
+                    exchange.close();
+                    return;
+                }
+            }
+            exchange.sendResponseHeaders(HttpStatus.SC_BAD_REQUEST, -1);
+            exchange.close();
+        });
+
+        final byte[] bytes = randomByteArrayOfLength(blobLength);
+
+        var exceptionThrown = new AtomicBoolean();
+        blobContainer.writeBlobAtomic(randomPurpose(), blobName, new FilterInputStream(new ByteArrayInputStream(bytes)) {
+            @Override
+            public void close() throws IOException {
+                if (exceptionThrown.compareAndSet(false, true)) {
+                    switch (randomInt(3)) {
+                        case 0:
+                            throw new CorruptIndexException("simulated", blobName);
+                        case 1:
+                            throw new AlreadyClosedException("simulated");
+                        case 2:
+                            throw new RuntimeException("simulated");
+                        case 3:
+                        default:
+                            throw new IOException("simulated");
+                    }
+                }
+            }
+        }, blobLength, true);
+
+        assertThat(exceptionThrown.get(), is(true));
+        assertArrayEquals(bytes, BytesReference.toBytes(uploadedBytes.get()));
     }
 
     public void testWriteLargeBlob() throws Exception {

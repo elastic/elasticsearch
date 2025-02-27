@@ -18,7 +18,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -86,7 +88,7 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        PersistentTasksCustomMetadata tasksCustomMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasksCustomMetadata = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         if (tasksCustomMetadata == null
             || tasksCustomMetadata.tasks().isEmpty()
             || tasksCustomMetadata.tasks().stream().noneMatch(this::isTransformTask)) {
@@ -107,7 +109,11 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
     }
 
     private void unassignTransforms(ClusterState state, ActionListener<Void> listener) {
-        PersistentTasksCustomMetadata tasksCustomMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasksCustomMetadata = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
+        if (tasksCustomMetadata == null) {
+            listener.onResponse(null);
+            return;
+        }
         var transformTasks = tasksCustomMetadata.tasks()
             .stream()
             .filter(this::isTransformTask)
@@ -127,8 +133,11 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
         // because that is what we are doing for ML, and that is all that is supported in the persistentTasksClusterService (for now)
         SubscribableListener<PersistentTasksCustomMetadata.PersistentTask<?>> chainListener = SubscribableListener.newSucceeded(null);
         for (var task : transformTasks) {
+            @FixForMultiProject
+            final var projectId = Metadata.DEFAULT_PROJECT_ID;
             chainListener = chainListener.andThen(executor, threadPool.getThreadContext(), (l, unused) -> {
                 persistentTasksClusterService.unassignPersistentTask(
+                    projectId,
                     task.getId(),
                     task.getAllocationId(),
                     AWAITING_UPGRADE.getExplanation(),

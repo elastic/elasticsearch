@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -73,7 +73,7 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
     }
 
     @Override
-    public Metadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {
+    public ProjectMetadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, ProjectMetadata.Builder metadata) {
         if (hasValidLicense == false) {
             return metadata;
         }
@@ -113,7 +113,7 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
         return metadata;
     }
 
-    private static void clearPreviousForecast(DataStream dataStream, Metadata.Builder metadata) {
+    private static void clearPreviousForecast(DataStream dataStream, ProjectMetadata.Builder metadata) {
         if (dataStream.getIndices().size() > 1) {
             final Index previousWriteIndex = dataStream.getIndices().get(dataStream.getIndices().size() - 2);
             final IndexMetadata previousWriteIndexMetadata = metadata.getSafe(previousWriteIndex);

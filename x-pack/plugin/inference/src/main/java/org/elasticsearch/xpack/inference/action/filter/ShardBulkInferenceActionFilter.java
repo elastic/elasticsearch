@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -137,7 +138,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         BulkShardRequest bulkShardRequest,
         Runnable onCompletion
     ) {
-        var index = clusterService.state().getMetadata().index(bulkShardRequest.index());
+        final ProjectMetadata project = clusterService.state().getMetadata().getProject();
+        var index = project.index(bulkShardRequest.index());
         boolean useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(index.getSettings()) == false;
         new AsyncBulkShardInferenceAction(useLegacyFormat, fieldInferenceMap, bulkShardRequest, onCompletion).run();
     }

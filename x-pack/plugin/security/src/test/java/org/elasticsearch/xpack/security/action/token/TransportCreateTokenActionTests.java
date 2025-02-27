@@ -149,11 +149,13 @@ public class TransportCreateTokenActionTests extends ESTestCase {
 
         // setup lifecycle service
         securityIndex = mock(SecurityIndexManager.class);
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
 
         doAnswer(invocationOnMock -> {
             AuthenticationToken authToken = (AuthenticationToken) invocationOnMock.getArguments()[2];

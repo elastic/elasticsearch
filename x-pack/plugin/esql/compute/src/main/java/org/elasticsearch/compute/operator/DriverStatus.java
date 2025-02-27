@@ -28,6 +28,8 @@ import java.util.Locale;
  *
  * @param sessionId The session for this driver.
  * @param taskDescription Description of the task this driver is running.
+ * @param clusterName The name of the cluster this driver is running on.
+ * @param nodeName The name of the node this driver is running on.
  * @param started When this {@link Driver} was started.
  * @param lastUpdated When this status was generated.
  * @param cpuNanos Nanos this {@link Driver} has been running on the cpu. Does not include async or waiting time.
@@ -39,6 +41,8 @@ import java.util.Locale;
 public record DriverStatus(
     String sessionId,
     String taskDescription,
+    String clusterName,
+    String nodeName,
     long started,
     long lastUpdated,
     long cpuNanos,
@@ -60,6 +64,8 @@ public record DriverStatus(
             in.readString(),
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
                 || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90) ? in.readString() : "",
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readLong() : 0,
             in.readLong(),
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0,
@@ -79,6 +85,10 @@ public record DriverStatus(
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
             || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90)) {
             out.writeString(taskDescription);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION)) {
+            out.writeString(clusterName);
+            out.writeString(nodeName);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeLong(started);
@@ -106,6 +116,8 @@ public record DriverStatus(
         builder.startObject();
         builder.field("session_id", sessionId);
         builder.field("task_description", taskDescription);
+        builder.field("cluster_name", clusterName);
+        builder.field("node_name", nodeName);
         builder.field("started", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(started));
         builder.field("last_updated", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lastUpdated));
         builder.field("cpu_nanos", cpuNanos);

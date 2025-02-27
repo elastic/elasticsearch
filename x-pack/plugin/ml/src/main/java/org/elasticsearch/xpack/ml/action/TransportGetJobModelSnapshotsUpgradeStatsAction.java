@@ -72,7 +72,7 @@ public class TransportGetJobModelSnapshotsUpgradeStatsAction extends TransportMa
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
         logger.debug(() -> format("[%s] get stats for model snapshot [%s] upgrades", request.getJobId(), request.getSnapshotId()));
-        final PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgrades = MlTasks.snapshotUpgradeTasks(tasksInProgress);
         final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 

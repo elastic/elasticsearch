@@ -122,7 +122,7 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
         final ClusterState clusterState,
         final Predicate<PersistentTasksCustomMetadata.PersistentTask> predicate
     ) {
-        PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterState.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         assertNotNull("Persistent tasks must be not null", tasks);
         assertEquals(nbTasks, tasks.tasks().stream().filter(predicate).count());
     }

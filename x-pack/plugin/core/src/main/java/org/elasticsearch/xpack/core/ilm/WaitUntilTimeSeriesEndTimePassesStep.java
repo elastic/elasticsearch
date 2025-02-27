@@ -44,7 +44,7 @@ public class WaitUntilTimeSeriesEndTimePassesStep extends AsyncWaitStep {
 
     @Override
     public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
-        IndexMetadata indexMetadata = metadata.index(index);
+        IndexMetadata indexMetadata = metadata.getProject().index(index);
         assert indexMetadata != null
             : "the index metadata for index [" + index.getName() + "] must exist in the cluster state for step [" + NAME + "]";
 

@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.injection.guice.Inject;
 
 /**
@@ -23,6 +24,7 @@ import org.elasticsearch.injection.guice.Inject;
  * @deprecated in 9.0
  */
 @Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class AnalyticsEventIngestConfig {
     private static final String SETTING_ROOT_PATH = "xpack.applications.behavioral_analytics.ingest";
 

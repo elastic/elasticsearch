@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -109,7 +110,7 @@ public final class SSLConfigurationReloader {
             fileWatcher.addListener(changeListener);
             try {
                 resourceWatcherService.add(fileWatcher, Frequency.HIGH);
-            } catch (IOException | AccessControlException e) {
+            } catch (IOException | AccessControlException | NotEntitledException e) {
                 logger.error("failed to start watching directory [{}] for ssl configurations [{}] - {}", path, configurations, e);
             }
         });

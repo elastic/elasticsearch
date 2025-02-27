@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -589,7 +590,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         private static IndexMetadata indexMetadata(ShardRouting shard, RoutingAllocation allocation) {
-            return allocation.metadata().getIndexSafe(shard.index());
+            return allocation.metadata().getProject().getIndexSafe(shard.index());
         }
 
         private static Optional<String> highestPreferenceTier(
@@ -615,7 +616,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         public long maxNodeLockedSize() {
             Metadata metadata = originalState.getMetadata();
-            return metadata.indices().values().stream().mapToLong(imd -> nodeLockedSize(imd, metadata)).max().orElse(0L);
+            return metadata.getProject().indices().values().stream().mapToLong(imd -> nodeLockedSize(imd, metadata)).max().orElse(0L);
         }
 
         private long nodeLockedSize(IndexMetadata indexMetadata, Metadata metadata) {
@@ -635,7 +636,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             } else {
                 Index resizeSourceIndex = indexMetadata.getResizeSourceIndex();
                 if (resizeSourceIndex != null) {
-                    IndexMetadata sourceIndexMetadata = metadata.index(resizeSourceIndex);
+                    IndexMetadata sourceIndexMetadata = metadata.getProject().index(resizeSourceIndex);
                     // source indicators stay on the index even after started and also after source is deleted.
                     if (sourceIndexMetadata != null) {
                         // ResizeAllocationDecider only handles clone or split, do the same here.
@@ -672,7 +673,15 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         private long getExpectedShardSize(ShardRouting shard) {
-            return ExpectedShardSizeEstimator.getExpectedShardSize(shard, 0L, info, shardSizeInfo, state.metadata(), state.routingTable());
+            final ProjectMetadata project = state.metadata().projectFor(shard.index());
+            return ExpectedShardSizeEstimator.getExpectedShardSize(
+                shard,
+                0L,
+                info,
+                shardSizeInfo,
+                project,
+                state.globalRoutingTable().routingTable(project.id())
+            );
         }
 
         long unmovableSize(String nodeId, Collection<ShardRouting> shards) {
@@ -723,14 +732,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 return this;
             }
             // for now we only look at data-streams. We might want to also detect alias based time-based indices.
-            DataStreamMetadata dataStreamMetadata = state.metadata().custom(DataStreamMetadata.TYPE);
+            DataStreamMetadata dataStreamMetadata = state.metadata().getProject().custom(DataStreamMetadata.TYPE);
             if (dataStreamMetadata == null) {
                 return this;
             }
             List<SingleForecast> singleForecasts = dataStreamMetadata.dataStreams()
                 .keySet()
                 .stream()
-                .map(state.metadata().getIndicesLookup()::get)
+                .map(state.metadata().getProject().getIndicesLookup()::get)
                 .map(DataStream.class::cast)
                 .map(ds -> forecast(state.metadata(), ds, forecastWindow, now))
                 .filter(Objects::nonNull)
@@ -768,7 +777,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             int count = 0;
             while (count < indices.size()) {
                 ++count;
-                IndexMetadata indexMetadata = metadata.index(indices.get(indices.size() - count));
+                IndexMetadata indexMetadata = metadata.getProject().index(indices.get(indices.size() - count));
                 long creationDate = indexMetadata.getCreationDate();
                 if (creationDate < 0) {
                     return null;
@@ -811,13 +820,13 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 scaledTotalSize = totalSize;
             }
 
-            IndexMetadata writeIndex = metadata.index(stream.getWriteIndex());
+            IndexMetadata writeIndex = metadata.getProject().index(stream.getWriteIndex());
 
             Map<IndexMetadata, Long> newIndices = new HashMap<>();
             for (int i = 0; i < numberNewIndices; ++i) {
                 final String uuid = UUIDs.randomBase64UUID();
                 final Tuple<String, Long> rolledDataStreamInfo = stream.unsafeNextWriteIndexAndGeneration(
-                    state.metadata(),
+                    state.metadata().getProject(),
                     stream.getDataComponent()
                 );
                 stream = stream.unsafeRollover(
@@ -852,7 +861,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
          */
         private boolean dataStreamAllocatedToNodes(Metadata metadata, List<Index> indices) {
             for (int i = 0; i < indices.size(); ++i) {
-                IndexMetadata indexMetadata = metadata.index(indices.get(indices.size() - i - 1));
+                IndexMetadata indexMetadata = metadata.getProject().index(indices.get(indices.size() - i - 1));
                 Set<Boolean> inNodes = state.getRoutingTable()
                     .allShards(indexMetadata.getIndex().getName())
                     .stream()
@@ -887,7 +896,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         private static Metadata removeNodeLockFilters(Metadata metadata) {
             Metadata.Builder builder = Metadata.builder(metadata);
-            metadata.stream()
+            metadata.getProject()
+                .stream()
                 .filter(AllocationState::isNodeLocked)
                 .map(AllocationState::removeNodeLockFilters)
                 .forEach(imd -> builder.put(imd, false));

@@ -149,7 +149,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
             final boolean isForce = request.isForce();
             final TimeValue timeout = request.getCloseTimeout();
 
-            PersistentTasksCustomMetadata tasksMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.get(state.metadata().getDefaultProject());
             jobConfigProvider.expandJobsIds(
                 request.getJobId(),
                 request.allowNoMatch(),
@@ -181,11 +181,10 @@ public class TransportCloseJobAction extends TransportTasksAction<
                                         forceCloseJob(state, request, jobIdsToForceClose, delegate3);
                                     } else {
                                         Set<String> executorNodes = new HashSet<>();
-                                        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
                                         for (String resolvedJobId : request.getOpenJobIds()) {
                                             PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(
                                                 resolvedJobId,
-                                                tasks
+                                                tasksMetadata
                                             );
                                             if (jobTask == null) {
                                                 // This should not happen, because openJobIds was
@@ -507,7 +506,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
         List<String> jobIdsToForceClose,
         ActionListener<CloseJobAction.Response> listener
     ) {
-        PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(currentState);
 
         final int numberOfJobs = jobIdsToForceClose.size();
         final AtomicInteger counter = new AtomicInteger();
@@ -575,7 +574,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
         List<String> closingJobIds,
         ActionListener<CloseJobAction.Response> listener
     ) {
-        PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(currentState);
 
         WaitForCloseRequest waitForCloseRequest = buildWaitForCloseRequest(openJobIds, closingJobIds, tasks, auditor);
 

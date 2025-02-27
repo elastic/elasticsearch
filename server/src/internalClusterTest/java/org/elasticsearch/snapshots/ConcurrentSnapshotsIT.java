@@ -2213,7 +2213,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 l -> masterDeleteIndexService.deleteIndices(
                     TEST_REQUEST_TIMEOUT,
                     TEST_REQUEST_TIMEOUT,
-                    Set.of(internalCluster().clusterService().state().metadata().index(indexToDelete).getIndex()),
+                    Set.of(internalCluster().clusterService().state().metadata().getProject().index(indexToDelete).getIndex()),
                     l.map(r -> {
                         assertTrue(r.isAcknowledged());
                         return null;

@@ -78,7 +78,7 @@ public class TransportGetWatcherSettingsAction extends TransportLocalClusterStat
         ActionListener<GetWatcherSettingsAction.Response> listener
     ) {
         ((CancellableTask) task).ensureNotCancelled();
-        IndexMetadata metadata = state.metadata().index(WATCHER_INDEX_NAME);
+        IndexMetadata metadata = state.metadata().getProject().index(WATCHER_INDEX_NAME);
         if (metadata == null) {
             listener.onResponse(new GetWatcherSettingsAction.Response(Settings.EMPTY));
         } else {

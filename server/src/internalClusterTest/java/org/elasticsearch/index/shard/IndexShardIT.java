@@ -123,7 +123,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
 
         ClusterService cs = getInstanceFromNode(ClusterService.class);
-        final Index index = cs.state().metadata().index("test").getIndex();
+        final Index index = cs.state().metadata().getProject().index("test").getIndex();
         Path[] shardPaths = env.availableShardPaths(new ShardId(index, 0));
         logger.info("--> paths: [{}]", (Object) shardPaths);
         // Should not be able to acquire the lock because it's already open
@@ -745,7 +745,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final ClusterState clusterState = clusterService.state();
 
-        final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+        final IndexMetadata indexMetadata = clusterState.metadata().getProject().index(indexName);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService indexService = indicesService.indexServiceSafe(indexMetadata.getIndex());
 

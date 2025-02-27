@@ -70,7 +70,7 @@ public class NodeAllocationStatsAndWeightsCalculator {
         ClusterInfo clusterInfo,
         @Nullable DesiredBalance desiredBalance
     ) {
-        if (metadata.indices().isEmpty() == false) {
+        if (metadata.hasAnyIndices()) {
             // must not use licensed features when just starting up
             writeLoadForecaster.refreshLicense();
         }
@@ -92,7 +92,7 @@ public class NodeAllocationStatsAndWeightsCalculator {
                     continue;
                 }
                 ++shards;
-                IndexMetadata indexMetadata = metadata.getIndexSafe(shardRouting.index());
+                IndexMetadata indexMetadata = metadata.indexMetadata(shardRouting.index());
                 if (isDesiredAllocation(desiredBalance, shardRouting) == false) {
                     undesiredShards++;
                 }

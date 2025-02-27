@@ -237,7 +237,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         setUpIndicesStatsRequestMock(indexName, withError);
         CountDownLatch countDownLatch = new CountDownLatch(1);
         AtomicBoolean failurePropagated = new AtomicBoolean(false);
-        branchStep.performAction(state.metadata().index(indexName), state, null, new ActionListener<>() {
+        branchStep.performAction(state.metadata().getProject().index(indexName), state, null, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 countDownLatch.countDown();

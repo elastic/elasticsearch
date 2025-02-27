@@ -341,7 +341,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             .cluster()
             .state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
             .actionGet();
-        return clusterStateResponse.getState().metadata().index(index);
+        return clusterStateResponse.getState().metadata().getProject().index(index);
     }
 
     public void testCreateSplitIndex() {

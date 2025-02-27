@@ -28,8 +28,11 @@ import java.util.Collections;
  * by the REST handlers. The only way the reserved cluster state can be updated is through the 'operator mode' actions, e.g. updating
  * the file settings.
  * </p>
+ *
+ * @param <S> The state type to be updated by this handler
+ * @param <T> The type used to represent the state update
  */
-public interface ReservedClusterStateHandler<T> {
+public interface ReservedClusterStateHandler<S, T> {
     /**
      * Unique identifier for the handler.
      *
@@ -60,7 +63,7 @@ public interface ReservedClusterStateHandler<T> {
      * @return The modified state and the current keys set by this handler
      * @throws Exception
      */
-    TransformState transform(Object source, TransformState prevState) throws Exception;
+    TransformState<S> transform(T source, TransformState<S> prevState) throws Exception;
 
     /**
      * List of dependent handler names for this handler.

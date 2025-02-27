@@ -33,6 +33,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibra
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
@@ -242,7 +243,14 @@ public class EntitlementInitialization {
         if (trustStorePath != null) {
             Collections.addAll(
                 serverScopes,
-                new Scope("org.bouncycastle.fips.tls", List.of(new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ))))),
+                new Scope(
+                    "org.bouncycastle.fips.tls",
+                    List.of(
+                        new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ))),
+                        new OutboundNetworkEntitlement(),
+                        new ManageThreadsEntitlement()
+                    )
+                ),
                 new Scope(
                     "org.bouncycastle.fips.core",
                     // read to lib dir is required for checksum validation
@@ -258,6 +266,8 @@ public class EntitlementInitialization {
         List<Entitlement> agentEntitlements = List.of(
             new CreateClassLoaderEntitlement(),
             new ManageThreadsEntitlement(),
+            new SetHttpsConnectionPropertiesEntitlement(),
+            new OutboundNetworkEntitlement(),
             new FilesEntitlement(
                 List.of(
                     FileData.ofPath(Path.of("/co/elastic/apm/agent/"), READ),

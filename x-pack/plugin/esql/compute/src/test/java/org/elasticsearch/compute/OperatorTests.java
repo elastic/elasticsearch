@@ -63,6 +63,7 @@ import org.elasticsearch.compute.operator.ShuffleDocsOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -123,7 +124,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         }
                     });
                     DriverContext driverContext = driverContext();
-                    drivers.add(new Driver("test", driverContext, factory.get(driverContext), List.of(), docCollector, () -> {}));
+                    drivers.add(TestDriverFactory.create(driverContext, factory.get(driverContext), List.of(), docCollector));
                 }
                 OperatorTestCase.runDriver(drivers);
                 Set<Integer> expectedDocIds = searchForDocIds(reader, query);
@@ -214,8 +215,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         driverContext
                     )
                 );
-                Driver driver = new Driver(
-                    "test",
+                Driver driver = TestDriverFactory.create(
                     driverContext,
                     luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT).get(driverContext),
                     operators,
@@ -228,8 +228,7 @@ public class OperatorTests extends MapperServiceTestCase {
                             actualCounts.put(BytesRef.deepCopyOf(spare), counts.getLong(i));
                         }
                         page.releaseBlocks();
-                    }),
-                    () -> {}
+                    })
                 );
                 OperatorTestCase.runDriver(driver);
                 assertThat(actualCounts, equalTo(expectedCounts));
@@ -248,8 +247,7 @@ public class OperatorTests extends MapperServiceTestCase {
         var results = new ArrayList<Long>();
         DriverContext driverContext = driverContext();
         try (
-            var driver = new Driver(
-                "test",
+            var driver = TestDriverFactory.create(
                 driverContext,
                 new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
                 List.of((new LimitOperator.Factory(limit)).get(driverContext)),
@@ -258,8 +256,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     for (int i = 0; i < page.getPositionCount(); i++) {
                         results.add(block.getLong(i));
                     }
-                }),
-                () -> {}
+                })
             )
         ) {
             OperatorTestCase.runDriver(driver);
@@ -336,8 +333,7 @@ public class OperatorTests extends MapperServiceTestCase {
             var actualValues = new ArrayList<>();
             var actualPrimeOrds = new ArrayList<>();
             try (
-                var driver = new Driver(
-                    "test",
+                var driver = TestDriverFactory.create(
                     driverContext,
                     new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
                     List.of(
@@ -354,8 +350,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         } finally {
                             page.releaseBlocks();
                         }
-                    }),
-                    () -> {}
+                    })
                 )
             ) {
                 OperatorTestCase.runDriver(driver);

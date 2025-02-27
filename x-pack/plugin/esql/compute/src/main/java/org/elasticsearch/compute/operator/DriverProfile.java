@@ -27,6 +27,8 @@ import java.util.List;
  *
  * @param taskDescription Description of the task this driver is running. This description should be short and meaningful
  *                        as a grouping identifier. We use the phase of the query right now: "data", "node_reduce", "final".
+ * @param clusterName The name of the cluster this driver is running on.
+ * @param nodeName The name of the node this driver is running on.
  * @param startMillis Millis since epoch when the driver started.
  * @param stopMillis Millis since epoch when the driver stopped.
  * @param tookNanos Nanos between creation and completion of the {@link Driver}.
@@ -36,6 +38,8 @@ import java.util.List;
  */
 public record DriverProfile(
     String taskDescription,
+    String clusterName,
+    String nodeName,
     long startMillis,
     long stopMillis,
     long tookNanos,
@@ -49,6 +53,8 @@ public record DriverProfile(
         return new DriverProfile(
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
                 || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90) ? in.readString() : "",
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION) ? in.readString() : "",
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readVLong() : 0,
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readVLong() : 0,
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0,
@@ -64,6 +70,10 @@ public record DriverProfile(
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
             || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90)) {
             out.writeString(taskDescription);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION)) {
+            out.writeString(clusterName);
+            out.writeString(nodeName);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeVLong(startMillis);
@@ -82,6 +92,8 @@ public record DriverProfile(
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(ChunkedToXContentHelper.startObject(), Iterators.single((b, p) -> {
             b.field("task_description", taskDescription);
+            b.field("cluster_name", clusterName);
+            b.field("node_name", nodeName);
             b.timestampFieldsFromUnixEpochMillis("start_millis", "start", startMillis);
             b.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", stopMillis);
             b.field("took_nanos", tookNanos);

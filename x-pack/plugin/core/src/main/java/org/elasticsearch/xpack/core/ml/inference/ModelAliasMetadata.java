@@ -36,18 +36,18 @@ import java.util.Objects;
 /**
  * Custom {@link Metadata} implementation for storing a map of model aliases that point to model IDs
  */
-public class ModelAliasMetadata implements Metadata.Custom {
+public class ModelAliasMetadata implements Metadata.ProjectCustom {
 
     public static final String NAME = "trained_model_alias";
 
     public static final ModelAliasMetadata EMPTY = new ModelAliasMetadata(new HashMap<>());
 
     public static ModelAliasMetadata fromState(ClusterState cs) {
-        ModelAliasMetadata modelAliasMetadata = cs.metadata().custom(NAME);
+        ModelAliasMetadata modelAliasMetadata = cs.metadata().getProject().custom(NAME);
         return modelAliasMetadata == null ? EMPTY : modelAliasMetadata;
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new ModelAliasMetadataDiff(in);
     }
 
@@ -97,7 +97,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
         return new ModelAliasMetadataDiff((ModelAliasMetadata) previousState, this);
     }
 
@@ -129,7 +129,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
         return entry.modelId;
     }
 
-    static class ModelAliasMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static class ModelAliasMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final Diff<Map<String, ModelAliasEntry>> modelAliasesDiff;
 
@@ -147,7 +147,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new ModelAliasMetadata(modelAliasesDiff.apply(((ModelAliasMetadata) part).modelAliases));
         }
 

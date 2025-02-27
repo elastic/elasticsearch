@@ -69,7 +69,7 @@ public class WatcherMetadataSerializationTests extends ESTestCase {
         // deserialize metadata again
         Metadata metadata = Metadata.Builder.fromXContent(createParser(builder));
         // check that custom metadata still present
-        assertThat(metadata.custom(watcherMetadata.getWriteableName()), notNullValue());
+        assertThat(metadata.getProject().custom(watcherMetadata.getWriteableName()), notNullValue());
         assertThat(metadata.custom(repositoriesMetadata.getWriteableName()), notNullValue());
     }
 

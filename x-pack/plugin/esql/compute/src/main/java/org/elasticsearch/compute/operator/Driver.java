@@ -117,6 +117,8 @@ public class Driver implements Releasable, Describable {
     public Driver(
         String sessionId,
         String taskDescription,
+        String clusterName,
+        String nodeName,
         long startTime,
         long startNanos,
         DriverContext driverContext,
@@ -143,6 +145,8 @@ public class Driver implements Releasable, Describable {
             new DriverStatus(
                 sessionId,
                 taskDescription,
+                clusterName,
+                nodeName,
                 startTime,
                 System.currentTimeMillis(),
                 0,
@@ -152,37 +156,6 @@ public class Driver implements Releasable, Describable {
                 List.of(),
                 DriverSleeps.empty()
             )
-        );
-    }
-
-    /**
-     * Creates a new driver with a chain of operators.
-     * @param driverContext the driver context
-     * @param source source operator
-     * @param intermediateOperators  the chain of operators to execute
-     * @param sink sink operator
-     * @param releasable a {@link Releasable} to invoked once the chain of operators has run to completion
-     */
-    public Driver(
-        String taskDescription,
-        DriverContext driverContext,
-        SourceOperator source,
-        List<Operator> intermediateOperators,
-        SinkOperator sink,
-        Releasable releasable
-    ) {
-        this(
-            "unset",
-            taskDescription,
-            System.currentTimeMillis(),
-            System.nanoTime(),
-            driverContext,
-            () -> null,
-            source,
-            intermediateOperators,
-            sink,
-            DEFAULT_STATUS_INTERVAL,
-            releasable
         );
     }
 
@@ -502,6 +475,8 @@ public class Driver implements Releasable, Describable {
         }
         return new DriverProfile(
             status.taskDescription(),
+            status.clusterName(),
+            status.nodeName(),
             status.started(),
             status.lastUpdated(),
             finishNanos - startNanos,
@@ -549,6 +524,8 @@ public class Driver implements Releasable, Describable {
             return new DriverStatus(
                 sessionId,
                 taskDescription,
+                prev.clusterName(),
+                prev.nodeName(),
                 startTime,
                 now,
                 prev.cpuNanos() + extraCpuNanos,

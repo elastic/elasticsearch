@@ -89,7 +89,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     @Override
     protected NodeCacheFilesMetadata nodeOperation(NodeRequest request, Task task) {
         assert cacheService != null;
-        assert Optional.ofNullable(clusterService.state().metadata().index(request.shardId.getIndex()))
+        assert Optional.ofNullable(clusterService.state().metadata().getProject().index(request.shardId.getIndex()))
             .map(indexMetadata -> SNAPSHOT_PARTIAL_SETTING.get(indexMetadata.getSettings()))
             .orElse(false) == false : request.shardId + " is partial, should not be fetching its cached size";
         return new NodeCacheFilesMetadata(clusterService.localNode(), cacheService.getCachedSize(request.shardId, request.snapshotId));

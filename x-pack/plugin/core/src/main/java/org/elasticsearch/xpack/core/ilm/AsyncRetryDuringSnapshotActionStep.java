@@ -106,7 +106,7 @@ public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep
                             }
                             try {
                                 logger.debug("[{}] retrying ILM step after snapshot has completed", indexName);
-                                IndexMetadata idxMeta = state.metadata().index(index);
+                                IndexMetadata idxMeta = state.metadata().getProject().index(index);
                                 if (idxMeta == null) {
                                     // The index has since been deleted, mission accomplished!
                                     originalListener.onResponse(null);
@@ -133,7 +133,7 @@ public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep
                             // ILM actions should only run on master, lets bail on failover
                             return true;
                         }
-                        if (state.metadata().index(index) == null) {
+                        if (state.metadata().getProject().index(index) == null) {
                             // The index has since been deleted, mission accomplished!
                             return true;
                         }

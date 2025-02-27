@@ -105,7 +105,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
             state -> changed.set(true)
         );
         ClusterState newState = task.execute(clusterState);
-        LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState lifecycleState = newState.getMetadata().getProject().index(index).getLifecycleExecutionState();
         StepKey actualKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(nextStepKey));
         assertThat(lifecycleState.phaseTime(), equalTo(now));
@@ -179,7 +179,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
             s -> changed.set(true)
         );
         ClusterState newState = task.execute(clusterState);
-        LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState lifecycleState = newState.getMetadata().getProject().index(index).getLifecycleExecutionState();
         StepKey actualKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(invalidNextStep));
         assertThat(lifecycleState.phaseTime(), equalTo(now));
@@ -240,7 +240,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
 
     private void setStateToKey(StepKey stepKey, long now) {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
-            clusterState.metadata().index(index).getLifecycleExecutionState()
+            clusterState.metadata().getProject().index(index).getLifecycleExecutionState()
         );
         lifecycleState.setPhase(stepKey.phase());
         lifecycleState.setPhaseTime(now);
@@ -264,7 +264,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
             .metadata(
                 Metadata.builder(clusterState.getMetadata())
                     .put(
-                        IndexMetadata.builder(clusterState.getMetadata().index(index))
+                        IndexMetadata.builder(clusterState.getMetadata().getProject().index(index))
                             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
                     )
             )

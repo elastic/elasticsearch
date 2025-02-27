@@ -10,11 +10,11 @@
 package org.elasticsearch.action.datastreams;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.Index;
 
 import java.util.ArrayList;
@@ -31,12 +31,12 @@ public class DataStreamsActionUtil {
      */
     public static List<String> getDataStreamNames(
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterState currentState,
+        ProjectMetadata project,
         String[] names,
         IndicesOptions indicesOptions
     ) {
         indicesOptions = updateIndicesOptions(indicesOptions);
-        return indexNameExpressionResolver.dataStreamNames(currentState, indicesOptions, names);
+        return indexNameExpressionResolver.dataStreamNames(project, indicesOptions, names);
     }
 
     public static IndicesOptions updateIndicesOptions(IndicesOptions indicesOptions) {
@@ -50,16 +50,16 @@ public class DataStreamsActionUtil {
 
     public static List<String> resolveConcreteIndexNames(
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterState clusterState,
+        ProjectMetadata project,
         String[] names,
         IndicesOptions indicesOptions
     ) {
         List<ResolvedExpression> resolvedDataStreamExpressions = indexNameExpressionResolver.dataStreams(
-            clusterState,
+            project,
             updateIndicesOptions(indicesOptions),
             names
         );
-        SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
+        SortedMap<String, IndexAbstraction> indicesLookup = project.getIndicesLookup();
 
         List<String> results = new ArrayList<>(resolvedDataStreamExpressions.size());
         for (ResolvedExpression resolvedExpression : resolvedDataStreamExpressions) {

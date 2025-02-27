@@ -34,7 +34,7 @@ import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -318,7 +318,7 @@ public class RBACEngine implements AuthorizationEngine {
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-        Metadata metadata,
+        ProjectMetadata metadata,
         ActionListener<IndexAuthorizationResult> listener
     ) {
         final String action = requestInfo.getAction();
@@ -918,7 +918,7 @@ public class RBACEngine implements AuthorizationEngine {
         String action,
         Role role,
         ResolvedIndices resolvedIndices,
-        Metadata metadata
+        ProjectMetadata metadata
     ) {
         final IndicesAccessControl accessControl = role.authorize(
             action,

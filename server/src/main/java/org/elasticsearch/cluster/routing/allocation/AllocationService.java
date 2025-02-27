@@ -20,9 +20,11 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -44,9 +46,14 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PriorityComparator;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 
@@ -160,7 +167,8 @@ public class AllocationService {
     }
 
     private static ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
-        final RoutingTable newRoutingTable = RoutingTable.of(allocation.routingNodes());
+        final GlobalRoutingTable oldRoutingTable = oldState.globalRoutingTable();
+        final GlobalRoutingTable newRoutingTable = oldRoutingTable.rebuild(allocation.routingNodes(), allocation.metadata());
         final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetadata); // validates the routing table is coherent with the cluster state metadata
 
@@ -205,7 +213,8 @@ public class AllocationService {
 
         for (FailedShard failedShardEntry : failedShards) {
             ShardRouting shardToFail = failedShardEntry.routingEntry();
-            assert allocation.metadata().hasIndex(shardToFail.shardId().getIndex());
+            assert allocation.metadata().findIndex(shardToFail.shardId().getIndex()).isPresent()
+                : "Expected index [" + shardToFail.shardId().getIndexName() + "] of failed shard to still exist";
             allocation.addIgnoreShardForNode(shardToFail.shardId(), shardToFail.currentNodeId());
             // failing a primary also fails initializing replica shards, re-resolve ShardRouting
             ShardRouting failedShard = allocation.routingNodes()
@@ -294,46 +303,89 @@ public class AllocationService {
      * Returns an updated cluster state if changes were necessary, or the identical cluster if no changes were required.
      */
     public ClusterState adaptAutoExpandReplicas(ClusterState clusterState) {
-        final Supplier<RoutingAllocation> allocationSupplier = () -> new RoutingAllocation(
-            allocationDeciders,
-            clusterState,
-            clusterInfoService.getClusterInfo(),
-            snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime()
+        final LazyInitializable<RoutingAllocation, RuntimeException> lazyAllocation = new LazyInitializable<>(
+            () -> new RoutingAllocation(
+                allocationDeciders,
+                clusterState,
+                clusterInfoService.getClusterInfo(),
+                snapshotsInfoService.snapshotShardSizes(),
+                currentNanoTime()
+            )
         );
+        final Supplier<RoutingAllocation> allocationSupplier = lazyAllocation::getOrCompute;
+
+        GlobalRoutingTable.Builder routingBuilder = null;
+        Metadata.Builder metadataBuilder = null;
+        for (var entry : clusterState.metadata().projects().entrySet()) {
+            var projectId = entry.getKey();
+            var tuple = adaptAutoExpandReplicas(entry.getValue(), clusterState.routingTable(projectId), allocationSupplier);
+            if (tuple != null) {
+                if (metadataBuilder == null) {
+                    metadataBuilder = Metadata.builder(clusterState.metadata());
+                }
+                metadataBuilder.put(tuple.v1());
+
+                if (routingBuilder == null) {
+                    routingBuilder = GlobalRoutingTable.builder(clusterState.globalRoutingTable());
+                }
+                routingBuilder.put(projectId, tuple.v2());
+            }
+        }
+
+        if (metadataBuilder == null) {
+            // No projects were updated
+            return clusterState;
+        }
+
+        final ClusterState fixedState = ClusterState.builder(clusterState)
+            .routingTable(routingBuilder.build())
+            .metadata(metadataBuilder)
+            .build();
+        assert hasAutoExpandReplicaChanges(fixedState.metadata(), allocationSupplier) == false;
+        return fixedState;
+    }
+
+    private static boolean hasAutoExpandReplicaChanges(Metadata metadata, Supplier<RoutingAllocation> allocationSupplier) {
+        return metadata.projects()
+            .values()
+            .stream()
+            .anyMatch(project -> AutoExpandReplicas.getAutoExpandReplicaChanges(project, allocationSupplier).size() > 0);
+    }
+
+    @Nullable
+    private Tuple<ProjectMetadata.Builder, RoutingTable.Builder> adaptAutoExpandReplicas(
+        ProjectMetadata project,
+        RoutingTable projectRoutingTable,
+        Supplier<RoutingAllocation> allocationSupplier
+    ) {
         final Map<Integer, List<String>> autoExpandReplicaChanges = AutoExpandReplicas.getAutoExpandReplicaChanges(
-            clusterState.metadata(),
+            project,
             allocationSupplier
         );
         if (autoExpandReplicaChanges.isEmpty()) {
-            return clusterState;
-        } else {
-            final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, clusterState.routingTable());
-            final Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
-            for (Map.Entry<Integer, List<String>> entry : autoExpandReplicaChanges.entrySet()) {
-                final int numberOfReplicas = entry.getKey();
-                final String[] indices = entry.getValue().toArray(Strings.EMPTY_ARRAY);
-                // we do *not* update the in sync allocation ids as they will be removed upon the first index
-                // operation which make these copies stale
-                routingTableBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
-                metadataBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
-                // update settings version for each index
-                for (final String index : indices) {
-                    final IndexMetadata indexMetadata = metadataBuilder.get(index);
-                    final IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexMetadata).settingsVersion(
-                        1 + indexMetadata.getSettingsVersion()
-                    );
-                    metadataBuilder.put(indexMetadataBuilder);
-                }
-                logger.info("updating number_of_replicas to [{}] for indices {}", numberOfReplicas, indices);
-            }
-            final ClusterState fixedState = ClusterState.builder(clusterState)
-                .routingTable(routingTableBuilder.build())
-                .metadata(metadataBuilder)
-                .build();
-            assert AutoExpandReplicas.getAutoExpandReplicaChanges(fixedState.metadata(), allocationSupplier).isEmpty();
-            return fixedState;
+            return null;
         }
+
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, projectRoutingTable);
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(project);
+        for (Map.Entry<Integer, List<String>> entry : autoExpandReplicaChanges.entrySet()) {
+            final int numberOfReplicas = entry.getKey();
+            final String[] indices = entry.getValue().toArray(Strings.EMPTY_ARRAY);
+            // we do *not* update the in sync allocation ids as they will be removed upon the first index
+            // operation which make these copies stale
+            routingTableBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
+            projectBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
+            // update settings version for each index
+            for (final String index : indices) {
+                final IndexMetadata indexMetadata = projectBuilder.get(index);
+                final IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexMetadata).settingsVersion(
+                    1 + indexMetadata.getSettingsVersion()
+                );
+                projectBuilder.put(indexMetadataBuilder);
+            }
+            logger.info("in project [{}] updating number_of_replicas to [{}] for indices {}", project.id(), numberOfReplicas, indices);
+        }
+        return new Tuple<>(projectBuilder, routingTableBuilder);
     }
 
     /**
@@ -360,6 +412,7 @@ public class AllocationService {
         }
     }
 
+    @FixForMultiProject(description = "we should assert retryFailed is not allowed with non-empty commands")
     public CommandsResult reroute(
         ClusterState clusterState,
         AllocationCommands commands,
@@ -431,7 +484,7 @@ public class AllocationService {
                 if (unassignedInfo.delayed()) {
                     final long newComputedLeftDelayNanos = unassignedInfo.remainingDelay(
                         allocation.getCurrentNanoTime(),
-                        metadata.getIndexSafe(shardRouting.index()).getSettings(),
+                        metadata.getProject().getIndexSafe(shardRouting.index()).getSettings(),
                         metadata.nodeShutdowns()
                     );
                     if (newComputedLeftDelayNanos == 0) {
@@ -483,28 +536,31 @@ public class AllocationService {
         }
 
         ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
-        for (String index : clusterState.metadata().getConcreteAllIndices()) {
-            IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
-            if (indexRoutingTable == null) {
-                continue;
-            }
-            if (indexRoutingTable.allShardsActive()) {
-                // GREEN index
-                continue;
-            }
-
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
-                ShardRouting primary = indexShardRoutingTable.primaryShard();
-                if (primary.active()) {
-                    // index has inactive replicas
-                    computeStatus = ClusterHealthStatus.YELLOW;
+        for (ProjectMetadata project : clusterState.metadata().projects().values()) {
+            final RoutingTable routingTable = clusterState.routingTable(project.id());
+            for (String index : project.getConcreteAllIndices()) {
+                IndexRoutingTable indexRoutingTable = routingTable.index(index);
+                if (indexRoutingTable == null) {
                     continue;
                 }
-                computeStatus = getInactivePrimaryHealth(primary);
-                if (computeStatus == ClusterHealthStatus.RED) {
-                    logger.debug("One of inactive primary shard {} causes cluster state RED.", primary.shardId());
-                    return ClusterHealthStatus.RED;
+                if (indexRoutingTable.allShardsActive()) {
+                    // GREEN index
+                    continue;
+                }
+
+                for (int i = 0; i < indexRoutingTable.size(); i++) {
+                    IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
+                    ShardRouting primary = indexShardRoutingTable.primaryShard();
+                    if (primary.active()) {
+                        // index has inactive replicas
+                        computeStatus = ClusterHealthStatus.YELLOW;
+                        continue;
+                    }
+                    computeStatus = getInactivePrimaryHealth(primary);
+                    if (computeStatus == ClusterHealthStatus.RED) {
+                        logger.debug("One of inactive primary shard {} causes cluster state RED.", primary.shardId());
+                        return ClusterHealthStatus.RED;
+                    }
                 }
             }
         }
@@ -522,7 +578,7 @@ public class AllocationService {
 
     private void reroute(RoutingAllocation allocation, RerouteStrategy rerouteStrategy) {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
-        assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), () -> allocation).isEmpty()
+        assert hasAutoExpandReplicaChanges(allocation.metadata(), () -> allocation) == false
             : "auto-expand replicas out of sync with number of nodes in the cluster";
         assert assertInitialized();
         rerouteStrategy.removeDelayMarkers(allocation);
@@ -658,7 +714,7 @@ public class AllocationService {
 
             // now, go over all the shards routing on the node, and fail them
             for (ShardRouting shardRouting : node.copyShards()) {
-                final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+                final IndexMetadata indexMetadata = allocation.metadata().getProject().getIndexSafe(shardRouting.index());
                 boolean delayed = delayedDueToKnownRestart
                     || INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).nanos() > 0;
 
@@ -687,14 +743,14 @@ public class AllocationService {
         RoutingNodes routingNodes = routingAllocation.routingNodes();
         for (ShardRouting startedShard : startedShardEntries) {
             assert startedShard.initializing() : "only initializing shards can be started";
-            assert routingAllocation.metadata().index(startedShard.shardId().getIndex()) != null
+            assert routingAllocation.metadata().lookupProject(startedShard.index()).isPresent()
                 : "shard started for unknown index (shard entry: " + startedShard + ")";
             assert startedShard == routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId())
                 : "shard routing to start does not exist in routing table, expected: "
                     + startedShard
                     + " but was: "
                     + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
-            long expectedShardSize = routingAllocation.metadata().getIndexSafe(startedShard.index()).isSearchableSnapshot()
+            long expectedShardSize = routingAllocation.metadata().indexMetadata(startedShard.index()).isSearchableSnapshot()
                 ? startedShard.getExpectedShardSize()
                 : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
             routingNodes.startShard(startedShard, routingAllocation.changes(), expectedShardSize);
@@ -756,8 +812,9 @@ public class AllocationService {
 
     private ExistingShardsAllocator getAllocatorForShard(ShardRouting shardRouting, RoutingAllocation routingAllocation) {
         assert assertInitialized();
+        Index index = shardRouting.index();
         final String allocatorName = ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
-            routingAllocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
+            routingAllocation.metadata().indexMetadata(index).getSettings()
         );
         final ExistingShardsAllocator existingShardsAllocator = existingShardsAllocators.get(allocatorName);
         return existingShardsAllocator != null ? existingShardsAllocator : new NotFoundAllocator(allocatorName);

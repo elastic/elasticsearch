@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -43,7 +45,12 @@ public class NativeRealm extends CachingUsernamePasswordRealm {
         userStore.verifyPassword(token.principal(), token.credentials(), listener);
     }
 
-    public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+    @FixForMultiProject
+    public void onSecurityIndexStateChange(
+        ProjectId projectId,
+        SecurityIndexManager.IndexState previousState,
+        SecurityIndexManager.IndexState currentState
+    ) {
         if (isMoveFromRedToNonRed(previousState, currentState)
             || isIndexDeleted(previousState, currentState)
             || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false) {

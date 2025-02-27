@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -55,7 +56,8 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             mock(ActionFilters.class),
             mock(NamedXContentRegistry.class),
             mock(XPackLicenseState.class),
-            mock(Client.class)
+            mock(Client.class),
+            mock(ProjectResolver.class)
         );
         assertEquals(ReservedLifecycleAction.NAME, putAction.reservedStateHandlerName().get());
 

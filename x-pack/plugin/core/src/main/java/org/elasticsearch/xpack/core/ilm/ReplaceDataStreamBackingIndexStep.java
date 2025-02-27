@@ -61,7 +61,7 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
 
     @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetadata originalIndexMetadata = clusterState.metadata().index(index);
+        IndexMetadata originalIndexMetadata = clusterState.metadata().getProject().index(index);
         if (originalIndexMetadata == null) {
             // Index must have been since deleted, skip the shrink action
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", NAME, index.getName());
@@ -71,7 +71,7 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
         String originalIndex = index.getName();
         String targetIndexName = targetIndexNameSupplier.apply(originalIndex, originalIndexMetadata.getLifecycleExecutionState());
         String policyName = originalIndexMetadata.getLifecyclePolicyName();
-        IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
+        IndexAbstraction indexAbstraction = clusterState.metadata().getProject().getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
         DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream == null) {
@@ -100,7 +100,7 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
             throw new IllegalStateException(errorMessage);
         }
 
-        IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);
+        IndexMetadata targetIndexMetadata = clusterState.metadata().getProject().index(targetIndexName);
         if (targetIndexMetadata == null) {
             String errorMessage = Strings.format(
                 "target index [%s] doesn't exist. stopping execution of lifecycle [%s] for index [%s]",

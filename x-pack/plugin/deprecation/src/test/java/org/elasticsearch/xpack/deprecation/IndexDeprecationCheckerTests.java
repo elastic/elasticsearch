@@ -233,7 +233,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, true)
-                    .customs(
+                    .projectCustoms(
                         Map.of(
                             DataStreamMetadata.TYPE,
                             new DataStreamMetadata(

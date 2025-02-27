@@ -1981,7 +1981,7 @@ public class RBACEngineTests extends ESTestCase {
                 )
             );
 
-        engine.authorizeIndexAction(requestInfo, authzInfo, indicesAsyncSupplier, metadata.build(), listener);
+        engine.authorizeIndexAction(requestInfo, authzInfo, indicesAsyncSupplier, metadata.build().getProject(), listener);
     }
 
     private static RequestInfo createRequestInfo(TransportRequest request, String action, ParentActionAuthorization parentAuthorization) {

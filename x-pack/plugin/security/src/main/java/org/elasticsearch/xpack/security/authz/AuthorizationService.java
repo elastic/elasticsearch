@@ -485,10 +485,11 @@ public class AuthorizationService {
             // The most common case is when a child action is authorized based on its parent, in that case we never need
             // to lookup indices, so we never need the project metadata.
             // But we do want to optimize by only looking up the project once for each action, so we use a cached supplier.
-            final Supplier<ProjectMetadata> projectMetadataSupplier = CachedSupplier.wrap(
-                () -> projectResolver.getProjectMetadata(clusterService.state())
-            );
-            assert projectMetadataSupplier != null;
+            final Supplier<ProjectMetadata> projectMetadataSupplier = CachedSupplier.wrap(() -> {
+                final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+                assert projectMetadata != null;
+                return projectMetadata;
+            });
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
                 if (request instanceof SearchRequest searchRequest && searchRequest.pointInTimeBuilder() != null) {
                     var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);

@@ -15,7 +15,8 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
 public class StandardVsLogsDbRestTest {
-    public static OnDemandLocalCluster cluster = new OnDemandClusterBuilder().distribution(DistributionType.DEFAULT)
+    public static OnDemandLocalCluster cluster = OnDemandClusterBuilder.create()
+        .distribution(DistributionType.DEFAULT)
         .module("data-streams")
         .module("x-pack-stack")
         .setting("xpack.security.enabled", "false")

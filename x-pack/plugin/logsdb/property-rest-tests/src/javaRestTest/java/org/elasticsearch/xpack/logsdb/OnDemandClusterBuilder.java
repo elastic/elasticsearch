@@ -22,9 +22,15 @@ import org.elasticsearch.test.cluster.local.distribution.SnapshotDistributionRes
 import java.util.function.Supplier;
 
 public class OnDemandClusterBuilder extends AbstractLocalClusterSpecBuilder<OnDemandLocalCluster> {
-    public OnDemandClusterBuilder() {
-        this.settings(new DefaultSettingsProvider());
-        this.environment(new DefaultEnvironmentProvider());
+    private OnDemandClusterBuilder() {
+        super();
+    }
+
+    public static OnDemandClusterBuilder create() {
+        var builder = new OnDemandClusterBuilder();
+        builder.settings(new DefaultSettingsProvider());
+        builder.environment(new DefaultEnvironmentProvider());
+        return builder;
     }
 
     @Override

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.logsdb;
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
 import net.jqwik.api.Builders;
+import net.jqwik.api.Combinators;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import net.jqwik.api.Provide;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.mapper.BlockLoaderStoredFieldsFromLeafLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -64,7 +66,7 @@ public class KeywordBlockLoaderTests {
     @Property(tries = 10000)
     void blockLoaderReturnsCorrectResults(
         @ForAll("settings") Settings indexSettings,
-        @ForAll("mapping") Map<String, Object> fieldMapping,
+        @ForAll("fieldMapping") Map<String, Object> fieldMapping,
         @ForAll("document") Map<String, Object> document
     ) throws IOException {
         var mapping = Map.of("_doc", Map.of("properties", Map.of("field", fieldMapping)));
@@ -83,6 +85,15 @@ public class KeywordBlockLoaderTests {
         Assertions.assertEquals(expected, blockLoaderResult);
     }
 
+    @Property
+    void testComplexMapping(@ForAll("settings") Settings indexSettings, @ForAll("deepMapping") Map<String, Object> mapping) throws IOException {
+        var fullMapping = Map.of("_doc", Map.of("properties", Map.of("top", mapping)));
+        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(fullMapping);
+        var mapperService = createMapperService(indexSettings, mappingXContent);
+
+        mapperService.documentMapper();
+    }
+
     @Provide
     Arbitrary<Settings> settings() {
         var syntheticSource = Arbitraries.of(true, false);
@@ -98,7 +109,58 @@ public class KeywordBlockLoaderTests {
     }
 
     @Provide
-    Arbitrary<Map<String, Object>> mapping() {
+    Arbitrary<Map<String, Object>> deepMapping() {
+        var depth = Arbitraries.integers().between(0, 5);
+
+        return depth.flatMap(d -> objectLevel(d, objectMapping(), fieldMapping()));
+    }
+
+    @Provide
+    Arbitrary<Map<String, Object>> objectLevel(
+        int remainingDepth,
+        Arbitrary<Map<String, Object>> objectMapping,
+        Arbitrary<Map<String, Object>> fieldMapping
+    ) {
+        if (remainingDepth == 0) {
+            return Combinators.combine(objectMapping, fieldMapping).as((obj, f) -> {
+                var properties = new HashMap<>() {
+                    {
+                        put("field", f);
+                    }
+                };
+
+                obj.put("properties", properties);
+                return obj;
+            });
+        }
+
+        var child = objectLevel(remainingDepth - 1, objectMapping, fieldMapping);
+        var childName = Arbitraries.strings().ofLength(5).withCharRange('a', 'z');
+        return Combinators.combine(objectMapping, childName, child).as((parent, cn, c) -> {
+            var properties = new HashMap<>() {
+                {
+                    put(cn, c);
+                }
+            };
+
+            parent.put("properties", properties);
+            return parent;
+        });
+    }
+
+    @Provide
+    Arbitrary<Map<String, Object>> objectMapping() {
+        var syntheticSourceKeep = Arbitraries.of(Mapper.SourceKeepMode.values());
+
+        return syntheticSourceKeep.map(ssk -> new HashMap<>() {
+            {
+                put("synthetic_source_keep", ssk.toString());
+            }
+        });
+    }
+
+    @Provide
+    Arbitrary<Map<String, Object>> fieldMapping() {
         var docValues = Arbitraries.of(true, false);
         var index = Arbitraries.of(true, false);
         var store = Arbitraries.of(true, false);
@@ -129,20 +191,6 @@ public class KeywordBlockLoaderTests {
 
     @Provide
     Arbitrary<Map<String, Object>> document() {
-        var keywordValues = Arbitraries.strings()
-            .withCharRange('0', 'z')
-            .ofMinLength(0)
-            .ofMaxLength(50)
-            .injectNull(0.05)
-            .list()
-            .ofMinSize(0)
-            .ofMaxSize(10);
-
-        return keywordValues.map(l -> Map.of("field", l));
-    }
-
-    @Provide
-    Arbitrary<Map<String, Object>> deepDocument() {
         var keywordValues = Arbitraries.strings()
             .withCharRange('0', 'z')
             .ofMinLength(0)

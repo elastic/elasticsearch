@@ -1,12 +1,19 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
-  javaRestTestImplementation(platform("org.junit:junit-bom:5.12.0"))
-  javaRestTestImplementation("org.junit.jupiter:junit-jupiter:5.12.0")
-  javaRestTestImplementation("net.jqwik:jqwik:1.9.2")
+  javaRestTestImplementation("org.junit.jupiter:junit-jupiter-api:5.12.0")
+  javaRestTestImplementation("org.junit.jupiter:junit-jupiter-params:5.12.0")
+  javaRestTestRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.12.0")
+  javaRestTestRuntimeOnly("org.junit.platform:junit-platform-launcher:1.12.0")
+  javaRestTestRuntimeOnly("org.junit.platform:junit-platform-commons:1.12.0")
+  javaRestTestRuntimeOnly("org.junit.platform:junit-platform-reporting:1.12.0")
+
+  javaRestTestImplementation("net.jqwik:jqwik-api:1.9.2")
+  javaRestTestCompileOnly("org.apiguardian:apiguardian-api:1.0.0")
+  javaRestTestRuntimeOnly("net.jqwik:jqwik-engine:1.9.2")
 }
 
-tasks.withType(Test).configureEach {
+tasks.named("javaRestTest").configure {
   useJUnitPlatform {
     includeEngines 'jqwik'
   }
@@ -14,8 +21,6 @@ tasks.withType(Test).configureEach {
   include '**/*Properties.class'
   include '**/*Test.class'
   include '**/*Tests.class'
-}
 
-tasks.named("javaRestTest").configure {
   usesDefaultDistribution()
 }

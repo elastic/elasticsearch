@@ -252,6 +252,11 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
                     for (MultiGetItemResponse item : multiGetResponse) {
                         String rulesetId = item.getId();
+                        if (item.isFailed()) {
+                            listener.onFailure(item.getFailure().getFailure());
+                            return;
+                        }
+
                         GetResponse getResponse = item.getResponse();
 
                         if (getResponse.isExists() == false) {

@@ -194,7 +194,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         getTestEntries(NioFileSystemActions.class),
         getTestEntries(PathActions.class),
         getTestEntries(SpiActions.class),
-        getTestEntries(SystemActions.class)
+        getTestEntries(SystemActions.class),
+        getTestEntries(URLConnectionNetworkActions.class)
     )
         .flatMap(Function.identity())
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())

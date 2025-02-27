@@ -1,5 +1,6 @@
 // Needed for painless script to run
 grant {
   // needed to create the classloader which allows plugins to extend other plugins
+  // PD: We think this isn't doing anything. https://elastic.slack.com/archives/C07HQL9TNP6/p1740683230530729?thread_ts=1740683097.110529&cid=C07HQL9TNP6
   permission java.lang.RuntimePermission "createClassLoader";
 };

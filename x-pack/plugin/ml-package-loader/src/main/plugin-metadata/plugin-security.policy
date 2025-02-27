@@ -6,5 +6,6 @@
  */
 
 grant {
+  // PD: TODO outgoing network?
   permission java.net.SocketPermission "*", "connect";
 };

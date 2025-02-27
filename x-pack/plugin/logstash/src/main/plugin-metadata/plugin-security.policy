@@ -1,4 +1,5 @@
 grant {
   // needed for multiple server implementations used in tests
+  // PD: TODO: Why aren't tests failing?
   permission java.net.SocketPermission "*", "accept,connect";
 };

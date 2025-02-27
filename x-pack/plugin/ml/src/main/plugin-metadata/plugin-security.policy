@@ -1,7 +1,9 @@
 grant {
   // needed for Windows named pipes in machine learning
+  // PD: Done
   permission java.io.FilePermission "\\\\.\\pipe\\*", "read,write";
 
   // needed for ojalgo linear programming solver
+  // PD: Always granted
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };

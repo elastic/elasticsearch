@@ -8,22 +8,29 @@
 grant {
   // required by: com.google.api.client.json.JsonParser#parseValue
   // also required by AWS SDK for client configuration
+  // PD: Always granted
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+  // PD: Always granted
   permission java.lang.RuntimePermission "getClassLoader";
 
   // required by: com.google.api.client.json.GenericJson#<init>
   // also by AWS SDK for Jackson's ObjectMapper
+  // PD: TODO: What entitlement does this map to?
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 
   // required to add google certs to the gcs client trustore
+  // PD: Done
   permission java.lang.RuntimePermission "setFactory";
 
   // gcs client opens socket connections for to access repository
   // also, AWS Bedrock client opens socket connections and needs resolve for to access to resources
+  // PD: TODO Add outgoing network
   permission java.net.SocketPermission "*", "connect,resolve";
 
   // AWS Clients always try to access the credentials and config files, even if we configure otherwise
+  // PD: TODO Add these
   permission java.io.FilePermission "${user.home}/.aws/credentials", "read";
   permission java.io.FilePermission "${user.home}/.aws/config", "read";
+  // PD: Always granted
   permission java.util.PropertyPermission "http.proxyHost", "read";
 };

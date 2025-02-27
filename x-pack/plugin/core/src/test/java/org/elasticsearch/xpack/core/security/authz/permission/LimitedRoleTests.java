@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -101,6 +102,7 @@ public class LimitedRoleTests extends ESTestCase {
                 baseQuery,
                 basePrivilege,
                 baseAllowRestrictedIndices,
+                IndexComponentSelector.DATA,
                 baseIndices
             )
             // This privilege should be ignored (wrong alias)
@@ -110,6 +112,7 @@ public class LimitedRoleTests extends ESTestCase {
                 randomDlsQuery(),
                 randomIndexPrivilege(),
                 randomBoolean(),
+                IndexComponentSelector.DATA,
                 randomAlphaOfLengthBetween(4, 6)
             )
             .addRemoteClusterPermissions(
@@ -146,6 +149,7 @@ public class LimitedRoleTests extends ESTestCase {
                 limitedQuery,
                 limitedPrivilege,
                 limitedAllowRestrictedIndices,
+                IndexComponentSelector.DATA,
                 limitedIndices
             )
             // This privilege should be ignored (wrong alias)
@@ -155,6 +159,7 @@ public class LimitedRoleTests extends ESTestCase {
                 randomDlsQuery(),
                 randomIndexPrivilege(),
                 randomBoolean(),
+                IndexComponentSelector.DATA,
                 randomAlphaOfLength(9)
             )
             .addRemoteClusterPermissions(
@@ -266,6 +271,7 @@ public class LimitedRoleTests extends ESTestCase {
                         randomDlsQuery(),
                         randomIndexPrivilege(),
                         randomBoolean(),
+                        IndexComponentSelector.DATA,
                         randomAlphaOfLength(3)
                     );
                     baseRole.addRemoteClusterPermissions(remoteCluster);
@@ -277,6 +283,7 @@ public class LimitedRoleTests extends ESTestCase {
                         randomDlsQuery(),
                         randomIndexPrivilege(),
                         randomBoolean(),
+                        IndexComponentSelector.DATA,
                         randomAlphaOfLength(4)
                     );
                     limitedByRole1.addRemoteClusterPermissions(remoteCluster);
@@ -288,6 +295,7 @@ public class LimitedRoleTests extends ESTestCase {
                         randomDlsQuery(),
                         randomIndexPrivilege(),
                         randomBoolean(),
+                        IndexComponentSelector.DATA,
                         randomAlphaOfLength(5)
                     );
                     limitedByRole2.addRemoteClusterPermissions(remoteCluster);
@@ -306,6 +314,7 @@ public class LimitedRoleTests extends ESTestCase {
                 randomDlsQuery(),
                 randomIndexPrivilege(),
                 randomBoolean(),
+                IndexComponentSelector.DATA,
                 randomAlphaOfLength(5)
             );
             limitedByRole1.addRemoteIndicesGroup(
@@ -314,6 +323,7 @@ public class LimitedRoleTests extends ESTestCase {
                 randomDlsQuery(),
                 randomIndexPrivilege(),
                 randomBoolean(),
+                IndexComponentSelector.DATA,
                 randomAlphaOfLength(4)
             );
             limitedByRole2.addRemoteIndicesGroup(
@@ -322,6 +332,7 @@ public class LimitedRoleTests extends ESTestCase {
                 randomDlsQuery(),
                 randomIndexPrivilege(),
                 randomBoolean(),
+                IndexComponentSelector.DATA,
                 randomAlphaOfLength(3)
             );
         }
@@ -761,7 +772,15 @@ public class LimitedRoleTests extends ESTestCase {
         }
         {
             fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role")
-                .add(FieldPermissions.DEFAULT, Collections.emptySet(), IndexPrivilege.READ, true, "ind-1*", ".security")
+                .add(
+                    FieldPermissions.DEFAULT,
+                    Collections.emptySet(),
+                    IndexPrivilege.READ,
+                    true,
+                    IndexComponentSelector.DATA,
+                    "ind-1*",
+                    ".security"
+                )
                 .build();
 
             verifyResourcesPrivileges(

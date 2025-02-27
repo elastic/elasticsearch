@@ -10,6 +10,7 @@
 package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -127,6 +128,8 @@ public final class PemKeyConfig implements SslKeyConfig {
             return privateKey;
         } catch (AccessControlException e) {
             throw SslFileUtil.accessControlFailure(KEY_FILE_TYPE, List.of(path), e, configBasePath);
+        } catch (NotEntitledException e) {
+            throw SslFileUtil.notEntitledFailure(KEY_FILE_TYPE, List.of(path), e, configBasePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException(KEY_FILE_TYPE, List.of(path), e);
         } catch (GeneralSecurityException e) {

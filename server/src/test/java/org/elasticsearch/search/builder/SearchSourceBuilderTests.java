@@ -1016,7 +1016,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
-            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits").subAggregation(new TermsAggregationBuilder("terms") ));
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits").subAggregation(new TermsAggregationBuilder("terms")));
             assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {

@@ -117,7 +117,7 @@ public class JsonXContentImpl implements XContent {
     @Override
     public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {
         try {
-        return createParser(config, jsonFactory.createParser(data, offset, length));
+            return createParser(config, jsonFactory.createParser(data, offset, length));
         } catch (CharConversionException e) {
             throw new XContentParseException(null, e.getMessage(), e);
         }
@@ -126,7 +126,7 @@ public class JsonXContentImpl implements XContent {
     @Override
     public XContentParser createParser(XContentParserConfiguration config, Reader reader) throws IOException {
         try {
-        return createParser(config, jsonFactory.createParser(reader));
+            return createParser(config, jsonFactory.createParser(reader));
         } catch (CharConversionException e) {
             throw new XContentParseException(null, e.getMessage(), e);
         }

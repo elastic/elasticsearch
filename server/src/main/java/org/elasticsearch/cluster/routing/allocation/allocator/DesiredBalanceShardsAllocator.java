@@ -324,7 +324,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             }
 
             if (currentDesiredBalanceRef.compareAndSet(oldDesiredBalance, newDesiredBalance)) {
-                balancerRoundSummaryService.addBalancerRoundSummary(calculateBalancingRoundSummary(oldDesiredBalance, newDesiredBalance));
+                balancerRoundSummaryService.addBalancerRoundSummary(oldDesiredBalance, newDesiredBalance);
                 if (logger.isTraceEnabled()) {
                     var diff = DesiredBalance.hasChanges(oldDesiredBalance, newDesiredBalance)
                         ? "Diff: " + DesiredBalance.humanReadableDiff(oldDesiredBalance, newDesiredBalance)
@@ -337,13 +337,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 break;
             }
         }
-    }
-
-    /**
-     * Summarizes the work required to move from an old to new desired balance shard allocation.
-     */
-    private BalancingRoundSummary calculateBalancingRoundSummary(DesiredBalance oldDesiredBalance, DesiredBalance newDesiredBalance) {
-        return new BalancingRoundSummary(DesiredBalance.shardMovements(oldDesiredBalance, newDesiredBalance));
     }
 
     /**

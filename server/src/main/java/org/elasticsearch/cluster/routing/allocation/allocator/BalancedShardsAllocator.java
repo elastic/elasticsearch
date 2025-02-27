@@ -169,6 +169,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         balancer.moveShards();
         balancer.balance();
 
+        // Node weights are calculated after each internal balancing round and saved to the RoutingNodes copy.
         collectAndRecordNodeWeightStats(balancer, weightFunction, allocation);
     }
 

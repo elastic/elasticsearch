@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -94,7 +95,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return matchesRegex("LuceneCountOperator\\[maxPageSize = \\d+, remainingDocs=100]");
+        return matchesRegex("LuceneCountOperator\\[shards = \\[test], maxPageSize = \\d+, remainingDocs=100]");
     }
 
     @Override
@@ -151,7 +152,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
         int taskConcurrency = between(1, 8);
         for (int i = 0; i < taskConcurrency; i++) {
             DriverContext ctx = contexts.get();
-            drivers.add(new Driver("test", ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add), () -> {}));
+            drivers.add(TestDriverFactory.create(ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add)));
         }
         OperatorTestCase.runDriver(drivers);
         assertThat(results.size(), lessThanOrEqualTo(taskConcurrency));

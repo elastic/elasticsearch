@@ -15,6 +15,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
@@ -103,6 +104,11 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         }
 
         return new FieldComparator.TermValComparator(numHits, null, sortMissingLast) {
+
+            @Override
+            public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
+                return super.getLeafComparator(context);
+            }
 
             @Override
             protected BinaryDocValues getBinaryDocValues(LeafReaderContext context, String field) throws IOException {

@@ -1683,6 +1683,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             assert assertProjectIdAndProjectMetadataConsistency();
             if (projectMetadata.size() == 1) {
                 final var entry = projectMetadata.entrySet().iterator().next();
+                // Map.of() with a single entry is highly optimized
+                // so we want take advantage of that performance boost for this common case of a single project
                 return Map.of(entry.getKey(), entry.getValue().build(skipNameCollisionChecks));
             } else {
                 return Collections.unmodifiableMap(Maps.transformValues(projectMetadata, m -> m.build(skipNameCollisionChecks)));

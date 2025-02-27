@@ -20,23 +20,30 @@ import java.util.Objects;
 public record ElasticInferenceServiceComponents(
     @Nullable String elasticInferenceServiceUrl,
     TimeValue authRequestInterval,
-    TimeValue maxAuthRequestJitter
+    TimeValue maxAuthRequestJitter,
+    boolean periodicAuthorizationEnabled
 ) {
 
     private static final TimeValue DEFAULT_AUTH_REQUEST_INTERVAL = TimeValue.timeValueMinutes(10);
     private static final TimeValue DEFAULT_AUTH_REQUEST_JITTER = TimeValue.timeValueMinutes(5);
 
-    public static final ElasticInferenceServiceComponents EMPTY_INSTANCE = new ElasticInferenceServiceComponents(
-        null,
-        DEFAULT_AUTH_REQUEST_INTERVAL,
-        DEFAULT_AUTH_REQUEST_JITTER
-    );
+    public static final ElasticInferenceServiceComponents EMPTY_INSTANCE = ElasticInferenceServiceComponents.withDefaults(null);
 
     public static ElasticInferenceServiceComponents withDefaults(String elasticInferenceServiceUrl) {
         return new ElasticInferenceServiceComponents(
             elasticInferenceServiceUrl,
             DEFAULT_AUTH_REQUEST_INTERVAL,
-            DEFAULT_AUTH_REQUEST_JITTER
+            DEFAULT_AUTH_REQUEST_JITTER,
+            true
+        );
+    }
+
+    public static ElasticInferenceServiceComponents withDefaults(String elasticInferenceServiceUrl, boolean periodicAuthorizationEnabled) {
+        return new ElasticInferenceServiceComponents(
+            elasticInferenceServiceUrl,
+            DEFAULT_AUTH_REQUEST_INTERVAL,
+            DEFAULT_AUTH_REQUEST_JITTER,
+            periodicAuthorizationEnabled
         );
     }
 

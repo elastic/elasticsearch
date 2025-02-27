@@ -119,8 +119,7 @@ public class ElasticInferenceService extends SenderService {
             IMPLEMENTED_TASK_TYPES,
             this,
             getSender(),
-            this.elasticInferenceServiceComponents.authRequestInterval(),
-            this.elasticInferenceServiceComponents.maxAuthRequestJitter()
+            elasticInferenceServiceComponents
         );
     }
 

@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -48,35 +47,30 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase {
-    // private ThreadPool threadPool;
     private DeterministicTaskQueue taskQueue;
 
     @Before
     public void init() throws Exception {
-        // threadPool = createThreadPool(inferenceUtilityPool());
         taskQueue = new DeterministicTaskQueue();
     }
 
-    @After
-    public void shutdown() throws IOException {
-        // terminate(threadPool);
-    }
-
-    public void testDefaultConfigs_Returns_DefaultChatCompletion_V1_WhenTaskTypeIsIncorrect() throws Exception {
+    public void testSendsAnAuthorizationRequestTwice() throws Exception {
         var callbackCount = new AtomicInteger(0);
+        // we're only interested in two authorization calls which is why I'm using a value of 2 here
         var latch = new CountDownLatch(2);
         final AtomicReference<ElasticInferenceServiceAuthorizationHandler> handlerRef = new AtomicReference<>();
 
         Runnable callback = () -> {
+            // the first authorization response does not contain a streaming task so we're expecting to not support streaming here
             if (callbackCount.incrementAndGet() == 1) {
                 assertThat(handlerRef.get().supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
             }
             latch.countDown();
 
-            // only run the scheduled tasks if this was the first callback we got, we should have one more task to execute
-            // otherwise we'll get in infinite loop
+            // we only want to run the tasks twice, so advance the time on the queue
+            // which flags the scheduled authorization request to be ready to run
             if (callbackCount.get() == 1) {
-                taskQueue.runAllRunnableTasks();
+                taskQueue.advanceTime();
             } else {
                 try {
                     handlerRef.get().close();
@@ -90,17 +84,17 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             ElasticInferenceServiceAuthorizationModel.of(
                 new ElasticInferenceServiceAuthorizationResponseEntity(
                     List.of(
-                        new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
-                            "rainbow-sprinkles",
-                            EnumSet.of(TaskType.SPARSE_EMBEDDING)
-                        )
+                        new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel("abc", EnumSet.of(TaskType.SPARSE_EMBEDDING))
                     )
                 )
             ),
             ElasticInferenceServiceAuthorizationModel.of(
                 new ElasticInferenceServiceAuthorizationResponseEntity(
                     List.of(
-                        new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel("abc", EnumSet.of(TaskType.CHAT_COMPLETION))
+                        new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                            "rainbow-sprinkles",
+                            EnumSet.of(TaskType.CHAT_COMPLETION)
+                        )
                     )
                 )
             )
@@ -115,8 +109,7 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
                 EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION),
                 null,
                 mock(Sender.class),
-                TimeValue.timeValueMillis(1),
-                TimeValue.timeValueMillis(1),
+                new ElasticInferenceServiceComponents(null, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
                 callback
             )
         );
@@ -125,20 +118,20 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
         handler.init();
         taskQueue.runAllRunnableTasks();
         latch.await(Utils.TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+        // this should be after we've received both authorization responses
 
         assertThat(handler.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
         assertThat(
             handler.defaultConfigIds(),
             is(List.of(new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", MinimalServiceSettings.chatCompletion(), null)))
         );
-        assertThat(handler.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
+        assertThat(handler.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
 
         PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
         handler.defaultConfigs(listener);
 
         var configs = listener.actionGet();
         assertThat(configs.get(0).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
-        assertThat(configs.get(1).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
     }
 
     private static ElasticInferenceServiceAuthorizationRequestHandler mockAuthorizationRequestHandler(

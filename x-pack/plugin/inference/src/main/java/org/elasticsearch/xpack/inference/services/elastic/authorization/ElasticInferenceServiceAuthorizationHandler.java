@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.DefaultModelConfig;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -35,6 +37,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
@@ -60,12 +63,14 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
     private final TimeValue requestInterval;
     private final TimeValue maxJitter;
     private final Map<String, DefaultModelConfig> defaultModelsConfigs;
-    private final CountDownLatch authorizationCompletedLatch = new CountDownLatch(1);
+    private final CountDownLatch firstAuthorizationCompletedLatch = new CountDownLatch(1);
     private final EnumSet<TaskType> implementedTaskTypes;
     private final InferenceService inferenceService;
     private final Sender sender;
     private final Runnable callback;
     private final AtomicReference<Scheduler.ScheduledCancellable> lastAuthTask = new AtomicReference<>(null);
+    private final AtomicBoolean shutdown = new AtomicBoolean(false);
+    private final boolean periodAuthorizationEnabled;
 
     public ElasticInferenceServiceAuthorizationHandler(
         ServiceComponents serviceComponents,
@@ -75,8 +80,7 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
         EnumSet<TaskType> implementedTaskTypes,
         InferenceService inferenceService,
         Sender sender,
-        TimeValue requestInterval,
-        TimeValue maxJitter
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
         this(
             serviceComponents,
@@ -86,8 +90,7 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
             implementedTaskTypes,
             Objects.requireNonNull(inferenceService),
             sender,
-            requestInterval,
-            maxJitter,
+            elasticInferenceServiceComponents,
             null
         );
     }
@@ -101,8 +104,7 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
         EnumSet<TaskType> implementedTaskTypes,
         InferenceService inferenceService,
         Sender sender,
-        TimeValue requestInterval,
-        TimeValue maxJitter,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         // this is a hack to facilitate testing
         Runnable callback
     ) {
@@ -114,8 +116,12 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
         // allow the service to be null for testing
         this.inferenceService = inferenceService;
         this.sender = Objects.requireNonNull(sender);
-        this.requestInterval = Objects.requireNonNull(requestInterval);
-        this.maxJitter = Objects.requireNonNull(maxJitter);
+
+        Objects.requireNonNull(elasticInferenceServiceComponents);
+        requestInterval = elasticInferenceServiceComponents.authRequestInterval();
+        maxJitter = elasticInferenceServiceComponents.maxAuthRequestJitter();
+        periodAuthorizationEnabled = elasticInferenceServiceComponents.periodicAuthorizationEnabled();
+
         configuration = new AtomicReference<>(
             new ElasticInferenceService.Configuration(authorizedContent.get().taskTypesAndModels.getAuthorizedTaskTypes())
         );
@@ -134,7 +140,7 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
      */
     public void waitForAuthorizationToComplete(TimeValue waitTime) {
         try {
-            if (authorizationCompletedLatch.await(waitTime.getSeconds(), TimeUnit.SECONDS) == false) {
+            if (firstAuthorizationCompletedLatch.await(waitTime.getSeconds(), TimeUnit.SECONDS) == false) {
                 throw new IllegalStateException("The wait time has expired for authorization to complete.");
             }
         } catch (InterruptedException e) {
@@ -172,6 +178,7 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
 
     @Override
     public void close() throws IOException {
+        shutdown.set(true);
         if (lastAuthTask.get() != null) {
             lastAuthTask.get().cancel();
         }
@@ -179,21 +186,42 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
 
     private void scheduleAuthorizationRequest() {
         try {
+            if (periodAuthorizationEnabled == false) {
+                return;
+            }
+
+            // this call has to be on the individual thread otherwise we get an exception
             var random = Randomness.get();
             var jitter = (long) (maxJitter.millis() * random.nextDouble());
             var waitTime = TimeValue.timeValueMillis(requestInterval.millis() + jitter);
-             lastAuthTask.set(serviceComponents.threadPool()
-                .schedule(
-                    this::scheduleAndSendAuthorizationRequest,
-                    waitTime,
-                    serviceComponents.threadPool().executor(UTILITY_THREAD_POOL_NAME)
-                ));
+
+            logger.debug(
+                () -> Strings.format(
+                    "Scheduling the next authorization call with request interval: %s ms, jitter: %d ms",
+                    requestInterval.millis(),
+                    jitter
+                )
+            );
+            logger.debug(() -> Strings.format("Next authorization call in %d minutes", waitTime.getMinutes()));
+
+            lastAuthTask.set(
+                serviceComponents.threadPool()
+                    .schedule(
+                        this::scheduleAndSendAuthorizationRequest,
+                        waitTime,
+                        serviceComponents.threadPool().executor(UTILITY_THREAD_POOL_NAME)
+                    )
+            );
         } catch (Exception e) {
             logger.warn("Failed scheduling authorization request", e);
         }
     }
 
     private void scheduleAndSendAuthorizationRequest() {
+        if (shutdown.get()) {
+            return;
+        }
+
         scheduleAuthorizationRequest();
         sendAuthorizationRequest();
     }
@@ -205,21 +233,22 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
                 if (callback != null) {
                     callback.run();
                 }
-                authorizationCompletedLatch.countDown();
+                firstAuthorizationCompletedLatch.countDown();
             }, e -> {
                 // we don't need to do anything if there was a failure, everything is disabled by default
-                authorizationCompletedLatch.countDown();
+                firstAuthorizationCompletedLatch.countDown();
             });
 
             authorizationHandler.getAuthorization(listener, sender);
         } catch (Exception e) {
             logger.warn("Failure while sending the request to retrieve authorization", e);
             // we don't need to do anything if there was a failure, everything is disabled by default
-            authorizationCompletedLatch.countDown();
+            firstAuthorizationCompletedLatch.countDown();
         }
     }
 
     private synchronized void setAuthorizedContent(ElasticInferenceServiceAuthorizationModel auth) {
+        logger.debug("Received authorization response");
         var authorizedTaskTypesAndModels = authorizedContent.get().taskTypesAndModels.merge(auth)
             .newLimitedToTaskTypes(EnumSet.copyOf(implementedTaskTypes));
 

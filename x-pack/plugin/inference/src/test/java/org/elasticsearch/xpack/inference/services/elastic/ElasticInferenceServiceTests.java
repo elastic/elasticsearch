@@ -1065,7 +1065,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 new ElasticInferenceServiceCompletionServiceSettings("model_id", new RateLimitSettings(100)),
                 EmptyTaskSettings.INSTANCE,
                 EmptySecretSettings.INSTANCE,
-                ElasticInferenceServiceComponents.withDefaults(eisGatewayUrl)
+                ElasticInferenceServiceComponents.withDefaults(eisGatewayUrl, false)
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
@@ -1151,7 +1151,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            ElasticInferenceServiceComponents.withDefaults(gatewayUrl),
+            ElasticInferenceServiceComponents.withDefaults(gatewayUrl, false),
             mockModelRegistry(),
             mockAuthHandler
         );
@@ -1161,7 +1161,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            ElasticInferenceServiceComponents.withDefaults(eisGatewayUrl),
+            ElasticInferenceServiceComponents.withDefaults(eisGatewayUrl, false),
             mockModelRegistry(),
             new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool)
         );
@@ -1171,7 +1171,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            ElasticInferenceServiceComponents.withDefaults(eisGatewayUrl),
+            ElasticInferenceServiceComponents.withDefaults(eisGatewayUrl, false),
             mockModelRegistry(threadPool),
             new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool)
         );

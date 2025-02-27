@@ -1340,7 +1340,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             if (failedAllocations > 0) {
                 try {
                     final var maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(
-                        allocation.metadata().getProject().getIndexSafe(shardRouting.index()).getSettings()
+                        allocation.metadata().indexMetadata(shardRouting.index()).getSettings()
                     );
                     if (failedAllocations >= maxRetry) {
                         shardsWithMaxFailedAllocations++;
@@ -1378,7 +1378,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     try {
                         int failedRelocations = shardRouting.relocationFailureInfo().failedRelocations();
                         final var maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(
-                            allocation.metadata().getProject().getIndexSafe(shardRouting.index()).getSettings()
+                            allocation.metadata().indexMetadata(shardRouting.index()).getSettings()
                         );
                         if (failedRelocations >= maxRetry) {
                             shardsWithMaxFailedRelocations++;

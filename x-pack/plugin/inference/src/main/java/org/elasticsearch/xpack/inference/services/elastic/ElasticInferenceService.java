@@ -122,8 +122,6 @@ public class ElasticInferenceService extends SenderService {
 
         configuration = new Configuration(authRef.get().taskTypesAndModels.getAuthorizedTaskTypes());
         defaultModelsConfigs = initDefaultEndpoints(elasticInferenceServiceComponents);
-
-        getAuthorization();
     }
 
     private static Map<String, DefaultModelConfig> initDefaultEndpoints(
@@ -255,9 +253,24 @@ public class ElasticInferenceService extends SenderService {
             authorizationCompletedLatch.countDown();
         });
 
-        getServiceComponents().threadPool()
-            .executor(UTILITY_THREAD_POOL_NAME)
-            .execute(() -> modelRegistry.removeDefaultConfigs(unauthorizedDefaultInferenceEndpointIds, deleteInferenceEndpointsListener));
+        Runnable removeFromRegistry = () -> {
+            logger.debug("Synchronizing default inference endpoints");
+            modelRegistry.removeDefaultConfigs(unauthorizedDefaultInferenceEndpointIds, deleteInferenceEndpointsListener);
+        };
+
+        var delay = elasticInferenceServiceComponents.revokeAuthorizationDelay();
+        if (delay == null) {
+            getServiceComponents().threadPool().executor(UTILITY_THREAD_POOL_NAME).execute(removeFromRegistry);
+        } else {
+            getServiceComponents().threadPool()
+                .schedule(removeFromRegistry, delay, getServiceComponents().threadPool().executor(UTILITY_THREAD_POOL_NAME));
+        }
+
+    }
+
+    @Override
+    public void onNodeStarted() {
+        getServiceComponents().threadPool().executor(UTILITY_THREAD_POOL_NAME).execute(this::getAuthorization);
     }
 
     /**

@@ -108,6 +108,18 @@ public class RedactProcessorTests extends ESTestCase {
             var redacted = RedactProcessor.matchRedact(input, List.of(grok));
             assertEquals("<CREDIT_CARD> <CREDIT_CARD> <CREDIT_CARD> <CREDIT_CARD>", redacted);
         }
+        {
+            var config = new HashMap<String, Object>();
+            config.put("field", "to_redact");
+            config.put("patterns", List.of("%{NUMBER:NUMBER}"));
+            config.put("pattern_definitions", Map.of("NUMBER", "\\d{4}"));
+            var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(null, "t", "d", config);
+            var grok = processor.getGroks().get(0);
+
+            String input = "1001";
+            var redacted = RedactProcessor.matchRedact(input, List.of(grok), "_prefix_", "_suffix_");
+            assertEquals("_prefix_NUMBER_suffix_", redacted);
+        }
     }
 
     public void testMatchRedactMultipleGroks() throws Exception {

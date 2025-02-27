@@ -11,6 +11,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -65,6 +66,7 @@ public class IndicesServiceBuilder {
     BigArrays bigArrays;
     ScriptService scriptService;
     ClusterService clusterService;
+    ProjectResolver projectResolver;
     Client client;
     MetaStateService metaStateService;
     Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders = List.of();
@@ -166,6 +168,11 @@ public class IndicesServiceBuilder {
         return this;
     }
 
+    public IndicesServiceBuilder projectResolver(ProjectResolver projectResolver) {
+        this.projectResolver = projectResolver;
+        return this;
+    }
+
     public IndicesServiceBuilder client(Client client) {
         this.client = client;
         return this;
@@ -222,6 +229,7 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(scriptService);
         Objects.requireNonNull(clusterService);
+        Objects.requireNonNull(projectResolver);
         Objects.requireNonNull(client);
         Objects.requireNonNull(metaStateService);
         Objects.requireNonNull(engineFactoryProviders);

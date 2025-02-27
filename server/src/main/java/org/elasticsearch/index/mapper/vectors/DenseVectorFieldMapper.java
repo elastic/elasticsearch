@@ -1257,7 +1257,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private enum VectorIndexType {
+    public enum VectorIndexType {
         HNSW("hnsw", false) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {

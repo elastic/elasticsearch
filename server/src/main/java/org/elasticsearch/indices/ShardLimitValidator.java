@@ -133,7 +133,7 @@ public class ShardLimitValidator {
         int frozen = 0;
         int normal = 0;
         for (Index index : indicesToOpen) {
-            IndexMetadata imd = metadata.index(index);
+            IndexMetadata imd = metadata.indexMetadata(index);
             if (imd.getState().equals(IndexMetadata.State.CLOSE)) {
                 int totalNewShards = imd.getNumberOfShards() * (1 + imd.getNumberOfReplicas());
                 if (FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(imd.getSettings()))) {
@@ -156,8 +156,8 @@ public class ShardLimitValidator {
         int frozen = 0;
         int normal = 0;
         for (Index index : indices) {
-            IndexMetadata imd = metadata.index(index);
-            int totalNewShards = getTotalNewShards(index, metadata, replicas);
+            IndexMetadata imd = metadata.indexMetadata(index);
+            int totalNewShards = getTotalNewShards(imd, replicas);
             if (FROZEN_GROUP.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(imd.getSettings()))) {
                 frozen += totalNewShards;
             } else {
@@ -173,8 +173,7 @@ public class ShardLimitValidator {
         }
     }
 
-    private static int getTotalNewShards(Index index, Metadata metadata, int updatedNumberOfReplicas) {
-        IndexMetadata indexMetadata = metadata.index(index);
+    private static int getTotalNewShards(IndexMetadata indexMetadata, int updatedNumberOfReplicas) {
         int shardsInIndex = indexMetadata.getNumberOfShards();
         int oldNumberOfReplicas = indexMetadata.getNumberOfReplicas();
         int replicaIncrease = updatedNumberOfReplicas - oldNumberOfReplicas;
@@ -273,9 +272,10 @@ public class ShardLimitValidator {
         if ((currentOpenShards + newShards) > maxShardsInCluster) {
             Predicate<IndexMetadata> indexMetadataPredicate = imd -> imd.getState().equals(IndexMetadata.State.OPEN)
                 && group.equals(INDEX_SETTING_SHARD_LIMIT_GROUP.get(imd.getSettings()));
-            long currentFilteredShards = metadata.indices()
+            long currentFilteredShards = metadata.projects()
                 .values()
                 .stream()
+                .flatMap(projectMetadata -> projectMetadata.indices().values().stream())
                 .filter(indexMetadataPredicate)
                 .mapToInt(IndexMetadata::getTotalNumberOfShards)
                 .sum();

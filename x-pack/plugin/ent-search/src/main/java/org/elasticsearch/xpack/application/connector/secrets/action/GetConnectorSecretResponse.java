@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -21,12 +21,6 @@ public class GetConnectorSecretResponse extends ActionResponse implements ToXCon
 
     private final String id;
     private final String value;
-
-    public GetConnectorSecretResponse(StreamInput in) throws IOException {
-        super(in);
-        id = in.readString();
-        value = in.readString();
-    }
 
     public GetConnectorSecretResponse(String id, String value) {
         this.id = id;
@@ -43,8 +37,7 @@ public class GetConnectorSecretResponse extends ActionResponse implements ToXCon
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(id);
-        out.writeString(value);
+        TransportAction.localOnly();
     }
 
     @Override

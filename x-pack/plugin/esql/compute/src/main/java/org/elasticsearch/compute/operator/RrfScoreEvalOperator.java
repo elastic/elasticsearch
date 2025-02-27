@@ -16,6 +16,12 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.HashMap;
 
+/**
+ * Updates the score column with new scores using the RRF formula.
+ * Receives the position of the score and fork columns.
+ * The new score we assign to each row is equal to {@code 1 / (rank_constant + row_number)}.
+ * We use the fork discriminator column to determine the {@code row_number} for each row.
+ */
 public class RrfScoreEvalOperator implements Operator {
 
     public record Factory(int forkPosition, int scorePosition) implements OperatorFactory {

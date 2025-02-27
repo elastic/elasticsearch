@@ -26,6 +26,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Removes the rows that contain the same values for a list specified fields.
+ * Dedup also receives a list of aggregates similar to {@link Aggregate STATS}.
+ * In the current implementation Dedup implements {@link SurrogateLogicalPlan} and actually expands to {@link Aggregate STATS}.
+ * At the moment this is only used in the planning of the RRF command, but could evolve as a standalone command.
+ */
 public class Dedup extends UnaryPlan implements SurrogateLogicalPlan {
     private final List<NamedExpression> aggregates;
     private final List<Attribute> groupings;

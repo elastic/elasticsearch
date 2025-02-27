@@ -22,8 +22,12 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -43,10 +47,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.ToXContent;
@@ -165,7 +173,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     /**
      * Describes the location (and state) of all shards, used for routing actions such as searches to the relevant shards.
      */
-    private final RoutingTable routingTable;
+    private final GlobalRoutingTable routingTable;
 
     private final DiscoveryNodes nodes;
 
@@ -193,7 +201,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             version,
             stateUUID,
             state.metadata(),
-            state.routingTable(),
+            state.routingTable,
             state.nodes(),
             state.compatibilityVersions,
             state.clusterFeatures(),
@@ -209,7 +217,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         long version,
         String stateUUID,
         Metadata metadata,
-        RoutingTable routingTable,
+        GlobalRoutingTable routingTable,
         DiscoveryNodes nodes,
         Map<String, CompatibilityVersions> compatibilityVersions,
         ClusterFeatures clusterFeatures,
@@ -231,6 +239,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.wasReadFromDiff = wasReadFromDiff;
         this.routingNodes = routingNodes;
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
+        assert assertConsistentProjectState(routingTable, metadata);
         this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
             ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()) // empty map because cluster state is unknown
             : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
@@ -241,8 +250,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     }
 
     private boolean assertEventIngestedIsUnknownInMixedClusters(Metadata metadata, CompatibilityVersions compatibilityVersions) {
-        if (compatibilityVersions.transportVersion().before(TransportVersions.V_8_15_0) && metadata != null && metadata.indices() != null) {
-            for (IndexMetadata indexMetadata : metadata.indices().values()) {
+        if (compatibilityVersions.transportVersion().before(TransportVersions.V_8_15_0)
+            && metadata != null
+            && metadata.getTotalNumberOfIndices() > 0) {
+            for (IndexMetadata indexMetadata : metadata.indicesAllProjects()) {
                 assert indexMetadata.getEventIngestedRange() == IndexLongFieldRange.UNKNOWN
                     : "event.ingested range should be UNKNOWN but is "
                         + indexMetadata.getEventIngestedRange()
@@ -256,7 +267,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     }
 
     private static boolean assertConsistentRoutingNodes(
-        RoutingTable routingTable,
+        GlobalRoutingTable routingTable,
         DiscoveryNodes nodes,
         @Nullable RoutingNodes routingNodes
     ) {
@@ -266,6 +277,23 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         final RoutingNodes expected = RoutingNodes.immutable(routingTable, nodes);
         assert routingNodes.equals(expected)
             : "RoutingNodes [" + routingNodes + "] are not consistent with this cluster state [" + expected + "]";
+        return true;
+    }
+
+    private static boolean assertConsistentProjectState(GlobalRoutingTable routingTable, Metadata metadata) {
+        if (metadata == null) {
+            return true;
+        }
+        final Set<ProjectId> metadataProjects = metadata.projects().keySet();
+        for (var projectId : metadataProjects) {
+            assert routingTable.routingTables().containsKey(projectId) : "Project [" + projectId + "] does not exist in routing table";
+        }
+        if (metadataProjects.size() != routingTable.size()) {
+            for (var projectId : routingTable.routingTables().keySet()) {
+                assert metadataProjects.contains(projectId)
+                    : "Project [" + projectId + "] exists in routing table, but not in metadata (" + metadataProjects + ")";
+            }
+        }
         return true;
     }
 
@@ -346,10 +374,20 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return metadata.coordinationMetadata();
     }
 
-    public RoutingTable routingTable() {
+    public GlobalRoutingTable globalRoutingTable() {
         return routingTable;
     }
 
+    public RoutingTable routingTable(ProjectId projectId) {
+        return routingTable.routingTable(projectId);
+    }
+
+    @Deprecated(forRemoval = true)
+    public RoutingTable routingTable() {
+        return routingTable.getRoutingTable();
+    }
+
+    @Deprecated(forRemoval = true)
     public RoutingTable getRoutingTable() {
         return routingTable();
     }
@@ -450,11 +488,19 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 }
             });
         }
-        if (metadata.indicesLookupInitialized() == false) {
+        var anyProjectRequiresInitialization = metadata.projects()
+            .values()
+            .stream()
+            .allMatch(ProjectMetadata::indicesLookupInitialized) == false;
+        if (anyProjectRequiresInitialization) {
             executor.execute(new Runnable() {
                 @Override
                 public void run() {
-                    metadata.getIndicesLookup();
+                    for (ProjectMetadata project : metadata.projects().values()) {
+                        if (project.indicesLookupInitialized() == false) {
+                            project.getIndicesLookup();
+                        }
+                    }
                 }
 
                 @Override
@@ -462,6 +508,27 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                     return "async initialization of indices lookup for cluster state " + version();
                 }
             });
+        }
+    }
+
+    @FixForMultiProject
+    @Deprecated(forRemoval = true)
+    public ProjectState projectState() {
+        // check there is only the single default project
+        metadata.getProject();
+        return new ProjectState(this, Metadata.DEFAULT_PROJECT_ID);
+    }
+
+    public ProjectState projectState(ProjectId projectId) {
+        if (metadata().hasProject(projectId) == false) {
+            throw new IllegalArgumentException("project [" + projectId + "] not found");
+        }
+        return new ProjectState(this, projectId);
+    }
+
+    public <E extends Exception> void forEachProject(CheckedConsumer<ProjectState, E> action) throws E {
+        for (ProjectId projectId : metadata().projects().keySet()) {
+            action.accept(this.projectState(projectId));
         }
     }
 
@@ -492,31 +559,50 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             .append(coordinationMetadata().getLastAcceptedConfiguration())
             .append("\n");
         sb.append(TAB).append(TAB).append("voting tombstones: ").append(coordinationMetadata().getVotingConfigExclusions()).append("\n");
-        for (IndexMetadata indexMetadata : metadata) {
-            sb.append(TAB).append(indexMetadata.getIndex());
-            sb.append(": v[")
-                .append(indexMetadata.getVersion())
-                .append("], mv[")
-                .append(indexMetadata.getMappingVersion())
-                .append("], sv[")
-                .append(indexMetadata.getSettingsVersion())
-                .append("], av[")
-                .append(indexMetadata.getAliasesVersion())
-                .append("]\n");
-            for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
-                sb.append(TAB).append(TAB).append(shard).append(": ");
-                sb.append("p_term [").append(indexMetadata.primaryTerm(shard)).append("], ");
-                sb.append("isa_ids ").append(indexMetadata.inSyncAllocationIds(shard)).append("\n");
+
+        for (var proj : metadata.projects().entrySet()) {
+            sb.append(TAB).append("project[").append(proj.getKey()).append("]:");
+            if (proj.getValue().size() == 0) {
+                sb.append(" -\n");
+            } else {
+                sb.append("\n");
+                for (IndexMetadata indexMetadata : proj.getValue()) {
+                    sb.append(TAB).append(TAB).append(indexMetadata.getIndex());
+                    sb.append(": v[")
+                        .append(indexMetadata.getVersion())
+                        .append("], mv[")
+                        .append(indexMetadata.getMappingVersion())
+                        .append("], sv[")
+                        .append(indexMetadata.getSettingsVersion())
+                        .append("], av[")
+                        .append(indexMetadata.getAliasesVersion())
+                        .append("]\n");
+                    for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
+                        sb.append(TAB).append(TAB).append(shard).append(": ");
+                        sb.append("p_term [").append(indexMetadata.primaryTerm(shard)).append("], ");
+                        sb.append("isa_ids ").append(indexMetadata.inSyncAllocationIds(shard)).append("\n");
+                    }
+                }
             }
         }
         if (metadata.customs().isEmpty() == false) {
-            sb.append("metadata customs:\n");
-            for (final Map.Entry<String, Metadata.Custom> cursor : metadata.customs().entrySet()) {
+            sb.append("metadata customs (cluster):\n");
+            for (final Map.Entry<String, Metadata.ClusterCustom> cursor : metadata.customs().entrySet()) {
                 final String type = cursor.getKey();
-                final Metadata.Custom custom = cursor.getValue();
-                sb.append(TAB).append(type).append(": ").append(custom);
+                final Metadata.ClusterCustom custom = cursor.getValue();
+                sb.append(TAB).append(type).append(": ").append(custom).append('\n');
             }
-            sb.append("\n");
+        }
+        if (metadata.projects().values().stream().anyMatch(p -> p.customs().isEmpty() == false)) {
+            sb.append("metadata customs (project):\n");
+            for (var proj : metadata.projects().entrySet()) {
+                sb.append(TAB).append("project[").append(proj.getKey()).append("]:\n");
+                for (final Map.Entry<String, Metadata.ProjectCustom> cursor : proj.getValue().customs().entrySet()) {
+                    final String type = cursor.getKey();
+                    final Metadata.ProjectCustom custom = cursor.getValue();
+                    sb.append(TAB).append(TAB).append(type).append(": ").append(custom).append('\n');
+                }
+            }
         }
         sb.append(blocks());
         sb.append(nodes());
@@ -530,7 +616,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         for (var nf : getNodeFeatures(clusterFeatures).entrySet()) {
             sb.append(TAB).append(nf.getKey()).append(": ").append(new TreeSet<>(nf.getValue())).append("\n");
         }
-        sb.append(routingTable());
+        sb.append(routingTable);
         sb.append(getRoutingNodes());
         if (customs.isEmpty() == false) {
             sb.append("customs:\n");
@@ -623,6 +709,19 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         final var metrics = Metric.parseString(outerParams.param("metric", "_all"), true);
 
+        @FixForMultiProject // Do we need this to be a param?
+        final boolean multiProject = outerParams.paramAsBoolean("multi-project", false);
+        final ProjectId singleProjectId;
+        if (multiProject == false) {
+            if (metadata.projects().size() == 1) {
+                singleProjectId = metadata.projects().keySet().iterator().next();
+            } else {
+                throw new Metadata.MultiProjectPendingException("There are multiple projects " + metadata.projects().keySet());
+            }
+        } else {
+            singleProjectId = null;
+        }
+
         return Iterators.concat(
 
             // header chunk
@@ -645,31 +744,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             }),
 
             // blocks
-            chunkedSection(metrics.contains(Metric.BLOCKS), (builder, params) -> {
-                builder.startObject("blocks");
-                if (blocks().global().isEmpty() == false) {
-                    builder.startObject("global");
-                    for (ClusterBlock block : blocks().global()) {
-                        block.toXContent(builder, params);
-                    }
-                    builder.endObject();
-                }
-                if (blocks().indices().isEmpty() == false) {
-                    builder.startObject("indices");
-                }
-                return builder;
-            }, blocks.indices().entrySet().iterator(), entry -> Iterators.single((builder, params) -> {
-                builder.startObject(entry.getKey());
-                for (ClusterBlock block : entry.getValue()) {
-                    block.toXContent(builder, params);
-                }
-                return builder.endObject();
-            }), (builder, params) -> {
-                if (blocks().indices().isEmpty() == false) {
-                    builder.endObject();
-                }
-                return builder.endObject();
-            }),
+            metrics.contains(Metric.BLOCKS) ? blocksXContent(multiProject, singleProjectId) : Collections.emptyIterator(),
 
             // nodes
             chunkedSection(
@@ -705,35 +780,27 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             metrics.contains(Metric.METADATA) ? metadata.toXContentChunked(outerParams) : Collections.emptyIterator(),
 
             // routing table
-            chunkedSection(
-                metrics.contains(Metric.ROUTING_TABLE),
-                (builder, params) -> builder.startObject("routing_table").startObject("indices"),
-                routingTable().iterator(),
-                indexRoutingTable -> {
-                    Iterator<Iterator<ToXContent>> input = Iterators.forRange(0, indexRoutingTable.size(), shardId -> {
-                        final var indexShardRoutingTable = indexRoutingTable.shard(shardId);
-                        return Iterators.concat(
-                            Iterators.single(
-                                (builder, params) -> builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()))
-                            ),
-                            Iterators.forRange(
-                                0,
-                                indexShardRoutingTable.size(),
-                                copy -> (builder, params) -> indexShardRoutingTable.shard(copy).toXContent(builder, params)
-                            ),
-                            Iterators.single((builder, params) -> builder.endArray())
-                        );
-                    });
-                    return Iterators.concat(
-                        Iterators.single(
-                            (builder, params) -> builder.startObject(indexRoutingTable.getIndex().getName()).startObject("shards")
-                        ),
-                        Iterators.flatMap(input, Function.identity()),
-                        Iterators.single((builder, params) -> builder.endObject().endObject())
-                    );
-                },
-                (builder, params) -> builder.endObject().endObject()
-            ),
+            multiProject
+                ? chunkedSection(
+                    metrics.contains(Metric.ROUTING_TABLE),
+                    (builder, params) -> builder.startObject("routing_table").startArray("projects"),
+                    globalRoutingTable().routingTables().entrySet().iterator(),
+                    entry -> chunkedSection(
+                        true,
+                        (builder, params) -> builder.startObject().field("id", entry.getKey()).startObject("indices"),
+                        entry.getValue().iterator(),
+                        ClusterState::indexRoutingTableXContent,
+                        (builder, params) -> builder.endObject().endObject()
+                    ),
+                    (builder, params) -> builder.endArray().endObject()
+                )
+                : chunkedSection(
+                    metrics.contains(Metric.ROUTING_TABLE),
+                    (builder, params) -> builder.startObject("routing_table").startObject("indices"),
+                    routingTable().iterator(),
+                    ClusterState::indexRoutingTableXContent,
+                    (builder, params) -> builder.endObject().endObject()
+                ),
 
             // routing nodes
             chunkedSection(
@@ -761,6 +828,118 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                     e -> ChunkedToXContentHelper.object(e.getKey(), e.getValue().toXContentChunked(outerParams))
                 )
                 : Collections.emptyIterator()
+        );
+    }
+
+    private Iterator<ToXContent> blocksXContent(boolean multiProject, ProjectId singleProjectId) {
+        if (multiProject) {
+            assert singleProjectId == null : "expect null project-id, but got " + singleProjectId;
+            return blocksXContentMultiProjects();
+        } else {
+            assert singleProjectId != null;
+            return blocksXContentSingleProject(singleProjectId);
+        }
+    }
+
+    private Iterator<ToXContent> blocksXContentMultiProjects() {
+        final ToXContent before = (builder, params) -> {
+            builder.startObject("blocks");
+            if (blocks().global().isEmpty() == false) {
+                builder.startObject("global");
+                for (ClusterBlock block : blocks().global()) {
+                    block.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+            if (blocks().noIndexBlockAllProjects() == false) {
+                builder.startArray("projects");
+            }
+            return builder;
+        };
+        final ToXContent after = (builder, params) -> {
+            if (blocks().noIndexBlockAllProjects() == false) {
+                builder.endArray();
+            }
+            return builder.endObject();
+        };
+        return chunkedSection(
+            true,
+            before,
+            Iterators.map(metadata().projects().keySet().iterator(), projectId -> new Tuple<>(projectId, blocks().indices(projectId))),
+            ClusterState::projectBlocksXContent,
+            after
+        );
+    }
+
+    private Iterator<ToXContent> blocksXContentSingleProject(ProjectId singleProjectId) {
+        final ToXContent before = (builder, params) -> {
+            builder.startObject("blocks");
+            if (blocks().global().isEmpty() == false) {
+                builder.startObject("global");
+                for (ClusterBlock block : blocks().global()) {
+                    block.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+            if (blocks().indices(singleProjectId).isEmpty() == false) {
+                builder.startObject("indices");
+            }
+            return builder;
+        };
+        final ToXContent after = (builder, params) -> {
+            if (blocks().indices(singleProjectId).isEmpty() == false) {
+                builder.endObject();
+            }
+            return builder.endObject();
+        };
+        return chunkedSection(
+            true,
+            before,
+            blocks().indices(singleProjectId).entrySet().iterator(),
+            entry -> Iterators.single((builder, params) -> {
+                builder.startObject(entry.getKey());
+                for (ClusterBlock block : entry.getValue()) {
+                    block.toXContent(builder, params);
+                }
+                return builder.endObject();
+            }),
+            after
+        );
+    }
+
+    private static Iterator<ToXContent> projectBlocksXContent(Tuple<ProjectId, Map<String, Set<ClusterBlock>>> entry) {
+        return chunkedSection(
+            entry.v2().isEmpty() == false,
+            (builder, params) -> builder.startObject().field("id", entry.v1()).startObject("indices"),
+            entry.v2().entrySet().iterator(),
+            e -> Iterators.single((builder, params) -> {
+                builder.startObject(e.getKey());
+                for (ClusterBlock block : e.getValue()) {
+                    block.toXContent(builder, params);
+                }
+                return builder.endObject();
+            }),
+            (builder, params) -> builder.endObject().endObject()
+        );
+    }
+
+    private static Iterator<ToXContent> indexRoutingTableXContent(IndexRoutingTable indexRoutingTable) {
+        Iterator<Iterator<ToXContent>> input = Iterators.forRange(0, indexRoutingTable.size(), shardId -> {
+            final var indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            return Iterators.concat(
+                Iterators.single((builder, params) -> builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()))),
+                Iterators.forRange(
+                    0,
+                    indexShardRoutingTable.size(),
+                    copy -> (builder, params) -> indexShardRoutingTable.shard(copy).toXContent(builder, params)
+                ),
+                Iterators.single((builder, params) -> builder.endArray())
+            );
+        });
+        return Iterators.concat(
+            Iterators.single((builder, params) -> builder.startObject(indexRoutingTable.getIndex().getName()).startObject("shards")),
+            Iterators.flatMap(input, Function.identity()),
+            Iterators.single((builder, params) -> builder.endObject().endObject())
         );
     }
 
@@ -795,7 +974,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         private long version = 0;
         private String uuid = UNKNOWN_UUID;
         private Metadata metadata = Metadata.EMPTY_METADATA;
-        private RoutingTable routingTable = RoutingTable.EMPTY_ROUTING_TABLE;
+        private GlobalRoutingTable routingTable = null;
         private DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
         private final Map<String, CompatibilityVersions> compatibilityVersions;
         private final Map<String, Set<String>> nodeFeatures;
@@ -811,7 +990,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             this.nodes = state.nodes();
             this.compatibilityVersions = new HashMap<>(state.compatibilityVersions);
             this.nodeFeatures = new HashMap<>(getNodeFeatures(state.clusterFeatures()));
-            this.routingTable = state.routingTable();
+            this.routingTable = state.routingTable;
             this.metadata = state.metadata();
             this.blocks = state.blocks();
             this.customs = ImmutableOpenMap.builder(state.customs());
@@ -823,6 +1002,15 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             this.nodeFeatures = new HashMap<>();
             customs = ImmutableOpenMap.builder();
             this.clusterName = clusterName;
+        }
+
+        public Builder putProjectMetadata(ProjectMetadata.Builder projectMetadata) {
+            metadata = Metadata.builder(metadata).put(projectMetadata).build();
+            return this;
+        }
+
+        public Builder putProjectMetadata(ProjectMetadata projectMetadata) {
+            return putProjectMetadata(ProjectMetadata.builder(projectMetadata));
         }
 
         public Builder nodes(DiscoveryNodes.Builder nodesBuilder) {
@@ -887,13 +1075,33 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
             return routingTable(routingTableBuilder.build());
         }
 
+        @Deprecated(forRemoval = true)
         public Builder routingTable(RoutingTable routingTable) {
+            return routingTable(Metadata.DEFAULT_PROJECT_ID, routingTable);
+        }
+
+        @Deprecated(forRemoval = true)
+        public Builder routingTable(ProjectId projectId, RoutingTable routingTable) {
+            Objects.requireNonNull(projectId, "project-id may not be null");
+            Objects.requireNonNull(routingTable, "routing-table may not be null");
+            return routingTable(new GlobalRoutingTable(ImmutableOpenMap.builder(projectId, routingTable).build()));
+        }
+
+        public Builder routingTable(GlobalRoutingTable routingTable) {
             this.routingTable = routingTable;
             return this;
+        }
+
+        public Builder putRoutingTable(ProjectId projectId, RoutingTable routingTable) {
+            final var globalRoutingTableBuilder = this.routingTable == null
+                ? GlobalRoutingTable.builder()
+                : GlobalRoutingTable.builder(this.routingTable);
+            return routingTable(globalRoutingTableBuilder.put(projectId, routingTable).build());
         }
 
         public Builder metadata(Metadata.Builder metadataBuilder) {
@@ -958,7 +1166,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 uuid = UUIDs.randomBase64UUID();
             }
             final RoutingNodes routingNodes;
-            if (previous != null && routingTable.indicesRouting() == previous.routingTable.indicesRouting() && nodes == previous.nodes) {
+            if (previous != null && this.routingTable.hasSameIndexRouting(previous.routingTable) && this.nodes == previous.nodes) {
                 // routing table contents and nodes haven't changed so we can try to reuse the previous state's routing nodes which are
                 // expensive to compute
                 routingNodes = previous.routingNodes;
@@ -974,6 +1182,18 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 }
             }
 
+            // Build routing table if required
+            if (metadata == null) {
+                if (routingTable == null) {
+                    routingTable = GlobalRoutingTable.EMPTY_ROUTING_TABLE;
+                }
+            } else if (routingTable == null) {
+                var projectRouting = Maps.transformValues(metadata.projects(), ignore -> RoutingTable.EMPTY_ROUTING_TABLE);
+                routingTable = new GlobalRoutingTable(ImmutableOpenMap.builder(projectRouting).build());
+            } else {
+                routingTable = routingTable.initializeProjects(metadata.projects().keySet());
+            }
+
             return new ClusterState(
                 clusterName,
                 version,
@@ -985,7 +1205,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 previous != null && getNodeFeatures(previous.clusterFeatures).equals(nodeFeatures)
                     ? previous.clusterFeatures
                     : new ClusterFeatures(nodeFeatures),
-                blocks,
+                metadata != null ? blocks.initializeProjects(metadata.projects().keySet()) : blocks,
                 customs.build(),
                 fromDiff,
                 routingNodes
@@ -1024,7 +1244,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         builder.version = in.readLong();
         builder.uuid = in.readString();
         builder.metadata = Metadata.readFrom(in);
-        builder.routingTable = RoutingTable.readFrom(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            builder.routingTable = GlobalRoutingTable.readFrom(in);
+        } else {
+            final RoutingTable rt = RoutingTable.readFrom(in);
+            builder.routingTable = new GlobalRoutingTable(ImmutableOpenMap.builder(Map.of(Metadata.DEFAULT_PROJECT_ID, rt)).build());
+        }
         builder.nodes = DiscoveryNodes.readFrom(in, localNode);
         builder.nodeIdsToCompatibilityVersions(in.readMap(CompatibilityVersions::readVersion));
         builder.nodeFeatures(ClusterFeatures.readFrom(in));
@@ -1045,7 +1270,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         out.writeLong(version);
         out.writeString(stateUUID);
         metadata.writeTo(out);
-        routingTable.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            routingTable.writeTo(out);
+        } else {
+            routingTable.getRoutingTable().writeTo(out);
+        }
         nodes.writeTo(out);
         out.writeMap(compatibilityVersions, StreamOutput::writeWriteable);
         clusterFeatures.writeTo(out);
@@ -1063,7 +1292,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         private final ClusterName clusterName;
 
-        private final Diff<RoutingTable> routingTable;
+        private final Diff<GlobalRoutingTable> routingTable;
 
         private final Diff<DiscoveryNodes> nodes;
 
@@ -1100,7 +1329,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             fromUuid = in.readString();
             toUuid = in.readString();
             toVersion = in.readLong();
-            routingTable = RoutingTable.readDiffFrom(in);
+            routingTable = GlobalRoutingTable.readDiffFrom(in);
             nodes = DiscoveryNodes.readDiffFrom(in, localNode);
             boolean versionPresent = in.readBoolean();
             if (versionPresent == false) throw new IOException("ClusterStateDiff stream must have versions");

@@ -83,6 +83,7 @@ import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -111,10 +112,12 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -138,6 +141,7 @@ import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.node.NodeMocksPlugin;
+import org.elasticsearch.persistent.PersistentTasks;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -1164,11 +1168,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Retrieves the persistent tasks with the requested task names from the given cluster state.
      */
     public static List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, Set<String> taskNames) {
-        PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-        if (tasks == null) {
-            return List.of();
-        }
-        return tasks.tasks().stream().filter(t -> taskNames.contains(t.getTaskName())).toList();
+        return PersistentTasks.getAllTasks(clusterState)
+            .map(Tuple::v2)
+            .flatMap(tasks -> tasks.tasks().stream().filter(t -> taskNames.contains(t.getTaskName())))
+            .toList();
     }
 
     /**
@@ -1222,6 +1225,23 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
+    // some integration tests don't work when run multi-project, so explicitly enable it here
+    // we also need to decide what we do about the multi-project xcontent param
+    @FixForMultiProject
+    protected boolean multiProjectIntegrationTest() {
+        return false;
+    }
+
+    private ToXContent.Params xContentParams() {
+        return multiProjectIntegrationTest() ? new ToXContent.MapParams(Map.of("multi-project", "true")) : ToXContent.EMPTY_PARAMS;
+    }
+
+    private void setMultiProjectParams(Map<String, String> xContentParams) {
+        if (multiProjectIntegrationTest()) {
+            xContentParams.put("multi-project", "true");
+        }
+    }
+
     protected final void doEnsureClusterStateConsistency(NamedWriteableRegistry namedWriteableRegistry) {
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         final List<SubscribableListener<ClusterStateResponse>> localStates = new ArrayList<>(cluster().size());
@@ -1243,7 +1263,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     null,
                     namedWriteableRegistry
                 );
-                Map<String, Object> masterStateMap = convertToMap(masterClusterState);
+                Map<String, Object> masterStateMap = convertToMap(masterClusterState, xContentParams());
                 String masterId = masterClusterState.nodes().getMasterNodeId();
                 for (SubscribableListener<ClusterStateResponse> localStateListener : localStates) {
                     localStateListener.andThenAccept(localClusterStateResponse -> {
@@ -1254,7 +1274,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                             null,
                             namedWriteableRegistry
                         );
-                        final Map<String, Object> localStateMap = convertToMap(localClusterState);
+                        final Map<String, Object> localStateMap = convertToMap(localClusterState, xContentParams());
                         // Check that the non-master node has the same version of the cluster state as the master and
                         // that the master node matches the master (otherwise there is no requirement for the cluster state to
                         // match)
@@ -1294,15 +1314,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
             final Map<String, String> serializationParams = Maps.newMapWithExpectedSize(2);
             serializationParams.put("binary", "true");
             serializationParams.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
+            setMultiProjectParams(serializationParams);
             final ToXContent.Params serializationFormatParams = new ToXContent.MapParams(serializationParams);
 
             // when comparing XContent output, do not use binary format
             final Map<String, String> compareParams = Maps.newMapWithExpectedSize(2);
             compareParams.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
+            setMultiProjectParams(compareParams);
             final ToXContent.Params compareFormatParams = new ToXContent.MapParams(compareParams);
 
             {
-                Metadata metadataWithoutIndices = Metadata.builder(metadata).removeAllIndices().build();
+                Metadata metadataWithoutIndices = Metadata.builder(metadata)
+                    .forEachProject(ProjectMetadata.Builder::removeAllIndices)
+                    .build();
 
                 XContentBuilder builder = SmileXContent.contentBuilder();
                 builder.startObject();
@@ -1344,45 +1368,47 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 );
             }
 
-            for (IndexMetadata indexMetadata : metadata) {
-                XContentBuilder builder = SmileXContent.contentBuilder();
-                builder.startObject();
-                indexMetadata.toXContent(builder, serializationFormatParams);
-                builder.endObject();
-                final BytesReference originalBytes = BytesReference.bytes(builder);
+            for (ProjectMetadata project : metadata.projects().values()) {
+                for (IndexMetadata indexMetadata : project) {
+                    XContentBuilder builder = SmileXContent.contentBuilder();
+                    builder.startObject();
+                    indexMetadata.toXContent(builder, serializationFormatParams);
+                    builder.endObject();
+                    final BytesReference originalBytes = BytesReference.bytes(builder);
 
-                XContentBuilder compareBuilder = SmileXContent.contentBuilder();
-                compareBuilder.startObject();
-                indexMetadata.toXContent(compareBuilder, compareFormatParams);
-                compareBuilder.endObject();
-                final BytesReference compareOriginalBytes = BytesReference.bytes(compareBuilder);
+                    XContentBuilder compareBuilder = SmileXContent.contentBuilder();
+                    compareBuilder.startObject();
+                    indexMetadata.toXContent(compareBuilder, compareFormatParams);
+                    compareBuilder.endObject();
+                    final BytesReference compareOriginalBytes = BytesReference.bytes(compareBuilder);
 
-                final IndexMetadata loadedIndexMetadata;
-                try (
-                    XContentParser parser = createParser(
-                        parserConfig().withRegistry(ElasticsearchNodeCommand.namedXContentRegistry),
-                        SmileXContent.smileXContent,
-                        originalBytes
-                    )
-                ) {
-                    loadedIndexMetadata = IndexMetadata.fromXContent(parser);
+                    final IndexMetadata loadedIndexMetadata;
+                    try (
+                        XContentParser parser = createParser(
+                            parserConfig().withRegistry(ElasticsearchNodeCommand.namedXContentRegistry),
+                            SmileXContent.smileXContent,
+                            originalBytes
+                        )
+                    ) {
+                        loadedIndexMetadata = IndexMetadata.fromXContent(parser);
+                    }
+                    builder = SmileXContent.contentBuilder();
+                    builder.startObject();
+                    loadedIndexMetadata.toXContent(builder, compareFormatParams);
+                    builder.endObject();
+                    final BytesReference parsedBytes = BytesReference.bytes(builder);
+
+                    assertNull(
+                        "cluster state XContent serialization does not match, expected "
+                            + XContentHelper.convertToMap(compareOriginalBytes, false, XContentType.SMILE)
+                            + " but got "
+                            + XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE),
+                        differenceBetweenMapsIgnoringArrayOrder(
+                            XContentHelper.convertToMap(compareOriginalBytes, false, XContentType.SMILE).v2(),
+                            XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE).v2()
+                        )
+                    );
                 }
-                builder = SmileXContent.contentBuilder();
-                builder.startObject();
-                loadedIndexMetadata.toXContent(builder, compareFormatParams);
-                builder.endObject();
-                final BytesReference parsedBytes = BytesReference.bytes(builder);
-
-                assertNull(
-                    "cluster state XContent serialization does not match, expected "
-                        + XContentHelper.convertToMap(compareOriginalBytes, false, XContentType.SMILE)
-                        + " but got "
-                        + XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE),
-                    differenceBetweenMapsIgnoringArrayOrder(
-                        XContentHelper.convertToMap(compareOriginalBytes, false, XContentType.SMILE).v2(),
-                        XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE).v2()
-                    )
-                );
             }
         }
     }
@@ -2274,9 +2300,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     protected NumShards getNumShards(String index) {
         Metadata metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
-        assertThat(metadata.hasIndex(index), equalTo(true));
-        int numShards = Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_SHARDS));
-        int numReplicas = Integer.valueOf(metadata.index(index).getSettings().get(SETTING_NUMBER_OF_REPLICAS));
+        assertThat(metadata.getProject().hasIndex(index), equalTo(true));
+        int numShards = Integer.valueOf(metadata.getProject().index(index).getSettings().get(SETTING_NUMBER_OF_SHARDS));
+        int numReplicas = Integer.valueOf(metadata.getProject().index(index).getSettings().get(SETTING_NUMBER_OF_REPLICAS));
         return new NumShards(numShards, numReplicas);
     }
 

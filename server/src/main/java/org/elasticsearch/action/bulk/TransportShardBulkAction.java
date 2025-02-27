@@ -40,6 +40,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -167,13 +168,15 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> outerListener
     ) {
-        var listener = ActionListener.releaseAfter(
+        var primaryOperationExpansionReleasable = indexingPressure.trackPrimaryOperationExpansion(
+            primaryOperationCount(request),
+            getMaxOperationMemoryOverhead(request),
+            force(request)
+        );
+        // Ensure that we release the accounted memory for document expansion as soon as we're done processing the operations.
+        var listener = ActionListener.runBefore(
             outerListener,
-            indexingPressure.trackPrimaryOperationExpansion(
-                primaryOperationCount(request),
-                getMaxOperationMemoryOverhead(request),
-                force(request)
-            )
+            () -> Releasables.closeExpectNoException(primaryOperationExpansionReleasable)
         );
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
@@ -664,9 +667,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexShard replica,
         ActionListener<ReplicaResult> outerListener
     ) {
-        var listener = ActionListener.releaseAfter(
+        var replicaOperationExpansionReleasable = indexingPressure.trackReplicaOperationExpansion(
+            getMaxOperationMemoryOverhead(request),
+            force(request)
+        );
+        // Ensure that we release the accounted memory for document expansion as soon as we're done processing the operations.
+        var listener = ActionListener.runBefore(
             outerListener,
-            indexingPressure.trackReplicaOperationExpansion(getMaxOperationMemoryOverhead(request), force(request))
+            () -> Releasables.closeExpectNoException(replicaOperationExpansionReleasable)
         );
         ActionListener.completeWith(listener, () -> {
             final long startBulkTime = System.nanoTime();

@@ -301,6 +301,8 @@ public class IndexingPressure {
     }
 
     public Releasable trackReplicaOperationExpansion(long expandedBytes, boolean forceExecution) {
+        // Operations are already tracked by the initial call to #markReplicaStarted.
+        // This method only increments the in-flight bytes to account for operation expansion during indexing.
         return markReplicaOperationStarted(0, expandedBytes, forceExecution);
     }
 

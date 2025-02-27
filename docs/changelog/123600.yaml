@@ -5,8 +5,7 @@ type: breaking
 issues: []
 breaking:
   title: Drop `TLS_RSA` cipher support for JDK 24
-  area: TLS
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
-  notable: false
+  area: Cluster and node setting
+  details: This change removes `TLS_RSA` ciphers from the list of supported ciphers, for Elasticsearch deployments running on JDK 24.
+  impact: TODO
+  notable: true

@@ -176,7 +176,7 @@ final class TransportHandshaker {
     );
 
     static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
-    static final TransportVersion V8_18_FIRST_VERSION = TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS;
+    static final TransportVersion V8_19_FIRST_VERSION = TransportVersions.INITIAL_ELASTICSEARCH_8_19;
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
     private final CounterMetric numHandshakes = new CounterMetric();
 
@@ -272,7 +272,7 @@ final class TransportHandshaker {
         if (TransportVersion.isCompatible(remoteTransportVersion)) {
             // Prevent log message headers from being added to the handshake response.
             try (var ignored = threadContext.stashContext()) {
-                if (remoteTransportVersion.before(V8_18_FIRST_VERSION)) {
+                if (remoteTransportVersion.before(V8_19_FIRST_VERSION)) {
                     deprecationLogger.warn(
                         DeprecationCategory.OTHER,
                         "handshake_version",

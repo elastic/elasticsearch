@@ -31,7 +31,7 @@ import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.transport.TransportHandshaker.V8_18_FIRST_VERSION;
+import static org.elasticsearch.transport.TransportHandshaker.V8_19_FIRST_VERSION;
 import static org.elasticsearch.transport.TransportHandshaker.getDeprecationMessage;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -191,7 +191,7 @@ public class TransportHandshakerTests extends ESTestCase {
     }
 
     private void assertDeprecationMessageIsLogged(TransportVersion remoteVersion, String remoteReleaseVersion, Object channel) {
-        if (remoteVersion.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE) && remoteVersion.before(V8_18_FIRST_VERSION)) {
+        if (remoteVersion.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE) && remoteVersion.before(V8_19_FIRST_VERSION)) {
             assertWarnings(getDeprecationMessage(TransportVersion.current(), remoteVersion, remoteReleaseVersion, channel));
         }
     }

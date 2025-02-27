@@ -1045,7 +1045,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.profile(true);
-            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
     }
 

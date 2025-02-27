@@ -1440,7 +1440,7 @@ public class IndicesService extends AbstractLifecycleComponent
                         sleepTime = Math.min(maxSleepTimeMs, sleepTime * 2); // increase the sleep time gradually
                         logger.debug("{} schedule pending delete retry after {} ms", index, sleepTime);
                     }
-                } while ((System.nanoTime() - startTimeNS) < timeout.nanos());
+                } while ((System.nanoTime() - startTimeNS) < timeout.nanos() && lifecycle.closed() == false);
             }
         } finally {
             IOUtils.close(shardLocks);

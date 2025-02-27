@@ -34,6 +34,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -611,7 +612,14 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             configManager,
             mockAuditor
         );
-        return new TransformServices(configManager, transformCheckpointService, mockAuditor, scheduler, mock(TransformNode.class));
+        return new TransformServices(
+            configManager,
+            transformCheckpointService,
+            mockAuditor,
+            scheduler,
+            mock(TransformNode.class),
+            Tracer.NOOP
+        );
     }
 
     private TransformPersistentTasksExecutor buildTaskExecutor(TransformServices transformServices) {

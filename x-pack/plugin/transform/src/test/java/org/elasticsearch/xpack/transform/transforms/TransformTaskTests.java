@@ -29,6 +29,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -210,7 +211,8 @@ public class TransformTaskTests extends ESTestCase {
             transformsCheckpointService,
             auditor,
             new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO),
-            mock(TransformNode.class)
+            mock(TransformNode.class),
+            Tracer.NOOP
         );
     }
 

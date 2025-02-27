@@ -44,10 +44,15 @@ primaryExpression
     | functionExpression                                                                #function
     | LP booleanExpression RP                                                           #parenthesizedExpression
     | primaryExpression CAST_OP dataType                                                #inlineCast
+    | primaryExpression methodExpression                                                #methodInvocation
     ;
 
 functionExpression
     : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)* (COMMA mapExpression)?))? RP
+    ;
+
+methodExpression
+    : DOT identifier LP ((booleanExpression (COMMA booleanExpression)*))? RP
     ;
 
 functionName

@@ -289,7 +289,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 // SORT _score DESC
                 return new ScoringPerShardCollector(
                     shardContext,
-                    new TopScoreDocCollectorManager(limit, null, limit, false).newCollector()
+                    new TopScoreDocCollectorManager(limit, null, limit).newCollector()
                 );
             } else {
                 // SORT ..., _score, ...
@@ -302,7 +302,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 }
                 return new ScoringPerShardCollector(
                     shardContext,
-                    new TopFieldCollectorManager(sort, limit, null, limit, false).newCollector()
+                    new TopFieldCollectorManager(sort, limit, null, limit).newCollector()
                 );
             }
         }
@@ -333,7 +333,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     static final class NonScoringPerShardCollector extends PerShardCollector {
         NonScoringPerShardCollector(ShardContext shardContext, Sort sort, int limit) {
             // We don't use CollectorManager here as we don't retrieve the total hits and sort by score.
-            super(shardContext, new TopFieldCollectorManager(sort, limit, null, 0, false).newCollector());
+            super(shardContext, new TopFieldCollectorManager(sort, limit, null, 0).newCollector());
         }
     }
 

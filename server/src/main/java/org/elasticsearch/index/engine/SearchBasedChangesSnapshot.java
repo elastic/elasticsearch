@@ -190,8 +190,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
             new Sort(sortBySeqNo),
             searchBatchSize,
             afterDoc,
-            0,
-            false
+            0
         );
         TopDocs results = indexSearcher.search(rangeQuery, collectorManager);
 

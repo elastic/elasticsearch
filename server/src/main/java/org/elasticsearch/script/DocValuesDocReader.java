@@ -25,7 +25,7 @@ import java.util.stream.Stream;
 /**
  * Provide access to DocValues for script {@code field} api and {@code doc} API.
  */
-public final class DocValuesDocReader implements DocReader, LeafReaderContextSupplier {
+public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier {
 
     // provide access to the leaf context reader for expressions
     private final LeafReaderContext leafReaderContext;

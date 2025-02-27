@@ -396,26 +396,26 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         assert hasReferences();
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(),
-            this.innerToXContentChunked(params),
-            ChunkedToXContentHelper.endObject()
-        );
+        return getToXContentIterator(true, params);
     }
 
     public Iterator<? extends ToXContent> innerToXContentChunked(ToXContent.Params params) {
+        return getToXContentIterator(false, params);
+    }
+
+    private Iterator<ToXContent> getToXContentIterator(boolean wrapInObject, ToXContent.Params params) {
         return Iterators.concat(
+            wrapInObject ? ChunkedToXContentHelper.startObject() : Collections.emptyIterator(),
             ChunkedToXContentHelper.chunk(SearchResponse.this::headerToXContent),
             CollectionUtils.isEmpty(phaseFailures)
                 ? Collections.emptyIterator()
                 : ChunkedToXContentHelper.array(PHASE_FAILURES.getPreferredName(), Iterators.forArray(phaseFailures)),
             Iterators.single(clusters),
-            Iterators.concat(
-                hits.toXContentChunked(params),
-                aggregations == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(aggregations),
-                suggest == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(suggest),
-                profileResults == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(profileResults)
-            )
+            hits.toXContentChunked(params),
+            aggregations == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(aggregations),
+            suggest == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(suggest),
+            profileResults == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(profileResults),
+            wrapInObject ? ChunkedToXContentHelper.endObject() : Collections.emptyIterator()
         );
     }
 

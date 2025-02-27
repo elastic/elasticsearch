@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.collect.Iterators.single;
 import static org.elasticsearch.script.ScriptContextStats.Fields.CACHE_EVICTIONS_HISTORY;
 import static org.elasticsearch.script.ScriptContextStats.Fields.COMPILATIONS_HISTORY;
 import static org.elasticsearch.script.ScriptStats.Fields.CACHE_EVICTIONS;

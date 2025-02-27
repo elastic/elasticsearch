@@ -6,14 +6,13 @@ mapped_pages:
 
 # {{infer-cap}} processor [inference-processor]
 
-
 Uses a pre-trained {{dfanalytics}} model or a model deployed for natural language processing tasks to infer against the data that is being ingested in the pipeline.
 
 $$$inference-options$$$
 
 | Name | Required | Default | Description |
 | --- | --- | --- | --- |
-| `model_id` . | yes | - | (String) An inference ID, a model deployment ID, a trained model ID or an alias. |
+| `model_id`  | yes | - | (String) An inference ID, a model deployment ID, a trained model ID or an alias. |
 | `input_output` | no | - | (List) Input fields for {{infer}} and output (destination) fields for the {{infer}} results. This option is incompatible with the `target_field` and `field_map` options. |
 | `target_field` | no | `ml.inference.<processor_tag>` | (String) Field added to incoming documents to contain results objects. |
 | `field_map` | no | If defined the model’s default field map | (Object) Maps the document field names to the known field names of the model. This mapping takes precedence over any default mappings provided in the model configuration. |
@@ -26,15 +25,14 @@ $$$inference-options$$$
 | `tag` | no | - | Identifier for the processor. Useful for debugging and metrics. |
 
 ::::{important}
+
 * You cannot use the `input_output` field with the `target_field` and `field_map` fields. For NLP models, use the `input_output` option. For {{dfanalytics}} models, use the `target_field` and `field_map` option.
 * Each {{infer}} input field must be single strings, not arrays of strings.
 * The `input_field` is processed as is and ignores any [index mapping](docs-content://manage-data/data-store/mapping.md)'s [analyzers](docs-content://manage-data/data-store/text-analysis.md) at time of {{infer}} run.
 
 ::::
 
-
-
-### Configuring input and output fields [inference-input-output-example]
+## Configuring input and output fields [inference-input-output-example]
 
 Select the `content` field for inference and write the result to `content_embedding`.
 
@@ -96,8 +94,7 @@ Selecting the input fields with `input_output` is incompatible with the `target_
 }
 ```
 
-
-### {{classification-cap}} configuration options [inference-processor-classification-opt]
+## {{classification-cap}} configuration options [inference-processor-classification-opt]
 
 Classification configuration for inference.
 
@@ -116,8 +113,7 @@ Classification configuration for inference.
 `prediction_field_type`
 :   (Optional, string) Specifies the type of the predicted field to write. Valid values are: `string`, `number`, `boolean`. When `boolean` is provided `1.0` is transformed to `true` and `0.0` to `false`.
 
-
-### Fill mask configuration options [inference-processor-fill-mask-opt]
+## Fill mask configuration options [inference-processor-fill-mask-opt]
 
 `num_top_classes`
 :   (Optional, integer) Specifies the number of top class predictions to return. Defaults to 0.
@@ -127,7 +123,6 @@ Classification configuration for inference.
 
 `tokenization`
 :   (Optional, object) Indicates the tokenization to perform and the desired settings. The default tokenization configuration is `bert`. Valid tokenization values are
-
     * `bert`: Use for BERT-style models
     * `deberta_v2`: Use for DeBERTa v2 and v3-style models
     * `mpnet`: Use for MPNet-style models
@@ -138,85 +133,53 @@ Classification configuration for inference.
     ::::{dropdown} Properties of tokenization
     `bert`
     :   (Optional, object) BERT-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of bert
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     `deberta_v2`
     :   (Optional, object) DeBERTa-style tokenization is to be performed with the enclosed settings.
-
         ::::{dropdown} Properties of deberta_v2
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `balanced`: One or both of the first and second sequences may be truncated so as to balance the tokens included from both sequences.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::
-
-
     `roberta`
     :   (Optional, object) RoBERTa-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of roberta
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     `mpnet`
     :   (Optional, object) MPNet-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of mpnet
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     ::::
 
-
-
-### NER configuration options [inference-processor-ner-opt]
+## NER configuration options [inference-processor-ner-opt]
 
 `results_field`
 :   (Optional, string) The field that is added to incoming documents to contain the inference prediction. Defaults to the `results_field` value of the {{dfanalytics-job}} that was used to train the model, which defaults to `<dependent_variable>_prediction`.
@@ -234,85 +197,53 @@ Classification configuration for inference.
     ::::{dropdown} Properties of tokenization
     `bert`
     :   (Optional, object) BERT-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of bert
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     `deberta_v2`
     :   (Optional, object) DeBERTa-style tokenization is to be performed with the enclosed settings.
-
         ::::{dropdown} Properties of deberta_v2
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `balanced`: One or both of the first and second sequences may be truncated so as to balance the tokens included from both sequences.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::
-
-
     `roberta`
     :   (Optional, object) RoBERTa-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of roberta
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     `mpnet`
     :   (Optional, object) MPNet-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of mpnet
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     ::::
 
-
-
-### {{regression-cap}} configuration options [inference-processor-regression-opt]
+## {{regression-cap}} configuration options [inference-processor-regression-opt]
 
 Regression configuration for inference.
 
@@ -322,8 +253,7 @@ Regression configuration for inference.
 `num_top_feature_importance_values`
 :   (Optional, integer) Specifies the maximum number of [{{feat-imp}}](docs-content://explore-analyze/machine-learning/data-frame-analytics/ml-feature-importance.md) values per document. By default, it is zero and no {{feat-imp}} calculation occurs.
 
-
-### Text classification configuration options [inference-processor-text-classification-opt]
+## Text classification configuration options [inference-processor-text-classification-opt]
 
 `classification_labels`
 :   (Optional, string) An array of classification labels.
@@ -347,115 +277,71 @@ Regression configuration for inference.
     ::::{dropdown} Properties of tokenization
     `bert`
     :   (Optional, object) BERT-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of bert
         `span`
-        :   (Optional, integer) When `truncate` is `none`, you can partition longer text sequences for inference. The value indicates how many tokens overlap between each subsequence.
-
+        (Optional, integer) When `truncate` is `none`, you can partition longer text sequences for inference. The value indicates how many tokens overlap between each subsequence.
             The default value is `-1`, indicating no windowing or spanning occurs.
-
-            ::::{note}
-            When your typical input is just slightly larger than `max_sequence_length`, it may be best to simply truncate; there will be very little information in the second subsequence.
-            ::::
-
-
+        ::::{note}
+        When your typical input is just slightly larger than `max_sequence_length`, it may be best to simply truncate; there will be very little information in the second subsequence.
+        ::::
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     `deberta_v2`
     :   (Optional, object) DeBERTa-style tokenization is to be performed with the enclosed settings.
-
-        ::::{dropdown} Properties of deberta_v2
+        :::::{dropdown} Properties of deberta_v2
         `span`
-        :   (Optional, integer) When `truncate` is `none`, you can partition longer text sequences for inference. The value indicates how many tokens overlap between each subsequence.
-
+        (Optional, integer) When `truncate` is `none`, you can partition longer text sequences for inference. The value indicates how many tokens overlap between each subsequence.
             The default value is `-1`, indicating no windowing or spanning occurs.
-
-            ::::{note}
-            When your typical input is just slightly larger than `max_sequence_length`, it may be best to simply truncate; there will be very little information in the second subsequence.
-            ::::
-
-
+        ::::{note}
+        When your typical input is just slightly larger than `max_sequence_length`, it may be best to simply truncate; there will be very little information in the second subsequence.
+        ::::
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `balanced`: One or both of the first and second sequences may be truncated so as to balance the tokens included from both sequences.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
-        ::::
-
-
+        :::::
     `roberta`
     :   (Optional, object) RoBERTa-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of roberta
         `span`
-        :   (Optional, integer) When `truncate` is `none`, you can partition longer text sequences for inference. The value indicates how many tokens overlap between each subsequence.
-
+        (Optional, integer) When `truncate` is `none`, you can partition longer text sequences for inference. The value indicates how many tokens overlap between each subsequence.
             The default value is `-1`, indicating no windowing or spanning occurs.
-
-            ::::{note}
-            When your typical input is just slightly larger than `max_sequence_length`, it may be best to simply truncate; there will be very little information in the second subsequence.
-            ::::
-
-
+        ::::{note}
+        When your typical input is just slightly larger than `max_sequence_length`, it may be best to simply truncate; there will be very little information in the second subsequence.
+        ::::
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     `mpnet`
     :   (Optional, object) MPNet-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of mpnet
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     ::::
 
-
-
-### Text embedding configuration options [inference-processor-text-embedding-opt]
+## Text embedding configuration options [inference-processor-text-embedding-opt]
 
 `results_field`
 :   (Optional, string) The field that is added to incoming documents to contain the inference prediction. Defaults to the `results_field` value of the {{dfanalytics-job}} that was used to train the model, which defaults to `<dependent_variable>_prediction`.
@@ -473,85 +359,53 @@ Regression configuration for inference.
     ::::{dropdown} Properties of tokenization
     `bert`
     :   (Optional, object) BERT-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of bert
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     `deberta_v2`
     :   (Optional, object) DeBERTa-style tokenization is to be performed with the enclosed settings.
-
         ::::{dropdown} Properties of deberta_v2
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `balanced`: One or both of the first and second sequences may be truncated so as to balance the tokens included from both sequences.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::
-
-
     `roberta`
     :   (Optional, object) RoBERTa-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of roberta
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     `mpnet`
     :   (Optional, object) MPNet-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of mpnet
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     ::::
 
-
-
-### Text expansion configuration options [inference-processor-text-expansion-opt]
+## Text expansion configuration options [inference-processor-text-expansion-opt]
 
 `results_field`
 :   (Optional, string) The field that is added to incoming documents to contain the inference prediction. Defaults to the `results_field` value of the {{dfanalytics-job}} that was used to train the model, which defaults to `<dependent_variable>_prediction`.
@@ -569,115 +423,71 @@ Regression configuration for inference.
     ::::{dropdown} Properties of tokenization
     `bert`
     :   (Optional, object) BERT-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of bert
         `span`
-        :   (Optional, integer) When `truncate` is `none`, you can partition longer text sequences for inference. The value indicates how many tokens overlap between each subsequence.
-
+        (Optional, integer) When `truncate` is `none`, you can partition longer text sequences for inference. The value indicates how many tokens overlap between each subsequence.
             The default value is `-1`, indicating no windowing or spanning occurs.
-
-            ::::{note}
-            When your typical input is just slightly larger than `max_sequence_length`, it may be best to simply truncate; there will be very little information in the second subsequence.
-            ::::
-
-
+        ::::{note}
+        When your typical input is just slightly larger than `max_sequence_length`, it may be best to simply truncate; there will be very little information in the second subsequence.
+        ::::
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     `deberta_v2`
     :   (Optional, object) DeBERTa-style tokenization is to be performed with the enclosed settings.
-
-        ::::{dropdown} Properties of deberta_v2
+        :::::{dropdown} Properties of deberta_v2
         `span`
-        :   (Optional, integer) When `truncate` is `none`, you can partition longer text sequences for inference. The value indicates how many tokens overlap between each subsequence.
-
+        (Optional, integer) When `truncate` is `none`, you can partition longer text sequences for inference. The value indicates how many tokens overlap between each subsequence.
             The default value is `-1`, indicating no windowing or spanning occurs.
-
-            ::::{note}
-            When your typical input is just slightly larger than `max_sequence_length`, it may be best to simply truncate; there will be very little information in the second subsequence.
-            ::::
-
-
+        ::::{note}
+        When your typical input is just slightly larger than `max_sequence_length`, it may be best to simply truncate; there will be very little information in the second subsequence.
+        ::::
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `balanced`: One or both of the first and second sequences may be truncated so as to balance the tokens included from both sequences.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
-        ::::
-
-
+        :::::
     `roberta`
     :   (Optional, object) RoBERTa-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of roberta
         `span`
-        :   (Optional, integer) When `truncate` is `none`, you can partition longer text sequences for inference. The value indicates how many tokens overlap between each subsequence.
-
+        (Optional, integer) When `truncate` is `none`, you can partition longer text sequences for inference. The value indicates how many tokens overlap between each subsequence.
             The default value is `-1`, indicating no windowing or spanning occurs.
-
-            ::::{note}
-            When your typical input is just slightly larger than `max_sequence_length`, it may be best to simply truncate; there will be very little information in the second subsequence.
-            ::::
-
-
+        ::::{note}
+        When your typical input is just slightly larger than `max_sequence_length`, it may be best to simply truncate; there will be very little information in the second subsequence.
+        ::::
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     `mpnet`
     :   (Optional, object) MPNet-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of mpnet
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     ::::
 
-
-
-### Text similarity configuration options [inference-processor-text-similarity-opt]
+## Text similarity configuration options [inference-processor-text-similarity-opt]
 
 `text_similarity`
 :   (Object, optional) Text similarity takes an input sequence and compares it with another input sequence. This is commonly referred to as cross-encoding. This task is useful for ranking document text when comparing it to another provided text input.
@@ -685,29 +495,20 @@ Regression configuration for inference.
     ::::{dropdown} Properties of text_similarity inference
     `span_score_combination_function`
     :   (Optional, string) Identifies how to combine the resulting similarity score when a provided text passage is longer than `max_sequence_length` and must be automatically separated for multiple calls. This only is applicable when `truncate` is `none` and `span` is a non-negative number. The default value is `max`. Available options are:
-
         * `max`: The maximum score from all the spans is returned.
         * `mean`: The mean score over all the spans is returned.
-
-
     `tokenization`
     :   (Optional, object) Indicates the tokenization to perform and the desired settings. The default tokenization configuration is `bert`. Valid tokenization values are
-
         * `bert`: Use for BERT-style models
         * `deberta_v2`: Use for DeBERTa v2 and v3-style models
         * `mpnet`: Use for MPNet-style models
         * `roberta`: Use for RoBERTa-style and BART-style models
         * [preview] `xlm_roberta`: Use for XLMRoBERTa-style models
         * [preview] `bert_ja`: Use for BERT-style models trained for the Japanese language.
-
         Refer to [Properties of `tokenizaton`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-trained-model) to review the properties of the `tokenization` object.
-
-
     ::::
 
-
-
-### Zero shot classification configuration options [inference-processor-zero-shot-opt]
+## Zero shot classification configuration options [inference-processor-zero-shot-opt]
 
 `labels`
 :   (Optional, array) The labels to classify. Can be set at creation for default labels, and then updated during inference.
@@ -731,85 +532,53 @@ Regression configuration for inference.
     ::::{dropdown} Properties of tokenization
     `bert`
     :   (Optional, object) BERT-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of bert
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     `deberta_v2`
     :   (Optional, object) DeBERTa-style tokenization is to be performed with the enclosed settings.
-
         ::::{dropdown} Properties of deberta_v2
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `balanced`: One or both of the first and second sequences may be truncated so as to balance the tokens included from both sequences.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::
-
-
     `roberta`
     :   (Optional, object) RoBERTa-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of roberta
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     `mpnet`
     :   (Optional, object) MPNet-style tokenization is to be performed with the enclosed settings.
-
         :::::{dropdown} Properties of mpnet
         `truncate`
-        :   (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
-
+        (Optional, string) Indicates how tokens are truncated when they exceed `max_sequence_length`. The default value is `first`.
             * `none`: No truncation occurs; the inference request receives an error.
             * `first`: Only the first sequence is truncated.
             * `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
-
-
         ::::{note}
         For `zero_shot_classification`, the hypothesis sequence is always the second sequence. Therefore, do not use `second` in this case.
         ::::
-
-
         :::::
-
-
     ::::
 
-
-
-### {{infer-cap}} processor examples [inference-processor-config-example]
+## {{infer-cap}} processor examples [inference-processor-config-example]
 
 ```js
 "inference":{

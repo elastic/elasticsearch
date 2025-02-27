@@ -996,17 +996,27 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
-            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("terms"));
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits"));
             assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
-            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("terms").sort("_score"));
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits").sort("_score"));
             assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
-            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("terms").sort(SortBuilders.fieldSort("field")));
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits").sort(SortBuilders.fieldSort("field")));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms").subAggregation(new TopHitsAggregationBuilder("tophits")));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits").subAggregation(new TermsAggregationBuilder("terms") ));
             assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {

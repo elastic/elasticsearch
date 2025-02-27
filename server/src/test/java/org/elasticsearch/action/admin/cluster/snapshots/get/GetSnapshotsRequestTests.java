@@ -86,6 +86,12 @@ public class GetSnapshotsRequestTests extends ESTestCase {
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use slm policy filter with verbose=false"));
         }
+        {
+            final GetSnapshotsRequest request = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, "repo", "snapshot").state("foo")
+                .verbose(false);
+            final ActionRequestValidationException e = request.validate();
+            assertThat(e.getMessage(), containsString("state must be SUCCESS, IN_PROGRESS, FAILED, PARTIAL, or INCOMPATIBLE"));
+        }
     }
 
     public void testGetDescription() {

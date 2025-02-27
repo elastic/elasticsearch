@@ -162,7 +162,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             request.size(),
             SnapshotsInProgress.get(state),
             request.verbose(),
-            request.includeIndexNames()
+            request.includeIndexNames(),
+            request.state()
         ).runOperation(listener);
     }
 
@@ -183,6 +184,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final SnapshotNamePredicate snapshotNamePredicate;
         private final SnapshotPredicates fromSortValuePredicates;
         private final Predicate<String> slmPolicyPredicate;
+        private final String state;
 
         // snapshot ordering/pagination
         private final SnapshotSortKey sortBy;
@@ -226,7 +228,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             int size,
             SnapshotsInProgress snapshotsInProgress,
             boolean verbose,
-            boolean indices
+            boolean indices,
+            String state
         ) {
             this.cancellableTask = cancellableTask;
             this.repositories = repositories;
@@ -239,6 +242,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             this.snapshotsInProgress = snapshotsInProgress;
             this.verbose = verbose;
             this.indices = indices;
+            this.state = state;
 
             this.snapshotNamePredicate = SnapshotNamePredicate.forSnapshots(ignoreUnavailable, snapshots);
             this.fromSortValuePredicates = SnapshotPredicates.forFromSortValue(fromSortValue, sortBy, order);
@@ -571,6 +575,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private boolean matchesPredicates(SnapshotInfo snapshotInfo) {
             if (fromSortValuePredicates.test(snapshotInfo) == false) {
                 return false;
+            }
+
+            if (state != null) {
+                return state.equalsIgnoreCase(snapshotInfo.state().toString());
             }
 
             if (slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES) {

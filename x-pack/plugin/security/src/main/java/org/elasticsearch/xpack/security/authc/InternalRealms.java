@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSetting
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SingleSpSamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
+import org.elasticsearch.xpack.security.authc.saml.SingleSamlSpConfiguration;
 import org.elasticsearch.xpack.security.authc.support.RoleMappingFileBootstrapCheck;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -63,7 +64,7 @@ public final class InternalRealms {
     static final String LDAP_TYPE = LdapRealmSettings.LDAP_TYPE;
     static final String AD_TYPE = LdapRealmSettings.AD_TYPE;
     static final String PKI_TYPE = PkiRealmSettings.TYPE;
-    static final String SAML_TYPE = SamlRealmSettings.TYPE;
+    static final String SAML_TYPE = SingleSpSamlRealmSettings.TYPE;
     static final String OIDC_TYPE = OpenIdConnectRealmSettings.TYPE;
     static final String JWT_TYPE = JwtRealmSettings.TYPE;
     static final String KERBEROS_TYPE = KerberosRealmSettings.TYPE;
@@ -154,8 +155,14 @@ public final class InternalRealms {
             PkiRealmSettings.TYPE,
             config -> new PkiRealm(config, resourceWatcherService, userRoleMapper),
             // SAML realm
-            SamlRealmSettings.TYPE,
-            config -> SamlRealm.create(config, sslService, resourceWatcherService, userRoleMapper),
+            SingleSpSamlRealmSettings.TYPE,
+            config -> SamlRealm.create(
+                config,
+                sslService,
+                resourceWatcherService,
+                userRoleMapper,
+                SingleSamlSpConfiguration.create(config)
+            ),
             // Kerberos realm
             KerberosRealmSettings.TYPE,
             config -> new KerberosRealm(config, userRoleMapper, threadPool),

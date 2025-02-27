@@ -84,6 +84,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
                 threadPool,
                 actionFilters,
                 indicesService,
+                null,
                 null
             );
 

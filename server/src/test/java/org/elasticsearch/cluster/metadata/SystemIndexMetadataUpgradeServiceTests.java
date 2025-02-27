@@ -167,15 +167,15 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         // Execute a metadata upgrade task on the initial cluster state
         ClusterState newState = executeTask(clusterState);
 
-        DataStream updatedDataStream = newState.metadata().dataStreams().get(dataStream.getName());
+        DataStream updatedDataStream = newState.metadata().getProject().dataStreams().get(dataStream.getName());
         assertThat(updatedDataStream.isSystem(), equalTo(true));
         assertThat(updatedDataStream.isHidden(), equalTo(true));
 
-        IndexMetadata updatedIndexMetadata = newState.metadata().index(dsIndexMetadata.getIndex().getName());
+        IndexMetadata updatedIndexMetadata = newState.metadata().getProject().index(dsIndexMetadata.getIndex().getName());
         assertThat(updatedIndexMetadata.isSystem(), equalTo(true));
         assertThat(updatedIndexMetadata.isHidden(), equalTo(true));
 
-        IndexMetadata updatedFailstoreMetadata = newState.metadata().index(fsIndexMetadata.getIndex().getName());
+        IndexMetadata updatedFailstoreMetadata = newState.metadata().getProject().index(fsIndexMetadata.getIndex().getName());
         assertThat(updatedFailstoreMetadata.isSystem(), equalTo(true));
         assertThat(updatedFailstoreMetadata.isHidden(), equalTo(true));
     }
@@ -328,7 +328,7 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         // Get a metadata upgrade task and execute it on the initial cluster state
         ClusterState newState = executeTask(clusterState);
 
-        IndexMetadata result = newState.metadata().index(SYSTEM_INDEX_NAME);
+        IndexMetadata result = newState.metadata().getProject().index(SYSTEM_INDEX_NAME);
         assertThat(result.isSystem(), equalTo(true));
         assertThat(result.isHidden(), equalTo(true));
     }
@@ -347,7 +347,7 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         // Get a metadata upgrade task and execute it on the initial cluster state
         ClusterState newState = executeTask(clusterState);
 
-        IndexMetadata result = newState.metadata().index(SYSTEM_INDEX_NAME);
+        IndexMetadata result = newState.metadata().getProject().index(SYSTEM_INDEX_NAME);
         assertThat(result.isSystem(), equalTo(true));
         assertThat(result.getAliases().values().stream().allMatch(AliasMetadata::isHidden), equalTo(true));
     }

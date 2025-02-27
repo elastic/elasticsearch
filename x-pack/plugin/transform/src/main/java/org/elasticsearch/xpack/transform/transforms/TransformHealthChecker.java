@@ -170,7 +170,7 @@ public final class TransformHealthChecker {
                 maxStatus = HealthStatus.YELLOW;
             }
             var checkpoints = transformContext.skippedCheckpoints();
-            /*if (checkpoints > 0) {
+            if (checkpoints > 0) {
                 issues.add(
                     IssueType.TRANSFORM_IS_SLOW.newIssue(
                         "Transform has skipped " + checkpoints + " checkpoints.",
@@ -186,7 +186,7 @@ public final class TransformHealthChecker {
                         transformContext.lastTotalTimeRecorded()
                     )
                 );
-            }*/
+            }
         }
 
         return new TransformHealth(maxStatus, issues);

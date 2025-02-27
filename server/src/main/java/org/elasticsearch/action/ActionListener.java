@@ -336,6 +336,25 @@ public interface ActionListener<Response> {
     }
 
     /**
+     * Wraps a given listener and returns a new listener which releases the provided {@code releaseBefore}
+     * resource before the listener is notified via either {@code #onResponse} or {@code #onFailure}.
+     */
+    static <Response> ActionListener<Response> releaseBefore(ActionListener<Response> delegate, Releasable releaseBefore) {
+        Runnable releasableRunnable = runnableFromReleasable(releaseBefore);
+        return assertOnce(new ActionListenerImplementations.RunBeforeActionListener<>(delegate, new CheckedRunnable<>() {
+            @Override
+            public void run() {
+                releasableRunnable.run();
+            }
+
+            @Override
+            public String toString() {
+                return releasableRunnable.toString();
+            }
+        }));
+    }
+
+    /**
      * Wraps a given listener and returns a new listener which makes sure {@link #onResponse(Object)}
      * and {@link #onFailure(Exception)} of the provided listener will be called at most once.
      */

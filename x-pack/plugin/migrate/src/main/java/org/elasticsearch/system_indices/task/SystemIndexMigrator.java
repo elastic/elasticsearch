@@ -470,11 +470,10 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             settingsBuilder.remove("index.blocks.read");
             settingsBuilder.remove("index.blocks.metadata");
         }
-        createIndexRequest
-                .cause(SystemIndices.MIGRATE_SYSTEM_INDEX_CAUSE)
-                .waitForActiveShards(ActiveShardCount.ALL)
-                .mapping(migrationInfo.getMappings())
-                .settings(Objects.requireNonNullElse(settingsBuilder.build(), Settings.EMPTY));
+        createIndexRequest.cause(SystemIndices.MIGRATE_SYSTEM_INDEX_CAUSE)
+            .waitForActiveShards(ActiveShardCount.ALL)
+            .mapping(migrationInfo.getMappings())
+            .settings(Objects.requireNonNullElse(settingsBuilder.build(), Settings.EMPTY));
 
         baseClient.admin().indices().create(createIndexRequest, listener);
     }

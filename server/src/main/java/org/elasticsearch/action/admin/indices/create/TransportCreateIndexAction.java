@@ -209,8 +209,10 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             if (request.index().equals(descriptor.getPrimaryIndex()) == false
                 && request.index().equals(descriptor.getAliasName()) == false) {
                 throw new IllegalArgumentException(
-                    "Cannot create system index with name " + request.index()
-                        + "; descriptor primary index is " + descriptor.getPrimaryIndex()
+                    "Cannot create system index with name "
+                        + request.index()
+                        + "; descriptor primary index is "
+                        + descriptor.getPrimaryIndex()
                 );
             }
             indexName = descriptor.getPrimaryIndex();

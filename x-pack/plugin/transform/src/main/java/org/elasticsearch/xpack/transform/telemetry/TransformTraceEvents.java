@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 public record TransformTraceEvents(
@@ -23,29 +24,27 @@ public record TransformTraceEvents(
     Map<String, Object> attributes,
     Supplier<ThreadContext> threadContext,
     String traceName,
-    AtomicLong checkpoint
+    String spanPrefix,
+    AtomicLong checkpoint,
+    AtomicReference<ThreadContext.StoredContext> previousContext
 ) implements AsyncTwoPhaseIndexer.EventHook {
-
-    public TransformTraceEvents(
-        Tracer tracer,
-        Supplier<ThreadContext> threadContext,
-        String traceName,
-        Map<String, Object> attributes,
-        long checkpoint
-    ) {
-        this(tracer, attributes, threadContext, traceName, new AtomicLong(checkpoint));
-    }
 
     @Override
     public void onEvent(Event event) {
         switch (event) {
-            case START -> tracer.startTrace(threadContext.get(), spanId(checkpoint.get()), traceName, attributes);
-            case FINISH -> tracer.stopTrace(spanId(checkpoint.getAndIncrement()));
+            // TODO, probably just swap back to using Tracer directly in AsyncTwoPhase, but we need some way to declare the spanId, name,
+            // and attributes
+            case START -> {
+                tracer.startTrace(threadContext.get(), spanId(checkpoint.get()), traceName, attributes);
+            }
+            case FINISH -> {
+                tracer.stopTrace(spanId(checkpoint.getAndIncrement()));
+            }
         }
     }
 
     private Traceable spanId(long suffix) {
-        return () -> traceName + "-" + suffix;
+        return () -> spanPrefix + "-" + suffix;
     }
 
     @Override
@@ -56,8 +55,6 @@ public record TransformTraceEvents(
     public static TransformTraceEvents create(Tracer tracer, ThreadPool threadPool, TransformTask task, long checkpoint) {
         return new TransformTraceEvents(
             tracer,
-            threadPool::getThreadContext,
-            "transform/" + task.getTransformId(),
             Map.of(
                 Tracer.AttributeKeys.TASK_ID,
                 task.getId(),
@@ -66,7 +63,11 @@ public record TransformTraceEvents(
                 "Transform",
                 task.getTransformId()
             ),
-            checkpoint
+            threadPool::getThreadContext,
+            "transform/" + task.getTransformId(),
+            String.valueOf(task.getId()),
+            new AtomicLong(checkpoint),
+            new AtomicReference<>()
         );
     }
 }

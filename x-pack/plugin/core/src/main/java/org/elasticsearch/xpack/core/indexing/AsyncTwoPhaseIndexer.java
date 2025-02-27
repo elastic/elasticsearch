@@ -89,7 +89,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 if (delay.duration() > 0) {
                     scheduled = threadPool.schedule(command, delay, threadPool.generic());
                 } else {
-                    threadPool.generic().execute(command);
+                    threadPool.generic().execute(threadPool.getThreadContext().preserveContext(command));
                 }
             }
         }
@@ -234,20 +234,22 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     logger.debug("Schedule was triggered for job [" + getJobId() + "], state: [" + currentState + "]");
                     stats.incrementNumInvocations(1);
                     if (startJob()) {
-                        eventHook.safeOnEvent(EventHook.Event.START);
-                        // fire off the search. Note this is async, the method will return from here
-                        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                            onStart(now, ActionListener.wrap(r -> {
-                                assert r != null;
-                                if (r) {
-                                    nextSearch();
-                                } else {
-                                    onFinish(finishJobListener());
-                                }
-                            }, this::finishWithFailure));
-                        });
-                        logger.debug("Beginning to index [" + getJobId() + "], state: [" + currentState + "]");
-                        return true;
+                        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                            eventHook.safeOnEvent(EventHook.Event.START);
+                            // fire off the search. Note this is async, the method will return from here
+                            threadPool.generic().execute(threadPool.getThreadContext().preserveContext(() -> {
+                                onStart(now, ActionListener.wrap(r -> {
+                                    assert r != null;
+                                    if (r) {
+                                        nextSearch();
+                                    } else {
+                                        onFinish(finishJobListener());
+                                    }
+                                }, this::finishWithFailure));
+                            }));
+                            logger.debug("Beginning to index [" + getJobId() + "], state: [" + currentState + "]");
+                            return true;
+                        }
                     } else {
                         return false;
                     }

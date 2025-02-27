@@ -428,6 +428,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         when(task.setNumFailureRetries(anyInt())).thenReturn(task);
         when(task.getParentTaskId()).thenReturn(TaskId.EMPTY_TASK_ID);
         when(task.getContext()).thenReturn(mock());
+        when(task.getTransformId()).thenReturn("1234");
         doAnswer(a -> fail(a.getArgument(0, Throwable.class))).when(task).fail(any(Throwable.class), any(String.class), any());
         when(task.getState()).thenReturn(
             new TransformState(TransformTaskState.STOPPED, IndexerState.STOPPED, null, 0, null, null, null, false, null)

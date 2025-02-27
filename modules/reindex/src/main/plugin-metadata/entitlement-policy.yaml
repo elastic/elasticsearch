@@ -1,7 +1,20 @@
 ALL-UNNAMED:
   - manage_threads
   - outbound_network
+  - create_class_loader # needed for Painless to generate runtime classes
   - files:
-      - relative_path: ""
+      - relative_path_setting: "reindex.ssl.certificate"
+        relative_to: config
+        mode: read
+      - relative_path_setting: "reindex.ssl.key"
+        relative_to: config
+        mode: read
+      - relative_path_setting: "reindex.ssl.keystore.path"
+        relative_to: config
+        mode: read
+      - relative_path_setting: "reindex.ssl.certificate_authorities"
+        relative_to: config
+        mode: read
+      - relative_path_setting: "reindex.ssl.truststore.path"
         relative_to: config
         mode: read

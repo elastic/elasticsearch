@@ -69,6 +69,8 @@ class S3BlobStore implements BlobStore {
      */
     static final int MAX_BULK_DELETES = 1000;
 
+    static final int MAX_DELETE_EXCEPTIONS = 10;
+
     private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
     private final S3Service service;
@@ -340,6 +342,8 @@ class S3BlobStore implements BlobStore {
         return new S3BlobContainer(path, this);
     }
 
+    record DeletionExceptions(Exception exception, int count) {}
+
     void deleteBlobs(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
@@ -348,7 +352,7 @@ class S3BlobStore implements BlobStore {
         final List<String> partition = new ArrayList<>();
         try {
             // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
-            final AtomicReference<Exception> aex = new AtomicReference<>();
+            final AtomicReference<DeletionExceptions> aex = new AtomicReference<>(new DeletionExceptions(null, 0));
             blobNames.forEachRemaining(key -> {
                 partition.add(key);
                 if (partition.size() == bulkDeletionBatchSize) {
@@ -359,8 +363,8 @@ class S3BlobStore implements BlobStore {
             if (partition.isEmpty() == false) {
                 deletePartition(purpose, partition, aex);
             }
-            if (aex.get() != null) {
-                throw aex.get();
+            if (aex.get().exception != null) {
+                throw aex.get().exception;
             }
         } catch (Exception e) {
             throw new IOException("Failed to delete blobs " + partition.stream().limit(10).toList(), e);
@@ -374,7 +378,7 @@ class S3BlobStore implements BlobStore {
      * @param partition The list of blobs to delete
      * @param aex A holder for any exception(s) thrown during the deletion
      */
-    private void deletePartition(OperationPurpose purpose, List<String> partition, AtomicReference<Exception> aex) {
+    private void deletePartition(OperationPurpose purpose, List<String> partition, AtomicReference<DeletionExceptions> aex) {
         final Iterator<TimeValue> retries = retryThrottledDeleteBackoffPolicy.iterator();
         int retryCounter = 0;
         while (true) {
@@ -395,7 +399,7 @@ class S3BlobStore implements BlobStore {
                     ),
                     e
                 );
-                aex.set(ExceptionsHelper.useOrSuppress(aex.get(), e));
+                useOrMaybeSuppress(aex, e);
                 return;
             } catch (AmazonClientException e) {
                 if (shouldRetryDelete(purpose) && RetryUtils.isThrottlingException(e)) {
@@ -404,16 +408,23 @@ class S3BlobStore implements BlobStore {
                         retryCounter++;
                     } else {
                         s3RepositoriesMetrics.retryDeletesHistogram().record(retryCounter);
-                        aex.set(ExceptionsHelper.useOrSuppress(aex.get(), e));
+                        useOrMaybeSuppress(aex, e);
                         return;
                     }
                 } else {
                     // The AWS client threw any unexpected exception and did not execute the request at all so we do not
                     // remove any keys from the outstanding deletes set.
-                    aex.set(ExceptionsHelper.useOrSuppress(aex.get(), e));
+                    useOrMaybeSuppress(aex, e);
                     return;
                 }
             }
+        }
+    }
+
+    private void useOrMaybeSuppress(AtomicReference<DeletionExceptions> aex, Exception e) {
+        var deletionExceptions = aex.get();
+        if (deletionExceptions.count < MAX_DELETE_EXCEPTIONS) {
+            aex.set(new DeletionExceptions(ExceptionsHelper.useOrSuppress(deletionExceptions.exception, e), deletionExceptions.count + 1));
         }
     }
 

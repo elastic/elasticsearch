@@ -54,6 +54,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -163,6 +164,16 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final @Nullable Boolean disableChunkedEncoding,
         final @Nullable ByteSizeValue bufferSize
     ) {
+        return createBlobContainer(maxRetries, readTimeout, disableChunkedEncoding, bufferSize, null);
+    }
+
+    protected BlobContainer createBlobContainer(
+        final @Nullable Integer maxRetries,
+        final @Nullable TimeValue readTimeout,
+        final @Nullable Boolean disableChunkedEncoding,
+        final @Nullable ByteSizeValue bufferSize,
+        final @Nullable Integer maxBulkDeletes
+    ) {
         final Settings.Builder clientSettings = Settings.builder();
         final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
@@ -192,14 +203,13 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         clientSettings.setSecureSettings(secureSettings);
         service.refreshAndClearCache(S3ClientSettings.load(clientSettings.build()));
 
-        final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
-            "repository",
-            S3Repository.TYPE,
-            Settings.builder()
-                .put(S3Repository.CLIENT_NAME.getKey(), clientName)
-                .put(S3Repository.GET_REGISTER_RETRY_DELAY.getKey(), TimeValue.ZERO)
-                .build()
-        );
+        final var repositorySettings = Settings.builder()
+            .put(S3Repository.CLIENT_NAME.getKey(), clientName)
+            .put(S3Repository.GET_REGISTER_RETRY_DELAY.getKey(), TimeValue.ZERO);
+        if (maxBulkDeletes != null) {
+            repositorySettings.put(S3Repository.DELETION_BATCH_SIZE_SETTING.getKey(), maxBulkDeletes);
+        }
+        final RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repository", S3Repository.TYPE, repositorySettings.build());
 
         final S3BlobStore s3BlobStore = new S3BlobStore(
             service,
@@ -1070,6 +1080,38 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             );
             assertEquals(OptionalBytesReference.EMPTY, expectEmpty);
             assertEquals(1, requestCounter.get());
+        }
+    }
+
+    public void testSuppressedDeletionErrorsAreCapped() {
+        final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
+        int maxBulkDeleteSize = randomIntBetween(1, 10);
+        final BlobContainer blobContainer = createBlobContainer(1, readTimeout, true, null, maxBulkDeleteSize);
+        httpServer.createContext("/", exchange -> {
+            if (exchange.getRequestMethod().equals("POST") && exchange.getRequestURI().toString().startsWith("/bucket/?delete")) {
+                exchange.sendResponseHeaders(
+                    randomFrom(
+                        HttpStatus.SC_INTERNAL_SERVER_ERROR,
+                        HttpStatus.SC_BAD_GATEWAY,
+                        HttpStatus.SC_SERVICE_UNAVAILABLE,
+                        HttpStatus.SC_GATEWAY_TIMEOUT,
+                        HttpStatus.SC_NOT_FOUND,
+                        HttpStatus.SC_UNAUTHORIZED
+                    ),
+                    -1
+                );
+                exchange.close();
+            } else {
+                fail("expected only deletions");
+            }
+        });
+        try {
+            var maxNoOfDeletions = 2 * S3BlobStore.MAX_DELETE_EXCEPTIONS;
+            var blobs = randomList(1, maxNoOfDeletions * maxBulkDeleteSize, ESTestCase::randomIdentifier);
+            blobContainer.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobs.iterator());
+            fail("deletion should not succeed");
+        } catch (IOException e) {
+            assertThat(e.getCause().getSuppressed().length, lessThan(S3BlobStore.MAX_DELETE_EXCEPTIONS));
         }
     }
 

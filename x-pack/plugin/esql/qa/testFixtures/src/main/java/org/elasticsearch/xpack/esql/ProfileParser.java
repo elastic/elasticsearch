@@ -19,6 +19,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -47,7 +48,6 @@ public class ProfileParser {
         List<Map<String, Object>> drivers = (List<Map<String, Object>>) profile.get("drivers");
 
         logger.info("Starting transformation into perfetto-compatible output format", args[0]);
-        int driverIndex = 0;
         try (
             OutputStream output = Files.newOutputStream(outputFileName);
             XContentBuilder builder = new XContentBuilder(JsonXContent.jsonXContent, output)
@@ -56,25 +56,27 @@ public class ProfileParser {
 
             builder.startObject();
             builder.field("displayTimeUnit", "ns");
-            builder.field("systemTraceEvents", "SystemTraceData");
-
-            builder.field("otherData");
-            builder.startObject();
-            builder.field("version", "My Application v1.0");
-            builder.endObject();
-
-            builder.field("stackFrames");
-            builder.startObject();
-            builder.endObject();
-
-            builder.field("samples");
-            builder.startArray();
-            builder.endArray();
 
             builder.field("traceEvents");
             builder.startArray();
+            // We need to represent the nodes and drivers as processes and threads, resp., identified via integers pid and tid.
+            // Let's keep track of them in maps.
+            Map<String, Integer> nodeIndices = new HashMap<>();
+            int driverIndex = 0;
             for (Map<String, Object> driver : drivers) {
-                parseDriverProfile(driver, driverIndex++, builder);
+                String nodeName = readString(driver, "cluster_name") + ":" + readString(driver, "node_name");
+
+                Integer nodeIndex = nodeIndices.get(nodeName);
+                if (nodeIndex == null) {
+                    // New node encountered
+                    nodeIndex = nodeIndices.size();
+                    nodeIndices.put(nodeName, nodeIndex);
+
+                    emitMetadataForNode(nodeName, nodeIndex, builder);
+                }
+
+                // Represent each driver as a separate thread, but group them together into one process per node.
+                parseDriverProfile(driver, nodeIndex, driverIndex++, builder);
             }
             builder.endArray();
 
@@ -86,22 +88,45 @@ public class ProfileParser {
         logger.info("Exiting", args[0]);
     }
 
+    /**
+     * Emit a metadata event for a new cluster node. We declare the node as a process.
+     */
+    private static void emitMetadataForNode(String nodeName, int pid, XContentBuilder builder) throws IOException {
+        builder.startObject();
+        builder.field("ph", "M");
+        builder.field("name", "process_name");
+        builder.field("pid", pid);
+
+        builder.field("args");
+        builder.startObject();
+        builder.field("name", nodeName);
+        builder.endObject();
+
+        builder.endObject();
+    }
+
     @SuppressWarnings("unchecked")
     /**
      * Uses the legacy Chromium spec for event descriptions:
      * https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU
      *
-     * We probably want to upgrade to the newer, more flexible protobuf-based spec by perfetto in the future.
+     * Associates the driver with a given process and thread id to separate them visually.
+     *
+     * We'd probably want to upgrade to the newer, more flexible protobuf-based spec by perfetto in the future - but this one also turned
+     * out to be tricky to use.
      */
-    private static void parseDriverProfile(Map<String, Object> driver, int driverIndex, XContentBuilder builder) throws IOException {
+    private static void parseDriverProfile(Map<String, Object> driver, int pid, int tid, XContentBuilder builder) throws IOException {
         String taskDescription = (String) driver.get("task_description");
-        String name = taskDescription + driverIndex;
+        String name = taskDescription + " " + pid + ":" + tid;
+
+        emitMetadataForDriver(taskDescription, pid, tid, builder);
 
         builder.startObject();
         builder.field("ph", "X");
         builder.field("name", name);
         builder.field("cat", taskDescription);
-        builder.field("pid", 0);
+        builder.field("pid", pid);
+        builder.field("tid", tid);
         long startMicros = readIntOrLong(driver, "start_millis") * 1000;
         builder.field("ts", startMicros);
         double durationMicros = ((double) readIntOrLong(driver, "took_nanos")) / 1000.0;
@@ -127,6 +152,28 @@ public class ProfileParser {
         builder.endObject();
 
         builder.endObject();
+    }
+
+    /**
+     * Emit a metadata event for a new driver. We declare the driver as a thread.
+     */
+    private static void emitMetadataForDriver(String driverName, int pid, int tid, XContentBuilder builder) throws IOException {
+        builder.startObject();
+        builder.field("ph", "M");
+        builder.field("name", "thread_name");
+        builder.field("pid", pid);
+        builder.field("tid", tid);
+
+        builder.field("args");
+        builder.startObject();
+        builder.field("name", driverName);
+        builder.endObject();
+
+        builder.endObject();
+    }
+
+    private static String readString(Map<String, Object> json, String name) {
+        return (String) json.get(name);
     }
 
     private static Long readIntOrLong(Map<String, Object> json, String name) {

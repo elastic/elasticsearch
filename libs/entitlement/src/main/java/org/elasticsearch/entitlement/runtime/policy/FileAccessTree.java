@@ -30,13 +30,74 @@ import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 
 public final class FileAccessTree {
 
+    /**
+     * An intermediary structure to help build exclusive paths for files entitlements.
+     */
+    record ExclusiveFileEntitlement(String componentName, String moduleName, FilesEntitlement filesEntitlement) {}
+
+    /**
+     * An intermediary structure to help globally validate exclusive paths, and then build exclusive paths for individual modules.
+     */
+    record ExclusivePath(String componentName, String moduleName, String path) {
+
+        @Override
+        public String toString() {
+            return "[[" + componentName + "] [" + moduleName + "] [" + path + "]]";
+        }
+    }
+
+    static List<ExclusivePath> buildExclusivePathList(List<ExclusiveFileEntitlement> exclusiveFileEntitlements, PathLookup pathLookup) {
+        List<ExclusivePath> exclusivePaths = new ArrayList<>();
+        for (ExclusiveFileEntitlement efe : exclusiveFileEntitlements) {
+            for (FilesEntitlement.FileData fd : efe.filesEntitlement().filesData()) {
+                if (fd.exclusive()) {
+                    List<Path> paths = fd.resolvePaths(pathLookup).toList();
+                    for (Path path : paths) {
+                        exclusivePaths.add(new ExclusivePath(efe.componentName(), efe.moduleName(), normalizePath(path)));
+                    }
+                }
+            }
+        }
+        exclusivePaths.sort((ep1, ep2) -> PATH_ORDER.compare(ep1.path(), ep2.path()));
+        return exclusivePaths;
+    }
+
+    static void validateExclusivePaths(List<ExclusivePath> exclusivePaths) {
+        if (exclusivePaths.isEmpty() == false) {
+            ExclusivePath currentExclusivePath = exclusivePaths.get(0);
+            for (int i = 1; i < exclusivePaths.size(); ++i) {
+                ExclusivePath nextPath = exclusivePaths.get(i);
+                if (currentExclusivePath.path().equals(nextPath.path) || isParent(currentExclusivePath.path(), nextPath.path())) {
+                    throw new IllegalArgumentException(
+                        "duplicate/overlapping exclusive paths found in files entitlements: " + currentExclusivePath + " and " + nextPath
+                    );
+                }
+                currentExclusivePath = nextPath;
+            }
+        }
+    }
+
     private static final Logger logger = LogManager.getLogger(FileAccessTree.class);
     private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
+    private final String[] exclusivePaths;
     private final String[] readPaths;
     private final String[] writePaths;
 
-    private FileAccessTree(FilesEntitlement filesEntitlement, PathLookup pathLookup) {
+    private FileAccessTree(
+        String componentName,
+        String moduleName,
+        FilesEntitlement filesEntitlement,
+        PathLookup pathLookup,
+        List<ExclusivePath> exclusivePaths
+    ) {
+        List<String> updatedExclusivePaths = new ArrayList<>();
+        for (ExclusivePath exclusivePath : exclusivePaths) {
+            if (exclusivePath.componentName().equals(componentName) == false || exclusivePath.moduleName().equals(moduleName) == false) {
+                updatedExclusivePaths.add(exclusivePath.path());
+            }
+        }
+
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
         BiConsumer<Path, Mode> addPath = (path, mode) -> {
@@ -83,9 +144,11 @@ public final class FileAccessTree {
         Path jdk = Paths.get(System.getProperty("java.home"));
         addPathAndMaybeLink.accept(jdk.resolve("conf"), Mode.READ);
 
+        updatedExclusivePaths.sort(PATH_ORDER);
         readPaths.sort(PATH_ORDER);
         writePaths.sort(PATH_ORDER);
 
+        this.exclusivePaths = updatedExclusivePaths.toArray(new String[0]);
         this.readPaths = pruneSortedPaths(readPaths).toArray(new String[0]);
         this.writePaths = pruneSortedPaths(writePaths).toArray(new String[0]);
     }
@@ -106,8 +169,14 @@ public final class FileAccessTree {
         return prunedReadPaths;
     }
 
-    public static FileAccessTree of(FilesEntitlement filesEntitlement, PathLookup pathLookup) {
-        return new FileAccessTree(filesEntitlement, pathLookup);
+    public static FileAccessTree of(
+        String componentName,
+        String moduleName,
+        FilesEntitlement filesEntitlement,
+        PathLookup pathLookup,
+        List<ExclusivePath> exclusivePaths
+    ) {
+        return new FileAccessTree(componentName, moduleName, filesEntitlement, pathLookup, exclusivePaths);
     }
 
     boolean canRead(Path path) {
@@ -132,10 +201,16 @@ public final class FileAccessTree {
         return result;
     }
 
-    private static boolean checkPath(String path, String[] paths) {
+    private boolean checkPath(String path, String[] paths) {
         if (paths.length == 0) {
             return false;
         }
+
+        int endx = Arrays.binarySearch(exclusivePaths, path, PATH_ORDER);
+        if (endx < -1 && isParent(exclusivePaths[-endx - 2], path) || endx >= 0) {
+            return false;
+        }
+
         int ndx = Arrays.binarySearch(paths, path, PATH_ORDER);
         if (ndx < -1) {
             return isParent(paths[-ndx - 2], path);

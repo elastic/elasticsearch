@@ -260,7 +260,7 @@ public class MetadataIndexTemplateService {
      * @param template
      * @param create
      */
-    private record ComponentTemplateOperation(String name, ComponentTemplate template, boolean create) {}
+    public record ComponentTemplateOperation(String name, ComponentTemplate template, boolean create) {}
 
     /**
      * A simple request holder for index template updates
@@ -268,7 +268,7 @@ public class MetadataIndexTemplateService {
      * @param template
      * @param create
      */
-    private record ComposableTemplateOperation(String name, ComposableIndexTemplate template, boolean create, boolean validateV2Overlaps) {}
+    public record ComposableTemplateOperation(String name, ComposableIndexTemplate template, boolean create, boolean validateV2Overlaps) {}
 
     /**
      * A name/template tuple record
@@ -281,6 +281,36 @@ public class MetadataIndexTemplateService {
         final ClusterState currentState,
         final Map<String, ComponentTemplateOperation> componentTemplateOperations,
         final Map<String, ComposableTemplateOperation> composableTemplateOperations
+    ) throws Exception {
+        Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
+        var interimInfo = applyBulkTemplateUpdate(currentState, componentTemplateOperations, composableTemplateOperations, metadataBuilder);
+        if (interimInfo == null) {
+            return currentState;
+        }
+        ClusterState candidateState = ClusterState.builder(currentState).metadata(metadataBuilder).build();
+        validateCandidateClusterState(currentState, candidateState, interimInfo);
+        return candidateState;
+    }
+
+    /**
+     * Holds interim information from the template installation process about what needs validating still.
+     * @param allTemplatesRequiringValidation
+     * @param updatedComponentTemplates
+     * @param updatedComposableIndexTemplates
+     */
+    public record InterimTemplateValidationInfo(
+        Map<String, ComposableIndexTemplate> allTemplatesRequiringValidation,
+        Map<String, ComponentTemplate> updatedComponentTemplates,
+        Map<String, ComposableIndexTemplate> updatedComposableIndexTemplates,
+        int componentTemplateOperationsCount,
+        int composableTemplateOperationsCount
+    ) {}
+
+    public InterimTemplateValidationInfo applyBulkTemplateUpdate(
+        final ClusterState currentState,
+        final Map<String, ComponentTemplateOperation> componentTemplateOperations,
+        final Map<String, ComposableTemplateOperation> composableTemplateOperations,
+        final Metadata.Builder metadataBuilder
     ) throws Exception {
         Map<String, ComponentTemplate> intialComponentTemplates = currentState.metadata().componentTemplates();
         Map<String, ComposableIndexTemplate> initialTemplatesV2 = currentState.metadata().templatesV2();
@@ -321,7 +351,7 @@ public class MetadataIndexTemplateService {
         }
 
         if (updatedComponentTemplates.isEmpty() && updatedComposableIndexTemplates.isEmpty()) {
-            return currentState;
+            return null;
         }
 
         // Collect all the composable index templates that use any of the updated component template. Additionally, collect all updated
@@ -377,8 +407,6 @@ public class MetadataIndexTemplateService {
             validateNoHiddenSettingOnGlobalTemplates(componentTemplateName, componentTemplate, composableTemplatesUsingThisComponent);
         }
 
-        Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
-
         // Sufficiently validated enough to apply changes to a candidate cluster state to complete the rest of the validation
         for (Map.Entry<String, ComponentTemplate> component : updatedComponentTemplates.entrySet()) {
             metadataBuilder.put(component.getKey(), component.getValue());
@@ -387,15 +415,26 @@ public class MetadataIndexTemplateService {
             metadataBuilder.put(indexTemplate.getKey(), indexTemplate.getValue());
         }
 
-        ClusterState candidateState = ClusterState.builder(currentState).metadata(metadataBuilder).build();
+        return new InterimTemplateValidationInfo(
+            allTemplatesRequiringValidation,
+            updatedComponentTemplates,
+            updatedComposableIndexTemplates,
+            componentTemplateOperations.size(),
+            composableTemplateOperations.size()
+        );
+    }
 
+    public void validateCandidateClusterState(
+        ClusterState currentState,
+        ClusterState candidateState,
+        InterimTemplateValidationInfo templateInfo
+    ) throws Exception {
         // Validate all changed composable index templates that have been updated, either directly or by changes to their dependencies
-        if (allTemplatesRequiringValidation.isEmpty() == false) {
+        if (templateInfo.allTemplatesRequiringValidation.isEmpty() == false) {
             Exception validationFailure = null;
-            for (Map.Entry<String, ComposableIndexTemplate> entry : allTemplatesRequiringValidation.entrySet()) {
+            for (Map.Entry<String, ComposableIndexTemplate> entry : templateInfo.allTemplatesRequiringValidation.entrySet()) {
                 final String composableTemplateName = entry.getKey();
                 final ComposableIndexTemplate composableTemplate = entry.getValue();
-                // PRTODO: This error matches what is expected for component template changes, but not for composable template changes
                 try {
                     validateIndexTemplateV2(
                         composableTemplateName,
@@ -405,7 +444,7 @@ public class MetadataIndexTemplateService {
                 } catch (Exception e) {
                     // For the sake of error message backwards compatibility, do not wrap the
                     // exception if this is a single composable index template updated
-                    if (composableTemplateOperations.size() == 1 && componentTemplateOperations.isEmpty()) {
+                    if (templateInfo.composableTemplateOperationsCount == 1 && templateInfo.componentTemplateOperationsCount == 0) {
                         throw e;
                     }
                     if (validationFailure == null) {
@@ -414,8 +453,8 @@ public class MetadataIndexTemplateService {
                                 + generateTemplateNamesForException(
                                     composableTemplateName,
                                     composableTemplate,
-                                    updatedComponentTemplates,
-                                    updatedComposableIndexTemplates
+                                    templateInfo.updatedComponentTemplates,
+                                    templateInfo.updatedComposableIndexTemplates
                                 )
                                 + "] results in invalid composable template ["
                                 + composableTemplateName
@@ -432,9 +471,7 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        validateDataStreamsStillReferenced(candidateState, currentState, updatedComposableIndexTemplates.keySet());
-
-        return candidateState;
+        validateDataStreamsStillReferenced(candidateState, currentState, templateInfo.updatedComposableIndexTemplates.keySet());
     }
 
     private static StringBuilder generateTemplateNamesForException(

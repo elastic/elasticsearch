@@ -83,6 +83,7 @@ public class VectorScoreScriptUtils {
                         for (float val : floatQueryVector) {
                             queryMagnitude += val * val;
                         }
+                        queryMagnitude = Math.sqrt(queryMagnitude);
                         for (int i = 0; i < floatQueryVector.length; i++) {
                             floatQueryVector[i] /= (float) queryMagnitude;
                         }

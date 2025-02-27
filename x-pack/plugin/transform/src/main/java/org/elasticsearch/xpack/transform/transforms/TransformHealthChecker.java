@@ -39,7 +39,9 @@ public final class TransformHealthChecker {
         TRANSFORM_TASK_FAILED("Transform task state is [failed]"),
         TRANSFORM_INDEXER_FAILED("Transform indexer failed"),
         TRANSFORM_INTERNAL_STATE_UPDATE_FAILED("Task encountered failures updating internal state"),
-        TRANSFORM_STARTUP_FAILED("Transform task is automatically retrying its startup process");
+        TRANSFORM_STARTUP_FAILED("Transform task is automatically retrying its startup process"),
+        TRANSFORM_IS_SLOW("Transform task is taking longer than its configured frequency. Data processing will be delayed."),
+        TRANSFORM_WAS_SLOW("Transform task was recently taking longer than its configured frequency, but it is recovering.");
 
         private final String issue;
 
@@ -161,6 +163,30 @@ public final class TransformHealthChecker {
                     transformContext.getStartUpFailureTime()
                 )
             );
+        }
+
+        if (transformContext.numberOfTimesTotalTimeWasGreaterThanFrequency() > 0) {
+            if (HealthStatus.RED.equals(maxStatus) == false) {
+                maxStatus = HealthStatus.YELLOW;
+            }
+            var checkpoints = transformContext.skippedCheckpoints();
+            /*if (checkpoints > 0) {
+                issues.add(
+                    IssueType.TRANSFORM_IS_SLOW.newIssue(
+                        "Transform has skipped " + checkpoints + " checkpoints.",
+                        transformContext.numberOfTimesTotalTimeWasGreaterThanFrequency(),
+                        transformContext.lastTotalTimeRecorded()
+                    )
+                );
+            } else {
+                issues.add(
+                    IssueType.TRANSFORM_WAS_SLOW.newIssue(
+                        null,
+                        transformContext.numberOfTimesTotalTimeWasGreaterThanFrequency(),
+                        transformContext.lastTotalTimeRecorded()
+                    )
+                );
+            }*/
         }
 
         return new TransformHealth(maxStatus, issues);

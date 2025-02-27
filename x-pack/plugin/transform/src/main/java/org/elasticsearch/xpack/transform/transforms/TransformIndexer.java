@@ -605,6 +605,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                 long durationMs = System.currentTimeMillis() - lastCheckpoint.getTimestamp();
                 getStats().incrementCheckpointExponentialAverages(durationMs < 0 ? 0 : durationMs, docsIndexed, docsProcessed);
+
+                if (getConfig().getFrequency() != null) {
+                    if (durationMs > getConfig().getFrequency().getMillis()) {
+                        context.totalTimeWasGreaterThanFrequency();
+                    } else {
+                        context.totalTimeWasLessThanFrequency();
+                    }
+                }
             }
             if (shouldAuditOnFinish(checkpoint)) {
                 auditor.info(getJobId(), "Finished indexing for transform checkpoint [" + checkpoint + "].");
@@ -659,10 +667,19 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             IndexerState indexerState = getState();
             if (IndexerState.INDEXING.equals(indexerState) || IndexerState.STOPPING.equals(indexerState)) {
                 logger.debug("[{}] indexer for transform has state [{}]. Ignoring trigger.", getJobId(), indexerState);
+                if (IndexerState.INDEXING.equals(indexerState)) {
+                    context.checkpointSkipped();
+                }
                 return false;
             }
 
-            return super.maybeTriggerAsyncJob(now);
+            var triggered = super.maybeTriggerAsyncJob(now);
+            if (triggered) {
+                context.resetSkippedCheckpoint();
+            } else {
+                context.checkpointSkipped();
+            }
+            return triggered;
         }
     }
 

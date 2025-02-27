@@ -68,7 +68,8 @@ final class SystemJvmOptions {
                 "-Dlog4j2.formatMsgNoLookups=true",
                 "-Djava.locale.providers=CLDR",
                 // Pass through distribution type
-                "-Des.distribution.type=" + distroType
+                "-Des.distribution.type=" + distroType,
+                "--add-opens=java.base/java.util.concurrent=org.elasticsearch.server"
             ),
             maybeEnableNativeAccess(useEntitlements),
             maybeOverrideDockerCgroup(distroType),

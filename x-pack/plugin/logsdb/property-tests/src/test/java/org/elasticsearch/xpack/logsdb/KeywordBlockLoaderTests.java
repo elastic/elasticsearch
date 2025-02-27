@@ -86,7 +86,8 @@ public class KeywordBlockLoaderTests {
     }
 
     @Property
-    void testComplexMapping(@ForAll("settings") Settings indexSettings, @ForAll("deepMapping") Map<String, Object> mapping) throws IOException {
+    void testComplexMapping(@ForAll("settings") Settings indexSettings, @ForAll("deepMapping") Map<String, Object> mapping)
+        throws IOException {
         var fullMapping = Map.of("_doc", Map.of("properties", Map.of("top", mapping)));
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(fullMapping);
         var mapperService = createMapperService(indexSettings, mappingXContent);

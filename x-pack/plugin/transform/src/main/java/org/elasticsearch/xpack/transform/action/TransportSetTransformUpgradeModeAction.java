@@ -110,6 +110,10 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
 
     private void unassignTransforms(ClusterState state, ActionListener<Void> listener) {
         PersistentTasksCustomMetadata tasksCustomMetadata = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
+        if (tasksCustomMetadata == null) {
+            listener.onResponse(null);
+            return;
+        }
         var transformTasks = tasksCustomMetadata.tasks()
             .stream()
             .filter(this::isTransformTask)

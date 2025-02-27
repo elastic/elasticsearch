@@ -297,11 +297,8 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         ReindexDataStreamTask reindexDataStreamTask,
         @Nullable ReindexDataStreamPersistentTaskState state
     ) {
-        PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
-            .getMetadata()
-            .getProject()
-            .custom(PersistentTasksCustomMetadata.TYPE);
-        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = persistentTasksCustomMetadata.getTask(
+        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = PersistentTasksCustomMetadata.getTaskWithId(
+            clusterService.state(),
             reindexDataStreamTask.getPersistentTaskId()
         );
         if (persistentTask == null) {

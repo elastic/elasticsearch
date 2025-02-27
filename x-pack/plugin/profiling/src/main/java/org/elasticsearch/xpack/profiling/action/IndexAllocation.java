@@ -25,7 +25,7 @@ final class IndexAllocation {
 
     static boolean isAnyAssignedToNode(ClusterState state, List<Index> indices, Predicate<DiscoveryNode> nodePredicate) {
         for (Index index : indices) {
-            IndexMetadata metadata = state.getMetadata().index(index);
+            IndexMetadata metadata = state.getMetadata().getProject().index(index);
             if (metadata == null) {
                 continue;
             }

@@ -89,6 +89,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(restoredIndexName)
             .getIndex();
 
@@ -151,6 +152,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(restoredIndexName)
             .getIndex();
 

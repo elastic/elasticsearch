@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -205,12 +206,12 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         return List.of(
             // Custom Metadata
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(IndexLifecycleMetadata.TYPE),
                 parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)
             ),
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(LifecycleOperationMetadata.TYPE),
                 parser -> LifecycleOperationMetadata.PARSER.parse(parser, null)
             ),
@@ -292,7 +293,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         );
     }
 
-    List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
+    List<ReservedClusterStateHandler<ClusterState, ?>> reservedClusterStateHandlers() {
         return List.of(reservedLifecycleAction.get());
     }
 

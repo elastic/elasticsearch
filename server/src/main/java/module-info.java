@@ -168,6 +168,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.cluster.health;
     exports org.elasticsearch.cluster.metadata;
     exports org.elasticsearch.cluster.node;
+    exports org.elasticsearch.cluster.project;
     exports org.elasticsearch.cluster.routing;
     exports org.elasticsearch.cluster.routing.allocation;
     exports org.elasticsearch.cluster.routing.allocation.allocator;
@@ -315,6 +316,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.repositories.blobstore;
     exports org.elasticsearch.repositories.fs;
     exports org.elasticsearch.reservedstate;
+    exports org.elasticsearch.reservedstate.service to org.elasticsearch.multiproject, org.elasticsearch.serverless.multiproject;
     exports org.elasticsearch.rest;
     exports org.elasticsearch.rest.action;
     exports org.elasticsearch.rest.action.admin.cluster;
@@ -414,6 +416,7 @@ module org.elasticsearch.server {
             org.elasticsearch.cluster.coordination.NodeToolCliProvider,
             org.elasticsearch.index.shard.ShardToolCliProvider;
 
+    uses org.elasticsearch.reservedstate.service.FileSettingsServiceProvider;
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
     uses org.elasticsearch.jdk.ModuleQualifiedExportsService;
     uses org.elasticsearch.node.internal.TerminationHandlerProvider;

@@ -50,6 +50,7 @@ import static org.apache.lucene.search.ScoreMode.TOP_DOCS;
  * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN)
  */
 public final class LuceneTopNSourceOperator extends LuceneOperator {
+
     public static class Factory extends LuceneOperator.Factory {
         private final int maxPageSize;
         private final List<SortBuilder<?>> sorts;

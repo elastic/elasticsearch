@@ -87,7 +87,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
 
             // check that closed indices are effectively closed
             final List<String> notClosedIndices = indicesToClose.stream()
-                .filter(index -> clusterState.metadata().index(index).getState() != State.CLOSE)
+                .filter(index -> clusterState.metadata().getProject().index(index).getState() != State.CLOSE)
                 .toList();
             assertThat("Some indices not closed", notClosedIndices, empty());
 

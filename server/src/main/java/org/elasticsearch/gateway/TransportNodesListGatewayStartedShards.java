@@ -133,7 +133,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                         customDataPath = request.getCustomDataPath();
                     } else {
                         // TODO: Fallback for BWC with older ES versions. Remove once request.getCustomDataPath() always returns non-null
-                        final IndexMetadata metadata = clusterService.state().metadata().index(shardId.getIndex());
+                        final IndexMetadata metadata = clusterService.state().metadata().getProject().index(shardId.getIndex());
                         if (metadata != null) {
                             customDataPath = new IndexSettings(metadata, settings).customDataPath();
                         } else {

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndexMappingUpdateService;
 import org.elasticsearch.indices.SystemIndices;
@@ -62,8 +63,9 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        Metadata currentMetadata = event.state().metadata();
-        Metadata previousMetadata = event.previousState().metadata();
+        @FixForMultiProject
+        ProjectMetadata currentMetadata = event.state().metadata().getProject();
+        ProjectMetadata previousMetadata = event.previousState().metadata().getProject();
         if (event.localNodeMaster()
             && (event.previousState().nodes().isLocalNodeElectedMaster() == false
                 || currentMetadata.indices() != previousMetadata.indices()
@@ -238,7 +240,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
             Metadata metadata = currentState.metadata();
             final List<IndexMetadata> updatedMetadata = new ArrayList<>();
             for (Index index : indices) {
-                IndexMetadata indexMetadata = metadata.index(index);
+                IndexMetadata indexMetadata = metadata.getProject().index(index);
                 final boolean shouldBeSystem = shouldBeSystem(indexMetadata);
                 IndexMetadata updatedIndexMetadata = updateIndexIfNecessary(indexMetadata, shouldBeSystem);
                 if (updatedIndexMetadata != null) {
@@ -307,17 +309,18 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
             for (DataStream updatedDataStream : updatedDataStreams) {
                 boolean shouldBeSystem = updatedDataStream.isSystem();
-                List<IndexMetadata> updatedIndicesMetadata = getIndicesBackingDataStreamMetadata(metadata, updatedDataStream).map(
-                    idx -> updateIndexIfNecessary(idx, shouldBeSystem)
-                ).filter(Objects::nonNull).toList();
+                List<IndexMetadata> updatedIndicesMetadata = getIndicesBackingDataStreamMetadata(metadata.getProject(), updatedDataStream)
+                    .map(idx -> updateIndexIfNecessary(idx, shouldBeSystem))
+                    .filter(Objects::nonNull)
+                    .toList();
 
                 updatedMetadata.addAll(updatedIndicesMetadata);
             }
             return updatedMetadata;
         }
 
-        private Stream<IndexMetadata> getIndicesBackingDataStreamMetadata(Metadata metadata, DataStream dataStream) {
-            return getIndicesBackingDataStream(dataStream).map(metadata::index);
+        private Stream<IndexMetadata> getIndicesBackingDataStreamMetadata(ProjectMetadata projectMetadata, DataStream dataStream) {
+            return getIndicesBackingDataStream(dataStream).map(projectMetadata::index);
         }
     }
 }

@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -32,7 +31,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -237,7 +236,7 @@ public class TransportIndicesShardStoresActionTests extends ESTestCase {
                 clusterService,
                 threadPool,
                 new ActionFilters(Set.of()),
-                new IndexNameExpressionResolver(threadPool.getThreadContext(), new SystemIndices(List.of())),
+                TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 null
             ) {
                 private final Semaphore pendingActionPermits = new Semaphore(DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS);

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -180,7 +180,7 @@ public interface Role {
     IndicesAccessControl authorize(
         String action,
         Set<String> requestedIndicesOrAliases,
-        Metadata metadata,
+        ProjectMetadata metadata,
         FieldPermissionsCache fieldPermissionsCache
     );
 

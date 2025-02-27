@@ -209,8 +209,6 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
               '--configuration-cache'
             ].join(' ') : ''
           }
-        }
-        runConfigurations {
           defaults(JUnit) {
             vmParameters = [
               '-ea',

@@ -1167,7 +1167,11 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         );
     }
 
-    public static ElasticInferenceService createServiceWithAuthHandler(HttpRequestSender.Factory senderFactory, String eisGatewayUrl, ThreadPool threadPool) {
+    public static ElasticInferenceService createServiceWithAuthHandler(
+        HttpRequestSender.Factory senderFactory,
+        String eisGatewayUrl,
+        ThreadPool threadPool
+    ) {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),

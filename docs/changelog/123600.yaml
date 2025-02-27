@@ -6,6 +6,11 @@ issues: []
 breaking:
   title: Drop `TLS_RSA` cipher support for JDK 24
   area: Cluster and node setting
-  details: This change removes `TLS_RSA` ciphers from the list of supported ciphers, for Elasticsearch deployments running on JDK 24.
-  impact: TODO
+  details: >-
+    This change removes `TLS_RSA` ciphers from the list of supported ciphers,
+    for Elasticsearch deployments running on JDK 24.
+  impact: >-
+    The dropped ciphers are `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`,
+    `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`,
+    and `TLS_RSA_WITH_AES_128_CBC_SHA`. TLS connections to Elasticsearch using these ciphers will no longer work.
   notable: true

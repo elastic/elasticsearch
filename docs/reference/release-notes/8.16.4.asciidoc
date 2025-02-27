@@ -39,4 +39,10 @@ Snapshot/Restore::
 Ingest Node::
 * Improve memory aspects of enrich cache {es-pull}120256[#120256] (issues: {es-issue}96050[#96050], {es-issue}120021[#120021])
 
+[discrete]
+[[known-issues-8.16.4]]
+=== Known issues
 
+ES|QL::
+
+* The `VALUES` aggregate function can run for an extremely long time when collecting many groups. Processing hundreds of thousands of groups may take several minutes on a single thread, while processing millions of groups can take days. The function has O(n^2) complexity with respect to the number of groups. During execution, these operations will not respond to the tasks cancellation API. This issue has been fixed by {es-pull}#123073[#123073] and the fix is available in versions 8.16.5, 8.17.3, 8.18.0, and all releases after that.

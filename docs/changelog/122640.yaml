@@ -1,0 +1,5 @@
+pr: 122640
+summary: Fix redact processor arraycopy bug
+area: Ingest Node
+type: bug
+issues: []

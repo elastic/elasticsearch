@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -51,7 +52,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.search.sort.FieldSortBuilder.validateMaxChildrenExistOnlyInTopLevelNestedSort;
@@ -278,11 +281,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 final StringSortScript.Factory factory = context.compile(script, StringSortScript.CONTEXT);
                 final StringSortScript.LeafFactory searchScript = factory.newFactory(script.getParams());
                 return new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
-                    StringSortScript leafScript;
+                    final Map<Object, StringSortScript> leafScripts = ConcurrentCollections.newConcurrentMap();
 
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        StringSortScript leafScript = getLeafScript(context);
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
 
@@ -302,8 +305,18 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     }
 
                     @Override
-                    protected void setScorer(Scorable scorer) {
-                        leafScript.setScorer(scorer);
+                    protected void setScorer(LeafReaderContext context, Scorable scorer) {
+                        getLeafScript(context).setScorer(scorer);
+                    }
+
+                    StringSortScript getLeafScript(LeafReaderContext context) {
+                        return leafScripts.computeIfAbsent(context.id(), o -> {
+                            try {
+                                return searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        });
                     }
 
                     @Override
@@ -328,11 +341,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 // searchLookup is unnecessary here, as it's just used for expressions
                 final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), searchLookup);
                 return new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
-                    NumberSortScript leafScript;
+                    final Map<Object, NumberSortScript> leafScripts = ConcurrentCollections.newConcurrentMap();
 
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = numberSortScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        NumberSortScript leafScript = getLeafScript(context);
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
                             public boolean advanceExact(int doc) {
@@ -349,8 +362,18 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     }
 
                     @Override
-                    protected void setScorer(Scorable scorer) {
-                        leafScript.setScorer(scorer);
+                    protected void setScorer(LeafReaderContext context, Scorable scorer) {
+                        getLeafScript(context).setScorer(scorer);
+                    }
+
+                    NumberSortScript getLeafScript(LeafReaderContext context) {
+                        return leafScripts.computeIfAbsent(context.id(), o -> {
+                            try {
+                                return numberSortScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        });
                     }
                 };
             }
@@ -358,11 +381,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 final BytesRefSortScript.Factory factory = context.compile(script, BytesRefSortScript.CONTEXT);
                 final BytesRefSortScript.LeafFactory searchScript = factory.newFactory(script.getParams());
                 return new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
-                    BytesRefSortScript leafScript;
+                    final Map<Object, BytesRefSortScript> leafScripts = ConcurrentCollections.newConcurrentMap();
 
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        BytesRefSortScript leafScript = getLeafScript(context);
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
 
                             @Override
@@ -391,8 +414,18 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     }
 
                     @Override
-                    protected void setScorer(Scorable scorer) {
-                        leafScript.setScorer(scorer);
+                    protected void setScorer(LeafReaderContext context, Scorable scorer) {
+                        getLeafScript(context).setScorer(scorer);
+                    }
+
+                    BytesRefSortScript getLeafScript(LeafReaderContext context) {
+                        return leafScripts.computeIfAbsent(context.id(), o -> {
+                            try {
+                                return searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        });
                     }
 
                     @Override

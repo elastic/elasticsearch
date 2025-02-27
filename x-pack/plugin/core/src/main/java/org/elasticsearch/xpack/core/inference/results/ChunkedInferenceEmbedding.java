@@ -40,7 +40,7 @@ public record ChunkedInferenceEmbedding(List<? extends EmbeddingResults.Chunk> c
     }
 
     @Override
-    public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) throws IOException {
+    public Iterator<Chunk> chunksAsByteReference(XContent xcontent) throws IOException {
         var asChunk = new ArrayList<Chunk>();
         for (var chunk : chunks()) {
             asChunk.add(chunk.toChunk(xcontent));

@@ -21,9 +21,10 @@ public interface ChunkedInference {
      * Implementations of this function serialize their embeddings to {@link BytesReference} for storage in semantic text fields.
      *
      * @param xcontent provided by the SemanticTextField
-     * @return an iterator of the serialized {@link Chunk} which includes the matched text (input) and bytes reference (output/embedding).
+     * @return an iterator of the serialized {@link Chunk} which includes the offset into the input text and bytes reference
+     * (output/embedding).
      */
-    Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) throws IOException;
+    Iterator<Chunk> chunksAsByteReference(XContent xcontent) throws IOException;
 
     /**
      * A chunk of inference results containing the substring location in the original text and the bytes reference.

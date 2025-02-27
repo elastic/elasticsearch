@@ -16,7 +16,7 @@ import java.util.Iterator;
 public record ChunkedInferenceError(Exception exception) implements ChunkedInference {
 
     @Override
-    public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) {
+    public Iterator<Chunk> chunksAsByteReference(XContent xcontent) {
         return Collections.emptyIterator();
     }
 }

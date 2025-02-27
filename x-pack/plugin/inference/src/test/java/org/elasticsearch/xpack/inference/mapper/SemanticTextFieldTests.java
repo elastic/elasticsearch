@@ -243,7 +243,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         final List<SemanticTextField.Chunk> chunks = new ArrayList<>(inputs.size());
         int offsetAdjustment = 0;
         Iterator<String> inputsIt = inputs.iterator();
-        Iterator<ChunkedInference.Chunk> chunkIt = results.chunksAsMatchedTextAndByteReference(contentType.xContent());
+        Iterator<ChunkedInference.Chunk> chunkIt = results.chunksAsByteReference(contentType.xContent());
         while (inputsIt.hasNext() && chunkIt.hasNext()) {
             String input = inputsIt.next();
             var chunk = chunkIt.next();

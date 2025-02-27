@@ -1,0 +1,5 @@
+pr: 123610
+summary: Disable concurrency when `top_hits` sorts on anything but `_score`
+area: "Aggregations"
+type: bug
+issues: []

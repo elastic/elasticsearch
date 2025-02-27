@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Square;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFunctionWritables;
@@ -171,6 +172,7 @@ public class ExpressionWritables {
         entries.add(Sinh.ENTRY);
         entries.add(Space.ENTRY);
         entries.add(Sqrt.ENTRY);
+        entries.add(Square.ENTRY);
         entries.add(StEnvelope.ENTRY);
         entries.add(StXMax.ENTRY);
         entries.add(StXMin.ENTRY);

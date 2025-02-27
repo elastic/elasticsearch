@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Comparator;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -45,7 +46,10 @@ public class ThreadPoolMergeExecutorService {
      * The merge tasks that are waiting execution. This does NOT include backlogged or currently executing merge tasks.
      * For instance, this can be empty while there are backlogged merge tasks awaiting re-enqueuing.
      */
-    private final PriorityBlockingQueue<MergeTask> queuedMergeTasks = new PriorityBlockingQueue<>();
+    private final PriorityBlockingQueue<MergeTask> queuedMergeTasks = new PriorityBlockingQueue<>(
+        32,
+        Comparator.comparingLong(MergeTask::estimatedMergeSize)
+    );
     /**
      * The set of all merge tasks currently being executed by merge threads from the pool.
      * These are tracked notably in order to be able to update their disk IO throttle rate, after they have started, while executing.

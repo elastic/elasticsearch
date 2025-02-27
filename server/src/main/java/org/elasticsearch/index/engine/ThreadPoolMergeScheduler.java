@@ -155,13 +155,27 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         throw new MergePolicy.MergeException(t);
     }
 
-    private boolean submitNewMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
+    // package-private for tests
+    boolean submitNewMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
         try {
             MergeTask mergeTask = newMergeTask(mergeSource, merge, mergeTrigger);
             return threadPoolMergeExecutorService.submitMergeTask(mergeTask);
         } finally {
             checkMergeTaskThrottling();
         }
+    }
+
+    // package-private for tests
+    MergeTask newMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
+        // forced merges, as well as merges triggered when closing a shard, always run un-IO-throttled
+        boolean isAutoThrottle = mergeTrigger != MergeTrigger.CLOSING && merge.getStoreMergeInfo().mergeMaxNumSegments() == -1;
+        // IO throttling cannot be toggled for existing merge tasks, only new merge tasks pick up the updated IO throttling setting
+        return new MergeTask(
+                mergeSource,
+                merge,
+                isAutoThrottle && config.isAutoThrottle(),
+                "Lucene Merge Task #" + submittedMergeTaskCount.incrementAndGet() + " for shard " + shardId
+        );
     }
 
     private void checkMergeTaskThrottling() {
@@ -178,18 +192,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // maybe disable merge task throttling
             disableIndexingThrottling(executingMergesCount, activeMerges - executingMergesCount, configuredMaxMergeCount);
         }
-    }
-
-    private MergeTask newMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
-        // forced merges, as well as merges triggered when closing a shard, always run un-IO-throttled
-        boolean isAutoThrottle = mergeTrigger != MergeTrigger.CLOSING && merge.getStoreMergeInfo().mergeMaxNumSegments() == -1;
-        // IO throttling cannot be toggled for existing merge tasks, only new merge tasks pick up the updated IO throttling setting
-        return new MergeTask(
-            mergeSource,
-            merge,
-            isAutoThrottle && config.isAutoThrottle(),
-            "Lucene Merge Task #" + submittedMergeTaskCount.incrementAndGet() + " for shard " + shardId
-        );
     }
 
     // synchronized so that {@code #closed}, {@code #currentlyRunningMergeTasks} and {@code #backloggedMergeTasks} are modified atomically

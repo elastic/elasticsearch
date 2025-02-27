@@ -155,7 +155,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
                 throw new AssertionError("Failed to find any non-warning output lines. Output was: \n" + result.stdout());
             }
 
-            enrollmentTokenHolder.set(filteredResult.getFirst());
+            enrollmentTokenHolder.set(filteredResult.get(0));
         }, 30, TimeUnit.SECONDS);
 
         return enrollmentTokenHolder.get();

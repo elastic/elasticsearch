@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
@@ -198,21 +199,25 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
     public void messageReceived(ClusterComputeRequest request, TransportChannel channel, Task task) {
         ChannelActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
         RemoteClusterPlan remoteClusterPlan = request.remoteClusterPlan();
-        var plan = remoteClusterPlan.plan();
-        if (plan instanceof ExchangeSinkExec == false) {
-            listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + plan));
-            return;
+        try {
+            var plan = remoteClusterPlan.plan();
+            if (plan instanceof ExchangeSinkExec == false) {
+                listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + plan));
+                return;
+            }
+            runComputeOnRemoteCluster(
+                request.clusterAlias(),
+                request.sessionId(),
+                (CancellableTask) task,
+                request.configuration(),
+                (ExchangeSinkExec) plan,
+                Set.of(remoteClusterPlan.targetIndices()),
+                remoteClusterPlan.originalIndices(),
+                listener
+            );
+        } catch (Exception e) {
+            listener.onFailure(new ElasticsearchException(request.clusterAlias() + " encountered an error", e));
         }
-        runComputeOnRemoteCluster(
-            request.clusterAlias(),
-            request.sessionId(),
-            (CancellableTask) task,
-            request.configuration(),
-            (ExchangeSinkExec) plan,
-            Set.of(remoteClusterPlan.targetIndices()),
-            remoteClusterPlan.originalIndices(),
-            listener
-        );
     }
 
     /**

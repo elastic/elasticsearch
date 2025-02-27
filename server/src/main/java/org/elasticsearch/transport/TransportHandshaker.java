@@ -227,17 +227,19 @@ final class TransportHandshaker {
     ) {
         if (TransportVersion.isCompatible(remoteTransportVersion)) {
             if (remoteTransportVersion.onOrAfter(localTransportVersion)) {
-                // Remote is newer than us, so we will be using our transport protocol and it's up to the other end to decide whether it
-                // knows how to do that.
+                // Remote is semantically newer than us (i.e. has a greater transport protocol version), so we propose using our current
+                // transport protocol version. If we're initiating the connection then that's the version we'll use; if the other end is
+                // initiating the connection then it's up to the other end to decide whether to use this version (if it knows it) or
+                // an earlier one.
                 return localTransportVersion;
             }
             final var bestKnownVersion = remoteTransportVersion.bestKnownVersion();
             if (bestKnownVersion.equals(TransportVersions.ZERO) == false) {
                 if (bestKnownVersion.equals(remoteTransportVersion) == false) {
-                    // Remote is older than us, and we do not know its exact transport protocol version, so we choose a still-older version
-                    // which we _do_ know (at least syntactically). However, this means that the remote is running a chronologically-newer
-                    // release than us, even though it's a numerically-older version. We recommend not doing this, it implies an upgrade
-                    // that goes backwards in time and therefore may regress in some way:
+                    // Remote is semantically older than us (i.e. has a lower transport protocol version), but we do not know its exact
+                    // transport protocol version so it must be chronologically newer. We recommend not doing this, it implies an upgrade
+                    // that goes backwards in time and therefore may regress in some way, so we emit a warning. But we carry on with the
+                    // best known version anyway since both ends will know it.
                     logger.warn(
                         """
                             Negotiating transport handshake with remote node with version [{}/{}] received on [{}] which appears to be \
@@ -251,7 +253,7 @@ final class TransportHandshaker {
                         localTransportVersion,
                         bestKnownVersion
                     );
-                } // else remote is older and we _do_ know its version, so we just use that without further fuss.
+                } // else remote is semantically older and we _do_ know its version, so we just use that without further fuss.
                 return bestKnownVersion;
             }
         }

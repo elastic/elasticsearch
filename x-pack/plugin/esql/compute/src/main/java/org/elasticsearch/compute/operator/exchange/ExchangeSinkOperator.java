@@ -94,7 +94,7 @@ public class ExchangeSinkOperator extends SinkOperator {
 
     @Override
     public String toString() {
-        return "ExchangeSinkOperator";
+        return "ExchangeSinkOperator[" + sink.exchangeId() + "]";
     }
 
     @Override

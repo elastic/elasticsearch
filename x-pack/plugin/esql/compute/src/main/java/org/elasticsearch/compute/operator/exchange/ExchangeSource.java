@@ -39,4 +39,9 @@ public interface ExchangeSource {
      * Allows callers to stop reading from the source when it's blocked
      */
     IsBlockedResult waitForReading();
+
+    /**
+     * Session ID for this exchange
+     */
+    String exchangeId();
 }

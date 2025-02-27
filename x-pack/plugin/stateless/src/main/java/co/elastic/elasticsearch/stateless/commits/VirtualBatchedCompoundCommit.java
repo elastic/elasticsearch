@@ -867,9 +867,9 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         /**
          * Produce an input stream for an index file that updates a running checksum as it is read, and validates it against the Lucene
-         * footer when it is closed. The file must have been read to the end for this to succeed.
+         * footer when it is read to the end.
          * @return an input stream for this instance's filename
-         * @throws IOException on an IO error opening the file (and the stream may throw CorruptIndexException on close)
+         * @throws IOException on an IO error opening the file (and the stream may throw CorruptIndexException on read)
          */
         @Override
         public InputStream getInputStream() throws IOException {
@@ -877,25 +877,28 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             logger.trace("opening validating input for {}", filename);
 
             return new InputStreamIndexInput(input, input.length()) {
-                /** only validate when the stream is first closed, as {@link SlicedInputStream} advances to the next iterator */
-                boolean closed = false;
+                @Override
+                public int read() throws IOException {
+                    int ret = super.read();
+                    verifyAtEnd();
+                    return ret;
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    int ret = super.read(b, off, len);
+                    verifyAtEnd();
+                    return ret;
+                }
 
                 @Override
                 public void close() throws IOException {
-                    if (closed) {
-                        return;
-                    }
+                    IOUtils.close(super::close, input);
+                }
 
-                    closed = true;
-                    try {
-                        // only verify if we've read to the end of the stream. If we close early for another reason, e.g., an IO error
-                        // during read, we'd otherwise trigger a misleading CorruptIndexException here.
-                        // Note this does mean that we can't rely on checksum errors to detect truncation during upload.
-                        if (input.getFilePointer() == input.length()) {
-                            input.verify();
-                        }
-                    } finally {
-                        IOUtils.close(super::close, input);
+                void verifyAtEnd() throws IOException {
+                    if (input.getFilePointer() == input.length()) {
+                        input.verify();
                     }
                 }
             };

@@ -5,6 +5,12 @@ mapped_pages:
 
 # QueryDSL [query-dsl]
 
+:::{note}
+This section provides detailed **reference information**.
+
+Refer to the [Query DSL overview](docs-content://explore-analyze/query-filter/languages/querydsl.md) in the **Explore and analyze** section for overview and conceptual information about Query DSL.
+:::
+
 Elasticsearch provides a full Query DSL (Domain Specific Language) based on JSON to define queries. Think of the Query DSL as an AST (Abstract Syntax Tree) of queries, consisting of two types of clauses:
 
 Leaf query clauses

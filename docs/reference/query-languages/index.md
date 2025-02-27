@@ -5,13 +5,14 @@ applies_to:
 ---
 # Query languages
 
-% TO-DO: Add links to "What are query languages?"%
+This section contains reference information for Elastic query languages.
 
-This section contains reference information for data analysis features, including:
+* [Query DSL](querydsl.md)
+* [ES|QL](esql.md)
+* [SQL](sql.md)
+* [EQL](eql.md)
+* [KQL](kql.md)
 
-* QueryDSL
-* Retrievers
-* ES|QL
-* SQL
-* EQL
-* KQL
+:::{tip}
+Refer to [query languages](docs-content://explore-analyze/query-filter/languages.md) in the **Explore and analyze** section for overview and conceptual information about each language.
+:::

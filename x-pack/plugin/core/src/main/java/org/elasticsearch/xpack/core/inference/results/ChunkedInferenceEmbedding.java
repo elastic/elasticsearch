@@ -29,7 +29,6 @@ public record ChunkedInferenceEmbedding(List<? extends EmbeddingResults.Chunk> c
                     List.of(
                         new SparseEmbeddingResults.Chunk(
                             sparseEmbeddingResults.embeddings().get(i).tokens(),
-                            inputs.get(i),
                             new TextOffset(0, inputs.get(i).length())
                         )
                     )

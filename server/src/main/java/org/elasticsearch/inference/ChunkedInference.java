@@ -26,13 +26,11 @@ public interface ChunkedInference {
     Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) throws IOException;
 
     /**
-     * A chunk of inference results containing matched text, the substring location
-     * in the original text and the bytes reference.
-     * @param matchedText
+     * A chunk of inference results containing the substring location in the original text and the bytes reference.
      * @param textOffset
      * @param bytesReference
      */
-    record Chunk(String matchedText, TextOffset textOffset, BytesReference bytesReference) {}
+    record Chunk(TextOffset textOffset, BytesReference bytesReference) {}
 
     record TextOffset(int start, int end) {}
 }

@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -231,10 +232,18 @@ public abstract class LuceneOperator extends SourceOperator {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("maxPageSize = ").append(maxPageSize);
+        sb.append("shards = ").append(sortedUnion(processedShards, sliceQueue.remainingShardsIdentifiers()));
+        sb.append(", maxPageSize = ").append(maxPageSize);
         describe(sb);
         sb.append("]");
         return sb.toString();
+    }
+
+    private static Set<String> sortedUnion(Collection<String> a, Collection<String> b) {
+        var result = new TreeSet<String>();
+        result.addAll(a);
+        result.addAll(b);
+        return result;
     }
 
     protected abstract void describe(StringBuilder sb);

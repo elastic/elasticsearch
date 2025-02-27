@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -28,6 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * @deprecated in 9.0
  */
 @Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutAnalyticsCollectionAction extends EnterpriseSearchBaseRestHandler {
     public RestPutAnalyticsCollectionAction(XPackLicenseState licenseState) {

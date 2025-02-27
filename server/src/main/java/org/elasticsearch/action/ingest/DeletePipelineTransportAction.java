@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
@@ -31,13 +32,15 @@ public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNo
 
     public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/ingest/pipeline/delete");
     private final IngestService ingestService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public DeletePipelineTransportAction(
         ThreadPool threadPool,
         IngestService ingestService,
         TransportService transportService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             TYPE.name(),
@@ -49,6 +52,7 @@ public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNo
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.ingestService = ingestService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -58,7 +62,7 @@ public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNo
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        ingestService.delete(request, listener);
+        ingestService.delete(projectResolver.getProjectId(), request, listener);
     }
 
     @Override

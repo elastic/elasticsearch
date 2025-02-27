@@ -35,16 +35,22 @@ public class BranchingStepTests extends AbstractStepTestCase<BranchingStep> {
         {
             BranchingStep step = new BranchingStep(stepKey, nextStepKey, nextSkipKey, (i, c) -> true);
             expectThrows(IllegalStateException.class, step::getNextStepKey);
-            step.performAction(state.metadata().index(indexName).getIndex(), state);
+            step.performAction(state.metadata().getProject().index(indexName).getIndex(), state);
             assertThat(step.getNextStepKey(), equalTo(step.getNextStepKeyOnTrue()));
-            expectThrows(SetOnce.AlreadySetException.class, () -> step.performAction(state.metadata().index(indexName).getIndex(), state));
+            expectThrows(
+                SetOnce.AlreadySetException.class,
+                () -> step.performAction(state.metadata().getProject().index(indexName).getIndex(), state)
+            );
         }
         {
             BranchingStep step = new BranchingStep(stepKey, nextStepKey, nextSkipKey, (i, c) -> false);
             expectThrows(IllegalStateException.class, step::getNextStepKey);
-            step.performAction(state.metadata().index(indexName).getIndex(), state);
+            step.performAction(state.metadata().getProject().index(indexName).getIndex(), state);
             assertThat(step.getNextStepKey(), equalTo(step.getNextStepKeyOnFalse()));
-            expectThrows(SetOnce.AlreadySetException.class, () -> step.performAction(state.metadata().index(indexName).getIndex(), state));
+            expectThrows(
+                SetOnce.AlreadySetException.class,
+                () -> step.performAction(state.metadata().getProject().index(indexName).getIndex(), state)
+            );
         }
     }
 

@@ -106,7 +106,7 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
     }
 
     private WatcherMetadata getWatcherMetadata() {
-        WatcherMetadata watcherMetadata = clusterService.state().getMetadata().custom(WatcherMetadata.TYPE);
+        WatcherMetadata watcherMetadata = clusterService.state().getMetadata().getProject().custom(WatcherMetadata.TYPE);
         if (watcherMetadata == null) {
             watcherMetadata = new WatcherMetadata(false);
         }

@@ -19,12 +19,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -39,6 +41,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     public static final boolean DEFAULT_VERBOSE_MODE = true;
 
     private static final TransportVersion INDICES_FLAG_VERSION = TransportVersions.V_8_3_0;
+    private static final TransportVersion STATE_FLAG_VERSION = TransportVersions.STATE_PARAM_GET_SNAPSHOT;
 
     public static final int NO_LIMIT = -1;
 
@@ -76,6 +79,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     private boolean verbose = DEFAULT_VERBOSE_MODE;
 
     private boolean includeIndexNames = true;
+
+    private EnumSet<SnapshotState> state = EnumSet.noneOf(SnapshotState.class);
 
     public GetSnapshotsRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
@@ -118,6 +123,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         if (in.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
             includeIndexNames = in.readBoolean();
         }
+        if (in.getTransportVersion().onOrAfter(STATE_FLAG_VERSION)) {
+            state = in.readEnumSet(SnapshotState.class);
+        }
     }
 
     @Override
@@ -136,6 +144,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         out.writeOptionalString(fromSortValue);
         if (out.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
             out.writeBoolean(includeIndexNames);
+        }
+        if (out.getTransportVersion().onOrAfter(STATE_FLAG_VERSION)) {
+            out.writeEnumSet(state);
         }
     }
 
@@ -340,6 +351,15 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      */
     public boolean verbose() {
         return verbose;
+    }
+
+    public EnumSet<SnapshotState> state() {
+        return state;
+    }
+
+    public GetSnapshotsRequest state(EnumSet<SnapshotState> state) {
+        this.state = state;
+        return this;
     }
 
     @Override

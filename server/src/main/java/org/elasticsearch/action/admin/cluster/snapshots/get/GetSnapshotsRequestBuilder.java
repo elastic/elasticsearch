@@ -15,6 +15,9 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.snapshots.SnapshotState;
+
+import java.util.EnumSet;
 
 /**
  * Get snapshots request builder
@@ -150,4 +153,8 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
 
     }
 
+    public GetSnapshotsRequestBuilder setState(EnumSet<SnapshotState> state) {
+        request.state(state);
+        return this;
+    }
 }

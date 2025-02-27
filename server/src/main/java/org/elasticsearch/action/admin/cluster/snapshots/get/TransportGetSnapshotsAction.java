@@ -45,6 +45,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -54,6 +55,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -160,7 +162,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             request.size(),
             SnapshotsInProgress.get(state),
             request.verbose(),
-            request.includeIndexNames()
+            request.includeIndexNames(),
+            request.state()
         ).runOperation(listener);
     }
 
@@ -181,6 +184,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final SnapshotNamePredicate snapshotNamePredicate;
         private final SnapshotPredicates fromSortValuePredicates;
         private final Predicate<String> slmPolicyPredicate;
+        private final EnumSet<SnapshotState> state;
 
         // snapshot ordering/pagination
         private final SnapshotSortKey sortBy;
@@ -224,7 +228,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             int size,
             SnapshotsInProgress snapshotsInProgress,
             boolean verbose,
-            boolean indices
+            boolean indices,
+            EnumSet<SnapshotState> state
         ) {
             this.cancellableTask = cancellableTask;
             this.repositories = repositories;
@@ -237,6 +242,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             this.snapshotsInProgress = snapshotsInProgress;
             this.verbose = verbose;
             this.indices = indices;
+            this.state = state;
 
             this.snapshotNamePredicate = SnapshotNamePredicate.forSnapshots(ignoreUnavailable, snapshots);
             this.fromSortValuePredicates = SnapshotPredicates.forFromSortValue(fromSortValue, sortBy, order);
@@ -558,11 +564,16 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 return false;
             }
 
+            final var details = repositoryData.getSnapshotDetails(snapshotId);
+
+            if (!state.isEmpty() && !state.contains(details.getSnapshotState())) {
+                return false;
+            }
+
             if (slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES) {
                 return true;
             }
 
-            final var details = repositoryData.getSnapshotDetails(snapshotId);
             return details == null || details.getSlmPolicy() == null || slmPolicyPredicate.test(details.getSlmPolicy());
         }
 

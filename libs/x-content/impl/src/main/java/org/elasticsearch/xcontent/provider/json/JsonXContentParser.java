@@ -18,7 +18,6 @@ import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
-import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -81,22 +80,22 @@ public class JsonXContentParser extends AbstractXContentParser {
         }
     }
 
-    private static <T> T safeParse(CheckedSupplier<T, IOException> runnable) throws IOException {
+    @Override
+    public Token nextToken() throws IOException {
         try {
-            return runnable.get();
+            return convertToken(parser.nextToken());
         } catch (IOException e) {
             throw handleParserException(e);
         }
     }
 
     @Override
-    public Token nextToken() throws IOException {
-        return safeParse(() -> convertToken(parser.nextToken()));
-    }
-
-    @Override
     public String nextFieldName() throws IOException {
-        return safeParse(parser::nextFieldName);
+        try {
+            return parser.nextFieldName();
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
@@ -121,7 +120,11 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     protected boolean doBooleanValue() throws IOException {
-        return safeParse(parser::getBooleanValue);
+        try {
+            return parser.getBooleanValue();
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
@@ -129,7 +132,11 @@ public class JsonXContentParser extends AbstractXContentParser {
         if (currentToken().isValue() == false) {
             throwOnNoText();
         }
-        return safeParse(parser::getText);
+        try {
+            return parser.getText();
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     private void throwOnNoText() {
@@ -138,7 +145,11 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public CharBuffer charBuffer() throws IOException {
-        return safeParse(() -> CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength()));
+        try {
+            return CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength());
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
@@ -184,52 +195,92 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public char[] textCharacters() throws IOException {
-        return safeParse(parser::getTextCharacters);
+        try {
+            return parser.getTextCharacters();
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
     public int textLength() throws IOException {
-        return safeParse(parser::getTextLength);
+        try {
+            return parser.getTextLength();
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
     public int textOffset() throws IOException {
-        return safeParse(parser::getTextOffset);
+        try {
+            return parser.getTextOffset();
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
     public Number numberValue() throws IOException {
-        return safeParse(parser::getNumberValue);
+        try {
+            return parser.getNumberValue();
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
     public short doShortValue() throws IOException {
-        return safeParse(parser::getShortValue);
+        try {
+            return parser.getShortValue();
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
     public int doIntValue() throws IOException {
-        return safeParse(parser::getIntValue);
+        try {
+            return parser.getIntValue();
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
     public long doLongValue() throws IOException {
-        return safeParse(parser::getLongValue);
+        try {
+            return parser.getLongValue();
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
     public float doFloatValue() throws IOException {
-        return safeParse(parser::getFloatValue);
+        try {
+            return parser.getFloatValue();
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
     public double doDoubleValue() throws IOException {
-        return safeParse(parser::getDoubleValue);
+        try {
+            return parser.getDoubleValue();
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
     public byte[] binaryValue() throws IOException {
-        return safeParse(parser::getBinaryValue);
+        try {
+            return parser.getBinaryValue();
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override

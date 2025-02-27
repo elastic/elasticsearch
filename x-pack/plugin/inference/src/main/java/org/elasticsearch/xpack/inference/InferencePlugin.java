@@ -327,6 +327,7 @@ public class InferencePlugin extends Plugin
         // Only add InferenceServiceNodeLocalRateLimitCalculator (which is a ClusterStateListener) for cluster aware rate limiting,
         // if the rate limiting feature flags are enabled, otherwise provide noop implementation
         InferenceServiceRateLimitCalculator calculator;
+        // TODO: Verify assumption that it the feature flag is cluster-wide and not node-specific (maybe add an InferenceFeature?)
         if (INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG.isEnabled()) {
             calculator = new InferenceServiceNodeLocalRateLimitCalculator(services.clusterService(), serviceRegistry);
         } else {

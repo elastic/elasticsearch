@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceInferenceRequest;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 
 import java.util.List;
 import java.util.Objects;
@@ -72,5 +74,15 @@ public class HuggingFaceRequestManager extends BaseRequestManager {
         public static RateLimitGrouping of(HuggingFaceModel model) {
             return new RateLimitGrouping(new HuggingFaceAccount(model.rateLimitServiceSettings().uri(), model.apiKey()).hashCode());
         }
+    }
+
+    @Override
+    public String service() {
+        return HuggingFaceService.NAME;
+    }
+
+    @Override
+    public TaskType taskType() {
+        return TaskType.TEXT_EMBEDDING;
     }
 }

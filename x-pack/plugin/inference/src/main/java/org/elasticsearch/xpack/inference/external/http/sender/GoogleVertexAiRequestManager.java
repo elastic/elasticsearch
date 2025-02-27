@@ -9,10 +9,16 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 
 public abstract class GoogleVertexAiRequestManager extends BaseRequestManager {
 
     GoogleVertexAiRequestManager(ThreadPool threadPool, GoogleVertexAiModel model, Object rateLimitGroup) {
         super(threadPool, model.getInferenceEntityId(), rateLimitGroup, model.rateLimitServiceSettings().rateLimitSettings());
+    }
+
+    @Override
+    public String service() {
+        return GoogleVertexAiService.NAME;
     }
 }

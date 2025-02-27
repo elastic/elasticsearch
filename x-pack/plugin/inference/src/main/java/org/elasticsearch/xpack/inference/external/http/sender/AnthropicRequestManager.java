@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.anthropic.AnthropicAccount;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicModel;
+import org.elasticsearch.xpack.inference.services.anthropic.AnthropicService;
 
 import java.util.Objects;
 
@@ -25,5 +26,10 @@ abstract class AnthropicRequestManager extends BaseRequestManager {
 
             return new RateLimitGrouping(AnthropicAccount.of(model).hashCode(), model.rateLimitServiceSettings().modelId().hashCode());
         }
+    }
+
+    @Override
+    public String service() {
+        return AnthropicService.NAME;
     }
 }

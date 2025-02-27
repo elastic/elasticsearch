@@ -660,8 +660,6 @@ public final class CsvTestUtils {
 
     private static double scaledFloat(String value, String factor) {
         double scalingFactor = Double.parseDouble(factor);
-        // this extra division introduces extra imprecision in the following multiplication, but this is how ScaledFloatFieldMapper works.
-        double scalingFactorInverse = 1d / scalingFactor;
-        return new BigDecimal(value).multiply(BigDecimal.valueOf(scalingFactor)).longValue() * scalingFactorInverse;
+        return new BigDecimal(value).multiply(BigDecimal.valueOf(scalingFactor)).longValue() / scalingFactor;
     }
 }

@@ -23,6 +23,7 @@ import java.util.Set;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
+@SuppressWarnings({ "unused" /* called via reflection */ })
 class NioChannelsActions {
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
@@ -51,7 +52,7 @@ class NioChannelsActions {
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void createAsynchronousFileChannel() throws IOException {
+    static void createAsynchronousFileChannel() {
         new DummyImplementations.DummyAsynchronousFileChannel().close();
     }
 

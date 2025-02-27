@@ -40,9 +40,9 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Custom metadata that contains auto follow patterns and what leader indices an auto follow pattern has already followed.
+ * ProjectCustom metadata that contains auto follow patterns and what leader indices an auto follow pattern has already followed.
  */
-public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
     public static final String TYPE = "ccr_auto_follow";
 

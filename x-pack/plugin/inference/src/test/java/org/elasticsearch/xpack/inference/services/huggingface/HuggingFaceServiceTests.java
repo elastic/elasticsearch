@@ -34,7 +34,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -783,12 +784,17 @@ public class HuggingFaceServiceTests extends ESTestCase {
             );
 
             var result = listener.actionGet(TIMEOUT).get(0);
-            assertThat(result, CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
-            var embeddingResult = (ChunkedInferenceEmbeddingFloat) result;
+            assertThat(result, CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
+            var embeddingResult = (ChunkedInferenceEmbedding) result;
             assertThat(embeddingResult.chunks(), hasSize(1));
             assertThat(embeddingResult.chunks().get(0).matchedText(), is("abc"));
             assertThat(embeddingResult.chunks().get(0).offset(), is(new ChunkedInference.TextOffset(0, "abc".length())));
-            assertArrayEquals(new float[] { -0.0123f, 0.0123f }, embeddingResult.chunks().get(0).embedding(), 0.001f);
+            assertThat(embeddingResult.chunks().get(0), Matchers.instanceOf(TextEmbeddingFloatResults.Chunk.class));
+            assertArrayEquals(
+                new float[] { -0.0123f, 0.0123f },
+                ((TextEmbeddingFloatResults.Chunk) embeddingResult.chunks().get(0)).embedding(),
+                0.001f
+            );
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(
@@ -833,11 +839,16 @@ public class HuggingFaceServiceTests extends ESTestCase {
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(1));
             {
-                assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
-                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(0);
+                assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
+                var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals("abc", floatResult.chunks().get(0).matchedText());
-                assertArrayEquals(new float[] { 0.123f, -0.123f }, floatResult.chunks().get(0).embedding(), 0.0f);
+                assertThat(floatResult.chunks().get(0), Matchers.instanceOf(TextEmbeddingFloatResults.Chunk.class));
+                assertArrayEquals(
+                    new float[] { 0.123f, -0.123f },
+                    ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding(),
+                    0.0f
+                );
             }
 
             assertThat(webServer.requests(), hasSize(1));

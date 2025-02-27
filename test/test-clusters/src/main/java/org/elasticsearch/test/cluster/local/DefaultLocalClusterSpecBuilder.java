@@ -19,9 +19,13 @@ public final class DefaultLocalClusterSpecBuilder extends AbstractLocalClusterSp
 
     public DefaultLocalClusterSpecBuilder() {
         super();
-        this.apply(
-            c -> c.systemProperty("ingest.geoip.downloader.enabled.default", "false").systemProperty("tests.testfeatures.enabled", "true")
-        );
+        this.apply(c -> {
+            c.systemProperty("ingest.geoip.downloader.enabled.default", "false");
+            // enable test features unless we are running forwards compatibility tests
+            if (Boolean.parseBoolean(System.getProperty("tests.fwc", "false")) == false) {
+                c.systemProperty("tests.testfeatures.enabled", "true");
+            }
+        });
         this.apply(new FipsEnabledClusterConfigProvider());
         this.settings(new DefaultSettingsProvider());
         this.environment(new DefaultEnvironmentProvider());

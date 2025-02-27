@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -62,7 +63,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         provider = new SyntheticSourceIndexSettingsProvider(syntheticSourceLicenseService, im -> {
             newMapperServiceCounter.incrementAndGet();
             return MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName());
-        }, getLogsdbIndexModeSettingsProvider(false), IndexVersion::current);
+        }, getLogsdbIndexModeSettingsProvider(false), IndexVersion::current, () -> Version.CURRENT);
         newMapperServiceCounter.set(0);
     }
 
@@ -275,7 +276,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         }
     }
 
-    public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSource() throws IOException {
+    public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSource() {
         String dataStreamName = "logs-app1";
         Metadata.Builder mb = Metadata.builder(
             DataStreamTestHelper.getClusterStateWithDataStreams(
@@ -344,13 +345,47 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         assertThat(newMapperServiceCounter.get(), equalTo(0));
     }
 
+    public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSourceOldNode() {
+        String dataStreamName = "logs-app1";
+        Metadata.Builder mb = Metadata.builder(
+            DataStreamTestHelper.getClusterStateWithDataStreams(
+                List.of(Tuple.tuple(dataStreamName, 1)),
+                List.of(),
+                Instant.now().toEpochMilli(),
+                builder().build(),
+                1
+            ).getMetadata()
+        );
+        Metadata metadata = mb.build();
+
+        Settings settings = builder().put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+            .build();
+
+        syntheticSourceLicenseService.setSyntheticSourceFallback(true);
+        provider = new SyntheticSourceIndexSettingsProvider(syntheticSourceLicenseService, im -> {
+            newMapperServiceCounter.incrementAndGet();
+            return MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName());
+        }, getLogsdbIndexModeSettingsProvider(false), IndexVersion::current, () -> Version.V_8_16_0);
+        var result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            null,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertTrue(result.isEmpty());
+    }
+
     public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSourceFileMatch() throws IOException {
         syntheticSourceLicenseService.setSyntheticSourceFallback(true);
         provider = new SyntheticSourceIndexSettingsProvider(
             syntheticSourceLicenseService,
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
             getLogsdbIndexModeSettingsProvider(true),
-            IndexVersion::current
+            IndexVersion::current,
+            () -> Version.CURRENT
         );
         final Settings settings = Settings.EMPTY;
 

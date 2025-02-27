@@ -316,7 +316,7 @@ final class TransportHandshaker {
     ) {
         return Strings.format(
             "Performed a handshake with a remote node with version [%s/%s] received on [%s] which "
-                + "will be incompatible after this node on version [%s/%s] is upgraded to 9.x.",
+                + "will be incompatible after this node on version [%s/%s] is upgraded to >= 9.x.",
             remoteReleaseVersion,
             remoteTransportVersion,
             channel,

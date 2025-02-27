@@ -61,7 +61,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.Strings.format;
@@ -332,7 +332,8 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                 ShardState.FAILED,
                                 shard.getValue().reason(),
                                 shard.getValue().generation(),
-                                () -> null
+                                // Shard snapshot never began, so there is no status object to update.
+                                (outcomeInfoString) -> {}
                             );
                         }
                     } else {
@@ -395,7 +396,6 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         for (final Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
             final ShardId shardId = shardEntry.getKey();
             final ShardSnapshotStatus masterShardSnapshotStatus = shardEntry.getValue();
-            IndexShardSnapshotStatus indexShardSnapshotStatus = localShardSnapshots.get(shardId);
 
             if (masterShardSnapshotStatus.state() != ShardState.INIT) {
                 // shard snapshot not currently scheduled by master
@@ -416,10 +416,8 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                     ShardState.PAUSED_FOR_NODE_REMOVAL,
                     "paused",
                     masterShardSnapshotStatus.generation(),
-                    () -> {
-                        indexShardSnapshotStatus.updateStatusDescription("finished: master notification attempt complete");
-                        return null;
-                    }
+                    // Shard snapshot never began, so there is no status object to update
+                    (outcomeInfoString) -> {}
                 );
             } else {
                 // shard snapshot currently running, mark for pause
@@ -436,9 +434,8 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         final IndexVersion entryVersion,
         final long entryStartTime
     ) {
-        Supplier<Void> postMasterNotificationAction = () -> {
-            snapshotStatus.updateStatusDescription("finished: master notification attempt complete");
-            return null;
+        Consumer<String> postMasterNotificationAction = (outcomeInfoString) -> {
+            snapshotStatus.updateStatusDescription("Data node shard snapshot finished. Remote master update outcome: " + outcomeInfoString);
         };
 
         // Listener that runs on completion of the shard snapshot: it will notify the master node of success or failure.
@@ -692,7 +689,15 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                 snapshot.snapshot(),
                                 shardId,
                                 localShard.getValue().getShardSnapshotResult(),
-                                () -> null
+                                (outcomeInfoString) -> localShard.getValue().updateStatusDescription(
+                                    Strings.format("""
+                                        Data node already successfully finished shard snapshot, but a new master needed to be notified. New
+                                        remote master notification outcome: [%s]. The prior shard snapshot status description was [%s]
+                                        """,
+                                        outcomeInfoString,
+                                        indexShardSnapshotStatus.getStatusDescription()
+                                    )
+                                )
                             );
                         } else if (stage == Stage.FAILURE) {
                             // but we think the shard failed - we need to make new master know that the shard failed
@@ -708,7 +713,17 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                 ShardState.FAILED,
                                 indexShardSnapshotStatus.getFailure(),
                                 localShard.getValue().generation(),
-                                () -> null
+                                // Update the original statusDescription with the latest remote master call outcome, but include the old
+                                // response. This will allow us to see when/whether the information reached the previous and current master.
+                                (outcomeInfoString) -> localShard.getValue().updateStatusDescription(
+                                    Strings.format("""
+                                        Data node already failed shard snapshot, but a new master needed to be notified. New remote master
+                                        notification outcome: [%s]. The prior shard snapshot status description was [%s]
+                                        """,
+                                        outcomeInfoString,
+                                        indexShardSnapshotStatus.getStatusDescription()
+                                    )
+                                )
                             );
                         } else if (stage == Stage.PAUSED) {
                             // but we think the shard has paused - we need to make new master know that
@@ -722,7 +737,16 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                 ShardState.PAUSED_FOR_NODE_REMOVAL,
                                 indexShardSnapshotStatus.getFailure(),
                                 localShard.getValue().generation(),
-                                () -> null
+                                (outcomeInfoString) -> localShard.getValue()
+                                    .updateStatusDescription(
+                                        Strings.format("""
+                                            Data node already paused shard snapshot, but a new master needed to be notified. New remote
+                                            master notification outcome: [%s]. The prior shard snapshot status description was [%s]
+                                            """,
+                                            outcomeInfoString,
+                                            indexShardSnapshotStatus.getStatusDescription()
+                                        )
+                                    )
                             );
                         }
                     }
@@ -739,7 +763,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         final Snapshot snapshot,
         final ShardId shardId,
         ShardSnapshotResult shardSnapshotResult,
-        Supplier<Void> postMasterNotificationAction
+        Consumer<String> postMasterNotificationAction
     ) {
         assert shardSnapshotResult != null;
         assert shardSnapshotResult.getGeneration() != null;
@@ -760,7 +784,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         final ShardState shardState,
         final String failure,
         final ShardGeneration generation,
-        Supplier<Void> postMasterNotificationAction
+        Consumer<String> postMasterNotificationAction
     ) {
         assert shardState == ShardState.FAILED || shardState == ShardState.PAUSED_FOR_NODE_REMOVAL : shardState;
         sendSnapshotShardUpdate(
@@ -784,29 +808,31 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         final Snapshot snapshot,
         final ShardId shardId,
         final ShardSnapshotStatus status,
-        Supplier<Void> postMasterNotificationAction
+        Consumer<String> postMasterNotificationAction
     ) {
         ActionListener<Void> updateResultListener = new ActionListener<>() {
             @Override
             public void onResponse(Void aVoid) {
+                snapshotShutdownProgressTracker.releaseRequestSentToMaster(snapshot, shardId);
+                postMasterNotificationAction.accept(
+                    Strings.format("successfully sent shard snapshot state [%s] update to the master node", status.state())
+                );
                 logger.trace("[{}][{}] updated snapshot state to [{}]", shardId, snapshot, status);
             }
 
             @Override
             public void onFailure(Exception e) {
+                snapshotShutdownProgressTracker.releaseRequestSentToMaster(snapshot, shardId);
+                postMasterNotificationAction.accept(
+                    Strings.format("exception trying to send shard snapshot state [%s] update to the master node [%s]", status.state(), e)
+                );
                 logger.warn(() -> format("[%s][%s] failed to update snapshot state to [%s]", shardId, snapshot, status), e);
             }
         };
 
-        snapshotShutdownProgressTracker.trackRequestSentToMaster(snapshot, shardId);
-        var releaseTrackerRequestRunsBeforeResultListener = ActionListener.runBefore(updateResultListener, () -> {
-            snapshotShutdownProgressTracker.releaseRequestSentToMaster(snapshot, shardId);
-            postMasterNotificationAction.get();
-        });
-
         remoteFailedRequestDeduplicator.executeOnce(
             new UpdateIndexShardSnapshotStatusRequest(snapshot, shardId, status),
-            releaseTrackerRequestRunsBeforeResultListener,
+            updateResultListener,
             (req, reqListener) -> transportService.sendRequest(
                 transportService.getLocalNode(),
                 SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,

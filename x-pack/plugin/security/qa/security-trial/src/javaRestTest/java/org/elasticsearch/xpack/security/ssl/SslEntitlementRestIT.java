@@ -41,20 +41,20 @@ public class SslEntitlementRestIT extends ESRestTestCase {
     }
 
     public void testSslEntitlementInaccessiblePath() throws IOException {
-        settingsProvider.put("xpack.security.transport.ssl.keystore.path", "/bad/path");
+        settingsProvider.put("xpack.security.transport.ssl.key", "/bad/path/transport.key");
+        settingsProvider.put("xpack.security.transport.ssl.certificate", "/bad/path/transport.crt");
         expectThrows(Exception.class, () -> cluster.restart(false));
         AtomicBoolean found = new AtomicBoolean(false);
         for (int i = 0; i < cluster.getNumNodes(); i++) {
             try (InputStream log = cluster.getNodeLog(i, LogType.SERVER)) {
                 Streams.readAllLines(log, line -> {
-                    // TODO improve the matching on error message here
                     if (line.contains("failed to load SSL configuration") && line.contains("because access to read the file is blocked")) {
                         found.set(true);
                     }
                 });
             }
         }
-        assertThat(found.get(), is(true));
+        assertThat("cluster logs did not include events of blocked file access", found.get(), is(true));
     }
 
     @Override

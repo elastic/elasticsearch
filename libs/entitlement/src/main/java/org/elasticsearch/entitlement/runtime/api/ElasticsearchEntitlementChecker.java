@@ -655,7 +655,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     private static boolean isNetworkUrlConnection(java.net.URLConnection urlConnection) {
         var connectionClass = urlConnection.getClass();
-        return connectionClass.isAssignableFrom(HttpURLConnection.class)
+        return HttpURLConnection.class.isAssignableFrom(connectionClass)
             || ADDITIONAL_NETWORK_URL_CONNECT_CLASS_NAMES.contains(connectionClass.getName());
     }
 

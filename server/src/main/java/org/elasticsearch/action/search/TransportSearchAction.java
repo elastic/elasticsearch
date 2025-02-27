@@ -11,7 +11,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -1424,13 +1423,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         List<SearchShardIterator> localShardIterators,
         List<SearchShardIterator> remoteShardIterators
     ) {
-        final List<SearchShardIterator> shards;
         if (remoteShardIterators.isEmpty()) {
-            shards = localShardIterators;
-        } else {
-            shards = CollectionUtils.concatLists(remoteShardIterators, localShardIterators);
+            return localShardIterators;
         }
-        CollectionUtil.timSort(shards);
+        final List<SearchShardIterator> shards = CollectionUtils.concatLists(remoteShardIterators, localShardIterators);
+        shards.sort(SearchShardIterator::compareTo);
         return shards;
     }
 

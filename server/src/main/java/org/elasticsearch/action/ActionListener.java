@@ -28,6 +28,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.ActionListenerImplementations.checkedRunnableFromReleasable;
 import static org.elasticsearch.action.ActionListenerImplementations.runnableFromReleasable;
 import static org.elasticsearch.action.ActionListenerImplementations.safeAcceptException;
 import static org.elasticsearch.action.ActionListenerImplementations.safeOnFailure;
@@ -340,18 +341,9 @@ public interface ActionListener<Response> {
      * resource before the listener is notified via either {@code #onResponse} or {@code #onFailure}.
      */
     static <Response> ActionListener<Response> releaseBefore(ActionListener<Response> delegate, Releasable releaseBefore) {
-        Runnable releasableRunnable = runnableFromReleasable(releaseBefore);
-        return assertOnce(new ActionListenerImplementations.RunBeforeActionListener<>(delegate, new CheckedRunnable<>() {
-            @Override
-            public void run() {
-                releasableRunnable.run();
-            }
-
-            @Override
-            public String toString() {
-                return releasableRunnable.toString();
-            }
-        }));
+        return assertOnce(
+            new ActionListenerImplementations.RunBeforeActionListener<>(delegate, checkedRunnableFromReleasable(releaseBefore))
+        );
     }
 
     /**

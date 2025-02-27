@@ -15,11 +15,15 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
 import org.junit.Before;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -30,12 +34,14 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.EXACT;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.LTE;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.PREFIX;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.SUFFIX;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class QueryRuleTests extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
+    private static final Logger logger = LoggerFactory.getLogger(QueryRuleTests.class);
 
     @Before
     public void registerNamedObjects() {
@@ -53,6 +59,87 @@ public class QueryRuleTests extends ESTestCase {
         }
     }
 
+    public void testNumericValidationWithValidValues() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "numeric_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "lte", "metadata": "price", "values": ["100.50", "200"] }
+              ],
+              "actions": {
+                "ids": ["id1"]
+              }
+            }""");
+        testToXContentRules(content);
+    }
+
+    public void testNumericValidationWithInvalidValues() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "numeric_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "lte", "metadata": "price", "values": ["abc"] }
+              ],
+              "actions": {
+                "ids": ["id1"]
+              }
+            }""");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        logger.info("Actual error message for invalid values: " + e.getMessage());
+        assertTrue(
+            "Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'",
+            e.getMessage().contains("Failed to build [query_rule]")
+        );
+    }
+
+    public void testNumericValidationWithMixedValues() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "numeric_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "lte", "metadata": "price", "values": ["100", "abc", "200"] }
+              ],
+              "actions": {
+                "ids": ["id1"]
+              }
+            }""");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        logger.info("Actual error message for mixed values: " + e.getMessage());
+        assertTrue(
+            "Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'",
+            e.getMessage().contains("Failed to build [query_rule]")
+        );
+    }
+
+    public void testNumericValidationWithEmptyValues() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "numeric_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "lte", "metadata": "price", "values": [] }
+              ],
+              "actions": {
+                "ids": ["id1"]
+              }
+            }""");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        logger.info("Actual error message: " + e.getMessage());
+        assertTrue(e.getMessage().contains("failed to parse field [criteria]"));
+    }
+
     public void testToXContent() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
@@ -66,15 +153,7 @@ public class QueryRuleTests extends ESTestCase {
               },
               "priority": 5
             }""");
-
-        QueryRule queryRule = QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON);
-        boolean humanReadable = true;
-        BytesReference originalBytes = toShuffledXContent(queryRule, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-        QueryRule parsed;
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-            parsed = QueryRule.fromXContent(parser);
-        }
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+        testToXContentRules(content);
     }
 
     public void testToXContentEmptyCriteria() throws IOException {
@@ -85,7 +164,15 @@ public class QueryRuleTests extends ESTestCase {
               "criteria": [],
               "actions": {}
             }""");
-        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        logger.info("Actual error message for empty criteria: " + e.getMessage());
+        assertTrue(
+            "Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'",
+            e.getMessage().contains("Failed to build [query_rule]")
+        );
     }
 
     public void testToXContentValidPinnedRulesWithIds() throws IOException {
@@ -331,6 +418,62 @@ public class QueryRuleTests extends ESTestCase {
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
         assertEquals(Collections.emptyList(), appliedQueryRules.pinnedDocs());
         assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
+    }
+
+    public void testValidateNumericComparisonRule() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new QueryRule(
+                "test_rule",
+                QueryRule.QueryRuleType.PINNED,
+                List.of(new QueryRuleCriteria(QueryRuleCriteriaType.LTE, "price", List.of("not_a_number"))),
+                Map.of("ids", List.of("1")),
+                null
+            )
+        );
+        assertEquals("Input [not_a_number] is not valid for CriteriaType [lte]", e.getMessage());
+    }
+
+    public void testParseNumericComparisonRule() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        {
+            builder.field("rule_id", "test_rule");
+            builder.field("type", "pinned");
+            builder.startArray("criteria");
+            {
+                builder.startObject();
+                builder.field("type", "lte");
+                builder.field("metadata", "price");
+                builder.startArray("values").value("100").endArray();
+                builder.endObject();
+            }
+            builder.endArray();
+            builder.startObject("actions");
+            {
+                builder.startArray("ids").value("1").endArray();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+
+        BytesReference bytesRef = BytesReference.bytes(builder);
+        QueryRule rule = QueryRule.fromXContentBytes(bytesRef, builder.contentType());
+        assertNotNull(rule);
+        assertEquals("test_rule", rule.id());
+        assertEquals(QueryRule.QueryRuleType.PINNED, rule.type());
+        assertEquals(1, rule.criteria().size());
+        assertEquals(LTE, rule.criteria().get(0).criteriaType());
+        assertEquals("100", rule.criteria().get(0).criteriaValues().get(0));
+    }
+
+    public void testIsRuleMatchWithNumericComparison() {
+        QueryRuleCriteria criteria = new QueryRuleCriteria(LTE, "price", List.of("100"));
+        QueryRule rule = new QueryRule("test_rule", QueryRule.QueryRuleType.PINNED, List.of(criteria), Map.of("ids", List.of("1")), null);
+
+        assertTrue(rule.isRuleMatch(Map.of("price", "50")));
+        assertFalse(rule.isRuleMatch(Map.of("price", "150")));
+        assertFalse(rule.isRuleMatch(Map.of("price", "not_a_number")));
     }
 
     private void assertXContent(QueryRule queryRule, boolean humanReadable) throws IOException {

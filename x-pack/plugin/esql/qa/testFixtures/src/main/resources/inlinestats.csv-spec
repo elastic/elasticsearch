@@ -3,7 +3,7 @@
 //
 
 maxOfInt
-required_capability: inlinestats_v3
+required_capability: inlinestats_v4
 // tag::max-languages[]
 FROM employees
 | KEEP emp_no, languages
@@ -25,7 +25,7 @@ emp_no:integer | languages:integer | max_lang:integer
 ;
 
 maxOfIntByKeyword
-required_capability: inlinestats_v3
+required_capability: inlinestats_v4
 
 FROM employees
 | KEEP emp_no, languages, gender
@@ -43,7 +43,7 @@ emp_no:integer | languages:integer | max_lang:integer | gender:keyword
 ;
 
 maxOfLongByKeyword
-required_capability: inlinestats_v3
+required_capability: inlinestats_v4
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, gender
@@ -58,7 +58,7 @@ emp_no:integer | avg_worked_seconds:long | max_avg_worked_seconds:long | gender:
 ;
 
 maxOfLong
-required_capability: inlinestats_v3
+required_capability: inlinestats_v4
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, gender
@@ -71,7 +71,7 @@ emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_secon
 ;
 
 maxOfLongByCalculatedKeyword
-required_capability: inlinestats_v3
+required_capability: inlinestats_v4
 
 // tag::longest-tenured-by-first[]
 FROM employees
@@ -94,7 +94,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_se
 ;
 
 maxOfLongByCalculatedNamedKeyword
-required_capability: inlinestats_v3
+required_capability: inlinestats_v4
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, last_name
@@ -113,7 +113,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_se
 ;
 
 maxOfLongByCalculatedDroppedKeyword
-required_capability: join_planning_v1
+required_capability: inlinestats_v4
 
 FROM employees
 | INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY l = SUBSTRING(last_name, 0, 1)
@@ -132,7 +132,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_se
 ;
 
 maxOfLongByEvaledKeyword
-required_capability: inlinestats_v3
+required_capability: inlinestats_v4
 
 FROM employees
 | EVAL l = SUBSTRING(last_name, 0, 1)
@@ -152,7 +152,7 @@ emp_no:integer | avg_worked_seconds:long | max_avg_worked_seconds:long | l:keywo
 ;
 
 maxOfLongByInt
-required_capability: inlinestats_v3
+required_capability: inlinestats_v4
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, languages
@@ -170,7 +170,7 @@ emp_no:integer | avg_worked_seconds:long | max_avg_worked_seconds:long | languag
 ;
 
 maxOfLongByIntDouble
-required_capability: inlinestats_v3
+required_capability: inlinestats_v4
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, languages, height
@@ -244,7 +244,7 @@ abbrev:keyword | type:keyword | scalerank:integer | min_scalerank:integer
 ;
 
 byMvExpand
-required_capability: join_planning_v1
+required_capability: inlinestats_v4
 
 // tag::extreme-airports[]
 FROM airports
@@ -308,7 +308,7 @@ count:long | country:keyword | avg:double
 ;
 
 afterWhere
-required_capability: join_planning_v1
+required_capability: inlinestats_v4
 
 FROM airports
 | WHERE country != "United States"
@@ -367,7 +367,7 @@ abbrev:keyword | city:keyword |       region:text | "COUNT(*)":long
 ;
 
 beforeStats
-required_capability: inlinestats_v3
+required_capability: inlinestats_v4
 
 FROM airports
 | EVAL lat = ST_Y(location)
@@ -380,7 +380,7 @@ northern:long | southern:long
 ;
 
 beforeKeepSort
-required_capability: join_planning_v1
+required_capability: inlinestats_v4
 
 FROM employees
 | INLINESTATS max_salary = MAX(salary) by languages
@@ -501,7 +501,7 @@ Zürich       | Zürich
 ;
 
 byConstant
-required_capability: join_planning_v1
+required_capability: inlinestats_v4
 
 FROM employees
 | KEEP emp_no, languages
@@ -520,7 +520,7 @@ emp_no:integer | languages:integer | max_lang:integer | y:integer
 ;
 
 aggConstant
-required_capability: join_planning_v1
+required_capability: inlinestats_v4
 
 FROM employees
 | KEEP emp_no
@@ -538,7 +538,7 @@ one:integer | emp_no:integer
 ;
 
 percentile
-required_capability: inlinestats_v3
+required_capability: inlinestats_v4
 
 FROM employees
 | KEEP emp_no, salary
@@ -557,7 +557,7 @@ emp_no:integer | salary:integer | ninety_fifth_salary:double
 ;
 
 byTwoCalculated
-required_capability: join_planning_v1
+required_capability: inlinestats_v4
 
 FROM airports
 | WHERE abbrev IS NOT NULL
@@ -642,7 +642,7 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 ;
 
 groupShadowsField
-required_capability: join_planning_v1
+required_capability: inlinestats_v4
 
   FROM employees
 | KEEP emp_no, salary, hire_date
@@ -661,7 +661,7 @@ emp_no:integer | salary:integer | avg_salary:double |  hire_date:datetime
 ;
 
 groupByRenamedColumn-Ignore
-
+required_capability: inlinestats_v4
 FROM employees
 | KEEP emp_no, languages, gender
 | INLINESTATS max_lang = MAX(languages) BY y = gender

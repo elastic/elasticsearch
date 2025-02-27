@@ -19,6 +19,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
@@ -64,7 +65,11 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
         getDataStreamsRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         getDataStreamsRequest.indicesOptions(IndicesOptions.fromRequest(request, getDataStreamsRequest.indicesOptions()));
         getDataStreamsRequest.verbose(request.paramAsBoolean("verbose", false));
-        return channel -> client.execute(GetDataStreamAction.INSTANCE, getDataStreamsRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
+            GetDataStreamAction.INSTANCE,
+            getDataStreamsRequest,
+            new RestToXContentListener<>(channel)
+        );
     }
 
     @Override

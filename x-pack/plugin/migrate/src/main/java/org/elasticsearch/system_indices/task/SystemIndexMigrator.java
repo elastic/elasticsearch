@@ -470,9 +470,11 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             settingsBuilder.remove("index.blocks.read");
             settingsBuilder.remove("index.blocks.metadata");
         }
-        createIndexRequest.waitForActiveShards(ActiveShardCount.ALL)
-            .mapping(migrationInfo.getMappings())
-            .settings(Objects.requireNonNullElse(settingsBuilder.build(), Settings.EMPTY));
+        createIndexRequest
+                .cause(SystemIndices.MIGRATE_SYSTEM_INDEX_CAUSE)
+                .waitForActiveShards(ActiveShardCount.ALL)
+                .mapping(migrationInfo.getMappings())
+                .settings(Objects.requireNonNullElse(settingsBuilder.build(), Settings.EMPTY));
 
         baseClient.admin().indices().create(createIndexRequest, listener);
     }
@@ -480,17 +482,19 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     private void createIndexRetryOnFailure(SystemIndexMigrationInfo migrationInfo, ActionListener<CreateIndexResponse> listener) {
         createIndex(migrationInfo, listener.delegateResponse((l, e) -> {
             logger.warn(
-                "createIndex failed with {}, retrying after removing index [{}] from previous attempt",
+                "createIndex failed with \"{}\", retrying after removing index [{}] from previous attempt",
                 e.getMessage(),
                 migrationInfo.getNextIndexName()
             );
             deleteIndex(migrationInfo, ActionListener.wrap(cleanupResponse -> createIndex(migrationInfo, l.delegateResponse((l3, e3) -> {
+                e3.addSuppressed(e);
                 logger.error(
                     "createIndex failed after retrying, aborting system index migration. index: " + migrationInfo.getNextIndexName(),
                     e3
                 );
                 l.onFailure(e3);
             })), e2 -> {
+                e2.addSuppressed(e);
                 logger.error("deleteIndex failed, aborting system index migration. index: " + migrationInfo.getNextIndexName(), e2);
                 l.onFailure(e2);
             }));

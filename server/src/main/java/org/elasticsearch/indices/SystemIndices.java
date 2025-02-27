@@ -120,6 +120,7 @@ public class SystemIndices {
      */
     public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_8_0_0;
     public static final IndexVersion NO_UPGRADE_REQUIRED_INDEX_VERSION = IndexVersions.V_8_0_0;
+    public static final String MIGRATE_SYSTEM_INDEX_CAUSE = "migrate-system-index";
 
     private static final int UPGRADED_TO_VERSION = NO_UPGRADE_REQUIRED_VERSION.major + 1;
     public static final String UPGRADED_INDEX_SUFFIX = "-reindexed-for-" + UPGRADED_TO_VERSION;

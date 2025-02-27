@@ -282,6 +282,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             exception.getMessage().toLowerCase(Locale.ROOT),
             anyOf(
                 containsString("read timed out"),
+                containsString("premature eof"),
                 containsString("premature end of chunk coded message body: closing chunk expected"),
                 containsString("Read timed out"),
                 containsString("unexpected end of file from server")
@@ -351,6 +352,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             exception.getMessage().toLowerCase(Locale.ROOT),
             anyOf(
                 // closing the connection after sending the headers and some incomplete body might yield one of these:
+                containsString("premature eof"),
                 containsString("premature end of chunk coded message body: closing chunk expected"),
                 containsString("premature end of content-length delimited message body"),
                 containsString("connection closed prematurely"),

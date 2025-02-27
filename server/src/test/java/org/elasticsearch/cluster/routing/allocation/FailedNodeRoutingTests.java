@@ -71,8 +71,8 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test1"))
-            .addAsNew(metadata.index("test2"))
+            .addAsNew(metadata.getProject().index("test1"))
+            .addAsNew(metadata.getProject().index("test2"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -140,7 +140,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             CreateIndexRequest request = new CreateIndexRequest(name, indexSettings(randomIntBetween(1, 4), randomIntBetween(2, 4)).build())
                 .waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
-            assertTrue(state.metadata().hasIndex(name));
+            assertTrue(state.metadata().getProject().hasIndex(name));
         }
 
         logger.info("--> starting shards");
@@ -214,6 +214,9 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             allNodes.add(createNode());
         }
         ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[allNodes.size()]));
+
+        // Check that the internal state of the routing table is correct. If this fails then everything else is likely to be broken too
+        assertTrue(state.globalRoutingTable().validate(state.metadata()));
         return state;
     }
 

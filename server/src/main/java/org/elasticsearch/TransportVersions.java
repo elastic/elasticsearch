@@ -10,6 +10,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
@@ -205,6 +206,7 @@ public class TransportVersions {
     public static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES = def(9_015_0_00);
     public static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = def(9_016_0_00);
     public static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = def(9_017_0_00);
+    public static final TransportVersion MULTI_PROJECT = def(9_018_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -97,6 +97,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.logging.FileHandler;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -1843,6 +1844,78 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$java_nio_file_spi_FileSystemProvider$(Class<?> callerClass) {
         policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, boolean append) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, int limit, int count) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, int limit, int count, boolean append) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, long limit, int count, boolean append) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$close(Class<?> callerClass, FileHandler that) {
+        // Note that there's no IT test for this one, because there's no way to create
+        // a FileHandler. However, we have this check just in case someone does manage
+        // to get their hands on a FileHandler and uses close() to cause its lock file to be deleted.
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_net_http_HttpRequest$BodyPublishers$$ofFile(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_net_http_HttpResponse$BodyHandlers$$ofFile(Class<?> callerClass, Path path) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_net_http_HttpResponse$BodyHandlers$$ofFile(Class<?> callerClass, Path path, OpenOption... options) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_net_http_HttpResponse$BodyHandlers$$ofFileDownload(
+        Class<?> callerClass,
+        Path directory,
+        OpenOption... openOptions
+    ) {
+        policyManager.checkFileWrite(callerClass, directory);
+    }
+
+    @Override
+    public void check$java_net_http_HttpResponse$BodySubscribers$$ofFile(Class<?> callerClass, Path directory) {
+        policyManager.checkFileWrite(callerClass, directory);
+    }
+
+    @Override
+    public void check$java_net_http_HttpResponse$BodySubscribers$$ofFile(Class<?> callerClass, Path directory, OpenOption... openOptions) {
+        policyManager.checkFileWrite(callerClass, directory);
     }
 
     @Override

@@ -338,10 +338,10 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         builder.field(PRIMARY_REJECTIONS, primaryRejections);
         builder.field(REPLICA_REJECTIONS, replicaRejections);
         builder.field(PRIMARY_DOCUMENT_REJECTIONS, primaryDocumentRejections);
+        builder.field(LARGE_OPERATION_REJECTIONS, largeOpsRejections);
         builder.endObject();
         builder.humanReadableField(LIMIT_IN_BYTES, LIMIT, ByteSizeValue.ofBytes(memoryLimit));
         builder.endObject();
-        builder.field(LARGE_OPERATION_REJECTIONS, largeOpsRejections);
         return builder.endObject();
     }
 }

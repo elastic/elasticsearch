@@ -469,6 +469,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             settingsBuilder.remove("index.blocks.metadata");
         }
         createIndexRequest.cause(SystemIndices.MIGRATE_SYSTEM_INDEX_CAUSE)
+            .ackTimeout(TimeValue.ZERO)
+            .masterNodeTimeout(TimeValue.MINUS_ONE)
             .waitForActiveShards(ActiveShardCount.ALL)
             .mapping(migrationInfo.getMappings())
             .settings(Objects.requireNonNullElse(settingsBuilder.build(), Settings.EMPTY));

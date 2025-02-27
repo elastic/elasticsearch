@@ -423,7 +423,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
     }
 
     private void writeKibanaInfo(ZipOutputStream zip, String dirName, CertificateTool.CAInfo ca, Environment env) {
-        final String caCertName = "elasticsearch-ca.pem";
+        final String caCertName = "elasticsearch-ca.p12";
         final String caCert = ca == null ? "" : caCertName;
         final String ymlFile = "sample-kibana.yml";
 
@@ -437,10 +437,16 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         try {
             writeTextFile(zip, dirName + "/README.txt", KIBANA_README, substitutions);
             if (ca != null) {
-                writePemEntry(zip, dirName + "/" + caCert, new JcaMiscPEMGenerator(ca.certAndKey.cert));
+                final KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
+                pkcs12.load(null);
+                pkcs12.setKeyEntry("elasticsearch-ca", ca.certAndKey.key, ca.password, new Certificate[] { ca.certAndKey.cert });
+                try (ZipEntryStream entry = new ZipEntryStream(zip, dirName + "/elasticsearch-ca.p12")) {
+                    pkcs12.store(entry, ca.password);
+                }
+
             }
             writeTextFile(zip, dirName + "/" + ymlFile, KIBANA_YML, substitutions);
-        } catch (IOException e) {
+        } catch (KeyStoreException | IOException | CertificateException | NoSuchAlgorithmException e) {
             throw new ElasticsearchException("Failed to write Kibana details ZIP file", e);
         }
     }

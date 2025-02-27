@@ -45,7 +45,7 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        final Map<String, DataStream> dataStreams = state.metadata().dataStreams();
+        final Map<String, DataStream> dataStreams = state.metadata().getProject().dataStreams();
         long backingIndicesCounter = 0;
         long failureStoreExplicitlyEnabledCounter = 0;
         long failureStoreEffectivelyEnabledCounter = 0;

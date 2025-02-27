@@ -17,10 +17,10 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.IndexProperties;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.ManagedBy;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
@@ -30,8 +30,9 @@ import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -57,7 +58,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
-public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction<
+public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjectAction<
     GetDataStreamAction.Request,
     GetDataStreamAction.Response> {
 
@@ -75,6 +76,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices,
         DataStreamGlobalRetentionSettings globalRetentionSettings,
@@ -88,6 +90,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
             threadPool,
             actionFilters,
             GetDataStreamAction.Request::new,
+            projectResolver,
             GetDataStreamAction.Response::new,
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
@@ -103,7 +106,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
     protected void masterOperation(
         Task task,
         GetDataStreamAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetDataStreamAction.Response> listener
     ) throws Exception {
         if (request.verbose()) {
@@ -155,7 +158,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
     }
 
     static GetDataStreamAction.Response innerOperation(
-        ClusterState state,
+        ProjectState state,
         GetDataStreamAction.Request request,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices,
@@ -164,7 +167,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
         @Nullable Map<String, Long> maxTimestamps
     ) {
-        List<DataStream> dataStreams = getDataStreams(state, indexNameExpressionResolver, request);
+        List<DataStream> dataStreams = getDataStreams(state.metadata(), indexNameExpressionResolver, request);
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
         for (DataStream dataStream : dataStreams) {
             // For this action, we are returning whether the failure store is effectively enabled, either in metadata or by cluster setting.
@@ -201,12 +204,13 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
             }
 
             ClusterStateHealth streamHealth = new ClusterStateHealth(
-                state,
-                dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new)
+                state.cluster(),
+                dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new),
+                state.projectId()
             );
 
             Map<Index, IndexProperties> backingIndicesSettingsValues = new HashMap<>();
-            Metadata metadata = state.getMetadata();
+            ProjectMetadata metadata = state.metadata();
             collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getIndices());
             if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
                 collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getFailureIndices());
@@ -295,7 +299,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
     private static void collectIndexSettingsValues(
         DataStream dataStream,
         Map<Index, IndexProperties> backingIndicesSettingsValues,
-        Metadata metadata,
+        ProjectMetadata metadata,
         List<Index> backingIndices
     ) {
         for (Index index : backingIndices) {
@@ -314,19 +318,15 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
         }
     }
 
-    static List<DataStream> getDataStreams(
-        ClusterState clusterState,
-        IndexNameExpressionResolver iner,
-        GetDataStreamAction.Request request
-    ) {
-        List<String> results = DataStreamsActionUtil.getDataStreamNames(iner, clusterState, request.getNames(), request.indicesOptions());
-        Map<String, DataStream> dataStreams = clusterState.metadata().dataStreams();
+    static List<DataStream> getDataStreams(ProjectMetadata project, IndexNameExpressionResolver iner, GetDataStreamAction.Request request) {
+        List<String> results = DataStreamsActionUtil.getDataStreamNames(iner, project, request.getNames(), request.indicesOptions());
+        Map<String, DataStream> dataStreams = project.dataStreams();
 
         return results.stream().map(dataStreams::get).sorted(Comparator.comparing(DataStream::getName)).toList();
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetDataStreamAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetDataStreamAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

@@ -11,6 +11,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptModule;
@@ -27,6 +30,7 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -40,7 +44,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class ClusterStateRoleMapperTests extends ESTestCase {
+public class ProjectStateRoleMapperTests extends ESTestCase {
 
     private ScriptService scriptService;
     private ClusterService clusterService;
@@ -66,12 +70,17 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
     }
 
     public void testRegisterForClusterChangesIfEnabled() {
-        ClusterStateRoleMapper roleMapper = new ClusterStateRoleMapper(enabledSettings, scriptService, clusterService);
+        ProjectStateRoleMapper roleMapper = new ProjectStateRoleMapper(
+            enabledSettings,
+            scriptService,
+            clusterService,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+        );
         verify(clusterService, times(1)).addListener(same(roleMapper));
     }
 
     public void testNoRegisterForClusterChangesIfNotEnabled() {
-        new ClusterStateRoleMapper(disabledSettings, scriptService, clusterService);
+        new ProjectStateRoleMapper(disabledSettings, scriptService, clusterService, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
         verifyNoInteractions(clusterService);
     }
 
@@ -83,11 +92,21 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
         ExpressionRoleMapping mapping2 = mockExpressionRoleMapping(true, Set.of("role2"));
         ExpressionRoleMapping mapping3 = mockExpressionRoleMapping(true, Set.of("role3"), expressionModel);
         RoleMappingMetadata roleMappingMetadata = new RoleMappingMetadata(Set.of(mapping1, mapping2, mapping3));
-        ClusterState state = roleMappingMetadata.updateClusterState(ClusterState.builder(new ClusterName("elasticsearch")).build());
+
+        final var projectId = randomProjectIdOrDefault();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(roleMappingMetadata.updateProject(projectMetadata))
+            .build();
         when(clusterService.state()).thenReturn(state);
         {
             // the role mapper is enabled
-            ClusterStateRoleMapper roleMapper = new ClusterStateRoleMapper(enabledSettings, scriptService, clusterService);
+            ProjectStateRoleMapper roleMapper = new ProjectStateRoleMapper(
+                enabledSettings,
+                scriptService,
+                clusterService,
+                TestProjectResolvers.singleProject(projectId)
+            );
             PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
             roleMapper.resolveRoles(userData, future);
             Set<String> roleNames = future.get();
@@ -102,7 +121,12 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
         }
         {
             // but if the role mapper is disabled, NO roles are resolved
-            ClusterStateRoleMapper roleMapper = new ClusterStateRoleMapper(disabledSettings, scriptService, clusterService);
+            ProjectStateRoleMapper roleMapper = new ProjectStateRoleMapper(
+                disabledSettings,
+                scriptService,
+                clusterService,
+                TestProjectResolvers.singleProject(projectId)
+            );
             PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
             roleMapper.resolveRoles(userData, future);
             Set<String> roleNames = future.get();
@@ -113,27 +137,49 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
 
     public void testRoleMappingChangesTriggerRealmCacheClear() {
         CachingRealm mockRealm = mock(CachingRealm.class);
-        ClusterStateRoleMapper roleMapper = new ClusterStateRoleMapper(enabledSettings, scriptService, clusterService);
+
+        ProjectStateRoleMapper roleMapper = new ProjectStateRoleMapper(
+            enabledSettings,
+            scriptService,
+            clusterService,
+            TestProjectResolvers.allProjects()
+        );
         roleMapper.clearRealmCacheOnChange(mockRealm);
         ExpressionRoleMapping mapping1 = mockExpressionRoleMapping(true, Set.of("role"), mock(ExpressionModel.class));
         ExpressionModel model2 = mock(ExpressionModel.class);
         ExpressionRoleMapping mapping2 = mockExpressionRoleMapping(true, Set.of("role"), model2);
         ExpressionRoleMapping mapping3 = mockExpressionRoleMapping(true, Set.of("role3"), model2);
-        ClusterState emptyState = ClusterState.builder(new ClusterName("elasticsearch")).build();
+
+        final var projectId = randomProjectIdOrDefault();
+        final Metadata.Builder metadataBuilder = new Metadata.Builder().put(ProjectMetadata.builder(projectId));
+
+        for (int i = randomIntBetween(0, 5); i > 0; i--) {
+            metadataBuilder.put(ProjectMetadata.builder(randomUniqueProjectId()));
+        }
+
+        ClusterState initialState = ClusterState.builder(new ClusterName("elasticsearch")).metadata(metadataBuilder).build();
+
+        final BiFunction<ClusterState, RoleMappingMetadata, ClusterState> updateMetadata = (inputState, roleMappingMetadata) -> {
+            final ProjectMetadata updatedProject = roleMappingMetadata.updateProject(inputState.metadata().getProject(projectId));
+            return ClusterState.builder(inputState).putProjectMetadata(updatedProject).build();
+        };
         RoleMappingMetadata roleMappingMetadata1 = new RoleMappingMetadata(Set.of(mapping1));
-        ClusterState state1 = roleMappingMetadata1.updateClusterState(emptyState);
-        roleMapper.clusterChanged(new ClusterChangedEvent("test", emptyState, state1));
+        ClusterState state1 = updateMetadata.apply(initialState, roleMappingMetadata1);
+        roleMapper.clusterChanged(new ClusterChangedEvent("test", initialState, state1));
         verify(mockRealm, times(1)).expireAll();
+
         RoleMappingMetadata roleMappingMetadata2 = new RoleMappingMetadata(Set.of(mapping2));
-        ClusterState state2 = roleMappingMetadata2.updateClusterState(state1);
+        ClusterState state2 = updateMetadata.apply(state1, roleMappingMetadata2);
         roleMapper.clusterChanged(new ClusterChangedEvent("test", state1, state2));
         verify(mockRealm, times(2)).expireAll();
+
         RoleMappingMetadata roleMappingMetadata3 = new RoleMappingMetadata(Set.of(mapping3));
-        ClusterState state3 = roleMappingMetadata3.updateClusterState(state2);
+        ClusterState state3 = updateMetadata.apply(state2, roleMappingMetadata3);
         roleMapper.clusterChanged(new ClusterChangedEvent("test", state2, state3));
         verify(mockRealm, times(3)).expireAll();
+
         RoleMappingMetadata roleMappingMetadata4 = new RoleMappingMetadata(Set.of(mapping2, mapping3));
-        ClusterState state4 = roleMappingMetadata4.updateClusterState(state3);
+        ClusterState state4 = updateMetadata.apply(state3, roleMappingMetadata4);
         roleMapper.clusterChanged(new ClusterChangedEvent("test", state3, state4));
         verify(mockRealm, times(4)).expireAll();
     }

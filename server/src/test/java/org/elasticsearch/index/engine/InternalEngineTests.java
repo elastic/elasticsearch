@@ -2578,10 +2578,10 @@ public class InternalEngineTests extends EngineTestCase {
         public void append(LogEvent event) {
             final String formattedMessage = event.getMessage().getFormattedMessage();
             if (event.getLevel() == Level.TRACE && event.getMarker().getName().contains("[index][0]")) {
-                if (formattedMessage.startsWith("merge thread")) {
+                if (formattedMessage.startsWith("merge task")) {
                     messages.add(formattedMessage);
                 } else if (event.getLoggerName().endsWith(".MS")
-                    && formattedMessage.contains("MS: merge thread")
+                    && formattedMessage.contains("MS: merge task")
                     && formattedMessage.endsWith("end")) {
                         luceneMergeSchedulerEnded.set(true);
                     }
@@ -2616,14 +2616,14 @@ public class InternalEngineTests extends EngineTestCase {
                 });
 
                 assertBusy(() -> {
-                    List<String> threadMsgs = mockAppender.messages().stream().filter(line -> line.startsWith("merge thread")).toList();
+                    List<String> threadMsgs = mockAppender.messages().stream().filter(line -> line.startsWith("merge task")).toList();
                     assertThat("messages:" + threadMsgs, threadMsgs.size(), greaterThanOrEqualTo(3));
                     assertThat(
                         threadMsgs,
                         containsInRelativeOrder(
-                            matchesRegex("^merge thread .* start$"),
-                            matchesRegex("^merge thread .* merge segment.*$"),
-                            matchesRegex("^merge thread .* end$")
+                            matchesRegex("^merge task .* start$"),
+                            matchesRegex("^merge task .* merge segment.*$"),
+                            matchesRegex("^merge task .* end$")
                         )
                     );
                     assertThat(mockAppender.mergeCompleted(), is(true));
@@ -3587,6 +3587,7 @@ public class InternalEngineTests extends EngineTestCase {
         EngineConfig brokenConfig = new EngineConfig(
             shardId,
             threadPool,
+            threadPoolMergeExecutorService,
             config.getIndexSettings(),
             null,
             store,
@@ -7149,6 +7150,7 @@ public class InternalEngineTests extends EngineTestCase {
             EngineConfig configWithWarmer = new EngineConfig(
                 config.getShardId(),
                 config.getThreadPool(),
+                config.getThreadPoolMergeExecutorService(),
                 config.getIndexSettings(),
                 warmer,
                 store,

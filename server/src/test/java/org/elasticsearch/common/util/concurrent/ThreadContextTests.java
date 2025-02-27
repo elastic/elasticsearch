@@ -651,7 +651,6 @@ public class ThreadContextTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/112256")
     public void testDropWarningsExceedingMaxSettings() {
         Settings settings = Settings.builder()
             .put(HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT.getKey(), 1)

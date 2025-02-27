@@ -1,6 +1,7 @@
 ALL-UNNAMED:
   - manage_threads
   - outbound_network
+  - inbound_network # this is a requirement based on the security manager policy
   - load_native_libraries
   - write_system_properties:
       properties:

@@ -252,6 +252,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListeners;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
+    private final CountDownLatch stopLatch = new CountDownLatch(1);
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
     private volatile boolean allowExpensiveQueries;
@@ -399,6 +400,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
     @Override
     protected void doStop() {
+        stopLatch.countDown();
         clusterService.removeApplier(timestampFieldMapperService);
         timestampFieldMapperService.doStop();
 
@@ -1436,11 +1438,13 @@ public class IndicesService extends AbstractLifecycleComponent
                     }
                     if (remove.isEmpty() == false) {
                         logger.warn("{} still pending deletes present for shards {} - retrying", index, remove.toString());
-                        Thread.sleep(sleepTime);
+                        if (stopLatch.await(sleepTime, TimeUnit.MILLISECONDS)) {
+                            break;
+                        }
                         sleepTime = Math.min(maxSleepTimeMs, sleepTime * 2); // increase the sleep time gradually
                         logger.debug("{} schedule pending delete retry after {} ms", index, sleepTime);
                     }
-                } while ((System.nanoTime() - startTimeNS) < timeout.nanos() && lifecycle.closed() == false);
+                } while ((System.nanoTime() - startTimeNS) < timeout.nanos() && lifecycle.started());
             }
         } finally {
             IOUtils.close(shardLocks);

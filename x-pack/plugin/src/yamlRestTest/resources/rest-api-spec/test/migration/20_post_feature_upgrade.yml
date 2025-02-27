@@ -1,4 +1,4 @@
-"Get feature upgrade status":
+"Post feature upgrade status":
 
   - requires:
       cluster_features: ["gte_v7.16.0"]

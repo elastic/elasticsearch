@@ -44,6 +44,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -222,9 +223,16 @@ public class TransportCreateIndexActionTests extends ESTestCase {
         );
     }
 
-    public void testNoErrorWhenCreatingSystemIndexForMigration() {
+    public void testCreatingSystemIndexForMigration() {
         CreateIndexRequest request = new CreateIndexRequest();
-        request.index(MANAGED_SYSTEM_INDEX_NAME + SystemIndices.UPGRADED_INDEX_SUFFIX);
+        String path = "/test";  // just to test that we pass settings
+        Settings settings = Settings.builder()
+            .put(SETTING_INDEX_HIDDEN, true)
+            .put(IndexMetadata.SETTING_DATA_PATH, path)
+            .build();
+        request.index(MANAGED_SYSTEM_INDEX_NAME + SystemIndices.UPGRADED_INDEX_SUFFIX)
+            .cause(SystemIndices.MIGRATE_SYSTEM_INDEX_CAUSE)
+            .settings(settings);
 
         @SuppressWarnings("unchecked")
         ActionListener<CreateIndexResponse> mockListener = mock(ActionListener.class);
@@ -245,6 +253,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
 
         CreateIndexClusterStateUpdateRequest processedRequest = createRequestArgumentCaptor.getValue();
         assertTrue(processedRequest.settings().getAsBoolean(SETTING_INDEX_HIDDEN, false));
+        assertThat(processedRequest.settings().get(IndexMetadata.SETTING_DATA_PATH, ""), is(path));
     }
 
 }

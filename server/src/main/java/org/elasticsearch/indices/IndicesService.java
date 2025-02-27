@@ -1443,12 +1443,18 @@ public class IndicesService extends AbstractLifecycleComponent
                     if (remove.isEmpty() == false) {
                         logger.warn("{} still pending deletes present for shards {} - retrying", index, remove.toString());
                         if (stopLatch.await(sleepTime, TimeUnit.MILLISECONDS)) {
+                            logger.info(
+                                "Indices service stopped. {} aborting pending deletes after [{}] for shards {}",
+                                index,
+                                TimeValue.timeValueNanos(System.nanoTime() - startTimeNS),
+                                remove.toString()
+                            );
                             break;
                         }
                         sleepTime = Math.min(maxSleepTimeMs, sleepTime * 2); // increase the sleep time gradually
                         logger.debug("{} schedule pending delete retry after {} ms", index, sleepTime);
                     }
-                } while ((System.nanoTime() - startTimeNS) < timeout.nanos() && lifecycle.started());
+                } while ((System.nanoTime() - startTimeNS) < timeout.nanos());
             }
         } finally {
             IOUtils.close(shardLocks);

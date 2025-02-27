@@ -36,7 +36,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -1662,19 +1661,12 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         public Metadata build(boolean skipNameCollisionChecks) {
-            if (projectMetadata.isEmpty()) {
-                createDefaultProject();
-            } else if (Assertions.ENABLED) {
-                projectMetadata.forEach((id, project) -> {
-                    assert project.getId().equals(id) : "project id mismatch key=[" + id + "] builder=[" + project.getId() + "]";
-                });
-            }
             return new Metadata(
                 clusterUUID,
                 clusterUUIDCommitted,
                 version,
                 coordinationMetadata,
-                Collections.unmodifiableMap(Maps.transformValues(projectMetadata, m -> m.build(skipNameCollisionChecks))),
+                buildProjectMetadata(skipNameCollisionChecks),
                 transientSettings,
                 persistentSettings,
                 Settings.builder().put(persistentSettings).put(transientSettings).build(),
@@ -1684,8 +1676,28 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             );
         }
 
+        private Map<ProjectId, ProjectMetadata> buildProjectMetadata(boolean skipNameCollisionChecks) {
+            if (projectMetadata.isEmpty()) {
+                createDefaultProject();
+            }
+            assert assertProjectIdAndProjectMetadataConsistency();
+            if (projectMetadata.size() == 1) {
+                final var entry = projectMetadata.entrySet().iterator().next();
+                return Map.of(entry.getKey(), entry.getValue().build(skipNameCollisionChecks));
+            } else {
+                return Collections.unmodifiableMap(Maps.transformValues(projectMetadata, m -> m.build(skipNameCollisionChecks)));
+            }
+        }
+
         private ProjectMetadata.Builder createDefaultProject() {
             return projectMetadata.put(DEFAULT_PROJECT_ID, new ProjectMetadata.Builder(Map.of(), 0).id(DEFAULT_PROJECT_ID));
+        }
+
+        private boolean assertProjectIdAndProjectMetadataConsistency() {
+            projectMetadata.forEach((id, project) -> {
+                assert project.getId().equals(id) : "project id mismatch key=[" + id + "] builder=[" + project.getId() + "]";
+            });
+            return true;
         }
 
         /**

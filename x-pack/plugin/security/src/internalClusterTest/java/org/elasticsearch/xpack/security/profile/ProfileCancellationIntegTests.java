@@ -58,6 +58,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_USER_NAME;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
@@ -410,7 +411,7 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                     RequestInfo requestInfo,
                     AuthorizationInfo authorizationInfo,
                     AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                    ProjectMetadata metadata,
+                    Supplier<ProjectMetadata> metadata,
                     ActionListener<IndexAuthorizationResult> listener
                 ) {
                     listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);

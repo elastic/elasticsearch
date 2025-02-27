@@ -38,6 +38,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -480,8 +481,14 @@ public class AuthorizationService {
                 l.onResponse(result);
             }));
         } else if (isIndexAction(action)) {
-            final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
-            assert projectMetadata != null;
+            // We use a supplier here to avoid resolving the project in cases where it's not going to be used
+            // The most common case is when a child action is authorized based on its parent, in that case we never need
+            // to lookup indices, so we never need the project metadata.
+            // But we do want to optimize by only looking up the project once for each action, so we use a cached supplier.
+            final Supplier<ProjectMetadata> projectMetadataSupplier = CachedSupplier.wrap(
+                () -> projectResolver.getProjectMetadata(clusterService.state())
+            );
+            assert projectMetadataSupplier != null;
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
                 if (request instanceof SearchRequest searchRequest && searchRequest.pointInTimeBuilder() != null) {
                     var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
@@ -492,6 +499,7 @@ public class AuthorizationService {
                 if (resolvedIndices != null) {
                     resolvedIndicesListener.onResponse(resolvedIndices);
                 } else {
+                    final ProjectMetadata projectMetadata = projectMetadataSupplier.get();
                     authzEngine.loadAuthorizedIndices(
                         requestInfo,
                         authzInfo,
@@ -516,7 +524,7 @@ public class AuthorizationService {
                 requestInfo,
                 authzInfo,
                 resolvedIndicesAsyncSupplier,
-                projectMetadata,
+                projectMetadataSupplier,
                 wrapPreservingContext(
                     new AuthorizationResultListener<>(
                         result -> handleIndexActionAuthorizationResult(
@@ -526,7 +534,7 @@ public class AuthorizationService {
                             authzInfo,
                             authzEngine,
                             resolvedIndicesAsyncSupplier,
-                            projectMetadata,
+                            projectMetadataSupplier,
                             listener
                         ),
                         listener::onFailure,
@@ -551,7 +559,7 @@ public class AuthorizationService {
         final AuthorizationInfo authzInfo,
         final AuthorizationEngine authzEngine,
         final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
-        final ProjectMetadata projectMetadata,
+        final Supplier<ProjectMetadata> projectMetadata,
         final ActionListener<Void> listener
     ) {
         final IndicesAccessControl indicesAccessControl = indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
@@ -763,7 +771,7 @@ public class AuthorizationService {
         AuthorizationContext bulkAuthzContext,
         AuthorizationEngine authzEngine,
         AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
-        ProjectMetadata projectMetadata,
+        Supplier<ProjectMetadata> projectMetadata,
         String requestId,
         ActionListener<Void> listener
     ) {

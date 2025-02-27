@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -453,7 +453,7 @@ public final class IndicesPermission {
             }
         }
 
-        public Collection<String> resolveConcreteIndices(Metadata metadata) {
+        public Collection<String> resolveConcreteIndices(ProjectMetadata metadata) {
             if (indexAbstraction == null) {
                 return List.of();
             } else if (indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX) {
@@ -486,7 +486,7 @@ public final class IndicesPermission {
     public IndicesAccessControl authorize(
         String action,
         Set<String> requestedIndicesOrAliases,
-        Metadata metadata,
+        ProjectMetadata metadata,
         FieldPermissionsCache fieldPermissionsCache
     ) {
         // Short circuit if the indicesPermission allows all access to every index
@@ -529,7 +529,7 @@ public final class IndicesPermission {
         final Map<String, IndexResource> requestedResources,
         final int totalResourceCount,
         final FieldPermissionsCache fieldPermissionsCache,
-        final Metadata metadata
+        final ProjectMetadata metadata
     ) {
 
         // now... every index that is associated with the request, must be granted

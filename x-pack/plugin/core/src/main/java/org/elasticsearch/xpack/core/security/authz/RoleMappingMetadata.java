@@ -15,9 +15,11 @@ import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -37,7 +39,7 @@ import java.util.Set;
 import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
     private static final Logger logger = LogManager.getLogger(RoleMappingMetadata.class);
 
@@ -59,7 +61,12 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     private static final RoleMappingMetadata EMPTY = new RoleMappingMetadata(Set.of());
 
     public static RoleMappingMetadata getFromClusterState(ClusterState clusterState) {
-        return clusterState.metadata().custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY);
+        final ProjectMetadata project = clusterState.metadata().getProject();
+        return getFromProject(project);
+    }
+
+    public static RoleMappingMetadata getFromProject(ProjectMetadata project) {
+        return project.custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY);
     }
 
     private final Set<ExpressionRoleMapping> roleMappings;
@@ -80,17 +87,25 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
         return roleMappings.isEmpty();
     }
 
+    @Deprecated
+    @FixForMultiProject(description = "Need to populate the correct project")
     public ClusterState updateClusterState(ClusterState clusterState) {
-        if (isEmpty()) {
-            // prefer no role mapping custom metadata to the empty role mapping metadata
-            return clusterState.copyAndUpdateMetadata(b -> b.removeCustom(RoleMappingMetadata.TYPE));
-        } else {
-            return clusterState.copyAndUpdateMetadata(b -> b.putCustom(RoleMappingMetadata.TYPE, this));
-        }
+        return ClusterState.builder(clusterState).putProjectMetadata(updateProject(clusterState.getMetadata().getProject())).build();
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
-        return readDiffFrom(Metadata.Custom.class, TYPE, streamInput);
+    public ProjectMetadata updateProject(ProjectMetadata project) {
+        final ProjectMetadata.Builder builder = ProjectMetadata.builder(project);
+        if (isEmpty()) {
+            // prefer no role mapping custom metadata to the empty role mapping metadata
+            builder.removeCustom(RoleMappingMetadata.TYPE);
+        } else {
+            builder.putCustom(RoleMappingMetadata.TYPE, this);
+        }
+        return builder.build();
+    }
+
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(Metadata.ProjectCustom.class, TYPE, streamInput);
     }
 
     @Override

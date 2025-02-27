@@ -332,6 +332,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testOneRemoteClusterPartial
   issue: https://github.com/elastic/elasticsearch/issues/123451
+- class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
+  method: testChildrenTasksCancelledOnTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/123568
 
 # Examples:
 #

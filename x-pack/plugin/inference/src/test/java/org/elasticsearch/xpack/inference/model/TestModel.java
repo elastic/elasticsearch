@@ -12,6 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -39,9 +40,14 @@ public class TestModel extends Model {
     }
 
     public static TestModel createRandomInstance(TaskType taskType) {
-        var dimensions = taskType == TaskType.TEXT_EMBEDDING ? randomInt(64) : null;
-        var similarity = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(SimilarityMeasure.values()) : null;
         var elementType = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(DenseVectorFieldMapper.ElementType.values()) : null;
+        var dimensions = taskType == TaskType.TEXT_EMBEDDING
+            ? DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 64)
+            : null;
+        var similarity = taskType == TaskType.TEXT_EMBEDDING
+            ? randomFrom(DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType))
+            : null;
+
         return new TestModel(
             randomAlphaOfLength(4),
             taskType,

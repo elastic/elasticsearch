@@ -207,6 +207,9 @@ public class TransportVersions {
     public static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = def(9_017_0_00);
     public static final TransportVersion MULTI_PROJECT = def(9_018_0_00);
 
+    // making this large for now to avoid merge conflicts
+    public static final TransportVersion UNASSIGENEDINFO_RESHARD_ADDED = def(9_020_0_00);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

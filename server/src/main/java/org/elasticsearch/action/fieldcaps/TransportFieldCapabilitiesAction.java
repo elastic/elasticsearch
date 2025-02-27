@@ -42,6 +42,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -129,11 +130,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, remoteRequestExecutor, l)));
+        searchCoordinationExecutor.execute(
+            ActionRunnable.wrap(listener, l -> doExecuteForked((CancellableTask) task, request, remoteRequestExecutor, l))
+        );
     }
 
     private void doExecuteForked(
-        Task task,
+        CancellableTask fieldCapTask,
         FieldCapabilitiesRequest request,
         RemoteRequestExecutor remoteRequestExecutor,
         ActionListener<FieldCapabilitiesResponse> listener
@@ -141,8 +144,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
-        assert task instanceof CancellableTask;
-        final CancellableTask fieldCapTask = (CancellableTask) task;
         // retrieve the initial timestamp in case the action is a cross cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ClusterState clusterState = clusterService.state();
@@ -237,10 +238,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
         })) {
             // local cluster
-            final RequestDispatcher requestDispatcher = new RequestDispatcher(
-                clusterService,
+            new RequestDispatcher(
+                indicesService,
                 transportService,
-                task,
+                fieldCapTask,
                 request,
                 localIndices,
                 nowInMillis,
@@ -249,8 +250,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 handleIndexResponse,
                 handleIndexFailure,
                 refs.acquire()::close
-            );
-            requestDispatcher.execute();
+            ).execute();
 
             // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
             // send us back all individual index results.
@@ -585,52 +585,83 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final List<FieldCapabilitiesIndexResponse> allResponses = new ArrayList<>();
                 final Map<ShardId, Exception> allFailures = new HashMap<>();
                 final Set<ShardId> allUnmatchedShardIds = new HashSet<>();
-                // If the request has an index filter, it may contain several shards belonging to the same
-                // index. We make sure to skip over a shard if we already found a match for that index.
-                final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
-                    .stream()
-                    .collect(Collectors.groupingBy(ShardId::getIndexName));
-                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService, request.includeEmptyFields());
-                Predicate<String> fieldNameFilter;
-                try {
-                    fieldNameFilter = Regex.simpleMatcher(request.fields());
-                } catch (TooComplexToDeterminizeException e) {
-                    throw new IllegalArgumentException("The field names are too complex to process. " + e.getMessage());
-                }
-                for (List<ShardId> shardIds : groupedShardIds.values()) {
-                    final Map<ShardId, Exception> failures = new HashMap<>();
-                    final Set<ShardId> unmatched = new HashSet<>();
-                    for (ShardId shardId : shardIds) {
-                        try {
-                            final FieldCapabilitiesIndexResponse response = fetcher.fetch(
-                                (CancellableTask) task,
-                                shardId,
-                                fieldNameFilter,
-                                request.filters(),
-                                request.allowedTypes(),
-                                request.indexFilter(),
-                                request.nowInMillis(),
-                                request.runtimeFields()
-                            );
-                            if (response.canMatch()) {
-                                allResponses.add(response);
-                                if (request.includeEmptyFields()) {
-                                    unmatched.clear();
-                                    failures.clear();
-                                    break;
-                                }
-                            } else {
-                                unmatched.add(shardId);
-                            }
-                        } catch (Exception e) {
-                            failures.put(shardId, e);
-                        }
-                    }
-                    allUnmatchedShardIds.addAll(unmatched);
-                    allFailures.putAll(failures);
-                }
+                runOnLocalNode(
+                    indicesService,
+                    request,
+                    (CancellableTask) task,
+                    allResponses::add,
+                    allUnmatchedShardIds::add,
+                    allFailures::put
+                );
                 return new FieldCapabilitiesNodeResponse(allResponses, allFailures, allUnmatchedShardIds);
             });
+        }
+    }
+
+    static void runOnLocalNode(
+        IndicesService indicesService,
+        FieldCapabilitiesNodeRequest request,
+        CancellableTask task,
+        Consumer<FieldCapabilitiesIndexResponse> onResponse,
+        Consumer<ShardId> onUnmatched,
+        BiConsumer<ShardId, Exception> onFailure
+    ) {
+        // If the request has an index filter, it may contain several shards belonging to the same
+        // index. We make sure to skip over a shard if we already found a match for that index.
+        final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
+            .stream()
+            .collect(Collectors.groupingBy(ShardId::getIndexName));
+        final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService, request.includeEmptyFields());
+        Predicate<String> fieldNameFilter;
+        try {
+            fieldNameFilter = Regex.simpleMatcher(request.fields());
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException("The field names are too complex to process. " + e.getMessage());
+        }
+        for (List<ShardId> shardIds : groupedShardIds.values()) {
+            Map<ShardId, Exception> failures = null;
+            Set<ShardId> unmatched = null;
+            for (ShardId shardId : shardIds) {
+                try {
+                    final FieldCapabilitiesIndexResponse response = fetcher.fetch(
+                        task,
+                        shardId,
+                        fieldNameFilter,
+                        request.filters(),
+                        request.allowedTypes(),
+                        request.indexFilter(),
+                        request.nowInMillis(),
+                        request.runtimeFields()
+                    );
+                    if (response.canMatch()) {
+                        onResponse.accept(response);
+                        if (request.includeEmptyFields()) {
+                            unmatched = null;
+                            failures = null;
+                            break;
+                        }
+                    } else {
+                        if (unmatched == null) {
+                            unmatched = new HashSet<>();
+                        }
+                        unmatched.add(shardId);
+                    }
+                } catch (Exception e) {
+                    if (task.isCancelled() && e instanceof TaskCancelledException taskCancelledException) {
+                        throw taskCancelledException;
+                    }
+                    if (failures == null) {
+                        failures = new HashMap<>();
+                    }
+                    failures.put(shardId, e);
+                }
+            }
+            if (unmatched != null) {
+                unmatched.forEach(onUnmatched);
+            }
+            if (failures != null) {
+                failures.forEach(onFailure);
+            }
         }
     }
 

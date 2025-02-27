@@ -25,28 +25,40 @@ public class PreAnalyzerTests extends ESTestCase {
     private PreAnalyzer preAnalyzer = new PreAnalyzer();
 
     public void testBasicIndex() {
-        LogicalPlan plan = new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index"), null, false);
+        LogicalPlan plan = new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index", null), null, false);
         PreAnalysis result = preAnalyzer.preAnalyze(plan);
         assertThat(plan.preAnalyzed(), is(true));
         assertThat(result.indices, hasSize(1));
         assertThat(result.indices.get(0).id().cluster(), nullValue());
         assertThat(result.indices.get(0).id().index(), is("index"));
+        assertThat(result.indices.get(0).id().selector(), nullValue());
     }
 
     public void testBasicIndexWithCatalog() {
-        LogicalPlan plan = new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, "elastic", "index"), null, false);
+        LogicalPlan plan = new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, "elastic", "index", null), null, false);
         PreAnalysis result = preAnalyzer.preAnalyze(plan);
         assertThat(plan.preAnalyzed(), is(true));
         assertThat(result.indices, hasSize(1));
         assertThat(result.indices.get(0).id().cluster(), is("elastic"));
         assertThat(result.indices.get(0).id().index(), is("index"));
+        assertThat(result.indices.get(0).id().selector(), nullValue());
+    }
+
+    public void testBasicIndexWithSelector() {
+        LogicalPlan plan = new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "index", "failures"), null, false);
+        PreAnalysis result = preAnalyzer.preAnalyze(plan);
+        assertThat(plan.preAnalyzed(), is(true));
+        assertThat(result.indices, hasSize(1));
+        assertThat(result.indices.get(0).id().cluster(), nullValue());
+        assertThat(result.indices.get(0).id().index(), is("index"));
+        assertThat(result.indices.get(0).id().selector(), is("failures"));
     }
 
     public void testComplicatedQuery() {
         LogicalPlan plan = new Limit(
             EMPTY,
             new Literal(EMPTY, 10, INTEGER),
-            new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "aaa"), null, false)
+            new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "aaa", null), null, false)
         );
         PreAnalysis result = preAnalyzer.preAnalyze(plan);
         assertThat(plan.preAnalyzed(), is(true));

@@ -612,9 +612,9 @@ public class ActionListenerTests extends ESTestCase {
     }
 
     public void testReleaseBefore() {
-        runReleaseListenerTest(true, false, ActionListener::releaseBefore);
-        runReleaseListenerTest(true, true, ActionListener::releaseBefore);
-        runReleaseListenerTest(false, false, ActionListener::releaseBefore);
+        runReleaseListenerTest(true, false, (delegate, releasable) -> ActionListener.releaseBefore(releasable, delegate));
+        runReleaseListenerTest(true, true, (delegate, releasable) -> ActionListener.releaseBefore(releasable, delegate));
+        runReleaseListenerTest(false, false, (delegate, releasable) -> ActionListener.releaseBefore(releasable, delegate));
     }
 
     public void testReleaseAfter() {

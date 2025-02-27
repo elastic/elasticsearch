@@ -340,7 +340,7 @@ public interface ActionListener<Response> {
      * Wraps a given listener and returns a new listener which releases the provided {@code releaseBefore}
      * resource before the listener is notified via either {@code #onResponse} or {@code #onFailure}.
      */
-    static <Response> ActionListener<Response> releaseBefore(ActionListener<Response> delegate, Releasable releaseBefore) {
+    static <Response> ActionListener<Response> releaseBefore(Releasable releaseBefore, ActionListener<Response> delegate) {
         return assertOnce(
             new ActionListenerImplementations.RunBeforeActionListener<>(delegate, checkedRunnableFromReleasable(releaseBefore))
         );

@@ -25,18 +25,15 @@ import java.util.stream.Stream;
 /**
  * Provide access to DocValues for script {@code field} api and {@code doc} API.
  */
-public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier {
-
-    protected final SearchLookup searchLookup;
+public final class DocValuesDocReader implements DocReader, LeafReaderContextSupplier {
 
     // provide access to the leaf context reader for expressions
-    protected final LeafReaderContext leafReaderContext;
+    private final LeafReaderContext leafReaderContext;
 
     /** A leaf lookup for the bound segment this proxy will operate on. */
-    protected LeafSearchLookup leafSearchLookup;
+    private final LeafSearchLookup leafSearchLookup;
 
     public DocValuesDocReader(SearchLookup searchLookup, LeafReaderContext leafContext) {
-        this.searchLookup = searchLookup;
         this.leafReaderContext = leafContext;
         this.leafSearchLookup = searchLookup.getLeafSearchLookup(leafReaderContext);
     }

@@ -47,7 +47,7 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,

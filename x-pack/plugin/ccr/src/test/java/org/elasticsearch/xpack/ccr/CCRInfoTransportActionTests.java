@@ -152,7 +152,7 @@ public class CCRInfoTransportActionTests extends ESTestCase {
             licenseState
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, clusterState, future);
+        usageAction.localClusterStateOperation(null, null, clusterState, future);
         CCRInfoTransportAction.Usage ccrUsage = (CCRInfoTransportAction.Usage) future.get().getUsage();
         assertThat(ccrUsage.enabled(), equalTo(true));
         assertThat(ccrUsage.available(), equalTo(false));

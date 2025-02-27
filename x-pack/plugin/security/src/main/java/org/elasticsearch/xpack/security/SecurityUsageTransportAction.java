@@ -84,7 +84,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,

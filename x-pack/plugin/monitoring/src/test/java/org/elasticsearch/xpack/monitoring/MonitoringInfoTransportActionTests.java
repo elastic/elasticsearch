@@ -101,7 +101,7 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
             new MonitoringUsageServices(monitoring, exporters)
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, null, future);
+        usageAction.localClusterStateOperation(null, null, null, future);
         MonitoringFeatureSetUsage monitoringUsage = (MonitoringFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(serializedVersion);

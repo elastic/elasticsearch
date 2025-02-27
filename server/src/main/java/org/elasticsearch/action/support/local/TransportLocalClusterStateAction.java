@@ -66,6 +66,9 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
 
     @Override
     protected final void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        if (task != null) {
+            request.setParentTask(clusterService.localNode().getId(), task.getId());
+        }
         final var state = clusterService.state();
         final var clusterBlockException = checkBlock(request, state);
         if (clusterBlockException != null) {

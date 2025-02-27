@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.runtime.policy.entitlements;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
@@ -21,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 import static java.lang.Character.isLetter;
@@ -330,18 +330,53 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         if (paths == null || paths.isEmpty()) {
             throw new PolicyValidationException("must specify at least one path");
         }
+        BiFunction<Map<String, Object>, String, String> checkString = (values, key) -> {
+            Object value = values.remove(key);
+            if (value == null) {
+                return null;
+            } else if (value instanceof String str) {
+                return str;
+            }
+            throw new PolicyValidationException(
+                "expected ["
+                    + key
+                    + "] to be type ["
+                    + String.class.getSimpleName()
+                    + "] but found type ["
+                    + value.getClass().getSimpleName()
+                    + "]"
+            );
+        };
+        BiFunction<Map<String, Object>, String, Boolean> checkBoolean = (values, key) -> {
+            Object value = values.remove(key);
+            if (value == null) {
+                return null;
+            } else if (value instanceof Boolean bool) {
+                return bool;
+            }
+            throw new PolicyValidationException(
+                "expected ["
+                    + key
+                    + "] to be type ["
+                    + boolean.class.getSimpleName()
+                    + "] but found type ["
+                    + value.getClass().getSimpleName()
+                    + "]"
+            );
+        };
         List<FileData> filesData = new ArrayList<>();
         for (Object object : paths) {
-            Map<String, Object> file = new HashMap<>((Map<String, String>) object);
-            String pathAsString = (String) file.remove("path");
-            String relativePathAsString = (String) file.remove("relative_path");
-            String relativeTo = (String) file.remove("relative_to");
-            String pathSetting = (String) file.remove("path_setting");
-            String relativePathSetting = (String) file.remove("relative_path_setting");
-            String modeAsString = (String) file.remove("mode");
-            String platformAsString = (String) file.remove("platform");
-            String ignoreUrlAsString = (String) file.remove("ignore_url");
-            Boolean exclusiveBoolean = (Boolean) file.remove("exclusive");
+            Map<String, Object> file = new HashMap<>((Map<String, Object>) object);
+            String pathAsString = checkString.apply(file, "path");
+            String relativePathAsString = checkString.apply(file, "relative_path");
+            String relativeTo = checkString.apply(file, "relative_to");
+            String pathSetting = checkString.apply(file, "path_setting");
+            String relativePathSetting = checkString.apply(file, "relative_path_setting");
+            String modeAsString = checkString.apply(file, "mode");
+            String platformAsString = checkString.apply(file, "platform");
+            Boolean ignoreUrlAsStringBoolean = checkBoolean.apply(file, "ignore_url");
+            boolean ignoreUrlAsString = ignoreUrlAsStringBoolean != null && ignoreUrlAsStringBoolean;
+            Boolean exclusiveBoolean = checkBoolean.apply(file, "exclusive");
             boolean exclusive = exclusiveBoolean != null && exclusiveBoolean;
 
             if (file.isEmpty() == false) {
@@ -369,12 +404,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 baseDir = parseBaseDir(relativeTo);
             }
 
-            boolean ignoreUrl = false;
-            if (ignoreUrlAsString != null) {
-                if (relativePathAsString != null || pathAsString != null) {
-                    throw new PolicyValidationException("'ignore_url' may only be used with `path_setting` or `relative_path_setting`");
-                }
-                ignoreUrl = Booleans.parseBoolean(ignoreUrlAsString);
+            if (ignoreUrlAsStringBoolean != null && (relativePathAsString != null || pathAsString != null)) {
+                throw new PolicyValidationException("'ignore_url' may only be used with `path_setting` or `relative_path_setting`");
             }
 
             final FileData fileData;
@@ -394,12 +425,12 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 }
                 fileData = FileData.ofPath(path, mode);
             } else if (pathSetting != null) {
-                fileData = FileData.ofPathSetting(pathSetting, mode, ignoreUrl);
+                fileData = FileData.ofPathSetting(pathSetting, mode, ignoreUrlAsString);
             } else if (relativePathSetting != null) {
                 if (baseDir == null) {
                     throw new PolicyValidationException("files entitlement with a 'relative_path_setting' must specify 'relative_to'");
                 }
-                fileData = FileData.ofRelativePathSetting(relativePathSetting, baseDir, mode, ignoreUrl);
+                fileData = FileData.ofRelativePathSetting(relativePathSetting, baseDir, mode, ignoreUrlAsString);
             } else {
                 throw new AssertionError("File entry validation error");
             }

@@ -154,14 +154,14 @@ public class FilesEntitlementTests extends ESTestCase {
     public void testIgnoreUrlValidation() {
         var e = expectThrows(
             PolicyValidationException.class,
-            () -> FilesEntitlement.build(List.of(Map.of("path", "/foo", "mode", "read", "ignore_url", "true")))
+            () -> FilesEntitlement.build(List.of(Map.of("path", "/foo", "mode", "read", "ignore_url", true)))
         );
         assertThat(e.getMessage(), is("'ignore_url' may only be used with `path_setting` or `relative_path_setting`"));
 
         e = expectThrows(
             PolicyValidationException.class,
             () -> FilesEntitlement.build(
-                List.of(Map.of("relative_path", "foo", "relative_to", "config", "mode", "read", "ignore_url", "true"))
+                List.of(Map.of("relative_path", "foo", "relative_to", "config", "mode", "read", "ignore_url", true))
             )
         );
         assertThat(e.getMessage(), is("'ignore_url' may only be used with `path_setting` or `relative_path_setting`"));

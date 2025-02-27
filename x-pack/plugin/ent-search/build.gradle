@@ -6,7 +6,11 @@ esplugin {
   name = 'x-pack-ent-search'
   description = 'Elasticsearch Expanded Pack Plugin - Enterprise Search'
   classname = 'org.elasticsearch.xpack.application.EnterpriseSearch'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
 }
 
 base {

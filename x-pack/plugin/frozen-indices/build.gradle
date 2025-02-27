@@ -4,7 +4,11 @@ esplugin {
   name = 'frozen-indices'
   description = 'A plugin for the frozen indices functionality'
   classname = 'org.elasticsearch.xpack.frozen.FrozenIndices'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
 }
 base {
   archivesName = 'x-pack-frozen-indices'

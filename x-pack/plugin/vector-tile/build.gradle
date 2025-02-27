@@ -19,7 +19,11 @@ esplugin {
   name = 'vector-tile'
   description = 'A plugin for mapbox vector tile features'
   classname ='org.elasticsearch.xpack.vectortile.VectorTilePlugin'
-  extendedPlugins = ['spatial']
+  extendedPluginProjects {
+    "spatial" {
+      path = ':x-pack:plugin:spatial'
+    }
+  }
 }
 
 dependencies {

@@ -16,7 +16,11 @@ esplugin {
   name = 'x-pack-kql'
   description = 'Elasticsearch Expanded Pack Plugin - KQL query'
   classname ='org.elasticsearch.xpack.kql.KqlPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
 }
 base {
   archivesName = 'x-pack-kql'

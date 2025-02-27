@@ -5,7 +5,11 @@ esplugin {
   name = 'x-pack-geoip-enterprise-downloader'
   description = 'Elasticsearch Expanded Pack Plugin - Geoip Enterprise Downloader'
   classname ='org.elasticsearch.xpack.geoip.EnterpriseDownloaderPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
 }
 base {
   archivesName = 'x-pack-geoip-enterprise-downloader'

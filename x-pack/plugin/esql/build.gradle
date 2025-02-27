@@ -22,7 +22,17 @@ esplugin {
   name = 'x-pack-esql'
   description = 'The plugin that powers ESQL for Elasticsearch'
   classname ='org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
-  extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml']
+  extendedPluginProjects {
+    "x-pack-esql-core" {
+      path = ':x-pack:plugin:esql-core'
+    }
+    "x-pack-ml" {
+      path = ':x-pack:plugin:ml'
+    }
+    "lang-painless" {
+      path = ':modules:lang-painless'
+    }
+  }
 }
 
 base {

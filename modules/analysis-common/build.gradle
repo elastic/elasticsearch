@@ -15,7 +15,11 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   description = 'Adds "built in" analyzers to Elasticsearch.'
   classname = 'org.elasticsearch.analysis.common.CommonAnalysisPlugin'
-  extendedPlugins = ['lang-painless']
+  extendedPluginProjects {
+    "lang-painless" {
+      path = ':modules:lang-painless'
+    }
+  }
 }
 
 restResources {

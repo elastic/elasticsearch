@@ -5,7 +5,11 @@ esplugin {
   name = 'x-pack-autoscaling'
   description = 'Elasticsearch Expanded Pack Plugin - Autoscaling'
   classname ='org.elasticsearch.xpack.autoscaling.Autoscaling'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
   hasNativeController =false
   requiresKeystore =true
 }

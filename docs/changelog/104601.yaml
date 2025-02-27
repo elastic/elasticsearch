@@ -1,0 +1,5 @@
+pr: 104601
+summary: rewrite term query to range query to optimize the performance of number and date field type
+area: Search
+type: enhancement
+issues: []

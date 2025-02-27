@@ -249,7 +249,7 @@ public final class GeoGridProcessor extends AbstractProcessor {
         private final long h3;
 
         GeohexHandler(String spec) {
-            this.h3 = H3.stringToH3(spec);
+            this.h3 = parseH3Specification(spec);
         }
 
         @Override
@@ -292,6 +292,47 @@ public final class GeoGridProcessor extends AbstractProcessor {
                 addresses.add(H3.h3ToString(cell));
             }
             return addresses;
+        }
+
+        private static long parseH3Specification(String spec) {
+            if (spec.toLowerCase(Locale.ROOT).trim().startsWith("h3.")) {
+                return h3FromH3Function(spec.substring(3).split("[,()]"));
+            } else {
+                return H3.stringToH3(spec);
+            }
+        }
+
+        private static long h3FromH3Function(String[] parts) {
+            String function = parts[0].toLowerCase(Locale.ROOT).trim();
+            return switch (function) {
+                // H3.geoToH3(lat,lng,res)
+                case "geotoh3" -> {
+                    assertParams(function, 3, parts.length - 1);
+                    yield H3.geoToH3(
+                        Double.parseDouble(parts[1].trim()),
+                        Double.parseDouble(parts[2].trim()),
+                        Integer.parseInt(parts[3].trim())
+                    );
+                }
+                case "h3toparent" -> {
+                    assertParams(function, 1, parts.length - 1);
+                    String h3 = parts[1].toLowerCase(Locale.ROOT).trim();
+                    if (h3.matches("\\d+")) {
+                        yield H3.h3ToParent(Long.parseLong(h3));
+                    } else {
+                        yield H3.stringToH3(H3.h3ToParent(h3));
+                    }
+                }
+                default -> throw new IllegalArgumentException("Unknown H3 function call [" + parts[0] + "]");
+            };
+        }
+
+        private static void assertParams(String function, int len, int expected) {
+            if (len < expected) {
+                throw new IllegalArgumentException(
+                    "Function H3." + function + " requires " + expected + " parameters but " + len + " found"
+                );
+            }
         }
     }
 

@@ -55,11 +55,14 @@ public class VectorScoreScriptUtils {
          * @param scoreScript The script in which this function was referenced.
          * @param field The vector field.
          * @param queryVector The query vector.
+         * @param normalizeFloatQuery {@code true} if the query vector is a float vector, then normalize it.
+         * @param allowedTypes The types the vector is allowed to be.
          */
         public ByteDenseVectorFunction(
             ScoreScript scoreScript,
             DenseVectorDocValuesField field,
             List<Number> queryVector,
+            boolean normalizeFloatQuery,
             ElementType... allowedTypes
         ) {
             super(scoreScript, field);
@@ -74,6 +77,16 @@ public class VectorScoreScriptUtils {
                     byteQueryVector = null;
                     floatQueryVector = floatValues;
                     qvMagnitude = -1;   // invalid valid, not used for float vectors
+
+                    if (normalizeFloatQuery) {
+                        double queryMagnitude = 0.0;
+                        for (float val : floatQueryVector) {
+                            queryMagnitude += val * val;
+                        }
+                        for (int i = 0; i < floatQueryVector.length; i++) {
+                            floatQueryVector[i] /= (float) queryMagnitude;
+                        }
+                    }
                     break;
                 case BYTE:
                     floatQueryVector = null;
@@ -156,7 +169,7 @@ public class VectorScoreScriptUtils {
     public static class ByteL1Norm extends ByteDenseVectorFunction implements L1NormInterface {
 
         public ByteL1Norm(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector) {
-            super(scoreScript, field, queryVector, ElementType.BYTE);
+            super(scoreScript, field, queryVector, false, ElementType.BYTE);
         }
 
         public ByteL1Norm(ScoreScript scoreScript, DenseVectorDocValuesField field, byte[] queryVector) {
@@ -220,7 +233,7 @@ public class VectorScoreScriptUtils {
     public static class ByteHammingDistance extends ByteDenseVectorFunction implements HammingDistanceInterface {
 
         public ByteHammingDistance(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector) {
-            super(scoreScript, field, queryVector, ElementType.BYTE);
+            super(scoreScript, field, queryVector, false, ElementType.BYTE);
         }
 
         public ByteHammingDistance(ScoreScript scoreScript, DenseVectorDocValuesField field, byte[] queryVector) {
@@ -266,7 +279,7 @@ public class VectorScoreScriptUtils {
     public static class ByteL2Norm extends ByteDenseVectorFunction implements L2NormInterface {
 
         public ByteL2Norm(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector) {
-            super(scoreScript, field, queryVector, ElementType.BYTE);
+            super(scoreScript, field, queryVector, false, ElementType.BYTE);
         }
 
         public ByteL2Norm(ScoreScript scoreScript, DenseVectorDocValuesField field, byte[] queryVector) {
@@ -411,7 +424,7 @@ public class VectorScoreScriptUtils {
     public static class ByteDotProduct extends ByteDenseVectorFunction implements DotProductInterface {
 
         public ByteDotProduct(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector) {
-            super(scoreScript, field, queryVector, ElementType.BYTE, ElementType.FLOAT);
+            super(scoreScript, field, queryVector, false, ElementType.BYTE, ElementType.FLOAT);
         }
 
         public ByteDotProduct(ScoreScript scoreScript, DenseVectorDocValuesField field, byte[] queryVector) {
@@ -488,7 +501,7 @@ public class VectorScoreScriptUtils {
     public static class ByteCosineSimilarity extends ByteDenseVectorFunction implements CosineSimilarityInterface {
 
         public ByteCosineSimilarity(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector) {
-            super(scoreScript, field, queryVector, ElementType.BYTE, ElementType.FLOAT);
+            super(scoreScript, field, queryVector, true, ElementType.BYTE, ElementType.FLOAT);
         }
 
         public ByteCosineSimilarity(ScoreScript scoreScript, DenseVectorDocValuesField field, byte[] queryVector) {
@@ -498,7 +511,7 @@ public class VectorScoreScriptUtils {
         public double cosineSimilarity() {
             setNextVector();
             if (floatQueryVector != null) {
-                return field.get().cosineSimilarity(floatQueryVector);
+                return field.get().cosineSimilarity(floatQueryVector, false);
             } else {
                 return field.get().cosineSimilarity(byteQueryVector, qvMagnitude);
             }

@@ -56,7 +56,7 @@ public record TextEmbeddingBitResults(List<TextEmbeddingByteResults.Embedding> e
             throw new IllegalStateException("Embeddings list is empty");
         }
         // bit embeddings are encoded as bytes so convert this to bits
-        return Byte.SIZE * embeddings.getFirst().values().length;
+        return Byte.SIZE * embeddings.get(0).values().length;
     }
 
     @Override

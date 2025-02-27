@@ -1,0 +1,6 @@
+pr: 111505
+summary: Added Response description for Has_Privileges_API
+area: Docs
+type: enhancement
+issues:
+  - 111399

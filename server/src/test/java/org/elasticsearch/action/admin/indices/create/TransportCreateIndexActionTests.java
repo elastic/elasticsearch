@@ -226,10 +226,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
     public void testCreatingSystemIndexForMigration() {
         CreateIndexRequest request = new CreateIndexRequest();
         String path = "/test";  // just to test that we pass settings
-        Settings settings = Settings.builder()
-            .put(SETTING_INDEX_HIDDEN, true)
-            .put(IndexMetadata.SETTING_DATA_PATH, path)
-            .build();
+        Settings settings = Settings.builder().put(SETTING_INDEX_HIDDEN, true).put(IndexMetadata.SETTING_DATA_PATH, path).build();
         request.index(MANAGED_SYSTEM_INDEX_NAME + SystemIndices.UPGRADED_INDEX_SUFFIX)
             .cause(SystemIndices.MIGRATE_SYSTEM_INDEX_CAUSE)
             .settings(settings);

@@ -114,7 +114,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             var indexTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(Collections.singletonList("logs-*-*"))
                 .template(new Template(builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null))
-                .componentTemplates(List.of("1"))
                 .priority(100L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
@@ -128,7 +127,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .template(
                     new Template(builder().put("index.mode", "time_series").build(), new CompressedXContent(generateTsdbMapping()), null)
                 )
-                .componentTemplates(List.of("1"))
                 .priority(100L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();

@@ -514,7 +514,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testAddIndexTemplateV2() throws Exception {
         ClusterState state = ClusterState.EMPTY_STATE;
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
+        ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance().toBuilder().componentTemplates(null).build();
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
 
         assertNotNull(state.metadata().templatesV2().get("foo"));
@@ -522,7 +522,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         ComposableIndexTemplate newTemplate = randomValueOtherThanMany(
             t -> Objects.equals(template.priority(), t.priority()),
-            ComposableIndexTemplateTests::randomInstance
+            () -> ComposableIndexTemplateTests.randomInstance().toBuilder().componentTemplates(null).build()
         );
 
         final ClusterState throwState = ClusterState.builder(state).build();
@@ -539,7 +539,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testUpdateIndexTemplateV2() throws Exception {
         ClusterState state = ClusterState.EMPTY_STATE;
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
+        ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance().toBuilder().componentTemplates(null).build();
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
 
         assertNotNull(state.metadata().templatesV2().get("foo"));
@@ -563,7 +563,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
         assertThat(e.getMessage(), equalTo("index_template [foo] missing"));
 
-        final ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", template);
+        final ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put("foo", template).build())
+            .build();
         assertNotNull(state.metadata().templatesV2().get("foo"));
         assertTemplatesEqual(state.metadata().templatesV2().get("foo"), template);
 
@@ -572,7 +574,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveIndexTemplateV2Wildcards() throws Exception {
-        ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
+        ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance().toBuilder().componentTemplates(null).build();
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         ClusterState result = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(ClusterState.EMPTY_STATE, "*");
         assertThat(result, sameInstance(ClusterState.EMPTY_STATE));
@@ -598,9 +600,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComposableIndexTemplate bazTemplate = ComposableIndexTemplateTests.randomInstance();
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
 
-        ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", fooTemplate);
-        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "bar", barTemplate);
-        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "baz", bazTemplate);
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put("foo", fooTemplate).put("bar", barTemplate).put("baz", bazTemplate).build())
+            .build();
         assertNotNull(state.metadata().templatesV2().get("foo"));
         assertNotNull(state.metadata().templatesV2().get("bar"));
         assertNotNull(state.metadata().templatesV2().get("baz"));
@@ -620,12 +622,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComposableIndexTemplate bazTemplate = ComposableIndexTemplateTests.randomInstance();
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
 
-        final ClusterState state;
-        {
-            ClusterState cs = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", fooTemplate);
-            cs = metadataIndexTemplateService.addIndexTemplateV2(cs, false, "bar", barTemplate);
-            state = metadataIndexTemplateService.addIndexTemplateV2(cs, false, "baz", bazTemplate);
-        }
+        final ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder()
+            .put("foo", fooTemplate)
+            .put("bar", barTemplate)
+            .put("baz", bazTemplate)
+        ).build();
 
         Exception e = expectThrows(
             IndexTemplateMissingException.class,
@@ -2074,7 +2075,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "updating component template [c2] results in invalid " + "composable template [my-template] after templates are merged"
+                "updating templates [c2] results in invalid " + "composable template [my-template] after templates are merged"
             )
         );
 
@@ -2103,7 +2104,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testPutExistingComposableTemplateIsNoop() throws Exception {
         ClusterState state = ClusterState.EMPTY_STATE;
         final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
+        ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance().toBuilder().componentTemplates(null).build();
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
 
         assertNotNull(state.metadata().templatesV2().get("foo"));
@@ -2167,7 +2168,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             e.getMessage(),
             containsString(
                 "composable template [logs] with index patterns [logs-*-*], priority [100] and no data stream "
-                    + "configuration would cause data streams [unreferenced, logs-mysql-default] to no longer match a data stream template"
+                    + "configuration would cause data streams [logs-mysql-default] to no longer match a data stream template"
             )
         );
 
@@ -2184,7 +2185,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             e.getMessage(),
             containsString(
                 "composable template [logs2] with index patterns [logs-my*-*], priority [105] and no data stream "
-                    + "configuration would cause data streams [unreferenced, logs-mysql-default] to no longer match a data stream template"
+                    + "configuration would cause data streams [logs-mysql-default] to no longer match a data stream template"
             )
         );
 
@@ -2202,7 +2203,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             e.getMessage(),
             containsString(
                 "composable template [logs] with index patterns [logs-postgres-*], priority [100] would "
-                    + "cause data streams [unreferenced, logs-mysql-default] to no longer match a data stream template"
+                    + "cause data streams [logs-mysql-default] to no longer match a data stream template"
             )
         );
 
@@ -2469,12 +2470,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
 
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, indexTemplateName, template);
 
         // try now the same thing with validation on
         InvalidIndexTemplateException e = expectThrows(
             InvalidIndexTemplateException.class,
-            () -> MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), indexTemplateName, template)
+            () -> metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, indexTemplateName, template)
 
         );
         assertThat(e.getMessage(), containsString("specifies a missing component templates [fail] that does not exist"));

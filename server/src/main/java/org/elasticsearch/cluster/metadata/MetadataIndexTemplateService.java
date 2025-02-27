@@ -254,95 +254,169 @@ public class MetadataIndexTemplateService {
         );
     }
 
-    // Public visible for testing
-    public ClusterState addComponentTemplate(
+    /**
+     * A simple request holder for component template updates
+     * @param name
+     * @param template
+     * @param create
+     */
+    private record ComponentTemplateOperation(String name, ComponentTemplate template, boolean create) {}
+
+    /**
+     * A simple request holder for index template updates
+     * @param name
+     * @param template
+     * @param create
+     */
+    private record ComposableTemplateOperation(String name, ComposableIndexTemplate template, boolean create, boolean validateV2Overlaps) {}
+
+    /**
+     * A name/template tuple record
+     * @param name of template
+     * @param template definition
+     */
+    private record NamedTemplateTuple(String name, ComposableIndexTemplate template) {}
+
+    private ClusterState processBulkTemplateUpdate(
         final ClusterState currentState,
-        final boolean create,
-        final String name,
-        final ComponentTemplate template
+        final Map<String, ComponentTemplateOperation> componentTemplateOperations,
+        final Map<String, ComposableTemplateOperation> composableTemplateOperations
     ) throws Exception {
-        final ComponentTemplate existing = currentState.metadata().componentTemplates().get(name);
-        if (create && existing != null) {
-            throw new IllegalArgumentException("component template [" + name + "] already exists");
-        }
+        Map<String, ComponentTemplate> intialComponentTemplates = currentState.metadata().componentTemplates();
+        Map<String, ComposableIndexTemplate> initialTemplatesV2 = currentState.metadata().templatesV2();
 
-        CompressedXContent mappings = template.template().mappings();
-        CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
+        Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>();
+        Map<String, ComposableIndexTemplate> updatedComposableIndexTemplates = new HashMap<>();
 
-        // We may need to normalize index settings, so do that also
-        Settings finalSettings = template.template().settings();
-        if (finalSettings != null) {
-            finalSettings = Settings.builder().put(finalSettings).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
-        }
+        // Keep a union of current and updated composable index templates to represent the updated cluster state contents
+        Map<String, ComponentTemplate> workingComponents = new HashMap<>(intialComponentTemplates);
+        Map<String, ComposableIndexTemplate> workingTemplatesV2 = new HashMap<>(initialTemplatesV2);
 
-        // Collect all the composable (index) templates that use this component template, we'll use
-        // this for validating that they're still going to be valid after this component template
-        // has been updated
-        final Map<String, ComposableIndexTemplate> templatesUsingComponent = currentState.metadata()
-            .templatesV2()
-            .entrySet()
-            .stream()
-            .filter(e -> e.getValue().composedOf().contains(name))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-        // if we're updating a component template, let's check if it's part of any V2 template that will yield the CT update invalid
-        if (create == false && finalSettings != null) {
-            // if the CT is specifying the `index.hidden` setting it cannot be part of any global template
-            if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(finalSettings)) {
-                List<String> globalTemplatesThatUseThisComponent = new ArrayList<>();
-                for (Map.Entry<String, ComposableIndexTemplate> entry : templatesUsingComponent.entrySet()) {
-                    ComposableIndexTemplate templateV2 = entry.getValue();
-                    if (templateV2.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
-                        // global templates don't support configuring the `index.hidden` setting so we don't need to resolve the settings as
-                        // no other component template can remove this setting from the resolved settings, so just invalidate this update
-                        globalTemplatesThatUseThisComponent.add(entry.getKey());
-                    }
-                }
-                if (globalTemplatesThatUseThisComponent.isEmpty() == false) {
-                    throw new IllegalArgumentException(
-                        "cannot update component template ["
-                            + name
-                            + "] because the following global templates would resolve to specifying the ["
-                            + IndexMetadata.SETTING_INDEX_HIDDEN
-                            + "] setting: ["
-                            + String.join(",", globalTemplatesThatUseThisComponent)
-                            + "]"
-                    );
-                }
+        // Process and finalize all templates to be operated on
+        for (ComponentTemplateOperation componentTemplate : componentTemplateOperations.values()) {
+            final ComponentTemplate maybeFinalComponentTemplate = prepareComponentTemplate(
+                intialComponentTemplates,
+                componentTemplate.create,
+                componentTemplate.name,
+                componentTemplate.template
+            );
+            if (maybeFinalComponentTemplate != null) {
+                updatedComponentTemplates.put(componentTemplate.name, maybeFinalComponentTemplate);
+                workingComponents.put(componentTemplate.name, maybeFinalComponentTemplate);
             }
         }
 
-        final Template finalTemplate = Template.builder(template.template()).settings(finalSettings).mappings(wrappedMappings).build();
-        final ComponentTemplate finalComponentTemplate = new ComponentTemplate(
-            finalTemplate,
-            template.version(),
-            template.metadata(),
-            template.deprecated()
-        );
+        for (ComposableTemplateOperation composableIndexTemplate : composableTemplateOperations.values()) {
+            final ComposableIndexTemplate maybeFinalComposableTemplate = prepareComposableTemplate(
+                currentState,
+                initialTemplatesV2,
+                composableIndexTemplate.create,
+                composableIndexTemplate.name,
+                composableIndexTemplate.template
+            );
+            if (maybeFinalComposableTemplate != null) {
+                updatedComposableIndexTemplates.put(composableIndexTemplate.name, maybeFinalComposableTemplate);
+                workingTemplatesV2.put(composableIndexTemplate.name, maybeFinalComposableTemplate);
+            }
+        }
 
-        if (finalComponentTemplate.equals(existing)) {
+        if (updatedComponentTemplates.isEmpty() && updatedComposableIndexTemplates.isEmpty()) {
             return currentState;
         }
 
-        validateTemplate(finalSettings, wrappedMappings, indicesService);
-        validate(name, finalComponentTemplate);
+        // Collect all the composable index templates that use any of the updated component template. Additionally, collect all updated
+        // component templates that were used by any index template. We'll use both of these for validating that both sets of templates
+        // are (still) valid after updating.
+        final Map<String, ComposableIndexTemplate> allTemplatesRequiringValidation = new HashMap<>();
+        final Map<String, List<NamedTemplateTuple>> updatedComponentsUsedByTemplates = new HashMap<>();
+        for (Map.Entry<String, ComposableIndexTemplate> workingTemplateV2 : workingTemplatesV2.entrySet()) {
+            String indexTemplateName = workingTemplateV2.getKey();
+            ComposableIndexTemplate indexTemplateDefinition = workingTemplateV2.getValue();
+            boolean usesUpdatedComponents = false;
 
-        // Validate all composable index templates that use this component template
-        if (templatesUsingComponent.size() > 0) {
-            ClusterState tempStateWithComponentTemplateAdded = ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentState.metadata()).put(name, finalComponentTemplate))
-                .build();
+            // Check each component dependency to see if it was updated during this bulk operation
+            for (String component : indexTemplateDefinition.composedOf()) {
+                if (updatedComponentTemplates.containsKey(component)) {
+                    usesUpdatedComponents = true;
+                    // Capture this updated component's relationship with this index template
+                    updatedComponentsUsedByTemplates.compute(component, (key, value) -> {
+                        List<NamedTemplateTuple> values = value == null ? new ArrayList<>() : value;
+                        values.add(new NamedTemplateTuple(indexTemplateName, indexTemplateDefinition));
+                        return values;
+                    });
+                }
+            }
+
+            // Capture all index templates that need to validate their composition
+            if (usesUpdatedComponents || updatedComposableIndexTemplates.containsKey(indexTemplateName)) {
+                allTemplatesRequiringValidation.put(indexTemplateName, indexTemplateDefinition);
+            }
+        }
+
+        // Validate all the templates to make sure they aren't adding hidden index settings to global patterns
+        for (Map.Entry<String, ComposableIndexTemplate> updatedComposableIndexTemplate : updatedComposableIndexTemplates.entrySet()) {
+            String indexTemplateName = updatedComposableIndexTemplate.getKey();
+            ComposableIndexTemplate composableIndexTemplate = updatedComposableIndexTemplate.getValue();
+            boolean validateV2Overlaps = composableTemplateOperations.get(indexTemplateName).validateV2Overlaps();
+
+            MetadataIndexTemplateService.validateV2TemplateRequest(workingComponents, indexTemplateName, composableIndexTemplate);
+            MetadataIndexTemplateService.v2TemplateOverlaps(
+                workingTemplatesV2,
+                indexTemplateName,
+                composableIndexTemplate,
+                validateV2Overlaps
+            );
+        }
+        // Do the same validation for the component template changes
+        // PRTODO: Is this redundant with the validateV2TemplateRequest call in the block right before here?
+        for (Map.Entry<String, List<NamedTemplateTuple>> updatedComponentUsedByTemplate : updatedComponentsUsedByTemplates.entrySet()) {
+            String componentTemplateName = updatedComponentUsedByTemplate.getKey();
+            List<NamedTemplateTuple> composableTemplatesUsingThisComponent = updatedComponentUsedByTemplate.getValue();
+
+            ComponentTemplate componentTemplate = updatedComponentTemplates.get(componentTemplateName);
+            validateNoHiddenSettingOnGlobalTemplates(componentTemplateName, componentTemplate, composableTemplatesUsingThisComponent);
+        }
+
+        Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
+
+        // Sufficiently validated enough to apply changes to a candidate cluster state to complete the rest of the validation
+        for (Map.Entry<String, ComponentTemplate> component : updatedComponentTemplates.entrySet()) {
+            metadataBuilder.put(component.getKey(), component.getValue());
+        }
+        for (Map.Entry<String, ComposableIndexTemplate> indexTemplate : updatedComposableIndexTemplates.entrySet()) {
+            metadataBuilder.put(indexTemplate.getKey(), indexTemplate.getValue());
+        }
+
+        ClusterState candidateState = ClusterState.builder(currentState).metadata(metadataBuilder).build();
+
+        // Validate all changed composable index templates that have been updated, either directly or by changes to their dependencies
+        if (allTemplatesRequiringValidation.isEmpty() == false) {
             Exception validationFailure = null;
-            for (Map.Entry<String, ComposableIndexTemplate> entry : templatesUsingComponent.entrySet()) {
+            for (Map.Entry<String, ComposableIndexTemplate> entry : allTemplatesRequiringValidation.entrySet()) {
                 final String composableTemplateName = entry.getKey();
                 final ComposableIndexTemplate composableTemplate = entry.getValue();
+                // PRTODO: This error matches what is expected for component template changes, but not for composable template changes
                 try {
-                    validateIndexTemplateV2(composableTemplateName, composableTemplate, tempStateWithComponentTemplateAdded);
+                    validateIndexTemplateV2(
+                        composableTemplateName,
+                        composableTemplate,
+                        candidateState
+                    );
                 } catch (Exception e) {
+                    // For the sake of error message backwards compatibility, do not wrap the
+                    // exception if this is a single composable index template updated
+                    if (composableTemplateOperations.size() == 1 && componentTemplateOperations.isEmpty()) {
+                        throw e;
+                    }
                     if (validationFailure == null) {
                         validationFailure = new IllegalArgumentException(
-                            "updating component template ["
-                                + name
+                            "updating templates ["
+                                + generateTemplateNamesForException(
+                                    composableTemplateName,
+                                    composableTemplate,
+                                    updatedComponentTemplates,
+                                    updatedComposableIndexTemplates
+                                )
                                 + "] results in invalid composable template ["
                                 + composableTemplateName
                                 + "] after templates are merged",
@@ -358,15 +432,193 @@ public class MetadataIndexTemplateService {
             }
         }
 
+        validateDataStreamsStillReferenced(candidateState, currentState, updatedComposableIndexTemplates.keySet());
+
+        return candidateState;
+    }
+
+    private static StringBuilder generateTemplateNamesForException(
+        String composableTemplateName,
+        ComposableIndexTemplate composableTemplate,
+        Map<String, ComponentTemplate> updatedComponentTemplates,
+        Map<String, ComposableIndexTemplate> updatedComposableIndexTemplates
+    ) {
+        StringBuilder builder = new StringBuilder();
+        var failingComponents = composableTemplate.composedOf()
+            .stream()
+            .filter(updatedComponentTemplates::containsKey)
+            .collect(Collectors.joining(", "));
+        if (failingComponents.isEmpty() == false) {
+            builder.append(failingComponents);
+        }
+        var failingTemplate = updatedComposableIndexTemplates.containsKey(composableTemplateName)
+            ? composableTemplateName
+            : null;
+        if (failingTemplate != null) {
+            if (failingComponents.isEmpty() == false) {
+                builder.append(", ");
+            }
+            builder.append(failingTemplate);
+        }
+        return builder;
+    }
+
+    /**
+     * Validate that a component template does not set an index to hidden if it is used within a global template (match *)
+     * @param name of the component template to check
+     * @param componentTemplate definition of the template to check
+     * @param templatesUsingComponent all index templates that currently make use of this component
+     */
+    private static void validateNoHiddenSettingOnGlobalTemplates(
+        String name,
+        ComponentTemplate componentTemplate,
+        List<NamedTemplateTuple> templatesUsingComponent
+    ) {
+
+        Settings finalSettings = Optional.of(componentTemplate).map(ComponentTemplate::template).map(Template::settings).orElse(null);
+        if (finalSettings != null) {
+            // if the CT is specifying the `index.hidden` setting it cannot be part of any global template
+            if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(finalSettings)) {
+                List<String> globalTemplatesThatUseThisComponent = new ArrayList<>();
+                for (NamedTemplateTuple template : templatesUsingComponent) {
+                    ComposableIndexTemplate templateV2 = template.template;
+                    if (templateV2.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
+                        // global templates don't support configuring the `index.hidden` setting so we don't need to resolve the settings as
+                        // no other component template can remove this setting from the resolved settings, so just invalidate this update
+                        globalTemplatesThatUseThisComponent.add(template.name);
+                    }
+                }
+                if (globalTemplatesThatUseThisComponent.isEmpty() == false) {
+                    throw new IllegalArgumentException(
+                        "cannot update component template ["
+                            + name
+                            + "] because the following global templates would resolve to specifying the ["
+                            + IndexMetadata.SETTING_INDEX_HIDDEN
+                            + "] setting: ["
+                            + String.join(",", globalTemplatesThatUseThisComponent)
+                            + "]"
+                    );
+                }
+            }
+        }
+    }
+
+    private ComponentTemplate prepareComponentTemplate(
+        Map<String, ComponentTemplate> intialComponentTemplates,
+        boolean create,
+        String name,
+        ComponentTemplate template
+    ) throws Exception {
+        final ComponentTemplate existing = intialComponentTemplates.get(name);
+        if (create && existing != null) {
+            throw new IllegalArgumentException("component template [" + name + "] already exists");
+        }
+
+        CompressedXContent mappings = template.template().mappings();
+        CompressedXContent wrappedMappings = MetadataIndexTemplateService.wrapMappingsIfNecessary(mappings, xContentRegistry);
+
+        // We may need to normalize index settings, so do that also
+        Settings finalSettings = template.template().settings();
+        if (finalSettings != null) {
+            finalSettings = Settings.builder().put(finalSettings).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
+        }
+
+        final Template finalTemplate = Template.builder(template.template()).settings(finalSettings).mappings(wrappedMappings).build();
+        final ComponentTemplate finalComponentTemplate = new ComponentTemplate(
+            finalTemplate,
+            template.version(),
+            template.metadata(),
+            template.deprecated()
+        );
+
+        if (finalComponentTemplate.equals(intialComponentTemplates.get(name))) {
+            return null;
+        }
+
+        // Immediate validation of the component template only
+        MetadataIndexTemplateService.validateTemplate(finalSettings, wrappedMappings, indicesService);
+        validate(name, finalComponentTemplate);
         if (finalComponentTemplate.template().lifecycle() != null) {
             // We do not know if this lifecycle will belong to an internal data stream, so we fall back to a non internal.
             finalComponentTemplate.template().lifecycle().addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), false);
         }
+        return finalComponentTemplate;
+    }
 
-        logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
-        return ClusterState.builder(currentState)
-            .metadata(Metadata.builder(currentState.metadata()).put(name, finalComponentTemplate))
-            .build();
+    private ComposableIndexTemplate prepareComposableTemplate(
+        final ClusterState previousState,
+        final Map<String, ComposableIndexTemplate> initialTemplatesV2,
+        final boolean create,
+        final String name,
+        final ComposableIndexTemplate template
+    ) throws IOException {
+        final ComposableIndexTemplate existing = initialTemplatesV2.get(name);
+        if (create && existing != null) {
+            throw new IllegalArgumentException("index template [" + name + "] already exists");
+        }
+
+        Map<String, List<String>> overlaps = MetadataIndexTemplateService.findConflictingV1Templates(
+            previousState,
+            name,
+            template.indexPatterns()
+        );
+        if (overlaps.size() > 0) {
+            String warning = String.format(
+                Locale.ROOT,
+                "index template [%s] has index patterns %s matching patterns from "
+                    + "existing older templates [%s] with patterns (%s); this template [%s] will take precedence during new index creation",
+                name,
+                template.indexPatterns(),
+                Strings.collectionToCommaDelimitedString(overlaps.keySet()),
+                overlaps.entrySet().stream().map(e -> e.getKey() + " => " + e.getValue()).collect(Collectors.joining(",")),
+                name
+            );
+            logger.warn(warning);
+            HeaderWarning.addWarning(warning);
+        }
+
+        // Normalize the internal template part of this component template if it is present
+        ComposableIndexTemplate finalIndexTemplate = template;
+        Template innerTemplate = template.template();
+        if (innerTemplate != null) {
+            // We may need to normalize index settings, so do that also
+            Settings finalSettings = innerTemplate.settings();
+            if (finalSettings != null) {
+                finalSettings = Settings.builder().put(finalSettings).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
+            }
+            // If an inner template was specified, its mappings may need to be
+            // adjusted (to add _doc) and it should be validated
+            CompressedXContent mappings = innerTemplate.mappings();
+            CompressedXContent wrappedMappings = MetadataIndexTemplateService.wrapMappingsIfNecessary(mappings, xContentRegistry);
+            final Template finalTemplate = Template.builder(innerTemplate).settings(finalSettings).mappings(wrappedMappings).build();
+            finalIndexTemplate = template.toBuilder().template(finalTemplate).build();
+        }
+
+        // If this finalized template hasn't changed compared to what is in the cluster, skip updating it
+        if (finalIndexTemplate.equals(existing)) {
+            return null;
+        }
+        return finalIndexTemplate;
+    }
+
+    // Public visible for testing
+    public ClusterState addComponentTemplate(
+        final ClusterState currentState,
+        final boolean create,
+        final String name,
+        final ComponentTemplate template
+    ) throws Exception {
+        ClusterState newClusterState = processBulkTemplateUpdate(
+            currentState,
+            Map.of(name, new ComponentTemplateOperation(name, template, create)),
+            Map.of()
+        );
+        logger.info(
+            "{} component template [{}]",
+            currentState.metadata().componentTemplates().containsKey(name) ? "updating" : "adding",
+            name
+        );
+        return newClusterState;
     }
 
     /**
@@ -598,57 +850,18 @@ public class MetadataIndexTemplateService {
         final ComposableIndexTemplate template,
         final boolean validateV2Overlaps
     ) throws Exception {
-        final ComposableIndexTemplate existing = currentState.metadata().templatesV2().get(name);
-        if (create && existing != null) {
-            throw new IllegalArgumentException("index template [" + name + "] already exists");
-        }
-
-        Map<String, List<String>> overlaps = v2TemplateOverlaps(currentState.metadata().templatesV2(), name, template, validateV2Overlaps);
-
-        overlaps = findConflictingV1Templates(currentState, name, template.indexPatterns());
-        if (overlaps.size() > 0) {
-            String warning = String.format(
-                Locale.ROOT,
-                "index template [%s] has index patterns %s matching patterns from "
-                    + "existing older templates [%s] with patterns (%s); this template [%s] will take precedence during new index creation",
-                name,
-                template.indexPatterns(),
-                Strings.collectionToCommaDelimitedString(overlaps.keySet()),
-                overlaps.entrySet().stream().map(e -> e.getKey() + " => " + e.getValue()).collect(Collectors.joining(",")),
-                name
-            );
-            logger.warn(warning);
-            HeaderWarning.addWarning(warning);
-        }
-
-        ComposableIndexTemplate finalIndexTemplate = template;
-        Template innerTemplate = template.template();
-        if (innerTemplate != null) {
-            // We may need to normalize index settings, so do that also
-            Settings finalSettings = innerTemplate.settings();
-            if (finalSettings != null) {
-                finalSettings = Settings.builder().put(finalSettings).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
-            }
-            // If an inner template was specified, its mappings may need to be
-            // adjusted (to add _doc) and it should be validated
-            CompressedXContent mappings = innerTemplate.mappings();
-            CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
-            final Template finalTemplate = Template.builder(innerTemplate).settings(finalSettings).mappings(wrappedMappings).build();
-            finalIndexTemplate = template.toBuilder().template(finalTemplate).build();
-        }
-
-        if (finalIndexTemplate.equals(existing)) {
-            return currentState;
-        }
-
-        validateIndexTemplateV2(name, finalIndexTemplate, currentState);
+        ClusterState newClusterState = processBulkTemplateUpdate(
+            currentState,
+            Map.of(),
+            Map.of(name, new ComposableTemplateOperation(name, template, create, validateV2Overlaps))
+        );
         logger.info(
             "{} index template [{}] for index patterns {}",
-            existing == null ? "adding" : "updating",
+            currentState.metadata().templatesV2().containsKey(name) ? "updating" : "adding",
             name,
             template.indexPatterns()
         );
-        return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate)).build();
+        return newClusterState;
     }
 
     /**
@@ -695,12 +908,16 @@ public class MetadataIndexTemplateService {
     }
 
     // Visibility for testing
-    void validateIndexTemplateV2(String name, ComposableIndexTemplate indexTemplate, ClusterState currentState) {
+    void validateIndexTemplateV2(
+        String name,
+        ComposableIndexTemplate indexTemplate,
+        ClusterState candidateState
+    ) {
         // Workaround for the fact that start_time and end_time are injected by the MetadataCreateDataStreamService upon creation,
         // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
         var finalTemplate = indexTemplate.template();
         final var now = Instant.now();
-        final var metadata = currentState.getMetadata();
+        final var metadata = candidateState.getMetadata();
 
         final var combinedMappings = collectMappings(indexTemplate, metadata.componentTemplates(), "tmp_idx");
         final var combinedSettings = resolveSettings(indexTemplate, metadata.componentTemplates());
@@ -711,7 +928,7 @@ public class MetadataIndexTemplateService {
                 "validate-index-name",
                 indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
                 metadata.retrieveIndexModeFromTemplate(indexTemplate),
-                currentState.getMetadata(),
+                candidateState.getMetadata(),
                 now,
                 combinedSettings,
                 combinedMappings
@@ -729,13 +946,12 @@ public class MetadataIndexTemplateService {
         var templateToValidate = indexTemplate.toBuilder().template(Template.builder(finalTemplate).settings(finalSettings)).build();
 
         validate(name, templateToValidate);
-        validateDataStreamsStillReferenced(currentState, name, templateToValidate);
-        validateLifecycle(currentState.metadata(), name, templateToValidate, globalRetentionSettings.get());
-        validateDataStreamOptions(currentState.metadata(), name, templateToValidate);
+        validateLifecycle(candidateState.metadata(), name, templateToValidate, globalRetentionSettings.get());
+        validateDataStreamOptions(candidateState.metadata(), name, templateToValidate);
 
         if (templateToValidate.isDeprecated() == false) {
-            validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
-            validateUseOfDeprecatedIngestPipelines(name, currentState.metadata().custom(IngestMetadata.TYPE), combinedSettings);
+            validateUseOfDeprecatedComponentTemplates(name, templateToValidate, candidateState.metadata().componentTemplates());
+            validateUseOfDeprecatedIngestPipelines(name, candidateState.metadata().custom(IngestMetadata.TYPE), combinedSettings);
             // TODO come up with a plan how to validate usage of deprecated ILM policies
             // we don't have access to the core/main plugin here so we can't use the IndexLifecycleMetadata type
         }
@@ -743,7 +959,7 @@ public class MetadataIndexTemplateService {
         // Finally, right before adding the template, we need to ensure that the composite settings,
         // mappings, and aliases are valid after it's been composed with the component templates
         try {
-            validateCompositeTemplate(currentState, name, templateToValidate, indicesService, xContentRegistry, systemIndices);
+            validateCompositeTemplate(candidateState, name, templateToValidate, indicesService, xContentRegistry, systemIndices);
         } catch (Exception e) {
             throw new IllegalArgumentException(
                 "composable template ["
@@ -845,8 +1061,153 @@ public class MetadataIndexTemplateService {
      * due to snapshot restores, but this validation is best-effort at template
      * addition/update time
      */
-    private static void validateDataStreamsStillReferenced(ClusterState state, String templateName, ComposableIndexTemplate newTemplate) {
-        final Set<String> dataStreams = state.metadata().dataStreams().keySet();
+    public static void validateDataStreamsStillReferenced(
+        ClusterState candidateState,
+        ClusterState previousState,
+        Set<String> updatedIndexTemplateNames
+    ) {
+        if (updatedIndexTemplateNames.isEmpty()) {
+            // Nothing to validate
+            return;
+        }
+        final Set<String> dataStreams = candidateState.metadata().dataStreams().keySet();
+        final Map<String, Set<String>> offendingTemplateToUnreferencedDataStreams = new HashMap<>();
+        final Set<String> unreferencedDataStreamsWithoutTemplateChange = new HashSet<>();
+        // For each data stream that we have, see whether it's covered by a different
+        // template (which is great), or whether it's now uncovered by any template
+        for (String dataStream : dataStreams) {
+            final LinkedHashSet<String> originallyMatchingTemplates = findV2Templates(previousState.metadata(), dataStream, false);
+            boolean unreferenced = false;
+            if (originallyMatchingTemplates == null) {
+                unreferenced = true;
+            } else {
+                // We found a template that still matches, great! Buuuuttt... check whether it
+                // is a data stream template, as it's only useful if it has a data stream definition
+                if (previousState.metadata().templatesV2().get(originallyMatchingTemplates.getFirst()).getDataStreamTemplate() == null) {
+                    unreferenced = true;
+                }
+            }
+            if (unreferenced) {
+                // The data stream was previously unreferenced, so any template changes are irrelevant to check
+                continue;
+            }
+            String originalTemplate = originallyMatchingTemplates.getFirst();
+            // Determine if the data stream is newly unreferenced after all template changes happen
+            final LinkedHashSet<String> newlyMatchingTemplates = findV2Templates(candidateState.metadata(), dataStream, false);
+            if (newlyMatchingTemplates == null) {
+                // We have no template anymore after the changes. The only way this could happen is if the
+                // previous template was removed or its patterns changed to not match anymore. Either way,
+                // the previous template was changed and thus is the offender here
+                if (updatedIndexTemplateNames.contains(originalTemplate)) {
+                    offendingTemplateToUnreferencedDataStreams.computeIfAbsent(
+                        originalTemplate,
+                        (k) -> new HashSet<>()
+                    ).add(dataStream);
+                } else {
+                    // Not sure how this could happen. Somehow we had a template in the last version that matched, but now we don't,
+                    // and it wasn't one that changed. Assert on it and collect for graceful degradation.
+                    unreferencedDataStreamsWithoutTemplateChange.add(dataStream);
+                    assert false
+                        : "data stream ["
+                            + dataStream
+                            + "] became unreferenced during template update. Previous template was ["
+                            + originalTemplate
+                            + "] but it was not a template that changed during the cluster state operation. Changed templates ["
+                            + updatedIndexTemplateNames
+                            + "]";
+                }
+            } else {
+                // A template still matches, but again - check if it is a data stream template
+                String newTemplate = newlyMatchingTemplates.getFirst();
+                if (candidateState.metadata().templatesV2().get(newTemplate).getDataStreamTemplate() == null) {
+                    // Template is not a data stream template. Could be because
+                    boolean newTemplateWasUpdated = updatedIndexTemplateNames.contains(newTemplate);
+                    boolean oldTemplateWasUpdated = updatedIndexTemplateNames.contains(originalTemplate);
+                    // Ok so this data stream is in an invalid state. Figure out which template change caused this.
+                    if (newTemplateWasUpdated && oldTemplateWasUpdated) {
+                        // Ok both templates changed, but we don't know if both changes are responsible for why the data stream broke.
+                        // What causes a template to be the reason for breaking? Patterns, priority, and template changes.
+                        // Does it matter? We're going to reject both operations. Just label both of them as the cause of the problem.
+                        offendingTemplateToUnreferencedDataStreams.computeIfAbsent(
+                            newTemplate,
+                            (k) -> new HashSet<>()
+                        ).add(dataStream);
+                        offendingTemplateToUnreferencedDataStreams.computeIfAbsent(
+                            originalTemplate,
+                            (k) -> new HashSet<>()
+                        ).add(dataStream);
+                    } else if (newTemplateWasUpdated) {
+                        // A new template was inserted ahead of the old one, and it is not a data stream template
+                        // Just the new one is the problem
+                        offendingTemplateToUnreferencedDataStreams.computeIfAbsent(
+                            newTemplate,
+                            (k) -> new HashSet<>()
+                        ).add(dataStream);
+                    } else {
+                        // Old template was changed and the new template (unchanged) is now incorrectly applied
+                        // The old one changing is the problem
+                        offendingTemplateToUnreferencedDataStreams.computeIfAbsent(
+                            originalTemplate,
+                            (k) -> new HashSet<>()
+                        ).add(dataStream);
+                    }
+                }
+            }
+        }
+
+        // If we found any data streams that used to be covered, but will no longer be covered by
+        // changing this template, then blow up with as much helpful information as we can muster
+        if (offendingTemplateToUnreferencedDataStreams.isEmpty() == false) {
+            IllegalArgumentException validationFailure = null;
+            for (Map.Entry<String, Set<String>> templateErrors : offendingTemplateToUnreferencedDataStreams.entrySet()) {
+                String templateName = templateErrors.getKey();
+                Set<String> newlyUnreferenced = templateErrors.getValue();
+                ComposableIndexTemplate newTemplate = candidateState.metadata().templatesV2().get(templateName);
+                IllegalArgumentException failure = new IllegalArgumentException(
+                    "composable template ["
+                        + templateName
+                        + "] with index patterns "
+                        + newTemplate.indexPatterns()
+                        + ", priority ["
+                        + newTemplate.priority()
+                        + "] "
+                        + (newTemplate.getDataStreamTemplate() == null ? "and no data stream configuration " : "")
+                        + "would cause data streams "
+                        + newlyUnreferenced
+                        + " to no longer match a data stream template"
+                );
+                if (validationFailure == null) {
+                    validationFailure = failure;
+                } else {
+                    validationFailure.addSuppressed(failure);
+                }
+            }
+            throw validationFailure;
+        } else if (unreferencedDataStreamsWithoutTemplateChange.isEmpty() == false) {
+            // For sanity if assertions are disabled
+            throw new IllegalArgumentException(
+                "update for templates "
+                    + updatedIndexTemplateNames
+                    + "would cause data streams "
+                    + unreferencedDataStreamsWithoutTemplateChange
+                    + " to no longer match a data stream template"
+            );
+        }
+    }
+
+    /**
+     * Validate that by changing or adding {@code newTemplate}, there are
+     * no unreferenced data streams. Note that this scenario is still possible
+     * due to snapshot restores, but this validation is best-effort at template
+     * addition/update time
+     */
+    private static void validateDataStreamsStillReferencedOld(
+        ClusterState candidateState,
+        ClusterState previousState,
+        String templateName,
+        ComposableIndexTemplate newTemplate
+    ) {
+        final Set<String> dataStreams = candidateState.metadata().dataStreams().keySet();
 
         Function<Metadata, Set<String>> findUnreferencedDataStreams = meta -> {
             final Set<String> unreferenced = new HashSet<>();
@@ -868,10 +1229,10 @@ public class MetadataIndexTemplateService {
         };
 
         // Find data streams that are currently unreferenced
-        final Set<String> currentlyUnreferenced = findUnreferencedDataStreams.apply(state.metadata());
+        final Set<String> currentlyUnreferenced = findUnreferencedDataStreams.apply(previousState.metadata());
 
         // Generate a metadata as if the new template were actually in the cluster state
-        final Metadata updatedMetadata = Metadata.builder(state.metadata()).put(templateName, newTemplate).build();
+        final Metadata updatedMetadata = Metadata.builder(candidateState.metadata()).put(templateName, newTemplate).build();
         // Find the data streams that would be unreferenced now that the template is updated/added
         final Set<String> newlyUnreferenced = findUnreferencedDataStreams.apply(updatedMetadata);
 
@@ -1327,6 +1688,32 @@ public class MetadataIndexTemplateService {
      */
     @Nullable
     public static String findV2Template(Metadata metadata, String indexName, boolean isHidden) {
+        return findV2Templates(metadata, indexName, isHidden, (candidates) -> candidates.get(0).v1());
+    }
+
+    /**
+     * Return the names (id) of all matching index templates for the given index name. In
+     * the event that no templates are matched, {@code null} is returned. This includes
+     * the same validation logic as {@link MetadataIndexTemplateService#findV2Template}
+     * for the lead template
+     */
+    @Nullable
+    public static LinkedHashSet<String> findV2Templates(Metadata metadata, String indexName, boolean isHidden) {
+        return findV2Templates(metadata, indexName, isHidden, (candidates) -> {
+            final LinkedHashSet<String> resultNames = new LinkedHashSet<>(candidates.size());
+            for (Tuple<String, ComposableIndexTemplate> candidate : candidates) {
+                resultNames.add(candidate.v1());
+            }
+            return resultNames;
+        });
+    }
+
+    private static <T> T findV2Templates(
+        Metadata metadata,
+        String indexName,
+        boolean isHidden,
+        Function<List<Tuple<String, ComposableIndexTemplate>>, T> bind
+    ) {
         final List<Tuple<String, ComposableIndexTemplate>> candidates = findV2CandidateTemplates(metadata, indexName, isHidden);
         if (candidates.isEmpty()) {
             return null;
@@ -1349,7 +1736,7 @@ public class MetadataIndexTemplateService {
             );
         }
 
-        return winnerName;
+        return bind.apply(candidates);
     }
 
     /**

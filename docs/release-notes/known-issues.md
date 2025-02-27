@@ -2,11 +2,12 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-known-issues.html
 
-navigation_title: "Search connectors known issues"
+navigation_title: "Elasticsearch"
 ---
 
+# Elasticsearch known issues
 
-# Connector known issues [es-connectors-known-issues]
+## Connector known issues [es-connectors-known-issues]
 
 :::{important}
 Enterprise Search is not available in {{stack}} 9.0+.

@@ -50,8 +50,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
             threadPool,
             actionFilters,
             GetMappingsRequest::new,
-            indexNameExpressionResolver,
-            GetMappingsResponse::new
+            indexNameExpressionResolver
         );
         this.indicesService = indicesService;
     }

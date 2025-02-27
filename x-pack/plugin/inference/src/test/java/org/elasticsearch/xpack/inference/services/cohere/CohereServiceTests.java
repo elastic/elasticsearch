@@ -1099,6 +1099,7 @@ public class CohereServiceTests extends ESTestCase {
 
         try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
             var embeddingSize = randomNonNegativeInt();
+            var embeddingType = randomFrom(CohereEmbeddingType.values());
             var model = CohereEmbeddingsModelTests.createModel(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
@@ -1106,13 +1107,15 @@ public class CohereServiceTests extends ESTestCase {
                 randomNonNegativeInt(),
                 randomNonNegativeInt(),
                 randomAlphaOfLength(10),
-                randomFrom(CohereEmbeddingType.values()),
+                embeddingType,
                 similarityMeasure
             );
 
             Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
 
-            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null ? CohereService.defaultSimilarity() : similarityMeasure;
+            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null
+                ? CohereService.defaultSimilarity(embeddingType)
+                : similarityMeasure;
             assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
             assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
         }
@@ -1587,8 +1590,15 @@ public class CohereServiceTests extends ESTestCase {
         }
     }
 
-    public void testDefaultSimilarity() {
-        assertEquals(SimilarityMeasure.DOT_PRODUCT, CohereService.defaultSimilarity());
+    public void testDefaultSimilarity_BinaryEmbedding() {
+        assertEquals(SimilarityMeasure.L2_NORM, CohereService.defaultSimilarity(CohereEmbeddingType.BINARY));
+        assertEquals(SimilarityMeasure.L2_NORM, CohereService.defaultSimilarity(CohereEmbeddingType.BIT));
+    }
+
+    public void testDefaultSimilarity_NotBinaryEmbedding() {
+        assertEquals(SimilarityMeasure.DOT_PRODUCT, CohereService.defaultSimilarity(CohereEmbeddingType.FLOAT));
+        assertEquals(SimilarityMeasure.DOT_PRODUCT, CohereService.defaultSimilarity(CohereEmbeddingType.BYTE));
+        assertEquals(SimilarityMeasure.DOT_PRODUCT, CohereService.defaultSimilarity(CohereEmbeddingType.INT8));
     }
 
     public void testInfer_StreamRequest() throws Exception {

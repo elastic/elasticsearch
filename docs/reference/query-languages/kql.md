@@ -5,6 +5,13 @@ mapped_pages:
 
 # {{kib}} Query Language [kuery-query]
 
+:::{note}
+This section provides detailed **reference information**.
+
+Refer to [KQL overview](docs-content://explore-analyze/query-filter/languages/kql.md) in the **Explore and analyze** section for overview and conceptual information about the SQL query language.
+:::
+
+
 The {{kib}} Query Language (KQL) is a simple text-based query language for filtering data.
 
 * KQL only filters data, and has no role in aggregating, transforming, or sorting data.

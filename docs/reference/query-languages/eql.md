@@ -6,6 +6,12 @@ mapped_pages:
 
 # EQL search [eql]
 
+:::{note}
+This section provides detailed **reference information**.
+
+Refer to [EQL overview](docs-content://explore-analyze/query-filter/languages/eql.md) in the **Explore and analyze** section for overview and conceptual information about the SQL query language.
+:::
+
 
 Event Query Language (EQL) is a query language for event-based time series data, such as logs, metrics, and traces.
 

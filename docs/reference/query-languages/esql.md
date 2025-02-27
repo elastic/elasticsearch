@@ -6,8 +6,11 @@ mapped_pages:
 
 # {{esql}} reference [esql-language]
 
+:::{note}
+This section provides detailed **reference information**.
 
-Detailed reference documentation for the {{esql}} language:
+For overview, conceptual, and getting started information, refer to the [{{esql}} language](docs-content://explore-analyze/query-filter/languages/esql.md) in the **Explore and analyze** section.
+:::
 
 * [Syntax reference](/reference/query-languages/esql/esql-syntax.md)
 * [Commands](/reference/query-languages/esql/esql-commands.md)

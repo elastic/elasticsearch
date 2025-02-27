@@ -1,6 +1,11 @@
 # SQL
 
-This chapter provides information on Elasticsearch SQL such as:
+:::{note}
+This section provides detailed **reference information**.
+
+Refer to [SQL overview](docs-content://explore-analyze/query-filter/languages/sql.md) in the **Explore and analyze** section for overview and conceptual information about the SQL query language.
+:::
+
 
 [SQL language](sql-spec.md)
 :   SQL syntax and semantics

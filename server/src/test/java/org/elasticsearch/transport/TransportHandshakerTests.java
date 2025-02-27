@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
@@ -303,7 +304,9 @@ public class TransportHandshakerTests extends ESTestCase {
         TaskId.EMPTY_TASK_ID.writeTo(futureHandshake);
         final var extraDataSize = between(0, 1024);
         try (BytesStreamOutput internalMessage = new BytesStreamOutput()) {
-            internalMessage.writeVInt(TransportVersion.current().id() + between(0, 100));
+            @FixForMultiProject(description = "update to between(0, 100) when multi-projects get a real transport version")
+            final var futureTransportVersionId = TransportVersion.current().id() + between(0, 1);
+            internalMessage.writeVInt(futureTransportVersionId);
             internalMessage.writeString(buildVersion);
             lengthCheckingHandshake.writeBytesReference(internalMessage.bytes());
             internalMessage.write(new byte[extraDataSize]);

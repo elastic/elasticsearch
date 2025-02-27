@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -77,6 +78,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private boolean includeIndexNames = true;
 
+    private String state;
+
     public GetSnapshotsRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
     }
@@ -118,6 +121,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         if (in.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
             includeIndexNames = in.readBoolean();
         }
+        state = in.readOptionalString();
     }
 
     @Override
@@ -137,6 +141,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         if (out.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
             out.writeBoolean(includeIndexNames);
         }
+        out.writeOptionalString(state);
     }
 
     @Override
@@ -176,6 +181,12 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             }
         } else if (after != null && fromSortValue != null) {
             validationException = addValidationError("can't use after and from_sort_value simultaneously", validationException);
+        }
+        if (state != null && !(Arrays.stream(SnapshotState.values()).anyMatch(s -> s.name().equalsIgnoreCase(state)))) {
+            validationException = addValidationError(
+                "state must be SUCCESS, IN_PROGRESS, FAILED, PARTIAL, or INCOMPATIBLE",
+                validationException
+            );
         }
         return validationException;
     }
@@ -340,6 +351,15 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      */
     public boolean verbose() {
         return verbose;
+    }
+
+    public String state() {
+        return state;
+    }
+
+    public GetSnapshotsRequest state(String state) {
+        this.state = state;
+        return this;
     }
 
     @Override

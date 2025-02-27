@@ -69,6 +69,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.core.StringContains.containsString;
 
 public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
@@ -631,6 +632,57 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .setIgnoreUnavailable(randomBoolean())
             .execute();
         expectThrows(RepositoryMissingException.class, multiRepoFuture::actionGet);
+    }
+
+    public void testFilterByState() throws Exception {
+        final String repoName = "test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(repoName, "mock", repoPath);
+        maybeInitWithOldSnapshotVersion(repoName, repoPath);
+
+        // Create a successful snapshot
+        String successSnapshot = "snapshot-success";
+        createFullSnapshot(repoName, successSnapshot);
+
+        // Create a snapshot in progress
+        String inProgressSnapshot = "snapshot-in-progress";
+        blockAllDataNodes(repoName);
+        startFullSnapshot(repoName, inProgressSnapshot);
+        awaitNumberOfSnapshotsInProgress(1);
+        awaitClusterState(
+            state -> SnapshotsInProgress.get(state)
+                .asStream()
+                .flatMap(s -> s.shards().entrySet().stream())
+                .allMatch(
+                    e -> e.getKey().getIndexName().equals("test-index-1") == false
+                        || e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS
+                )
+        );
+
+        // Fetch all snapshots
+        GetSnapshotsResponse responseAll = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get();
+        assertThat(responseAll.getSnapshots(), hasSize(2));
+
+        // Fetch snapshots with state=SUCCESS
+        GetSnapshotsResponse responseSuccess = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
+            .setState(String.valueOf(SnapshotState.SUCCESS))
+            .get();
+        assertThat(responseSuccess.getSnapshots(), hasSize(1));
+        assertThat(responseSuccess.getSnapshots().get(0).state(), is(SnapshotState.SUCCESS));
+
+        // Fetch snapshots with state=IN_PROGRESS
+        GetSnapshotsResponse responseInProgress = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
+            .setState(String.valueOf(SnapshotState.IN_PROGRESS))
+            .get();
+        assertThat(responseInProgress.getSnapshots(), hasSize(1));
+        assertThat(responseInProgress.getSnapshots().get(0).state(), is(SnapshotState.IN_PROGRESS));
+
+        // Fetch snapshots with invalid state
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).setState("INVALID_STATE").get()
+        );
+        assertThat(e.getMessage(), containsString("state must be SUCCESS, IN_PROGRESS, FAILED, PARTIAL, or INCOMPATIBLE"));
     }
 
     // Create a snapshot that is guaranteed to have a unique start time and duration for tests around ordering by either.

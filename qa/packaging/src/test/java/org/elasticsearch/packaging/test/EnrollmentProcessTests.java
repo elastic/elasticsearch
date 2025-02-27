@@ -148,9 +148,11 @@ public class EnrollmentProcessTests extends PackagingTestCase {
                 .toList();
 
             if (filteredResult.size() > 1) {
-                throw new AssertionError("Result from elasticsearch-create-enrollment-token contains unexpected output.");
+                throw new AssertionError(
+                    "Result from elasticsearch-create-enrollment-token contains unexpected output. Output was: \n" + result.stdout()
+                );
             } else if (filteredResult.isEmpty()) {
-                throw new AssertionError("Failed to find any non-warning output lines");
+                throw new AssertionError("Failed to find any non-warning output lines. Output was: \n" + result.stdout());
             }
 
             enrollmentTokenHolder.set(filteredResult.getFirst());

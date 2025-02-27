@@ -357,9 +357,10 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" )
-               ( WHERE content:"dog" )
+               ( WHERE content:"fox" | SORT _score, _id DESC )
+               ( WHERE content:"dog" | SORT _score, _id DESC )
             | RRF
+            | EVAL _score = round(_score, 4)
             | KEEP id, content, _score, _fork
             """;
         try (var resp = run(query)) {
@@ -368,9 +369,9 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             assertColumnTypes(resp.columns(), List.of("integer", "keyword", "double", "keyword"));
             assertThat(getValuesList(resp.values()).size(), equalTo(3));
             Iterable<Iterable<Object>> expectedValues = List.of(
-                List.of(6, "The quick brown fox jumps over the lazy dog", 0.032266458495966696, List.of("fork1", "fork2")),
-                List.of(3, "This dog is really brown", 0.01639344262295082, "fork2"),
-                List.of(4, "The dog is brown but this document is very very long", 0.016129032258064516, "fork2")
+                List.of(6, "The quick brown fox jumps over the lazy dog", 0.0325, List.of("fork1", "fork2")),
+                List.of(4, "The dog is brown but this document is very very long", 0.0164, "fork2"),
+                List.of(3, "This dog is really brown", 0.0159, "fork2")
             );
             assertValues(resp.values(), expectedValues);
         }

@@ -103,8 +103,8 @@ public final class ThreadContext implements Writeable, TraceContext {
     }
 
     /**
-     * Removes the current context and resets a default context except for headers involved in task tracing. The removed context can be
-     * restored by closing the returned {@link StoredContext}.
+     * Removes the current context and resets a default context except for headers involved in task tracing and project awareness.
+     * The removed context can be restored by closing the returned {@link StoredContext}.
      * @return a stored context that will restore the current context to its state at the point this method was called
      */
     public StoredContext stashContext() {
@@ -112,7 +112,7 @@ public final class ThreadContext implements Writeable, TraceContext {
     }
 
     /**
-     * Just like {@link #stashContext()} but preserves request headers specified via {@code requestHeaders},
+     * Just like {@link #stashContext()} but also preserves request headers specified via {@code requestHeaders},
      * if these exist in the context before stashing.
      */
     public StoredContext stashContextPreservingRequestHeaders(Set<String> requestHeaders) {

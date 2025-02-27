@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -73,6 +74,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
@@ -744,7 +746,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         } else {
             snapshot.shardSnapshotStatusByRepoShardId().forEach((key, value) -> {
                 final Index index = snapshot.indexByName(key.indexName());
-                if (metadata.index(index) == null) {
+                if (metadata.getProject().index(index) == null) {
                     assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
                     return;
                 }
@@ -760,7 +762,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             // Remove global state from the cluster state
             builder = Metadata.builder();
             for (IndexId index : snapshot.indices().values()) {
-                final IndexMetadata indexMetadata = metadata.index(index.getName());
+                final IndexMetadata indexMetadata = metadata.getProject().index(index.getName());
                 if (indexMetadata == null) {
                     assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
                 } else {
@@ -775,7 +777,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final Map<String, DataStream> dataStreams = new HashMap<>();
         final Set<String> indicesInSnapshot = snapshot.indices().keySet();
         for (String dataStreamName : snapshot.dataStreams()) {
-            DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+            DataStream dataStream = metadata.getProject().dataStreams().get(dataStreamName);
             if (dataStream == null) {
                 assert snapshot.partial()
                     : "Data stream [" + dataStreamName + "] was deleted during a snapshot but snapshot was not partial.";
@@ -786,7 +788,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 }
             }
         }
-        return builder.dataStreams(dataStreams, filterDataStreamAliases(dataStreams, metadata.dataStreamAliases())).build();
+        return builder.dataStreams(dataStreams, filterDataStreamAliases(dataStreams, metadata.getProject().dataStreamAliases())).build();
     }
 
     /**
@@ -1279,10 +1281,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             continue;
                         }
                         final RepositoryShardId shardId = shardStatus.getKey();
-                        if (event.indexRoutingTableChanged(shardId.indexName())) {
-                            IndexRoutingTable indexShardRoutingTable = event.state()
-                                .getRoutingTable()
-                                .index(entry.indexByName(shardId.indexName()));
+                        final Index index = entry.indexByName(shardId.indexName());
+                        if (event.indexRoutingTableChanged(index)) {
+                            IndexRoutingTable indexShardRoutingTable = event.state().getRoutingTable().index(index);
                             if (indexShardRoutingTable == null) {
                                 // index got removed concurrently and we have to fail WAITING, QUEUED and PAUSED_FOR_REMOVAL state shards
                                 return true;
@@ -1440,14 +1441,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     }
                     // remove those data streams from metadata for which we are missing indices
                     Map<String, DataStream> dataStreamsToCopy = new HashMap<>();
-                    for (Map.Entry<String, DataStream> dataStreamEntry : existing.dataStreams().entrySet()) {
+                    for (Map.Entry<String, DataStream> dataStreamEntry : existing.getProject().dataStreams().entrySet()) {
                         if (existingIndices.containsAll(dataStreamEntry.getValue().getIndices())) {
                             dataStreamsToCopy.put(dataStreamEntry.getKey(), dataStreamEntry.getValue());
                         }
                     }
                     Map<String, DataStreamAlias> dataStreamAliasesToCopy = filterDataStreamAliases(
                         dataStreamsToCopy,
-                        existing.dataStreamAliases()
+                        existing.getProject().dataStreamAliases()
                     );
                     metaBuilder.dataStreams(dataStreamsToCopy, dataStreamAliasesToCopy);
                     return metaBuilder.build();
@@ -1496,7 +1497,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final SnapshotInfo snapshotInfo = new SnapshotInfo(
                     snapshot,
                     finalIndices,
-                    entry.dataStreams().stream().filter(metaForSnapshot.dataStreams()::containsKey).toList(),
+                    entry.dataStreams().stream().filter(metaForSnapshot.getProject().dataStreams()::containsKey).toList(),
                     entry.partial() ? onlySuccessfulFeatureStates(entry, finalIndices) : entry.featureStates(),
                     failure,
                     threadPool.absoluteTimeInMillis(),
@@ -2939,7 +2940,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         for (IndexId index : indices) {
             final String indexName = index.getName();
             final boolean isNewIndex = repositoryData.getIndices().containsKey(indexName) == false;
-            IndexMetadata indexMetadata = currentState.metadata().index(indexName);
+            IndexMetadata indexMetadata = currentState.metadata().getProject().index(indexName);
             if (indexMetadata == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.
                 builder.put(new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0), ShardSnapshotStatus.MISSING);
@@ -3020,9 +3021,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * Returns the data streams that are currently being snapshotted (with partial == false) and that are contained in the
      * indices-to-check set.
      */
-    public static Set<String> snapshottingDataStreams(final ClusterState currentState, final Set<String> dataStreamsToCheck) {
-        Map<String, DataStream> dataStreams = currentState.metadata().dataStreams();
-        return SnapshotsInProgress.get(currentState)
+    @FixForMultiProject
+    public static Set<String> snapshottingDataStreams(final ProjectState projectState, final Set<String> dataStreamsToCheck) {
+        // TODO multi-project: this will behave incorrectly when there are data streams with equal names in different projects that are
+        // being snapshotted at the same time.
+        Map<String, DataStream> dataStreams = projectState.metadata().dataStreams();
+        return SnapshotsInProgress.get(projectState.cluster())
             .asStream()
             .filter(e -> e.partial() == false)
             .flatMap(e -> e.dataStreams().stream())
@@ -3033,13 +3037,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     /**
      * Returns the indices that are currently being snapshotted (with partial == false) and that are contained in the indices-to-check set.
      */
-    public static Set<Index> snapshottingIndices(final ClusterState currentState, final Set<Index> indicesToCheck) {
+    public static Set<Index> snapshottingIndices(final ProjectState projectState, final Set<Index> indicesToCheck) {
         final Set<Index> indices = new HashSet<>();
-        for (List<SnapshotsInProgress.Entry> snapshotsInRepo : SnapshotsInProgress.get(currentState).entriesByRepo()) {
+        for (List<SnapshotsInProgress.Entry> snapshotsInRepo : SnapshotsInProgress.get(projectState.cluster()).entriesByRepo()) {
             for (final SnapshotsInProgress.Entry entry : snapshotsInRepo) {
                 if (entry.partial() == false && entry.isClone() == false) {
                     for (String indexName : entry.indices().keySet()) {
-                        IndexMetadata indexMetadata = currentState.metadata().index(indexName);
+                        IndexMetadata indexMetadata = projectState.metadata().index(indexName);
                         if (indexMetadata != null && indicesToCheck.contains(indexMetadata.getIndex())) {
                             indices.add(indexMetadata.getIndex());
                         }
@@ -3941,6 +3945,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final SnapshotsInProgress initialSnapshots = SnapshotsInProgress.get(state);
             SnapshotsInProgress snapshotsInProgress = shardsUpdateContext.computeUpdatedState();
             final RegisteredPolicySnapshots.Builder registeredPolicySnapshots = state.metadata()
+                .getProject()
                 .custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY)
                 .builder();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -4060,11 +4065,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
                 Set<String> featureSystemIndices = feature.getIndexDescriptors()
                     .stream()
-                    .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
+                    .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata().getProject()).stream())
                     .collect(Collectors.toSet());
                 Set<String> featureAssociatedIndices = feature.getAssociatedIndexDescriptors()
                     .stream()
-                    .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
+                    .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata().getProject()).stream())
                     .collect(Collectors.toSet());
 
                 Set<String> featureSystemDataStreams = new HashSet<>();

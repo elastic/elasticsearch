@@ -52,6 +52,6 @@ public record RelocationFailureInfo(int failedRelocations) implements ToXContent
 
     @Override
     public String toString() {
-        return "failed_attempts[" + failedRelocations + "]";
+        return "relocation_failure_info[failed_relocations[" + failedRelocations + "]]";
     }
 }

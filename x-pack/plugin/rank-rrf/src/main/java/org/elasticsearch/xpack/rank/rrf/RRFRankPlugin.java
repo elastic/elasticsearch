@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.rank.rrf;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.rank.RankBuilder;
@@ -22,7 +23,7 @@ import org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder;
 
 import java.util.List;
 
-public class RRFRankPlugin extends Plugin implements SearchPlugin {
+public class RRFRankPlugin extends Plugin implements SearchPlugin, ExtensiblePlugin {
 
     public static final LicensedFeature.Momentary RANK_RRF_FEATURE = LicensedFeature.momentary(
         null,

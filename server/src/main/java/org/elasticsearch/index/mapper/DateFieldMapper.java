@@ -16,7 +16,6 @@ import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -70,7 +69,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -829,24 +827,8 @@ public final class DateFieldMapper extends FieldMapper {
             QueryRewriteContext context
         ) throws IOException {
             if (isIndexed() == false && pointsMetadataAvailable == false && hasDocValues()) {
-                if (hasDocValuesSkipper() == false) {
-                    // we don't have a quick way to run this check on doc values, so fall back to default assuming we are within bounds
-                    return Relation.INTERSECTS;
-                }
-                long minValue = Long.MAX_VALUE;
-                long maxValue = Long.MIN_VALUE;
-                List<LeafReaderContext> leaves = reader.leaves();
-                if (leaves.size() == 0) {
-                    // no data, so nothing matches
-                    return Relation.DISJOINT;
-                }
-                for (LeafReaderContext ctx : leaves) {
-                    DocValuesSkipper skipper = ctx.reader().getDocValuesSkipper(name());
-                    assert skipper != null : "no skipper for field:" + name() + " and reader:" + reader;
-                    minValue = Long.min(minValue, skipper.minValue());
-                    maxValue = Long.max(maxValue, skipper.maxValue());
-                }
-                return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context);
+                // we don't have a quick way to run this check on doc values, so fall back to default assuming we are within bounds
+                return Relation.INTERSECTS;
             }
             byte[] minPackedValue = PointValues.getMinPackedValue(reader, name());
             if (minPackedValue == null) {

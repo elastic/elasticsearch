@@ -51,7 +51,7 @@ public class FileAccessTreeTests extends ESTestCase {
         new Path[] { Path.of("/shared1"), Path.of("/shared2") },
         Path.of("/tmp"),
         setting -> settings.get(setting),
-        glob -> settings.getGlobValues(glob)
+        glob -> settings.getValues(glob)
     );
 
     public void testEmpty() {

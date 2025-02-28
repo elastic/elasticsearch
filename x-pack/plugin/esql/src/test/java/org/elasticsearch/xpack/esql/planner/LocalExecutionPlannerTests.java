@@ -85,7 +85,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testLuceneSourceOperatorHugeRowSize() throws IOException {
         int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
-        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+        var plan = planner().plan(
             "test",
             FoldContext.small(),
             new EsQueryExec(
@@ -100,8 +100,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 estimatedRowSize
             )
         );
-        assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
-        LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
+        assertThat(plan.driverParallelism().instanceCount(), lessThanOrEqualTo(pragmas.taskConcurrency()));
+        LocalExecutionPlanner.DriverSupplier supplier = (LocalExecutionPlanner.DriverSupplier) plan.driverSupplier();
         var factory = (LuceneSourceOperator.Factory) supplier.physicalOperation().sourceOperatorFactory;
         assertThat(factory.maxPageSize(), maxPageSizeMatcher(estimatedRowSizeIsHuge, estimatedRowSize));
         assertThat(factory.limit(), equalTo(Integer.MAX_VALUE));
@@ -112,7 +112,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         FieldAttribute sortField = new FieldAttribute(Source.EMPTY, "field", new EsField("field", DataType.INTEGER, Map.of(), true));
         EsQueryExec.FieldSort sort = new EsQueryExec.FieldSort(sortField, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
-        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+        var plan = planner().plan(
             "test",
             FoldContext.small(),
             new EsQueryExec(
@@ -127,8 +127,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 estimatedRowSize
             )
         );
-        assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
-        LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
+        assertThat(plan.driverParallelism().instanceCount(), lessThanOrEqualTo(pragmas.taskConcurrency()));
+        LocalExecutionPlanner.DriverSupplier supplier = (LocalExecutionPlanner.DriverSupplier) plan.driverSupplier();
         var factory = (LuceneTopNSourceOperator.Factory) supplier.physicalOperation().sourceOperatorFactory;
         assertThat(factory.maxPageSize(), maxPageSizeMatcher(estimatedRowSizeIsHuge, estimatedRowSize));
         assertThat(factory.limit(), equalTo(10));
@@ -139,7 +139,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         FieldAttribute sortField = new FieldAttribute(Source.EMPTY, "point", new EsField("point", DataType.GEO_POINT, Map.of(), true));
         EsQueryExec.GeoDistanceSort sort = new EsQueryExec.GeoDistanceSort(sortField, Order.OrderDirection.ASC, 1, -1);
         Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
-        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+        var plan = planner().plan(
             "test",
             FoldContext.small(),
             new EsQueryExec(
@@ -154,8 +154,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 estimatedRowSize
             )
         );
-        assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
-        LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
+        assertThat(plan.driverParallelism().instanceCount(), lessThanOrEqualTo(pragmas.taskConcurrency()));
+        LocalExecutionPlanner.DriverSupplier supplier = (LocalExecutionPlanner.DriverSupplier) plan.driverSupplier();
         var factory = (LuceneTopNSourceOperator.Factory) supplier.physicalOperation().sourceOperatorFactory;
         assertThat(factory.maxPageSize(), maxPageSizeMatcher(estimatedRowSizeIsHuge, estimatedRowSize));
         assertThat(factory.limit(), equalTo(10));
@@ -163,7 +163,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testDriverClusterAndNodeName() throws IOException {
         int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
-        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+        var plan = planner().plan(
             "test",
             FoldContext.small(),
             new EsQueryExec(
@@ -178,8 +178,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 estimatedRowSize
             )
         );
-        assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
-        LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
+        assertThat(plan.driverParallelism().instanceCount(), lessThanOrEqualTo(pragmas.taskConcurrency()));
+        LocalExecutionPlanner.DriverSupplier supplier = (LocalExecutionPlanner.DriverSupplier) plan.driverSupplier();
         assertThat(supplier.clusterName(), equalTo("dev-cluster"));
         assertThat(supplier.nodeName(), equalTo("node-1"));
     }

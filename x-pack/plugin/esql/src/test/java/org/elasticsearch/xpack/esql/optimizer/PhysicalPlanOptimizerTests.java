@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.operator.DriverFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -7582,7 +7583,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return fields;
     }
 
-    private LocalExecutionPlanner.LocalExecutionPlan physicalOperationsFromPhysicalPlan(PhysicalPlan plan, boolean useDataNodePlan) {
+    private DriverFactory physicalOperationsFromPhysicalPlan(PhysicalPlan plan, boolean useDataNodePlan) {
         // The TopN needs an estimated row size for the planner to work
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
@@ -7607,9 +7608,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return planner.plan("test", FoldContext.small(), plan);
     }
 
-    private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {
+    private List<Set<String>> findFieldNamesInLookupJoinDescription(DriverFactory driverFactory) {
 
-        String[] descriptionLines = physicalOperations.describe().split("\\r?\\n|\\r");
+        String[] descriptionLines = driverFactory.describe().split("\\r?\\n|\\r");
 
         // Capture the inside of "...load_fields=[field{f}#19, other_field{f}#20]".
         String insidePattern = "[^\\]]*";

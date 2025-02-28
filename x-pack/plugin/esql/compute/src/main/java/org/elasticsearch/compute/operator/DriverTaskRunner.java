@@ -14,6 +14,7 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -25,6 +26,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,7 +44,27 @@ public class DriverTaskRunner {
         transportService.registerRequestHandler(ACTION_NAME, executor, DriverRequest::new, new DriverRequestHandler(transportService));
     }
 
-    public void executeDrivers(Task parentTask, List<Driver> drivers, Executor executor, ActionListener<Void> listener) {
+    public void executeDrivers(
+        Task parentTask,
+        List<DriverFactory> driverFactories,
+        boolean captureProfiles,
+        Executor executor,
+        ActionListener<List<DriverProfile>> listener
+    ) {
+        final List<Driver> drivers = new ArrayList<>();
+        boolean success = false;
+        try {
+            for (DriverFactory df : driverFactories) {
+                for (int i = 0; i < df.driverParallelism().instanceCount(); i++) {
+                    drivers.add(df.createDriver());
+                }
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(Releasables.wrap(drivers));
+            }
+        }
         var runner = new DriverRunner(transportService.getThreadPool().getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
@@ -62,7 +84,13 @@ public class DriverTaskRunner {
                 );
             }
         };
-        runner.runToCompletion(drivers, listener);
+        runner.runToCompletion(drivers, listener.map(unused -> {
+            if (captureProfiles) {
+                return drivers.stream().map(Driver::profile).toList();
+            } else {
+                return List.of();
+            }
+        }));
     }
 
     private static class DriverRequest extends ActionRequest implements CompositeIndicesRequest {

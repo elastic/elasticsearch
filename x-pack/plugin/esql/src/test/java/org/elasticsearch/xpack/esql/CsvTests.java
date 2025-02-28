@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverFactory;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
@@ -81,7 +82,6 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -655,13 +655,9 @@ public class CsvTests extends ESTestCase {
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
 
         // replace fragment inside the coordinator plan
-        List<Driver> drivers = new ArrayList<>();
-        LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(
-            "final",
-            foldCtx,
-            new OutputExec(coordinatorPlan, collectedPages::add)
-        );
-        drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(getTestName()));
+        List<DriverFactory> driverFactories = new ArrayList<>();
+        var coordinatorDriverFactory = executionPlanner.plan("final", foldCtx, new OutputExec(coordinatorPlan, collectedPages::add));
+        driverFactories.add(coordinatorDriverFactory);
         if (dataNodePlan != null) {
             var searchStats = new DisabledSearchStats();
             var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
@@ -679,10 +675,23 @@ public class CsvTests extends ESTestCase {
                     throw new AssertionError("expected no failure", e);
                 })
             );
-            LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan("data", foldCtx, csvDataNodePhysicalPlan);
-
-            drivers.addAll(dataNodeExecutionPlan.createDrivers(getTestName()));
+            var dataNodeExecutionPlan = executionPlanner.plan("data", foldCtx, csvDataNodePhysicalPlan);
+            driverFactories.add(dataNodeExecutionPlan);
+        }
+        final List<Driver> drivers = new ArrayList<>();
+        boolean success = false;
+        try {
+            for (DriverFactory df : driverFactories) {
+                for (int i = 0; i < df.driverParallelism().instanceCount(); i++) {
+                    drivers.add(df.createDriver());
+                }
+            }
             Randomness.shuffle(drivers);
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(Releasables.wrap(drivers));
+            }
         }
         // Execute the drivers
         DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
@@ -691,7 +700,6 @@ public class CsvTests extends ESTestCase {
                 Driver.start(threadPool.getThreadContext(), executor, driver, between(1, 1000), driverListener);
             }
         };
-        listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
         runner.runToCompletion(drivers, listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, List.of(), null)));
     }
 }

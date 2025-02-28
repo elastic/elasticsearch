@@ -43,7 +43,7 @@ elasticsearch.api_key: <ELASTICSEARCH_API_KEY>
 connectors:
   -
     connector_id: <CONNECTOR_ID_FROM_KIBANA>
-    service_type: Zoom # sharepoint_online (example)
+    service_type: sharepoint_online # Example value — update this for service type you are connecting to
     api_key: <CONNECTOR_API_KEY_FROM_KIBANA> # Optional. If not provided, the connector will use the elasticsearch.api_key instead
 ```
 

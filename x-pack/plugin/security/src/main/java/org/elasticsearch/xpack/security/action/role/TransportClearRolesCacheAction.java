@@ -74,7 +74,7 @@ public class TransportClearRolesCacheAction extends TransportNodesAction<
     @Override
     protected ClearRolesCacheResponse.Node nodeOperation(ClearRolesCacheRequest.Node request, Task task) {
         if (request.getNames() == null || request.getNames().length == 0) {
-            rolesStore.invalidateAll();
+            rolesStore.invalidateProject();
         } else {
             for (String role : request.getNames()) {
                 rolesStore.invalidate(role);

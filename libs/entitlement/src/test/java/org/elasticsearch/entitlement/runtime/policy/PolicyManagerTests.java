@@ -87,7 +87,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "plugin1",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
 
         // Any class from the current module (unnamed) will do
@@ -111,7 +112,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "plugin1",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
 
         // Any class from the current module (unnamed) will do
@@ -131,7 +133,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "plugin1",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
 
         // Any class from the current module (unnamed) will do
@@ -156,7 +159,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "plugin2",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
 
         // Any class from the current module (unnamed) will do
@@ -174,7 +178,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> null,
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
 
         // Tests do not run modular, so we cannot use a server class.
@@ -204,7 +209,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> null,
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
 
         // Tests do not run modular, so we cannot use a server class.
@@ -230,7 +236,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "mock-plugin",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
 
         var layer = createLayerForJar(jar, "org.example.plugin");
@@ -249,7 +256,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "plugin2",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
 
         // Any class from the current module (unnamed) will do
@@ -308,7 +316,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> c.getPackageName().startsWith(TEST_AGENTS_PACKAGE_NAME) ? null : "test",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
         ModuleEntitlements agentsEntitlements = policyManager.getEntitlements(TestAgent.class);
         assertThat(agentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
@@ -336,7 +345,8 @@ public class PolicyManagerTests extends ESTestCase {
                 c -> "test",
                 TEST_AGENTS_PACKAGE_NAME,
                 NO_ENTITLEMENTS_MODULE,
-                TEST_PATH_LOOKUP
+                TEST_PATH_LOOKUP,
+                Set.of()
             )
         );
         assertEquals(
@@ -353,11 +363,15 @@ public class PolicyManagerTests extends ESTestCase {
                 c -> "test",
                 TEST_AGENTS_PACKAGE_NAME,
                 NO_ENTITLEMENTS_MODULE,
-                TEST_PATH_LOOKUP
+                TEST_PATH_LOOKUP,
+                Set.of()
             )
         );
         assertEquals(
-            "[(APM agent)] using module [unnamed] found duplicate entitlement " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
+            "[(APM agent)] using module [ALL-UNNAMED] found duplicate entitlement "
+                + "["
+                + CreateClassLoaderEntitlement.class.getName()
+                + "]",
             iae.getMessage()
         );
 
@@ -387,11 +401,118 @@ public class PolicyManagerTests extends ESTestCase {
                 c -> "plugin1",
                 TEST_AGENTS_PACKAGE_NAME,
                 NO_ENTITLEMENTS_MODULE,
-                TEST_PATH_LOOKUP
+                TEST_PATH_LOOKUP,
+                Set.of()
             )
         );
         assertEquals(
             "[plugin1] using module [test] found duplicate entitlement " + "[" + FilesEntitlement.class.getName() + "]",
+            iae.getMessage()
+        );
+    }
+
+    public void testFilesEntitlementsWithExclusive() {
+        var iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PolicyManager(
+                createEmptyTestServerPolicy(),
+                List.of(),
+                Map.of(
+                    "plugin1",
+                    new Policy(
+                        "test",
+                        List.of(
+                            new Scope(
+                                "test",
+                                List.of(
+                                    new FilesEntitlement(
+                                        List.of(
+                                            FilesEntitlement.FileData.ofPath(Path.of("/tmp/test"), FilesEntitlement.Mode.READ)
+                                                .withExclusive(true)
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    "plugin2",
+                    new Policy(
+                        "test",
+                        List.of(
+                            new Scope(
+                                "test",
+                                List.of(
+                                    new FilesEntitlement(
+                                        List.of(
+                                            FilesEntitlement.FileData.ofPath(Path.of("/tmp/test"), FilesEntitlement.Mode.READ)
+                                                .withExclusive(true)
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                ),
+                c -> "",
+                TEST_AGENTS_PACKAGE_NAME,
+                NO_ENTITLEMENTS_MODULE,
+                TEST_PATH_LOOKUP,
+                Set.of()
+            )
+        );
+        assertTrue(iae.getMessage().contains("duplicate/overlapping exclusive paths found in files entitlements:"));
+        assertTrue(iae.getMessage().contains("[test] [/tmp/test]]"));
+
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PolicyManager(
+                new Policy(
+                    "test",
+                    List.of(
+                        new Scope(
+                            "test",
+                            List.of(
+                                new FilesEntitlement(
+                                    List.of(
+                                        FilesEntitlement.FileData.ofPath(Path.of("/tmp/test/foo"), FilesEntitlement.Mode.READ)
+                                            .withExclusive(true),
+                                        FilesEntitlement.FileData.ofPath(Path.of("/tmp/"), FilesEntitlement.Mode.READ)
+                                    )
+                                )
+                            )
+                        )
+                    )
+                ),
+                List.of(),
+                Map.of(
+                    "plugin1",
+                    new Policy(
+                        "test",
+                        List.of(
+                            new Scope(
+                                "test",
+                                List.of(
+                                    new FilesEntitlement(
+                                        List.of(
+                                            FilesEntitlement.FileData.ofPath(Path.of("/tmp/test"), FilesEntitlement.Mode.READ)
+                                                .withExclusive(true)
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                ),
+                c -> "",
+                TEST_AGENTS_PACKAGE_NAME,
+                NO_ENTITLEMENTS_MODULE,
+                TEST_PATH_LOOKUP,
+                Set.of()
+            )
+        );
+        assertEquals(
+            "duplicate/overlapping exclusive paths found in files entitlements: "
+                + "[[plugin1] [test] [/tmp/test]] and [[(server)] [test] [/tmp/test/foo]]",
             iae.getMessage()
         );
     }
@@ -407,7 +528,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "test", // Insist that the class is in a plugin
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
         ModuleEntitlements notAgentsEntitlements = policyManager.getEntitlements(TestAgent.class);
         assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
@@ -428,7 +550,8 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "test",
             agentsPackageName,
             entitlementsModule,
-            TEST_PATH_LOOKUP
+            TEST_PATH_LOOKUP,
+            Set.of()
         );
     }
 

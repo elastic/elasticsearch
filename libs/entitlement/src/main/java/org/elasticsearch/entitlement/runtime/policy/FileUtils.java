@@ -32,6 +32,9 @@ public class FileUtils {
         for (int k = 0; k < lim; k++) {
             char c1 = s1.charAt(k);
             char c2 = s2.charAt(k);
+            if (c1 == c2) {
+                continue;
+            }
             boolean c1IsSeparator = isPathSeparator(c1);
             boolean c2IsSeparator = isPathSeparator(c2);
             if (c1IsSeparator == false || c2IsSeparator == false) {
@@ -41,9 +44,7 @@ public class FileUtils {
                 if (c2IsSeparator) {
                     return 1;
                 }
-                if (c1 != c2) {
-                    return c1 - c2;
-                }
+                return c1 - c2;
             }
         }
         return len1 - len2;

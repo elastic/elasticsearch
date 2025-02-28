@@ -168,7 +168,7 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
+        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X;
     }
 
     @Override

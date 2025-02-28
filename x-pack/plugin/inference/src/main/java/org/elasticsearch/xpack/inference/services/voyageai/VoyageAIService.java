@@ -291,7 +291,6 @@ public class VoyageAIService extends SenderService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
             inputs.getInputs(),
             getBatchSize(voyageaiModel),
-            EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(model.getServiceSettings().elementType()),
             voyageaiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -358,7 +357,7 @@ public class VoyageAIService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
+        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X;
     }
 
     public static class Configuration {

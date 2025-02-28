@@ -17,9 +17,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.stream.Stream;
+
+import static java.lang.Character.isLetter;
 
 /**
  * Describes a file entitlement with a path and mode.
@@ -36,7 +40,33 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
     public enum BaseDir {
         CONFIG,
         DATA,
+        SHARED_REPO,
         HOME
+    }
+
+    public enum Platform {
+        LINUX,
+        MACOS,
+        WINDOWS;
+
+        private static final Platform current = findCurrent();
+
+        private static Platform findCurrent() {
+            String os = System.getProperty("os.name");
+            if (os.startsWith("Linux")) {
+                return LINUX;
+            } else if (os.startsWith("Mac OS")) {
+                return MACOS;
+            } else if (os.startsWith("Windows")) {
+                return WINDOWS;
+            } else {
+                throw new AssertionError("Unsupported platform [" + os + "]");
+            }
+        }
+
+        public boolean isCurrent() {
+            return this == current;
+        }
     }
 
     public sealed interface FileData {
@@ -45,20 +75,69 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
         Mode mode();
 
+        boolean exclusive();
+
+        FileData withExclusive(boolean exclusive);
+
+        Platform platform();
+
+        FileData withPlatform(Platform platform);
+
         static FileData ofPath(Path path, Mode mode) {
-            return new AbsolutePathFileData(path, mode);
+            return new AbsolutePathFileData(path, mode, null, false);
         }
 
         static FileData ofRelativePath(Path relativePath, BaseDir baseDir, Mode mode) {
-            return new RelativePathFileData(relativePath, baseDir, mode);
+            return new RelativePathFileData(relativePath, baseDir, mode, null, false);
         }
 
-        static FileData ofPathSetting(String setting, Mode mode) {
-            return new PathSettingFileData(setting, mode);
+        static FileData ofPathSetting(String setting, BaseDir baseDir, Mode mode, boolean ignoreUrl) {
+            return new PathSettingFileData(setting, baseDir, mode, ignoreUrl, null, false);
         }
 
-        static FileData ofRelativePathSetting(String setting, BaseDir baseDir, Mode mode) {
-            return new RelativePathSettingFileData(setting, baseDir, mode);
+        /**
+         * Tests if a path is absolute or relative, taking into consideration both Unix and Windows conventions.
+         * Note that this leads to a conflict, resolved in favor of Unix rules: `/foo` can be either a Unix absolute path, or a Windows
+         * relative path with "wrong" directory separator (using non-canonical slash in Windows).
+         */
+        static boolean isAbsolutePath(String path) {
+            if (path.isEmpty()) {
+                return false;
+            }
+            if (path.charAt(0) == '/') {
+                // Unix/BSD absolute
+                return true;
+            }
+
+            return isWindowsAbsolutePath(path);
+        }
+
+        private static boolean isSlash(char c) {
+            return (c == '\\') || (c == '/');
+        }
+
+        private static boolean isWindowsAbsolutePath(String input) {
+            // if a prefix is present, we expected (long) UNC or (long) absolute
+            if (input.startsWith("\\\\?\\")) {
+                return true;
+            }
+
+            if (input.length() > 1) {
+                char c0 = input.charAt(0);
+                char c1 = input.charAt(1);
+                char c = 0;
+                int next = 2;
+                if (isSlash(c0) && isSlash(c1)) {
+                    // Two slashes or more: UNC
+                    return true;
+                }
+                if (isLetter(c0) && c1 == ':') {
+                    // A drive: absolute
+                    return true;
+                }
+            }
+            // Otherwise relative
+            return false;
         }
     }
 
@@ -75,14 +154,9 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 case CONFIG:
                     return relativePaths.map(relativePath -> pathLookup.configDir().resolve(relativePath));
                 case DATA:
-                    // multiple data dirs are a pain...we need the combination of relative paths and data dirs
-                    List<Path> paths = new ArrayList<>();
-                    for (var relativePath : relativePaths.toList()) {
-                        for (var dataDir : pathLookup.dataDirs()) {
-                            paths.add(dataDir.resolve(relativePath));
-                        }
-                    }
-                    return paths.stream();
+                    return relativePathsCombination(pathLookup.dataDirs(), relativePaths);
+                case SHARED_REPO:
+                    return relativePathsCombination(pathLookup.sharedRepoDirs(), relativePaths);
                 case HOME:
                     return relativePaths.map(relativePath -> pathLookup.homeDir().resolve(relativePath));
                 default:
@@ -91,40 +165,93 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
     }
 
-    private record AbsolutePathFileData(Path path, Mode mode) implements FileData {
+    private static Stream<Path> relativePathsCombination(Path[] baseDirs, Stream<Path> relativePaths) {
+        // multiple base dirs are a pain...we need the combination of the base dirs and relative paths
+        List<Path> paths = new ArrayList<>();
+        for (var relativePath : relativePaths.toList()) {
+            for (var dataDir : baseDirs) {
+                paths.add(dataDir.resolve(relativePath));
+            }
+        }
+        return paths.stream();
+    }
+
+    private record AbsolutePathFileData(Path path, Mode mode, Platform platform, boolean exclusive) implements FileData {
+
+        @Override
+        public AbsolutePathFileData withExclusive(boolean exclusive) {
+            return new AbsolutePathFileData(path, mode, platform, exclusive);
+        }
+
         @Override
         public Stream<Path> resolvePaths(PathLookup pathLookup) {
             return Stream.of(path);
         }
+
+        @Override
+        public FileData withPlatform(Platform platform) {
+            if (platform == platform()) {
+                return this;
+            }
+            return new AbsolutePathFileData(path, mode, platform, exclusive);
+        }
     }
 
-    private record RelativePathFileData(Path relativePath, BaseDir baseDir, Mode mode) implements FileData, RelativeFileData {
+    private record RelativePathFileData(Path relativePath, BaseDir baseDir, Mode mode, Platform platform, boolean exclusive)
+        implements
+            FileData,
+            RelativeFileData {
+
+        @Override
+        public RelativePathFileData withExclusive(boolean exclusive) {
+            return new RelativePathFileData(relativePath, baseDir, mode, platform, exclusive);
+        }
+
         @Override
         public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
             return Stream.of(relativePath);
         }
-    }
 
-    private record PathSettingFileData(String setting, Mode mode) implements FileData {
         @Override
-        public Stream<Path> resolvePaths(PathLookup pathLookup) {
-            return resolvePathSettings(pathLookup, setting);
+        public FileData withPlatform(Platform platform) {
+            if (platform == platform()) {
+                return this;
+            }
+            return new RelativePathFileData(relativePath, baseDir, mode, platform, exclusive);
         }
     }
 
-    private record RelativePathSettingFileData(String setting, BaseDir baseDir, Mode mode) implements FileData, RelativeFileData {
+    private record PathSettingFileData(String setting, BaseDir baseDir, Mode mode, boolean ignoreUrl, Platform platform, boolean exclusive)
+        implements
+            RelativeFileData {
+
+        @Override
+        public PathSettingFileData withExclusive(boolean exclusive) {
+            return new PathSettingFileData(setting, baseDir, mode, ignoreUrl, platform, exclusive);
+        }
+
         @Override
         public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
-            return resolvePathSettings(pathLookup, setting);
+            Stream<String> result;
+            if (setting.contains("*")) {
+                result = pathLookup.settingGlobResolver().apply(setting);
+            } else {
+                String path = pathLookup.settingResolver().apply(setting);
+                result = path == null ? Stream.of() : Stream.of(path);
+            }
+            if (ignoreUrl) {
+                result = result.filter(s -> s.toLowerCase(Locale.ROOT).startsWith("https://") == false);
+            }
+            return result.map(pathLookup.configDir()::resolve);
         }
-    }
 
-    private static Stream<Path> resolvePathSettings(PathLookup pathLookup, String setting) {
-        if (setting.contains("*")) {
-            return pathLookup.settingGlobResolver().apply(setting).map(Path::of);
+        @Override
+        public FileData withPlatform(Platform platform) {
+            if (platform == platform()) {
+                return this;
+            }
+            return new PathSettingFileData(setting, baseDir, mode, ignoreUrl, platform, exclusive);
         }
-        String path = pathLookup.settingResolver().apply(setting);
-        return path == null ? Stream.of() : Stream.of(Path.of(path));
     }
 
     private static Mode parseMode(String mode) {
@@ -137,11 +264,24 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
     }
 
+    private static Platform parsePlatform(String platform) {
+        if (platform.equals("linux")) {
+            return Platform.LINUX;
+        } else if (platform.equals("macos")) {
+            return Platform.MACOS;
+        } else if (platform.equals("windows")) {
+            return Platform.WINDOWS;
+        } else {
+            throw new PolicyValidationException("invalid platform: " + platform + ", valid values: [linux, macos, windows]");
+        }
+    }
+
     private static BaseDir parseBaseDir(String baseDir) {
         return switch (baseDir) {
             case "config" -> BaseDir.CONFIG;
             case "data" -> BaseDir.DATA;
             case "home" -> BaseDir.HOME;
+            // NOTE: shared_repo is _not_ accessible to policy files, only internally
             default -> throw new PolicyValidationException(
                 "invalid relative directory: " + baseDir + ", valid values: [config, data, home]"
             );
@@ -154,24 +294,62 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         if (paths == null || paths.isEmpty()) {
             throw new PolicyValidationException("must specify at least one path");
         }
+        BiFunction<Map<String, Object>, String, String> checkString = (values, key) -> {
+            Object value = values.remove(key);
+            if (value == null) {
+                return null;
+            } else if (value instanceof String str) {
+                return str;
+            }
+            throw new PolicyValidationException(
+                "expected ["
+                    + key
+                    + "] to be type ["
+                    + String.class.getSimpleName()
+                    + "] but found type ["
+                    + value.getClass().getSimpleName()
+                    + "]"
+            );
+        };
+        BiFunction<Map<String, Object>, String, Boolean> checkBoolean = (values, key) -> {
+            Object value = values.remove(key);
+            if (value == null) {
+                return null;
+            } else if (value instanceof Boolean bool) {
+                return bool;
+            }
+            throw new PolicyValidationException(
+                "expected ["
+                    + key
+                    + "] to be type ["
+                    + boolean.class.getSimpleName()
+                    + "] but found type ["
+                    + value.getClass().getSimpleName()
+                    + "]"
+            );
+        };
         List<FileData> filesData = new ArrayList<>();
         for (Object object : paths) {
-            Map<String, String> file = new HashMap<>((Map<String, String>) object);
-            String pathAsString = file.remove("path");
-            String relativePathAsString = file.remove("relative_path");
-            String relativeTo = file.remove("relative_to");
-            String pathSetting = file.remove("path_setting");
-            String relativePathSetting = file.remove("relative_path_setting");
-            String modeAsString = file.remove("mode");
+            Map<String, Object> file = new HashMap<>((Map<String, Object>) object);
+            String pathAsString = checkString.apply(file, "path");
+            String relativePathAsString = checkString.apply(file, "relative_path");
+            String relativeTo = checkString.apply(file, "relative_to");
+            String pathSetting = checkString.apply(file, "path_setting");
+            String settingBaseDirAsString = checkString.apply(file, "basedir_if_relative");
+            String modeAsString = checkString.apply(file, "mode");
+            String platformAsString = checkString.apply(file, "platform");
+            Boolean ignoreUrlAsStringBoolean = checkBoolean.apply(file, "ignore_url");
+            boolean ignoreUrlAsString = ignoreUrlAsStringBoolean != null && ignoreUrlAsStringBoolean;
+            Boolean exclusiveBoolean = checkBoolean.apply(file, "exclusive");
+            boolean exclusive = exclusiveBoolean != null && exclusiveBoolean;
 
             if (file.isEmpty() == false) {
                 throw new PolicyValidationException("unknown key(s) [" + file + "] in a listed file for files entitlement");
             }
-            int foundKeys = (pathAsString != null ? 1 : 0) + (relativePathAsString != null ? 1 : 0) + (pathSetting != null ? 1 : 0)
-                + (relativePathSetting != null ? 1 : 0);
+            int foundKeys = (pathAsString != null ? 1 : 0) + (relativePathAsString != null ? 1 : 0) + (pathSetting != null ? 1 : 0);
             if (foundKeys != 1) {
                 throw new PolicyValidationException(
-                    "a files entitlement entry must contain one of " + "[path, relative_path, path_setting, relative_path_setting]"
+                    "a files entitlement entry must contain one of " + "[path, relative_path, path_setting]"
                 );
             }
 
@@ -179,38 +357,49 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 throw new PolicyValidationException("files entitlement must contain 'mode' for every listed file");
             }
             Mode mode = parseMode(modeAsString);
-
-            BaseDir baseDir = null;
-            if (relativeTo != null) {
-                baseDir = parseBaseDir(relativeTo);
+            Platform platform = null;
+            if (platformAsString != null) {
+                platform = parsePlatform(platformAsString);
             }
 
+            if (relativeTo != null && relativePathAsString == null) {
+                throw new PolicyValidationException("'relative_to' may only be used with 'relative_path'");
+            }
+
+            if (ignoreUrlAsStringBoolean != null && pathSetting == null) {
+                throw new PolicyValidationException("'ignore_url' may only be used with 'path_setting'");
+            }
+            if (settingBaseDirAsString != null && pathSetting == null) {
+                throw new PolicyValidationException("'basedir_if_relative' may only be used with 'path_setting'");
+            }
+
+            final FileData fileData;
             if (relativePathAsString != null) {
-                if (baseDir == null) {
+                if (relativeTo == null) {
                     throw new PolicyValidationException("files entitlement with a 'relative_path' must specify 'relative_to'");
                 }
-
+                BaseDir baseDir = parseBaseDir(relativeTo);
                 Path relativePath = Path.of(relativePathAsString);
-                if (relativePath.isAbsolute()) {
+                if (FileData.isAbsolutePath(relativePathAsString)) {
                     throw new PolicyValidationException("'relative_path' [" + relativePathAsString + "] must be relative");
                 }
-                filesData.add(FileData.ofRelativePath(relativePath, baseDir, mode));
+                fileData = FileData.ofRelativePath(relativePath, baseDir, mode);
             } else if (pathAsString != null) {
                 Path path = Path.of(pathAsString);
-                if (path.isAbsolute() == false) {
+                if (FileData.isAbsolutePath(pathAsString) == false) {
                     throw new PolicyValidationException("'path' [" + pathAsString + "] must be absolute");
                 }
-                filesData.add(FileData.ofPath(path, mode));
+                fileData = FileData.ofPath(path, mode);
             } else if (pathSetting != null) {
-                filesData.add(FileData.ofPathSetting(pathSetting, mode));
-            } else if (relativePathSetting != null) {
-                if (baseDir == null) {
-                    throw new PolicyValidationException("files entitlement with a 'relative_path_setting' must specify 'relative_to'");
+                if (settingBaseDirAsString == null) {
+                    throw new PolicyValidationException("files entitlement with a 'path_setting' must specify 'basedir_if_relative'");
                 }
-                filesData.add(FileData.ofRelativePathSetting(relativePathSetting, baseDir, mode));
+                BaseDir baseDir = parseBaseDir(settingBaseDirAsString);
+                fileData = FileData.ofPathSetting(pathSetting, baseDir, mode, ignoreUrlAsString);
             } else {
                 throw new AssertionError("File entry validation error");
             }
+            filesData.add(fileData.withPlatform(platform).withExclusive(exclusive));
         }
         return new FilesEntitlement(filesData);
     }

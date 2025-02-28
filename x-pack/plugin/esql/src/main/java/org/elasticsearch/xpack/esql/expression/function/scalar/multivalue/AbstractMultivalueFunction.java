@@ -41,7 +41,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        source().writeTo(out);
         out.writeNamedWriteable(field);
     }
 

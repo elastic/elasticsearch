@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -67,7 +68,8 @@ public class EvilThreadPoolTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext(),
-            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK),
+            MeterRegistry.NOOP
         );
         try {
             checkExecutionError(getExecuteRunner(fixedExecutor));
@@ -176,7 +178,8 @@ public class EvilThreadPoolTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext(),
-            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK),
+            MeterRegistry.NOOP
         );
         try {
             checkExecutionException(getExecuteRunner(fixedExecutor), true);

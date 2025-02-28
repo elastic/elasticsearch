@@ -314,7 +314,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         return Arrays.asList(
             // auto-follow metadata, persisted into the cluster state as XContent
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(AutoFollowMetadata.TYPE),
                 AutoFollowMetadata::fromXContent
             ),

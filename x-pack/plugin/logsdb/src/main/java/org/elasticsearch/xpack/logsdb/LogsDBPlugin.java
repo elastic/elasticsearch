@@ -80,6 +80,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
                 IndexVersion.current(),
                 parameters.clusterService().state().nodes().getMaxDataNodeCompatibleIndexVersion()
             ),
+            () -> parameters.clusterService().state().nodes().getMinNodeVersion(),
             DiscoveryNode.isStateless(settings) == false,
             DiscoveryNode.isStateless(settings) == false
         );

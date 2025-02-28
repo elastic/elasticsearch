@@ -15,11 +15,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
-import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 
@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -41,13 +42,13 @@ import static org.elasticsearch.core.Strings.format;
  * Reserved cluster state can only be modified by using the {@link ReservedClusterStateService}. Updating
  * the reserved cluster state through REST APIs is not permitted.
  */
-public class ReservedStateUpdateTask implements ClusterStateTaskListener {
+public abstract class ReservedStateUpdateTask<S> implements ClusterStateTaskListener {
     private static final Logger logger = LogManager.getLogger(ReservedStateUpdateTask.class);
 
     private final String namespace;
     private final ReservedStateChunk stateChunk;
     private final ReservedStateVersionCheck versionCheck;
-    private final Map<String, ReservedClusterStateHandler<?>> handlers;
+    private final Map<String, ReservedClusterStateHandler<S, ?>> handlers;
     private final Collection<String> orderedHandlers;
     private final Consumer<ErrorState> errorReporter;
     private final ActionListener<ActionResponse.Empty> listener;
@@ -56,7 +57,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         String namespace,
         ReservedStateChunk stateChunk,
         ReservedStateVersionCheck versionCheck,
-        Map<String, ReservedClusterStateHandler<?>> handlers,
+        Map<String, ReservedClusterStateHandler<S, ?>> handlers,
         Collection<String> orderedHandlers,
         Consumer<ErrorState> errorReporter,
         ActionListener<ActionResponse.Empty> listener
@@ -79,32 +80,36 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         return listener;
     }
 
-    protected ClusterState execute(final ClusterState currentState) {
-        if (currentState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            // If cluster state has become blocked, this task was submitted while the node was master but is now not master.
-            // The new master will re-read file settings, so whatever update was to be written here will be handled
-            // by the new master.
-            return currentState;
-        }
+    protected abstract Optional<ProjectId> projectId();
 
-        ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(namespace);
+    protected abstract ClusterState execute(ClusterState state);
+
+    /**
+     * Produces a new state {@code S} with the reserved state info in {@code reservedStateMap}
+     * @return A tuple of the new state and new reserved state metadata, or {@code null} if no changes are required.
+     */
+    final Tuple<S, ReservedStateMetadata> execute(S state, Map<String, ReservedStateMetadata> reservedStateMap) {
         Map<String, Object> reservedState = stateChunk.state();
         ReservedStateVersion reservedStateVersion = stateChunk.metadata();
+        ReservedStateMetadata reservedStateMetadata = reservedStateMap.get(namespace);
 
-        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion, versionCheck) == false) {
-            return currentState;
+        if (checkMetadataVersion(projectId(), namespace, reservedStateMetadata, reservedStateVersion, versionCheck) == false) {
+            return null;
         }
 
         var reservedMetadataBuilder = new ReservedStateMetadata.Builder(namespace).version(reservedStateVersion.version());
         List<String> errors = new ArrayList<>();
 
-        ClusterState state = currentState;
         // Transform the cluster state first
         for (var handlerName : orderedHandlers) {
-            ReservedClusterStateHandler<?> handler = handlers.get(handlerName);
+            ReservedClusterStateHandler<S, ?> handler = handlers.get(handlerName);
             try {
-                Set<String> existingKeys = keysForHandler(existingMetadata, handlerName);
-                TransformState transformState = handler.transform(reservedState.get(handlerName), new TransformState(state, existingKeys));
+                Set<String> existingKeys = keysForHandler(reservedStateMetadata, handlerName);
+                TransformState<S> transformState = ReservedClusterStateService.transform(
+                    handler,
+                    reservedState.get(handlerName),
+                    new TransformState<>(state, existingKeys)
+                );
                 state = transformState.state();
                 reservedMetadataBuilder.putHandler(new ReservedStateHandlerMetadata(handlerName, transformState.keys()));
             } catch (Exception e) {
@@ -117,10 +122,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         // Remove the last error if we had previously encountered any in prior processing of reserved state
         reservedMetadataBuilder.errorMetadata(null);
 
-        ClusterState.Builder stateBuilder = new ClusterState.Builder(state);
-        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).put(reservedMetadataBuilder.build());
-
-        return stateBuilder.metadata(metadataBuilder).build();
+        return Tuple.tuple(state, reservedMetadataBuilder.build());
     }
 
     private void checkAndThrowOnError(List<String> errors, ReservedStateVersion version, ReservedStateVersionCheck versionCheck) {
@@ -129,6 +131,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
             var errorState = new ErrorState(
+                projectId(),
                 namespace,
                 version.version(),
                 versionCheck,
@@ -156,6 +159,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     }
 
     static boolean checkMetadataVersion(
+        Optional<ProjectId> projectId,
         String namespace,
         ReservedStateMetadata existingMetadata,
         ReservedStateVersion reservedStateVersion,
@@ -164,7 +168,8 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         if (reservedStateVersion.buildVersion().isFutureVersion()) {
             logger.warn(
                 () -> format(
-                    "Reserved cluster state version [%s] for namespace [%s] is not compatible with this Elasticsearch node",
+                    "Reserved %s version [%s] for namespace [%s] is not compatible with this Elasticsearch node",
+                    projectId.map(p -> "project state [" + p + "]").orElse("cluster state"),
                     reservedStateVersion.buildVersion(),
                     namespace
                 )
@@ -181,7 +186,8 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         if (newVersion <= 0L) {
             logger.warn(
                 () -> format(
-                    "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal to 0",
+                    "Not updating reserved %s for namespace [%s], because version [%s] is less or equal to 0",
+                    projectId.map(p -> "project state [" + p + "]").orElse("cluster state"),
                     namespace,
                     newVersion
                 )
@@ -200,7 +206,8 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
         logger.warn(
             () -> format(
-                "Not updating reserved cluster state for namespace [%s], because version [%s] is %s the current metadata version [%s]",
+                "Not updating reserved %s for namespace [%s], because version [%s] is %s the current metadata version [%s]",
+                projectId.map(p -> "project state [" + p + "]").orElse("cluster state"),
                 namespace,
                 newVersion,
                 switch (versionCheck) {

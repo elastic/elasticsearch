@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -55,7 +54,6 @@ public class TransportRetryAction extends TransportMasterNodeAction<TransportRet
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         IndexLifecycleService indexLifecycleService
     ) {
         super(
@@ -82,7 +80,7 @@ public class TransportRetryAction extends TransportMasterNodeAction<TransportRet
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 for (String index : request.indices()) {
-                    IndexMetadata idxMeta = newState.metadata().index(index);
+                    IndexMetadata idxMeta = newState.metadata().getProject().index(index);
                     LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                     StepKey retryStep = new StepKey(lifecycleState.phase(), lifecycleState.action(), lifecycleState.step());
                     if (idxMeta == null) {

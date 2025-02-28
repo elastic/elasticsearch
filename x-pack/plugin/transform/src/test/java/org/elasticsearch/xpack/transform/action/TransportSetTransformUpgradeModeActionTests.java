@@ -78,7 +78,6 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
             clusterService,
             threadPool,
             mock(),
-            mock(),
             persistentTasksClusterService,
             persistentTasksService,
             client
@@ -177,7 +176,10 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
 
         upgradeModeSuccessfullyChanged(stateWithTransformTask(), assertNoFailureListener(r -> {
             assertThat(r, is(AcknowledgedResponse.TRUE));
-            verify(clusterService).submitUnbatchedStateUpdateTask(matches("unassign persistent task \\[.*\\] from any node"), any());
+            verify(clusterService).submitUnbatchedStateUpdateTask(
+                matches("unassign project .* persistent task \\[.*\\] from any node"),
+                any()
+            );
         }));
     }
 

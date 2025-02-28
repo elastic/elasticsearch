@@ -29,7 +29,6 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.DEFAULT_TIMEOUT;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 
 /**
@@ -39,6 +38,7 @@ public class ElasticInferenceServiceAuthorizationHandler {
 
     private static final String FAILED_TO_RETRIEVE_MESSAGE =
         "Failed to retrieve the authorization information from the Elastic Inference Service.";
+    private static final TimeValue DEFAULT_AUTH_TIMEOUT = TimeValue.timeValueMinutes(1);
     private static final ResponseHandler AUTH_RESPONSE_HANDLER = createAuthResponseHandler();
 
     private static ResponseHandler createAuthResponseHandler() {
@@ -76,7 +76,7 @@ public class ElasticInferenceServiceAuthorizationHandler {
             logger.debug("Retrieving authorization information from the Elastic Inference Service.");
 
             if (Strings.isNullOrEmpty(baseUrl)) {
-                logger.warn("The base URL for the authorization service is not valid, rejecting authorization.");
+                logger.debug("The base URL for the authorization service is not valid, rejecting authorization.");
                 listener.onResponse(ElasticInferenceServiceAuthorization.newDisabledService());
                 return;
             }
@@ -110,7 +110,7 @@ public class ElasticInferenceServiceAuthorizationHandler {
 
             var request = new ElasticInferenceServiceAuthorizationRequest(baseUrl, getCurrentTraceInfo());
 
-            sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_TIMEOUT, newListener);
+            sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, newListener);
         } catch (Exception e) {
             logger.warn(Strings.format("Retrieving the authorization information encountered an exception: %s", e));
             requestCompleteLatch.countDown();

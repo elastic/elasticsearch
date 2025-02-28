@@ -95,14 +95,7 @@ public class SqlInfoTransportActionTests extends ESTestCase {
 
         ThreadPool threadPool = mock(ThreadPool.class);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
-        var usageAction = new SqlUsageTransportAction(
-            transportService,
-            clusterService,
-            threadPool,
-            mock(ActionFilters.class),
-            null,
-            client
-        );
+        var usageAction = new SqlUsageTransportAction(transportService, clusterService, threadPool, mock(ActionFilters.class), client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(mock(Task.class), null, null, future);
         SqlFeatureSetUsage sqlUsage = (SqlFeatureSetUsage) future.get().getUsage();

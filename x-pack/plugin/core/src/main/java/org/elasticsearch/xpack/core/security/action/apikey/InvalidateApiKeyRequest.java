@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -41,19 +40,10 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         super(in);
         realmName = textOrNull(in.readOptionalString());
         userName = textOrNull(in.readOptionalString());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            ids = in.readOptionalStringArray();
-        } else {
-            final String id = in.readOptionalString();
-            ids = Strings.hasText(id) ? new String[] { id } : null;
-        }
+        ids = in.readOptionalStringArray();
         validateIds(ids);
         name = textOrNull(in.readOptionalString());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_4_0)) {
-            ownedByAuthenticatedUser = in.readOptionalBoolean();
-        } else {
-            ownedByAuthenticatedUser = false;
-        }
+        ownedByAuthenticatedUser = in.readOptionalBoolean();
     }
 
     public InvalidateApiKeyRequest(
@@ -209,23 +199,9 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         super.writeTo(out);
         out.writeOptionalString(realmName);
         out.writeOptionalString(userName);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeOptionalStringArray(ids);
-        } else {
-            if (ids != null) {
-                if (ids.length == 1) {
-                    out.writeOptionalString(ids[0]);
-                } else {
-                    throw new IllegalArgumentException("a request with multi-valued field [ids] cannot be sent to an older version");
-                }
-            } else {
-                out.writeOptionalString(null);
-            }
-        }
+        out.writeOptionalStringArray(ids);
         out.writeOptionalString(name);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_4_0)) {
-            out.writeOptionalBoolean(ownedByAuthenticatedUser);
-        }
+        out.writeOptionalBoolean(ownedByAuthenticatedUser);
     }
 
     @Override

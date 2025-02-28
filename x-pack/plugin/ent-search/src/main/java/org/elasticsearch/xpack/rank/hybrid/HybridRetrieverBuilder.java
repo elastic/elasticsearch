@@ -8,12 +8,16 @@
 package org.elasticsearch.xpack.rank.hybrid;
 
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilderWrapper;
+import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder;
 import org.elasticsearch.xpack.rank.linear.MinMaxScoreNormalizer;
 import org.elasticsearch.xpack.rank.linear.ScoreNormalizer;
@@ -25,6 +29,11 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.search.retriever.CompoundRetrieverBuilder.RANK_WINDOW_SIZE_FIELD;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
+// TODO:
+// - Retriever name support
 
 public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrieverBuilder> {
     public static final String NAME = "hybrid";
@@ -34,6 +43,25 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
     private final List<String> fields;
     private final String query;
     private final int rankWindowSize;
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<HybridRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        false,
+        (args, context) -> {
+            List<String> fields = (List<String>) args[0];
+            String query = (String) args[1];
+            int rankWindowSize = args[2] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[2];
+            return new HybridRetrieverBuilder(fields, query, rankWindowSize);
+        }
+    );
+
+    static {
+        PARSER.declareStringArray(constructorArg(), FIELDS_FIELD);
+        PARSER.declareString(constructorArg(), QUERY_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
+        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+    }
 
     public HybridRetrieverBuilder(List<String> fields, String query, int rankWindowSize) {
         this(
@@ -83,6 +111,10 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
     @Override
     protected int doHashCode() {
         return Objects.hash(fields, query, super.doHashCode());
+    }
+
+    public static HybridRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
+        return PARSER.apply(parser, context);
     }
 
     private static List<CompoundRetrieverBuilder.RetrieverSource> generateInnerRetrievers(List<String> fields, String query) {

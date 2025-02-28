@@ -106,11 +106,6 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         return new FieldComparator.TermValComparator(numHits, null, sortMissingLast) {
 
             @Override
-            public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
-                return super.getLeafComparator(context);
-            }
-
-            @Override
             protected BinaryDocValues getBinaryDocValues(LeafReaderContext context, String field) throws IOException {
                 final SortedBinaryDocValues values = getValues(context);
                 final BinaryDocValues selectedValues;

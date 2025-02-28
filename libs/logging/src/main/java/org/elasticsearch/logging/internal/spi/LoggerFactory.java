@@ -29,6 +29,8 @@ public abstract class LoggerFactory {
 
     public abstract void setRootLevel(Level level);
 
+    public abstract Level getRootLevel();
+
     public static void setInstance(LoggerFactory INSTANCE) {
         LoggerFactory.INSTANCE = INSTANCE;
     }

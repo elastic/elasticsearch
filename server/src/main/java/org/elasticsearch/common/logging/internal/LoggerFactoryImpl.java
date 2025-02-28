@@ -38,4 +38,9 @@ public class LoggerFactoryImpl extends LoggerFactory {
         var log4jLevel = LevelUtil.log4jLevel(level);
         Loggers.setLevel(LogManager.getRootLogger(), log4jLevel);
     }
+
+    @Override
+    public Level getRootLevel() {
+        return LevelUtil.elasticsearchLevel(LogManager.getRootLogger().getLevel());
+    }
 }

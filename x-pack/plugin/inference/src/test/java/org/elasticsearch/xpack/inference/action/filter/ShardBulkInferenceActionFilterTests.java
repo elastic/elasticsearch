@@ -367,6 +367,58 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testSkipGeneratingInference() throws Exception {
+        StaticModel model = StaticModel.createRandomInstance();
+        ShardBulkInferenceActionFilter filter = createFilter(
+            threadPool,
+            Map.of(model.getInferenceEntityId(), model),
+            randomIntBetween(1, 10),
+            useLegacyFormat,
+            true
+        );
+
+        CountDownLatch chainExecuted = new CountDownLatch(1);
+        ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
+            try {
+                BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
+                IndexRequest actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[0].request());
+
+                // Create: Empty string
+                assertThat(XContentMapValues.extractValue("obj", actualRequest.sourceAsMap(), EXPLICIT_NULL), equalTo(""));
+                assertNull(XContentMapValues.extractValue(InferenceMetadataFieldsMapper.NAME, actualRequest.sourceAsMap(), EXPLICIT_NULL));
+
+                // Create: whitespace only
+                actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[1].request());
+                assertThat(XContentMapValues.extractValue("obj.field", actualRequest.sourceAsMap(), EXPLICIT_NULL), equalTo(""));
+                assertNull(XContentMapValues.extractValue(InferenceMetadataFieldsMapper.NAME, actualRequest.sourceAsMap(), EXPLICIT_NULL));
+
+                // Update: Empty string
+                actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[2].request());
+                assertThat(XContentMapValues.extractValue("obj", actualRequest.sourceAsMap(), EXPLICIT_NULL), equalTo(" "));
+                assertNull(XContentMapValues.extractValue(InferenceMetadataFieldsMapper.NAME, actualRequest.sourceAsMap(), EXPLICIT_NULL));
+
+                // Update: whitespace only
+                actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[3].request());
+                assertThat(XContentMapValues.extractValue("obj.field", actualRequest.sourceAsMap(), EXPLICIT_NULL), equalTo(" "));
+                assertNull(XContentMapValues.extractValue(InferenceMetadataFieldsMapper.NAME, actualRequest.sourceAsMap(), EXPLICIT_NULL));
+            } finally {
+                chainExecuted.countDown();
+            }
+        };
+        ActionListener actionListener = mock(ActionListener.class);
+        Task task = mock(Task.class);
+
+        BulkItemRequest[] items = new BulkItemRequest[4];
+        items[0] = new BulkItemRequest(0, new IndexRequest("index").source(Map.of("obj", "")));
+        items[1] = new BulkItemRequest(1, new IndexRequest("index").source(Map.of("obj", Map.of("field", ""))));
+        items[2] = new BulkItemRequest(2, new UpdateRequest().doc(new IndexRequest("index").source(Map.of("obj", " "))));
+        items[3] = new BulkItemRequest(3, new UpdateRequest().doc(new IndexRequest("index").source(Map.of("obj", Map.of("field", " ")))));
+        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
+        awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testManyRandomDocs() throws Exception {
         Map<String, StaticModel> inferenceModelMap = new HashMap<>();
         int numModels = randomIntBetween(1, 3);

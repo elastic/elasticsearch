@@ -25,6 +25,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -73,6 +74,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         }
     }
 
+    @FixForMultiProject(description = "we can pass ProjectMetadata here")
     IndicesStatsResponse(
         ShardStats[] shards,
         int totalShards,
@@ -91,7 +93,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         Map<String, IndexMetadata.State> indexStateModifiableMap = new HashMap<>();
         for (ShardStats shard : shards) {
             Index index = shard.getShardRouting().index();
-            IndexMetadata indexMetadata = metadata.index(index);
+            IndexMetadata indexMetadata = metadata.findIndex(index).orElse(null);
             if (indexMetadata != null) {
                 indexHealthModifiableMap.computeIfAbsent(
                     index.getName(),

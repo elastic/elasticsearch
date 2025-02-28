@@ -162,7 +162,14 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         var runner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
+                Driver.start(
+                    threadPool.getThreadContext(),
+                    threadPool.executor(ESQL_TEST_EXECUTOR),
+                    null,
+                    driver,
+                    between(1, 10000),
+                    listener
+                );
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -185,7 +192,14 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         var runner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), listener);
+                Driver.start(
+                    threadPool.getThreadContext(),
+                    threadPool.executor(ESQL_TEST_EXECUTOR),
+                    null,
+                    driver,
+                    between(1, 1000),
+                    listener
+                );
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();

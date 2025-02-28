@@ -245,7 +245,7 @@ public class DriverTests extends ESTestCase {
             CountDownLatch driverCompleted = new CountDownLatch(1);
             try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                 threadContext.putHeader("user", "user1");
-                Driver.start(threadContext, threadPool.executor("esql"), driver, between(1, 1000), ActionListener.running(() -> {
+                Driver.start(threadContext, threadPool.executor("esql"), null, driver, between(1, 1000), ActionListener.running(() -> {
                     try {
                         assertRunningWithRegularUser(threadPool);
                         assertThat(outPages, equalTo(inPages));
@@ -312,7 +312,7 @@ public class DriverTests extends ESTestCase {
             ThreadContext threadContext = threadPool.getThreadContext();
             PlainActionFuture<Void> future = new PlainActionFuture<>();
 
-            Driver.start(threadContext, threadPool.executor("esql"), driver, between(1, 1000), future);
+            Driver.start(threadContext, threadPool.executor("esql"), null, driver, between(1, 1000), future);
             future.actionGet(30, TimeUnit.SECONDS);
             assertThat(processedRows.get(), equalTo(maxAllowedRows));
         } finally {
@@ -330,7 +330,7 @@ public class DriverTests extends ESTestCase {
             var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}), Function.identity());
             Driver driver = TestDriverFactory.create(driverContext, sourceOperator, List.of(), sinkOperator);
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), null, driver, between(1, 1000), future);
             assertBusy(
                 () -> assertThat(
                     driver.status().status(),

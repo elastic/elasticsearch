@@ -20,10 +20,14 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.telemetry.tracing.Traceable;
+import org.elasticsearch.telemetry.tracing.Tracer;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -42,7 +46,7 @@ import java.util.stream.Collectors;
  * {@link org.elasticsearch.compute}
  */
 
-public class Driver implements Releasable, Describable {
+public class Driver implements Releasable, Describable, Traceable {
     public static final TimeValue DEFAULT_TIME_BEFORE_YIELDING = TimeValue.timeValueMinutes(5);
     public static final int DEFAULT_MAX_ITERATIONS = 10_000;
     /**
@@ -50,6 +54,7 @@ public class Driver implements Releasable, Describable {
      */
     public static final TimeValue DEFAULT_STATUS_INTERVAL = TimeValue.timeValueSeconds(1);
 
+    private final UUID driverId = UUID.randomUUID();
     private final String sessionId;
 
     /**
@@ -326,15 +331,25 @@ public class Driver implements Releasable, Describable {
     public static void start(
         ThreadContext threadContext,
         Executor executor,
+        Tracer tracer,
         Driver driver,
         int maxIterations,
         ActionListener<Void> listener
     ) {
         driver.completionListener.addListener(listener);
         if (driver.started.compareAndSet(false, true)) {
+            ThreadContext.StoredContext ctx = null;
+            if (tracer != null) {
+                driver.completionListener.addListener(ActionListener.running(() -> tracer.stopTrace(driver)));
+                ctx = threadContext.newTraceContext();
+                tracer.startTrace(threadContext, driver, driver.taskDescription, Map.of("description", driver.describe()));
+            }
+
             driver.updateStatus(0, 0, DriverStatus.Status.STARTING, "driver starting");
             initializeEarlyTerminationChecker(driver);
             schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, driver.completionListener);
+
+            Releasables.close(ctx);
         }
     }
 
@@ -394,7 +409,6 @@ public class Driver implements Releasable, Describable {
             protected void doRun() {
                 SubscribableListener<Void> fut = driver.run(maxTime, maxIterations, System::nanoTime);
                 if (driver.isFinished()) {
-                    onComplete(listener);
                     return;
                 }
                 if (fut.isDone()) {
@@ -449,6 +463,11 @@ public class Driver implements Releasable, Describable {
     @Override
     public String describe() {
         return description.get();
+    }
+
+    @Override
+    public String getSpanId() {
+        return "driver-" + driverId;
     }
 
     public String sessionId() {

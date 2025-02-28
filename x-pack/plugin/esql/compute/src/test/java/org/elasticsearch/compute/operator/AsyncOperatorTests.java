@@ -173,7 +173,7 @@ public class AsyncOperatorTests extends ESTestCase {
             outputOperator,
             () -> assertFalse(it.hasNext())
         );
-        Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), future);
+        Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), null, driver, between(1, 10000), future);
         future.actionGet();
         Releasables.close(localBreaker);
     }
@@ -303,7 +303,7 @@ public class AsyncOperatorTests extends ESTestCase {
         SinkOperator outputOperator = new PageConsumerOperator(Page::releaseBlocks);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         Driver driver = TestDriverFactory.create(driverContext, sourceOperator, List.of(asyncOperator), outputOperator, localBreaker);
-        Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), future);
+        Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), null, driver, between(1, 1000), future);
         assertBusy(() -> assertTrue(future.isDone()));
         if (failed.get()) {
             ElasticsearchException error = expectThrows(ElasticsearchException.class, future::actionGet);

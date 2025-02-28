@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -37,9 +38,14 @@ public class DriverTaskRunner {
     public static final String ACTION_NAME = "indices:data/read/esql/compute";
     private final TransportService transportService;
 
-    public DriverTaskRunner(TransportService transportService, Executor executor) {
+    public DriverTaskRunner(TransportService transportService, Tracer tracer, Executor executor) {
         this.transportService = transportService;
-        transportService.registerRequestHandler(ACTION_NAME, executor, DriverRequest::new, new DriverRequestHandler(transportService));
+        transportService.registerRequestHandler(
+            ACTION_NAME,
+            executor,
+            DriverRequest::new,
+            new DriverRequestHandler(transportService, tracer)
+        );
     }
 
     public void executeDrivers(Task parentTask, List<Driver> drivers, Executor executor, ActionListener<Void> listener) {
@@ -114,13 +120,16 @@ public class DriverTaskRunner {
         }
     }
 
-    private record DriverRequestHandler(TransportService transportService) implements TransportRequestHandler<DriverRequest> {
+    private record DriverRequestHandler(TransportService transportService, Tracer tracer)
+        implements
+            TransportRequestHandler<DriverRequest> {
         @Override
         public void messageReceived(DriverRequest request, TransportChannel channel, Task task) {
             var listener = new ChannelActionListener<TransportResponse.Empty>(channel);
             Driver.start(
                 transportService.getThreadPool().getThreadContext(),
                 request.executor,
+                tracer,
                 request.driver,
                 Driver.DEFAULT_MAX_ITERATIONS,
                 listener.map(unused -> TransportResponse.Empty.INSTANCE)

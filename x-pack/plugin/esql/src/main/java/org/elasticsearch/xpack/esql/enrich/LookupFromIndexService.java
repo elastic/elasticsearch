@@ -23,6 +23,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -50,7 +51,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
         BigArrays bigArrays,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        Tracer tracer
     ) {
         super(
             LOOKUP_ACTION_NAME,
@@ -59,6 +61,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             transportService,
             bigArrays,
             blockFactory,
+            tracer,
             false,
             TransportRequest::readFrom
         );

@@ -39,6 +39,7 @@ An {{esql}} source command produces a table, typically with data from {{es}}. An
 * [`GROK`](#esql-grok)
 * [`KEEP`](#esql-keep)
 * [`LIMIT`](#esql-limit)
+* [`LOOKUP JOIN`](#esql-lookup-join)
 * [preview] [`MV_EXPAND`](#esql-mv_expand)
 * [`RENAME`](#esql-rename)
 * [`SORT`](#esql-sort)
@@ -663,6 +664,50 @@ FROM employees
 | LIMIT 5
 ```
 
+## `LOOKUP JOIN` [esql-lookup-join]
+
+`LOOKUP JOIN` is useful for any scenario where you need to pull in information from a lookup index to streamline data enrichment and analysis.
+
+**Syntax**
+
+```esql
+FROM firewall_logs
+| LOOKUP JOIN threat_list ON source.IP
+```
+
+**Parameters**
+
+TBD
+
+**Description**
+
+TBD
+
+**Examples**
+
+TBD
+
+```esql
+FROM firewall_logs
+| LOOKUP JOIN threat_list ON source.IP
+```
+
+
+```esql
+FROM system_metrics
+| LOOKUP JOIN host_inventory ON host.name
+| LOOKUP JOIN employees ON host.name
+```
+
+TBD
+
+```esql
+FROM app_logs
+| LOOKUP JOIN service_owners ON service_id
+```
+
+
+In case of name collisions, the newly created columns will override existing columns.
 
 ## `MV_EXPAND` [esql-mv_expand]
 

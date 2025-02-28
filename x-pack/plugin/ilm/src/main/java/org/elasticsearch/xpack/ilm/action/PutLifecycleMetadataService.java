@@ -201,9 +201,9 @@ public class PutLifecycleMetadataService implements BulkMetadataService<BulkPutL
                     );
                 } catch (Exception e) {
                     // PRTODO: This is a mess - we try and apply all index metadata refreshes for this policy change at the very end of
-                    //  this function, but I don't know for sure if it can't throw an exception and end up here. The old logic just returns
-                    //  the new state with the policy and without any refreshes. We don't really have that luxury unless we build the
-                    //  cluster state after every application. Maybe that's fine and I'm over complicating things.
+                    // this function, but I don't know for sure if it can't throw an exception and end up here. The old logic just returns
+                    // the new state with the policy and without any refreshes. We don't really have that luxury unless we build the
+                    // cluster state after every application. Maybe that's fine and I'm over complicating things.
                     logger.warn(() -> "unable to refresh indices phase JSON for updated policy [" + oldPolicy.getName() + "]", e);
                 }
             }
@@ -224,21 +224,18 @@ public class PutLifecycleMetadataService implements BulkMetadataService<BulkPutL
         if (finalBulkOp.isEmpty()) {
             return;
         }
-        submitUnbatchedTask(
-            "put-lifecycle-" + request.getPolicy().getName(),
-            new BulkUpdateLifecyclePolicyTask(request, listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    var mb = Metadata.builder(currentState.metadata());
-                    BulkMetadataOperationContext<Void> ctx = applyBatch(finalBulkOp, currentState, mb);
-                    if (ctx != null && ctx.isMetadataModified()) {
-                        return ClusterState.builder(currentState).metadata(mb).build();
-                    } else {
-                        return currentState;
-                    }
+        submitUnbatchedTask("put-lifecycle-" + request.getPolicy().getName(), new BulkUpdateLifecyclePolicyTask(request, listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                var mb = Metadata.builder(currentState.metadata());
+                BulkMetadataOperationContext<Void> ctx = applyBatch(finalBulkOp, currentState, mb);
+                if (ctx != null && ctx.isMetadataModified()) {
+                    return ClusterState.builder(currentState).metadata(mb).build();
+                } else {
+                    return currentState;
                 }
             }
-        );
+        });
     }
 
     /**
@@ -331,6 +328,7 @@ public class PutLifecycleMetadataService implements BulkMetadataService<BulkPutL
         protected BulkUpdateLifecyclePolicyTask(PutLifecycleRequest request, ActionListener<AcknowledgedResponse> listener) {
             super(request, listener);
         }
+
         @Override
         public abstract ClusterState execute(ClusterState currentState) throws Exception;
     }

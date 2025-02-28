@@ -79,9 +79,7 @@ public class MetadataContentService {
     private abstract static class ContentPackClusterStateUpdateTask implements ClusterStateTaskListener {
         final ActionListener<AcknowledgedResponse> listener;
 
-        ContentPackClusterStateUpdateTask(
-            ActionListener<AcknowledgedResponse> listener
-        ) {
+        ContentPackClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener) {
             this.listener = listener;
         }
 
@@ -127,10 +125,7 @@ public class MetadataContentService {
         private final Map<String, BulkMetadataOperation> packageContents;
         private final TimeValue masterTimeout;
 
-        private ContentPack(
-            Map<String, BulkMetadataOperation> packageContents,
-            TimeValue masterTimeout
-        ) {
+        private ContentPack(Map<String, BulkMetadataOperation> packageContents, TimeValue masterTimeout) {
             this.packageContents = packageContents;
             this.masterTimeout = masterTimeout;
         }
@@ -183,8 +178,7 @@ public class MetadataContentService {
             if (obj == this) return true;
             if (obj == null || obj.getClass() != this.getClass()) return false;
             var that = (ContentPack) obj;
-            return Objects.equals(this.packageContents, that.packageContents) &&
-                Objects.equals(this.masterTimeout, that.masterTimeout);
+            return Objects.equals(this.packageContents, that.packageContents) && Objects.equals(this.masterTimeout, that.masterTimeout);
         }
 
         @Override
@@ -194,9 +188,7 @@ public class MetadataContentService {
 
         @Override
         public String toString() {
-            return "ContentPack[" +
-                "packageContents=" + packageContents + ", " +
-                "masterTimeout=" + masterTimeout + ']';
+            return "ContentPack[" + "packageContents=" + packageContents + ", " + "masterTimeout=" + masterTimeout + ']';
         }
     }
 
@@ -303,7 +295,7 @@ public class MetadataContentService {
 
         SubscribableListener.newForked((ActionListener<Collection<Void>> l) -> {
             // PRTODO: Is this cluster state by-definition less fresh than the one we maintain in the IngestService?
-            //  Is this safe to check against?
+            // Is this safe to check against?
             ClusterState clusterState = clusterService.state();
             forEachService(services, (service) -> service.validateBatch(clusterState));
             forEachService(services, (service) -> service.filterBatch(clusterState));
@@ -314,27 +306,23 @@ public class MetadataContentService {
         }).andThen((ActionListener<AcknowledgedResponse> l, Collection<Void> depResults) -> {
             ClusterState clusterState = clusterService.state();
             forEachService(services, (service) -> service.dependencyValidation(clusterState));
-            taskQueue.submitTask(
-                "create-content-pack, cause [" + cause + "]",
-                new ContentPackClusterStateUpdateTask(l) {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
-                        OrCollector stateModified = new OrCollector();
-                        // PRTODO: The problem here is that each service takes its current view of the state from the currentState
-                        //  but there's no way to guarantee that the "currentView" of the content hasn't already been invalidated
-                        forEachServiceAccumulate(services, (service) -> service.applyBatch(currentState, metadataBuilder), stateModified);
-                        if (stateModified.result()) {
-                            ClusterState candidateState = ClusterState.builder(currentState).metadata(metadataBuilder).build();
-                            forEachService(services, (service) -> service.validateFinalClusterState(currentState, candidateState));
-                            return candidateState;
-                        } else {
-                            return currentState;
-                        }
+            taskQueue.submitTask("create-content-pack, cause [" + cause + "]", new ContentPackClusterStateUpdateTask(l) {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
+                    OrCollector stateModified = new OrCollector();
+                    // PRTODO: The problem here is that each service takes its current view of the state from the currentState
+                    // but there's no way to guarantee that the "currentView" of the content hasn't already been invalidated
+                    forEachServiceAccumulate(services, (service) -> service.applyBatch(currentState, metadataBuilder), stateModified);
+                    if (stateModified.result()) {
+                        ClusterState candidateState = ClusterState.builder(currentState).metadata(metadataBuilder).build();
+                        forEachService(services, (service) -> service.validateFinalClusterState(currentState, candidateState));
+                        return candidateState;
+                    } else {
+                        return currentState;
                     }
-                },
-                contentPack.masterTimeout
-            );
+                }
+            }, contentPack.masterTimeout);
         }).addListener(listener);
     }
 

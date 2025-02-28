@@ -622,11 +622,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComposableIndexTemplate bazTemplate = ComposableIndexTemplateTests.randomInstance();
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
 
-        final ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder()
-            .put("foo", fooTemplate)
-            .put("bar", barTemplate)
-            .put("baz", bazTemplate)
-        ).build();
+        final ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put("foo", fooTemplate).put("bar", barTemplate).put("baz", bazTemplate))
+            .build();
 
         Exception e = expectThrows(
             IndexTemplateMissingException.class,
@@ -2074,9 +2072,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         assertThat(
             e.getMessage(),
-            containsString(
-                "updating templates [c2] results in invalid " + "composable template [my-template] after templates are merged"
-            )
+            containsString("updating templates [c2] results in invalid " + "composable template [my-template] after templates are merged")
         );
 
         assertNotNull(e.getCause());

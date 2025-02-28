@@ -121,8 +121,10 @@ public class IngestService
     public static final String INGEST_ORIGIN = "ingest";
 
     public static final String BULK_METADATA_SERVICE_NAME = "elasticsearch.ingest";
+
     public static final class BulkPipelineCreateOperation extends BulkMetadataOperation {
         final List<PutPipelineRequest> requests;
+
         public BulkPipelineCreateOperation(List<PutPipelineRequest> requests) {
             super(BULK_METADATA_SERVICE_NAME);
             this.requests = requests;
@@ -716,10 +718,7 @@ public class IngestService
      * @param request put pipeline request to validate
      * @return source data from the give request, potentially updated with version info if needed
      */
-    static BytesReference validatePipelineVersionAndGetSource(
-        IngestMetadata currentIngestMetadata,
-        PutPipelineRequest request
-    ) {
+    static BytesReference validatePipelineVersionAndGetSource(IngestMetadata currentIngestMetadata, PutPipelineRequest request) {
         if (request.getVersion() != null) {
             var currentPipeline = currentIngestMetadata != null ? currentIngestMetadata.getPipelines().get(request.getId()) : null;
             if (currentPipeline == null) {

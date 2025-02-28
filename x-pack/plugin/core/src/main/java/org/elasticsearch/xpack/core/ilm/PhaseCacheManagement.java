@@ -71,10 +71,7 @@ public final class PhaseCacheManagement {
     /**
      * Rereads the phase JSON for the given index, and updates the provided metadata.
      */
-    public static IndexMetadata.Builder refreshPhaseDefinition(
-        final IndexMetadata idxMeta,
-        final LifecyclePolicyMetadata updatedPolicy
-    ) {
+    public static IndexMetadata.Builder refreshPhaseDefinition(final IndexMetadata idxMeta, final LifecyclePolicyMetadata updatedPolicy) {
         String index = idxMeta.getIndex().getName();
         assert eligibleToCheckForRefresh(idxMeta) : "index " + index + " is missing crucial information needed to refresh phase definition";
 

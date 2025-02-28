@@ -41,12 +41,15 @@ public interface BulkMetadataService<B extends BulkMetadataOperation, D, C> {
         public static <T> BulkMetadataOperationContext<T> stateModified(T context) {
             return new BulkMetadataOperationContext<>(true, context);
         }
+
         public static BulkMetadataOperationContext<Void> stateModified() {
             return new BulkMetadataOperationContext<>(true, null);
         }
+
         public static <T> BulkMetadataOperationContext<T> stateUnmodified(T context) {
             return new BulkMetadataOperationContext<>(false, context);
         }
+
         public static BulkMetadataOperationContext<Void> stateUnmodified() {
             return new BulkMetadataOperationContext<>(false, null);
         }

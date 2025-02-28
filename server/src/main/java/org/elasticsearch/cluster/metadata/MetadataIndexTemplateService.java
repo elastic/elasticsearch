@@ -468,7 +468,6 @@ public class MetadataIndexTemplateService
         );
     }
 
-
     @Override
     public void validateFinalClusterState(ClusterState previousState, ClusterState newState, InterimTemplateValidationInfo context)
         throws Exception {
@@ -479,11 +478,7 @@ public class MetadataIndexTemplateService
                 final String composableTemplateName = entry.getKey();
                 final ComposableIndexTemplate composableTemplate = entry.getValue();
                 try {
-                    validateIndexTemplateV2(
-                        composableTemplateName,
-                        composableTemplate,
-                        newState
-                    );
+                    validateIndexTemplateV2(composableTemplateName, composableTemplate, newState);
                 } catch (Exception e) {
                     // For the sake of error message backwards compatibility, do not wrap the
                     // exception if this is a single composable index template updated
@@ -531,9 +526,7 @@ public class MetadataIndexTemplateService
         if (failingComponents.isEmpty() == false) {
             builder.append(failingComponents);
         }
-        var failingTemplate = updatedComposableIndexTemplates.containsKey(composableTemplateName)
-            ? composableTemplateName
-            : null;
+        var failingTemplate = updatedComposableIndexTemplates.containsKey(composableTemplateName) ? composableTemplateName : null;
         if (failingTemplate != null) {
             if (failingComponents.isEmpty() == false) {
                 builder.append(", ");
@@ -988,11 +981,7 @@ public class MetadataIndexTemplateService
     }
 
     // Visibility for testing
-    void validateIndexTemplateV2(
-        String name,
-        ComposableIndexTemplate indexTemplate,
-        ClusterState candidateState
-    ) {
+    void validateIndexTemplateV2(String name, ComposableIndexTemplate indexTemplate, ClusterState candidateState) {
         // Workaround for the fact that start_time and end_time are injected by the MetadataCreateDataStreamService upon creation,
         // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
         var finalTemplate = indexTemplate.template();
@@ -1179,10 +1168,7 @@ public class MetadataIndexTemplateService
                 // previous template was removed or its patterns changed to not match anymore. Either way,
                 // the previous template was changed and thus is the offender here
                 if (updatedIndexTemplateNames.contains(originalTemplate)) {
-                    offendingTemplateToUnreferencedDataStreams.computeIfAbsent(
-                        originalTemplate,
-                        (k) -> new HashSet<>()
-                    ).add(dataStream);
+                    offendingTemplateToUnreferencedDataStreams.computeIfAbsent(originalTemplate, (k) -> new HashSet<>()).add(dataStream);
                 } else {
                     // Not sure how this could happen. Somehow we had a template in the last version that matched, but now we don't,
                     // and it wasn't one that changed. Assert on it and collect for graceful degradation.
@@ -1208,28 +1194,18 @@ public class MetadataIndexTemplateService
                         // Ok both templates changed, but we don't know if both changes are responsible for why the data stream broke.
                         // What causes a template to be the reason for breaking? Patterns, priority, and template changes.
                         // Does it matter? We're going to reject both operations. Just label both of them as the cause of the problem.
-                        offendingTemplateToUnreferencedDataStreams.computeIfAbsent(
-                            newTemplate,
-                            (k) -> new HashSet<>()
-                        ).add(dataStream);
-                        offendingTemplateToUnreferencedDataStreams.computeIfAbsent(
-                            originalTemplate,
-                            (k) -> new HashSet<>()
-                        ).add(dataStream);
+                        offendingTemplateToUnreferencedDataStreams.computeIfAbsent(newTemplate, (k) -> new HashSet<>()).add(dataStream);
+                        offendingTemplateToUnreferencedDataStreams.computeIfAbsent(originalTemplate, (k) -> new HashSet<>())
+                            .add(dataStream);
                     } else if (newTemplateWasUpdated) {
                         // A new template was inserted ahead of the old one, and it is not a data stream template
                         // Just the new one is the problem
-                        offendingTemplateToUnreferencedDataStreams.computeIfAbsent(
-                            newTemplate,
-                            (k) -> new HashSet<>()
-                        ).add(dataStream);
+                        offendingTemplateToUnreferencedDataStreams.computeIfAbsent(newTemplate, (k) -> new HashSet<>()).add(dataStream);
                     } else {
                         // Old template was changed and the new template (unchanged) is now incorrectly applied
                         // The old one changing is the problem
-                        offendingTemplateToUnreferencedDataStreams.computeIfAbsent(
-                            originalTemplate,
-                            (k) -> new HashSet<>()
-                        ).add(dataStream);
+                        offendingTemplateToUnreferencedDataStreams.computeIfAbsent(originalTemplate, (k) -> new HashSet<>())
+                            .add(dataStream);
                     }
                 }
             }

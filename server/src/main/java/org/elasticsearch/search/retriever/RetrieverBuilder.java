@@ -282,8 +282,8 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RetrieverBuilder that = (RetrieverBuilder) o;
-        return Objects.equals(preFilterQueryBuilders, that.preFilterQueryBuilders)
-            && Objects.equals(minScore, that.minScore)
+        return Objects.equals(getPreFilterQueryBuilders(), that.getPreFilterQueryBuilders())
+            && Objects.equals(minScore(), that.minScore())
             && doEquals(o);
     }
 
@@ -291,7 +291,7 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
 
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), preFilterQueryBuilders, minScore, doHashCode());
+        return Objects.hash(getClass(), getPreFilterQueryBuilders(), minScore(), doHashCode());
     }
 
     protected abstract int doHashCode();

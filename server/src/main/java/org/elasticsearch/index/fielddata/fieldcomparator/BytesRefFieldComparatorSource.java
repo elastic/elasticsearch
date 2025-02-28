@@ -15,6 +15,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
@@ -67,7 +68,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         return indexFieldData.load(context).getBytesValues();
     }
 
-    protected void setScorer(Scorable scorer) {}
+    protected void setScorer(LeafReaderContext context, Scorable scorer) {}
 
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning enableSkipping, boolean reversed) {
@@ -120,10 +121,38 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
             }
 
             @Override
-            public void setScorer(Scorable scorer) {
-                BytesRefFieldComparatorSource.this.setScorer(scorer);
-            }
+            public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
+                LeafFieldComparator leafComparator = super.getLeafComparator(context);
+                return new LeafFieldComparator() {
+                    @Override
+                    public void setBottom(int slot) throws IOException {
+                        leafComparator.setBottom(slot);
+                    }
 
+                    @Override
+                    public int compareBottom(int doc) throws IOException {
+                        return leafComparator.compareBottom(doc);
+                    }
+
+                    @Override
+                    public int compareTop(int doc) throws IOException {
+                        return leafComparator.compareTop(doc);
+                    }
+
+                    @Override
+                    public void copy(int slot, int doc) throws IOException {
+                        leafComparator.copy(slot, doc);
+                    }
+
+                    @Override
+                    public void setScorer(Scorable scorer) throws IOException {
+                        // this ensures that the scorer is set for the specific leaf comparator
+                        // corresponding to the leaf context we are scoring
+                        // BytesRefFieldComparatorSource.this.setScorer(context, scorer);
+                        // TODO just an experiment to make sure that some test fails without it!
+                    }
+                };
+            }
         };
     }
 

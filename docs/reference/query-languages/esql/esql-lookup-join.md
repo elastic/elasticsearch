@@ -24,11 +24,52 @@ For example, you can use `LOOKUP JOIN` to:
 
 ## How the `LOOKUP JOIN` command works [esql-how-lookup-join-works]
 
-The `LOOKUP JOIN` command adds new columns to a table, with data from {{es}} indices. It requires a few special components:
+The `LOOKUP JOIN` command adds new columns to a table, with data from {{es}} indices.
 
 :::{image} ../../../images/esql-lookup-join.png
 :alt: esql lookup join
 :::
+
+In the case where there are multiple matches on the index `LOOKUP JOIN` the output rows is the combination of each match from the left with each match on the right. 
+
+Image you have the two tables:
+
+**Left**
+
+|Key|Entry|
+| --- | --- |
+|1|A|
+|2|B|
+
+**Right**
+
+|Key|Language|TLD|
+|---|---|---|
+|1|English|CA|
+|1|English|null|
+|1|null|UK|
+|1|English|US|
+|2|German|AT,DE|
+|2|German|CH|
+|2|German|null|
+
+Running the following query would provide the results shown below.
+
+```esql
+FROM Left
+| WHERE Language IS NOT NULL // works and filter TLD UK
+| LOOKUP JOIN Right ON Key
+```
+
+|Key|Entry|Language|TLD|
+|---|---|---|---|
+|1|A|English|CA|
+|1|A|English|null|
+|1|A|null|UK|
+|1|A|English|US|
+|2|A|German|AT,DE|
+|2|B|German|CH|
+|2|B|German|null|
 
 ::::{tip}
 `LOOKUP JOIN` does not guarantee the output to be in any particular order. If a certain order is required, users should use a [`SORT`](/reference/query-languages/esql/esql-commands.md#esql-sort) somewhere after the `LOOKUP JOIN`.

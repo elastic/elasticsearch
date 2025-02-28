@@ -22,9 +22,12 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.PriorityQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -54,8 +57,74 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         assertTrue(threadPoolMergeExecutorService.allDone());
     }
 
-    public void testIORateDecreasesWhenNewMergeTaskRateDecreases() {
-
+    public void testIORateAdjustedForNewlySubmittedTasks() {
+        DeterministicTaskQueue mergeExecutorTaskQueue = new DeterministicTaskQueue();
+        ThreadPool mergeExecutorThreadPool = mergeExecutorTaskQueue.getThreadPool();
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
+            .maybeCreateThreadPoolMergeExecutorService(
+                mergeExecutorThreadPool,
+                Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true).build()
+            );
+        assertNotNull(threadPoolMergeExecutorService);
+        int totalTasksToSubmit = randomIntBetween(10, 100);
+        final AtomicInteger currentlySubmittedMergeTaskCount = new AtomicInteger();
+        final AtomicLong targetIORateLimit = new AtomicLong(ThreadPoolMergeExecutorService.START_IO_RATE.getBytes());
+        final AtomicBoolean setIORateForTaskInvoked = new AtomicBoolean();
+        while (totalTasksToSubmit > 0 || mergeExecutorTaskQueue.hasAnyTasks()) {
+            if (mergeExecutorTaskQueue.hasAnyTasks() == false || randomBoolean() && totalTasksToSubmit > 0) {
+                // submit new merge task
+                MergeTask mergeTask = mock(MergeTask.class);
+                // all merge tasks support IO throttling in this test
+                when(mergeTask.supportsIOThrottling()).thenReturn(true);
+                // always run the task
+                when(mergeTask.runNowOrBacklog()).thenReturn(true);
+                doAnswer(mock -> {
+                    long taskIORateLimit = (Long) mock.getArguments()[0];
+                    // assert the IO rate for the task is set
+                    assertThat(taskIORateLimit, equalTo(targetIORateLimit.get()));
+                    assertFalse(setIORateForTaskInvoked.get());
+                    setIORateForTaskInvoked.set(true);
+                    return null;
+                }).when(mergeTask).setIORateLimit(anyLong());
+                doAnswer(mock -> {
+                    // IO rate limit always set while running
+                    assertTrue(setIORateForTaskInvoked.get());
+                    // always run the tasks
+                    return true;
+                }).when(mergeTask).run();
+                currentlySubmittedMergeTaskCount.incrementAndGet();
+                totalTasksToSubmit--;
+                threadPoolMergeExecutorService.submitMergeTask(mergeTask);
+                long newTargetIORateLimit = threadPoolMergeExecutorService.getTargetIORateBytesPerSec();
+                if (currentlySubmittedMergeTaskCount.get() < threadPoolMergeExecutorService.getConcurrentMergesFloorLimitForThrottling()) {
+                    // assert the IO rate decreases, with a floor limit, when there are few merge tasks enqueued
+                    assertTrue(
+                        newTargetIORateLimit == ThreadPoolMergeExecutorService.MIN_IO_RATE.getBytes()
+                            || newTargetIORateLimit < targetIORateLimit.get()
+                    );
+                } else if (currentlySubmittedMergeTaskCount.get() > threadPoolMergeExecutorService
+                    .getConcurrentMergesCeilLimitForThrottling()) {
+                        // assert the IO rate increases, with a ceiling limit, when there are many merge tasks enqueued
+                        assertTrue(
+                            newTargetIORateLimit == ThreadPoolMergeExecutorService.MAX_IO_RATE.getBytes()
+                                || newTargetIORateLimit > targetIORateLimit.get()
+                        );
+                    } else {
+                        // assert the IO rate does change, when there are a couple of merge tasks enqueued
+                        assertThat(newTargetIORateLimit, equalTo(targetIORateLimit.get()));
+                    }
+                targetIORateLimit.set(newTargetIORateLimit);
+            } else {
+                setIORateForTaskInvoked.set(false);
+                // execute already submitted merge task
+                if (runOneTask(mergeExecutorTaskQueue)) {
+                    assertTrue(setIORateForTaskInvoked.get());
+                    // task is done, no longer just submitted
+                    currentlySubmittedMergeTaskCount.decrementAndGet();
+                }
+            }
+        }
+        assertTrue(threadPoolMergeExecutorService.allDone());
     }
 
     public void testBackloggedMergeTasksExecuteExactlyOnce() throws Exception {
@@ -106,7 +175,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 for (MergeTask mergeTask : generatedMergeTasks) {
                     verify(mergeTask, times(1)).run();
                     if (mergeTask.supportsIOThrottling() == false) {
-                        verify(mergeTask, times(0)).setIORateLimit(anyDouble());
+                        verify(mergeTask, times(0)).setIORateLimit(anyLong());
                     }
                 }
                 threadPoolMergeExecutorService.allDone();
@@ -125,6 +194,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         assertNotNull(threadPoolMergeExecutorService);
         DeterministicTaskQueue reEnqueueBackloggedTaskQueue = new DeterministicTaskQueue();
         int mergeTaskCount = randomIntBetween(10, 100);
+        // sort merge tasks available to run by size
         PriorityQueue<MergeTask> mergeTasksAvailableToRun = new PriorityQueue<>(
             mergeTaskCount,
             Comparator.comparingLong(MergeTask::estimatedMergeSize)

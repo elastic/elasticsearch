@@ -23,6 +23,7 @@ import org.apache.lucene.store.RateLimitedIndexOutput;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -76,7 +77,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.mergeTracking = new MergeTracking(
             logger,
-            () -> this.config.isAutoThrottle() ? threadPoolMergeExecutorService.getTargetMBPerSec() : Double.POSITIVE_INFINITY
+            () -> this.config.isAutoThrottle()
+                ? ByteSizeValue.ofBytes(threadPoolMergeExecutorService.getTargetIORateBytesPerSec()).getMbFrac()
+                : Double.POSITIVE_INFINITY
         );
         this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
     }
@@ -326,11 +329,11 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             return supportsIOThrottling;
         }
 
-        public void setIORateLimit(double mbPerSec) {
+        public void setIORateLimit(long ioRateLimitBytesPerSec) {
             if (supportsIOThrottling == false) {
                 throw new IllegalArgumentException("merge task cannot be IO throttled");
             }
-            this.rateLimiter.setMBPerSec(mbPerSec);
+            this.rateLimiter.setMBPerSec(ByteSizeValue.ofBytes(ioRateLimitBytesPerSec).getMbFrac());
         }
 
         public boolean isRunning() {

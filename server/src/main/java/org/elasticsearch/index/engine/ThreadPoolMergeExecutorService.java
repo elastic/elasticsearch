@@ -28,15 +28,15 @@ public class ThreadPoolMergeExecutorService {
     /**
      * Floor for IO write rate limit of individual merge tasks (we will never go any lower than this)
      */
-    private static final ByteSizeValue MIN_IO_RATE = ByteSizeValue.ofMb(5L);
+    static final ByteSizeValue MIN_IO_RATE = ByteSizeValue.ofMb(5L);
     /**
      * Ceiling for IO write rate limit of individual merge tasks (we will never go any higher than this)
      */
-    private static final ByteSizeValue MAX_IO_RATE = ByteSizeValue.ofMb(10240L);
+    static final ByteSizeValue MAX_IO_RATE = ByteSizeValue.ofMb(10240L);
     /**
      * Initial value for IO write rate limit of individual merge tasks when doAutoIOThrottle is true
      */
-    private static final ByteSizeValue START_IO_RATE = ByteSizeValue.ofMb(20L);
+    static final ByteSizeValue START_IO_RATE = ByteSizeValue.ofMb(20L);
     /**
      * Total number of submitted merge tasks that support IO auto throttling and that have not yet been executed.
      * This includes merge tasks that are currently running and that are backlogged (by their respective merge schedulers).
@@ -166,7 +166,7 @@ public class ThreadPoolMergeExecutorService {
         assert added : "starting merge task [" + mergeTask + "] registered as already running";
         try {
             if (mergeTask.supportsIOThrottling()) {
-                mergeTask.setIORateLimit(ByteSizeValue.ofBytes(targetIORateBytesPerSec.get()).getMbFrac());
+                mergeTask.setIORateLimit(targetIORateBytesPerSec.get());
             }
             mergeTask.run();
         } finally {
@@ -196,7 +196,7 @@ public class ThreadPoolMergeExecutorService {
                 final long finalNewTargetIORateBytesPerSec = newTargetIORateBytesPerSec;
                 currentlyRunningMergeTasks.forEach(mergeTask -> {
                     if (mergeTask.supportsIOThrottling()) {
-                        mergeTask.setIORateLimit(ByteSizeValue.ofBytes(finalNewTargetIORateBytesPerSec).getMbFrac());
+                        mergeTask.setIORateLimit(finalNewTargetIORateBytesPerSec);
                     }
                 });
                 break;
@@ -232,9 +232,9 @@ public class ThreadPoolMergeExecutorService {
         return newTargetIORateBytesPerSec;
     }
 
-    // exposed for stats
-    double getTargetMBPerSec() {
-        return ByteSizeValue.ofBytes(targetIORateBytesPerSec.get()).getMbFrac();
+    // exposed for tests and stats
+    long getTargetIORateBytesPerSec() {
+        return targetIORateBytesPerSec.get();
     }
 
     // exposed for tests

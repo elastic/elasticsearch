@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -127,7 +128,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
-import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporaryName;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -183,6 +183,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ImplicitForkCasting(),
             new ResolveRefs(),
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
+            /*
+             * An implicit EsqlProject is added so that a union typed field can be cast to a common type and returned.
+             * Without explicit or implicit casting, a union typed field is returned as a null.
+             */
             new AddImplicitProject()
         );
 
@@ -1184,7 +1188,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * <li>date_trunc("1 minute", dateField)</li>
      * </ul>
      * If the inputs to Coalesce are mixed numeric types, cast the rest of the numeric field or value to the first numeric data type if
-     * applicable. For example, implicit casting converts:
+     * applicable, the same applies to Case, Greatest, Least. For example, implicit casting converts:
      * <ul>
      * <li>Coalesce(Long, Int) to Coalesce(Long, Long)</li>
      * <li>Coalesce(null, Long, Int) to Coalesce(null, Long, Long)</li>
@@ -1196,13 +1200,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            // do implicit casting for union typed fields in sort keys
+            // do implicit casting for union typed fields in sort, keep, rename
             LogicalPlan newPlan = plan.transformUp(p -> {
-                if (p instanceof OrderBy ob) {
-                    return castInvalidMappedFieldInOrderBy(ob);
-                }
-                if (p instanceof EsqlProject proj) {
-                    return castInvalidMappedFieldInProjection(proj);
+                if (p instanceof OrderBy | p instanceof EsqlProject) {
+                    return castInvalidMappedFieldInLogicalPlan(p);
                 }
                 return p;
             });
@@ -1211,108 +1212,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 org.elasticsearch.xpack.esql.core.expression.function.Function.class,
                 e -> ImplicitCasting.cast(e, context.functionRegistry())
             );
-        }
-
-        private static EsqlProject castInvalidMappedFieldInProjection(EsqlProject esqlProject) {
-            List<NamedExpression> newProjections = new ArrayList<>(esqlProject.projections().size());
-            List<Alias> aliases = new ArrayList<>(esqlProject.projections().size());
-            int counter = 0;
-            projectionLoop: for (NamedExpression projection : esqlProject.projections()) {
-                Expression e = projection instanceof Alias a ? a.child() : projection;
-                if (e.resolved()
-                    && e.dataType() == UNSUPPORTED
-                    && e instanceof FieldAttribute fa
-                    && fa.field() instanceof InvalidMappedField imf) {
-                    // this is an invalid mapped field, find a common data type and cast to it
-                    DataType targetType = null;
-                    for (DataType type : imf.types()) {
-                        if (targetType == null) { // initialize the target type to the first type
-                            targetType = type;
-                        } else {
-                            targetType = EsqlDataTypeConverter.commonType(targetType, type);
-                            if (targetType == null) { // if there is no common type, continue to the next argument
-                                newProjections.add(projection);
-                                continue projectionLoop;
-                            }
-                        }
-                    }
-                    if (targetType != null && isRepresentable(targetType) && (isMillisOrNanos(targetType) || targetType.isNumeric())) {
-                        // create an eval to cast union type to a common type
-                        var name = rawTemporaryName("keep", String.valueOf(counter++), targetType.name());
-                        Alias alias;
-                        switch (targetType) {
-                            case INTEGER -> alias = new Alias(fa.source(), name, new ToInteger(fa.source(), fa));
-                            case LONG -> alias = new Alias(fa.source(), name, new ToLong(fa.source(), fa));
-                            case DOUBLE -> alias = new Alias(fa.source(), name, new ToDouble(fa.source(), fa));
-                            case UNSIGNED_LONG -> alias = new Alias(fa.source(), name, new ToUnsignedLong(fa.source(), fa));
-                            case DATETIME -> alias = new Alias(fa.source(), name, new ToDatetime(fa.source(), fa));
-                            case DATE_NANOS -> alias = new Alias(fa.source(), name, new ToDateNanos(fa.source(), fa));
-                            default -> throw new EsqlIllegalArgumentException("unexpected data type: " + targetType);
-                        }
-                        aliases.add(alias);
-                        newProjections.add(alias);
-                    }
-                } else {
-                    newProjections.add(projection);
-                }
-            }
-            if (aliases.isEmpty() == false) {
-                Eval eval = new Eval(esqlProject.source(), esqlProject.child(), aliases);
-                return new EsqlProject(esqlProject.source(), eval, newProjections);
-            } else {
-                return esqlProject;
-            }
-        }
-
-        private static OrderBy castInvalidMappedFieldInOrderBy(OrderBy ob) {
-            List<Order> newOrder = new ArrayList<>(ob.order().size());
-            boolean changed = false;
-            orderLoop: for (Order o : ob.order()) {
-                DataType targetType = null;
-                if (o.child().resolved()
-                    && o.child().dataType() == UNSUPPORTED
-                    && o.child() instanceof FieldAttribute fa
-                    && fa.field() instanceof InvalidMappedField imf) {
-                    // this is an invalid mapped field, find a common data type and cast to it
-                    for (DataType type : imf.types()) {
-                        if (targetType == null) { // initialize the target type to the first type
-                            targetType = type;
-                        } else {
-                            targetType = EsqlDataTypeConverter.commonType(targetType, type);
-                            if (targetType == null) { // if there is no common type, continue to the next argument
-                                newOrder.add(o);
-                                continue orderLoop;
-                            }
-                        }
-                    }
-                    if (targetType != null && isRepresentable(targetType) && (isMillisOrNanos(targetType) || targetType.isNumeric())) {
-                        changed = true;
-                        switch (targetType) {
-                            case INTEGER -> newOrder.add(
-                                new Order(o.source(), new ToInteger(fa.source(), fa), o.direction(), o.nullsPosition())
-                            );
-                            case LONG -> newOrder.add(new Order(o.source(), new ToLong(fa.source(), fa), o.direction(), o.nullsPosition()));
-                            case DOUBLE -> newOrder.add(
-                                new Order(o.source(), new ToDouble(fa.source(), fa), o.direction(), o.nullsPosition())
-                            );
-                            case UNSIGNED_LONG -> newOrder.add(
-                                new Order(o.source(), new ToUnsignedLong(fa.source(), fa), o.direction(), o.nullsPosition())
-                            );
-                            case DATETIME -> newOrder.add(
-                                new Order(o.source(), new ToDatetime(fa.source(), fa), o.direction(), o.nullsPosition())
-                            );
-                            case DATE_NANOS -> newOrder.add(
-                                new Order(o.source(), new ToDateNanos(fa.source(), fa), o.direction(), o.nullsPosition())
-                            );
-                            default -> throw new EsqlIllegalArgumentException("unexpected data type: " + targetType);
-                        }
-                    }
-                } else {
-                    newOrder.add(o);
-                }
-            }
-
-            return changed ? new OrderBy(ob.source(), ob.child(), newOrder) : ob;
         }
 
         private static Expression cast(org.elasticsearch.xpack.esql.core.expression.function.Function f, EsqlFunctionRegistry registry) {
@@ -1334,7 +1233,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static org.elasticsearch.xpack.esql.core.expression.function.Function castInvalidMappedField(
             org.elasticsearch.xpack.esql.core.expression.function.Function f
         ) {
-            if (f instanceof AbstractConvertFunction) {
+            if (f instanceof AbstractConvertFunction || f instanceof FullTextFunction) {
                 return f;
             }
             List<Expression> args = f.arguments();
@@ -1805,56 +1704,106 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return logicalPlan;
             }
             List<LogicalPlan> projections = logicalPlan.collectFirstChildren(EsqlProject.class::isInstance);
-            if (projections.isEmpty()) {
-                List<NamedExpression> newProjections = new ArrayList<>(logicalPlan.output().size());
-                List<Alias> aliases = new ArrayList<>(logicalPlan.output().size());
-                int counter = 0;
-                projectionLoop: for (Attribute e : logicalPlan.output()) {
-                    if (e.resolved()
-                        && e.dataType() == UNSUPPORTED
-                        && e instanceof FieldAttribute fa
-                        && fa.field() instanceof InvalidMappedField imf) {
-                        // this is an invalid mapped field, find a common data type and cast to it
-                        DataType targetType = null;
-                        for (DataType type : imf.types()) {
-                            if (targetType == null) { // initialize the target type to the first type
-                                targetType = type;
-                            } else {
-                                targetType = EsqlDataTypeConverter.commonType(targetType, type);
-                                if (targetType == null) { // if there is no common type, continue to the next argument
-                                    newProjections.add(e);
-                                    continue projectionLoop;
-                                }
-                            }
-                        }
-                        if (targetType != null && isRepresentable(targetType) && (isMillisOrNanos(targetType) || targetType.isNumeric())) {
-                            // create an eval to cast union type to a common type
-                            var name = rawTemporaryName("keep", String.valueOf(counter++), targetType.name());
-                            Alias alias;
-                            switch (targetType) {
-                                case INTEGER -> alias = new Alias(fa.source(), name, new ToInteger(fa.source(), fa));
-                                case LONG -> alias = new Alias(fa.source(), name, new ToLong(fa.source(), fa));
-                                case DOUBLE -> alias = new Alias(fa.source(), name, new ToDouble(fa.source(), fa));
-                                case UNSIGNED_LONG -> alias = new Alias(fa.source(), name, new ToUnsignedLong(fa.source(), fa));
-                                case DATETIME -> alias = new Alias(fa.source(), name, new ToDatetime(fa.source(), fa));
-                                case DATE_NANOS -> alias = new Alias(fa.source(), name, new ToDateNanos(fa.source(), fa));
-                                default -> throw new EsqlIllegalArgumentException("unexpected data type: " + targetType);
-                            }
-                            aliases.add(alias);
-                            newProjections.add(alias);
-                        }
+            return projections.isEmpty() ? castInvalidMappedFieldInLogicalPlan(logicalPlan) : logicalPlan;
+        }
+    }
+
+    private static LogicalPlan castInvalidMappedFieldInLogicalPlan(LogicalPlan plan) {
+        List<? extends Expression> projections;
+        if (plan instanceof EsqlProject project) {
+            projections = project.projections();
+        } else if (plan instanceof OrderBy ob) {
+            projections = ob.order();
+        } else {
+            projections = plan.output();
+        }
+        List<Expression> newProjections = new ArrayList<>(projections.size());
+        List<Alias> aliases = new ArrayList<>(projections.size());
+        projectionLoop: for (Expression projection : projections) {
+            Expression e = projection;
+            String alias = null;
+            if (projection instanceof Alias a) {
+                e = a.child();
+                alias = a.name();
+            } else if (projection instanceof Order o) {
+                e = o.child();
+            }
+            if (e.resolved()
+                && e.dataType() == UNSUPPORTED
+                && e instanceof FieldAttribute fa
+                && fa.field() instanceof InvalidMappedField imf) {
+                // this is an invalid mapped field, find a common data type and cast to it
+                DataType targetType = null;
+                for (DataType type : imf.types()) {
+                    if (targetType == null) { // initialize the target type to the first type
+                        targetType = type;
                     } else {
-                        newProjections.add(e);
+                        targetType = EsqlDataTypeConverter.commonType(targetType, type);
+                        if (targetType == null) { // if there is no common type, continue to the next argument
+                            newProjections.add(projection);
+                            continue projectionLoop;
+                        }
                     }
                 }
-                if (aliases.isEmpty() == false) {
-                    Eval eval = new Eval(logicalPlan.source(), logicalPlan, aliases);
-                    return new EsqlProject(logicalPlan.source(), eval, newProjections);
-                } else {
-                    return logicalPlan;
+                if (targetType != null && isRepresentable(targetType) && (isMillisOrNanos(targetType) || targetType.isNumeric())) {
+                    // create an eval to cast union type to a common type
+                    String name = alias != null ? alias : fa.name();
+                    Expression newChild;
+                    Source source = fa.source();
+                    switch (targetType) {
+                        case INTEGER -> newChild = new ToInteger(source, fa);
+                        case LONG -> newChild = new ToLong(source, fa);
+                        case DOUBLE -> newChild = new ToDouble(source, fa);
+                        case UNSIGNED_LONG -> newChild = new ToUnsignedLong(source, fa);
+                        case DATETIME -> newChild = new ToDatetime(source, fa);
+                        case DATE_NANOS -> newChild = new ToDateNanos(source, fa);
+                        default -> throw new EsqlIllegalArgumentException("unexpected data type: " + targetType);
+                    }
+                    Alias newAlias = new Alias(source, name, newChild);
+                    aliases.add(newAlias);
+                    if (projection instanceof Alias a) {
+                        newProjections.add(a.replaceChild(newAlias.toAttribute()));
+                    } else if (projection instanceof Order o) {
+                        newProjections.add(new Order(o.source(), newChild, o.direction(), o.nullsPosition()));
+                    } else {
+                        newProjections.add(newAlias.toAttribute());
+                    }
                 }
+            } else {
+                newProjections.add(projection);
             }
-            return logicalPlan;
+        }
+        if (aliases.isEmpty() == false) {
+            if (plan instanceof EsqlProject p) {
+                Eval eval = new Eval(plan.source(), p.child(), aliases);
+                return new EsqlProject(
+                    p.source(),
+                    eval,
+                    newProjections.stream()
+                        .filter(e -> e instanceof NamedExpression)
+                        .map(e -> (NamedExpression) e)
+                        .collect(Collectors.toList())
+                );
+            } else if (plan instanceof OrderBy o) {
+                // Eval eval = new Eval(plan.source(), o.child(), aliases);
+                return new OrderBy(
+                    o.source(),
+                    o.child(),
+                    newProjections.stream().filter(e -> e instanceof Order).map(e -> (Order) e).collect(Collectors.toList())
+                );
+            } else {
+                Eval eval = new Eval(plan.source(), plan, aliases);
+                return new EsqlProject(
+                    plan.source(),
+                    eval,
+                    newProjections.stream()
+                        .filter(e -> e instanceof NamedExpression)
+                        .map(e -> (NamedExpression) e)
+                        .collect(Collectors.toList())
+                );
+            }
+        } else {
+            return plan;
         }
     }
 }

@@ -937,6 +937,9 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             "order of fields in error message inconsistent before 8.14",
             getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_14_0))
         );
+        if (EsqlCapabilities.Cap.IMPLICIT_CASTING_UNION_TYPED_NUMERIC_AND_DATE.isEnabled()) {
+            return;
+        }
         longTest().sourceMode(SourceMode.DEFAULT).createIndex("test1", "emp_no");
         index("test1", """
             {"emp_no": 1}""");
@@ -979,6 +982,9 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             "order of fields in error message inconsistent before 8.14",
             getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_14_0))
         );
+        if (EsqlCapabilities.Cap.IMPLICIT_CASTING_UNION_TYPED_NUMERIC_AND_DATE.isEnabled()) {
+            return;
+        }
         intTest().sourceMode(SourceMode.DEFAULT).createIndex("test1", "emp_no");
         index("test1", """
             {"emp_no": 1}""");

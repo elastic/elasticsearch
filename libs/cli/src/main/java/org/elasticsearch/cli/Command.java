@@ -22,7 +22,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Arrays;
-import java.util.logging.LogManager;
 
 /**
  * An action to execute within a cli.

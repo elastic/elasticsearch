@@ -98,7 +98,9 @@ public class FilesEntitlementTests extends ESTestCase {
     }
 
     public void testPathSettingResolve() {
-        var entitlement = FilesEntitlement.build(List.of(Map.of("path_setting", "foo.bar", "basedir_if_relative", "config", "mode", "read")));
+        var entitlement = FilesEntitlement.build(
+            List.of(Map.of("path_setting", "foo.bar", "basedir_if_relative", "config", "mode", "read"))
+        );
         var filesData = entitlement.filesData();
         assertThat(filesData, contains(FileData.ofPathSetting("foo.bar", CONFIG, READ, false)));
 

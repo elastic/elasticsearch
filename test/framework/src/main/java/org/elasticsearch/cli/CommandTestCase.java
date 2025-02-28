@@ -9,9 +9,7 @@
 
 package org.elasticsearch.cli;
 
-import org.elasticsearch.common.logging.internal.LevelUtil;
 import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;

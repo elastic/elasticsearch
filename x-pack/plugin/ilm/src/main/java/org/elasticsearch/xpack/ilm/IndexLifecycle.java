@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction;
+import org.elasticsearch.xpack.ilm.action.PutLifecycleMetadataService;
 import org.elasticsearch.xpack.ilm.action.ReservedLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestDeleteLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestExplainLifecycleAction;
@@ -141,6 +142,16 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     @Override
     public Collection<?> createComponents(PluginServices services) {
         final List<Object> components = new ArrayList<>();
+        PutLifecycleMetadataService putLifecycleMetadataService = new PutLifecycleMetadataService(
+            services.clusterService(),
+            services.xContentRegistry(),
+            services.client(),
+            getLicenseState(),
+            services.threadPool(),
+            services.projectResolver()
+        );
+        components.add(putLifecycleMetadataService);
+
         ILMHistoryTemplateRegistry ilmTemplateRegistry = new ILMHistoryTemplateRegistry(
             settings,
             services.clusterService(),

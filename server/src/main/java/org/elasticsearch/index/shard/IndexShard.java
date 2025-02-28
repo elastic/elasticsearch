@@ -45,6 +45,8 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -152,6 +154,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -3333,7 +3336,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private <R> R withEngine(Function<Engine, R> operation, boolean allowNoEngine) {
+        assert ClusterApplierService.assertNotClusterStateUpdateThread("IndexShard.withEngine() can block");
+        assert MasterService.assertNotMasterUpdateThread("IndexShard.withEngine() can block");
+        assert Transports.assertNotTransportThread("IndexShard.withEngine() can block");
         assert operation != null;
+
         engineLock.readLock().lock();
         var release = true;
         try {

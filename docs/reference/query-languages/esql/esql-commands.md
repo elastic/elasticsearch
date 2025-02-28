@@ -6,7 +6,6 @@ mapped_pages:
 
 # {{esql}} commands [esql-commands]
 
-
 ## Source commands [esql-source-commands]
 
 An {{esql}} source command produces a table, typically with data from {{es}}. An {{esql}} query must start with a source command.
@@ -685,13 +684,14 @@ TBD
 
 **Examples**
 
-TBD
+**IP Threat correlation**: This query would allow you to see if any source IPs match known malicious addresses.
 
 ```esql
 FROM firewall_logs
 | LOOKUP JOIN threat_list ON source.IP
 ```
 
+**Host metadata correctlation**: This query pulls in environment or ownership details for each host to correlate your metrics data.
 
 ```esql
 FROM system_metrics
@@ -699,7 +699,7 @@ FROM system_metrics
 | LOOKUP JOIN employees ON host.name
 ```
 
-TBD
+**Service ownership mapping**: This query would show logs with the owning team or escalation information for faster triage and incident response.
 
 ```esql
 FROM app_logs

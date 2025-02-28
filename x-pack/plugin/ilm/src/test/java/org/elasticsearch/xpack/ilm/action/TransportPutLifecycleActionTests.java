@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -40,24 +39,22 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
 
         LifecyclePolicyMetadata existing = new LifecyclePolicyMetadata(policy1, headers1, randomNonNegativeLong(), randomNonNegativeLong());
 
-        assertTrue(TransportPutLifecycleAction.isNoopUpdate(existing, policy1, headers1));
-        assertFalse(TransportPutLifecycleAction.isNoopUpdate(existing, policy2, headers1));
-        assertFalse(TransportPutLifecycleAction.isNoopUpdate(existing, policy1, headers2));
-        assertFalse(TransportPutLifecycleAction.isNoopUpdate(null, policy1, headers1));
+        assertTrue(PutLifecycleMetadataService.isNoopUpdate(existing, policy1, headers1));
+        assertFalse(PutLifecycleMetadataService.isNoopUpdate(existing, policy2, headers1));
+        assertFalse(PutLifecycleMetadataService.isNoopUpdate(existing, policy1, headers2));
+        assertFalse(PutLifecycleMetadataService.isNoopUpdate(null, policy1, headers1));
     }
 
     public void testReservedStateHandler() throws Exception {
         ThreadPool threadPool = mock(ThreadPool.class);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        ClusterService mockClusterService = mock(ClusterService.class);
         TransportPutLifecycleAction putAction = new TransportPutLifecycleAction(
             transportService,
-            mock(ClusterService.class),
+            mockClusterService,
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
-            mock(NamedXContentRegistry.class),
-            mock(XPackLicenseState.class),
-            mock(Client.class)
+            mock(PutLifecycleMetadataService.class)
         );
         assertEquals(ReservedLifecycleAction.NAME, putAction.reservedStateHandlerName().get());
 

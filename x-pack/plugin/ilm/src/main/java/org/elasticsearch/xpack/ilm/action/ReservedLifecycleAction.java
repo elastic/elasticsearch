@@ -82,7 +82,7 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
         ClusterState state = prevState.state();
 
         for (var request : requests) {
-            TransportPutLifecycleAction.UpdateLifecyclePolicyTask task = new TransportPutLifecycleAction.UpdateLifecyclePolicyTask(
+            PutLifecycleMetadataService.UpdateLifecyclePolicyTask task = new PutLifecycleMetadataService.UpdateLifecyclePolicyTask(
                 request,
                 licenseState,
                 xContentRegistry,

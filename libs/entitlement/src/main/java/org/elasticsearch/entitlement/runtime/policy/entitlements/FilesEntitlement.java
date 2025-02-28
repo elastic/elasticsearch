@@ -92,7 +92,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
 
         static FileData ofPathSetting(String setting, BaseDir baseDir, Mode mode) {
-            return new PathSettingFileData(setting, baseDir, mode,null, false);
+            return new PathSettingFileData(setting, baseDir, mode, null, false);
         }
 
         /**

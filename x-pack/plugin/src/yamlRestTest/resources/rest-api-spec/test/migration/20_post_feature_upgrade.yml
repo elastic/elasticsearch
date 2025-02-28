@@ -1,11 +1,10 @@
-"Post feature upgrade status":
+"Start feature upgrade":
 
   - requires:
       cluster_features: ["gte_v7.16.0"]
       reason: "Endpoint added in 7.16.0"
 
   - do:
-      migration.get_feature_upgrade_status: {}
+      migration.post_feature_upgrade: {}
 
   - is_false: accepted
-  - is_true: features

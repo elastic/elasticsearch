@@ -998,6 +998,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public static ElementType checkValidVector(float[] vector, ElementType... possibleTypes) {
             assert possibleTypes.length != 0;
             // we're looking for one valid allowed type
+            // assume the types are in order of specificity
             StringBuilder[] errors = new StringBuilder[possibleTypes.length];
             for (int i = 0; i < possibleTypes.length; i++) {
                 StringBuilder error = possibleTypes[i].checkVectorErrors(vector);

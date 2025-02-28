@@ -68,9 +68,13 @@ public class VectorScoreScriptUtils {
             super(scoreScript, field);
             field.getElementType().checkDimensions(field.get().getDims(), queryVector.size());
             float[] floatValues = new float[queryVector.size()];
+            double queryMagnitude = 0;
             for (int i = 0; i < queryVector.size(); i++) {
-                floatValues[i] = queryVector.get(i).floatValue();
+                float value = queryVector.get(i).floatValue();
+                floatValues[i] = value;
+                queryMagnitude += value * value;
             }
+            queryMagnitude = Math.sqrt(queryMagnitude);
 
             switch (ElementType.checkValidVector(floatValues, allowedTypes)) {
                 case FLOAT:
@@ -79,11 +83,6 @@ public class VectorScoreScriptUtils {
                     qvMagnitude = -1;   // invalid valid, not used for float vectors
 
                     if (normalizeFloatQuery) {
-                        double queryMagnitude = 0.0;
-                        for (float val : floatQueryVector) {
-                            queryMagnitude += val * val;
-                        }
-                        queryMagnitude = Math.sqrt(queryMagnitude);
                         for (int i = 0; i < floatQueryVector.length; i++) {
                             floatQueryVector[i] /= (float) queryMagnitude;
                         }
@@ -92,12 +91,10 @@ public class VectorScoreScriptUtils {
                 case BYTE:
                     floatQueryVector = null;
                     byteQueryVector = new byte[floatValues.length];
-                    float queryMagnitude = 0;
                     for (int i = 0; i < floatValues.length; i++) {
                         byteQueryVector[i] = (byte) floatValues[i];
-                        queryMagnitude += floatValues[i] * floatValues[i];
                     }
-                    this.qvMagnitude = (float) Math.sqrt(queryMagnitude);
+                    this.qvMagnitude = (float) queryMagnitude;
                     break;
                 default:
                     throw new AssertionError("Unexpected element type");
@@ -116,7 +113,7 @@ public class VectorScoreScriptUtils {
             super(scoreScript, field);
             byteQueryVector = queryVector;
             floatQueryVector = null;
-            float queryMagnitude = 0.0f;
+            double queryMagnitude = 0.0f;
             for (byte value : queryVector) {
                 queryMagnitude += value * value;
             }
@@ -512,6 +509,7 @@ public class VectorScoreScriptUtils {
         public double cosineSimilarity() {
             setNextVector();
             if (floatQueryVector != null) {
+                // float vector is already normalized by the superclass constructor
                 return field.get().cosineSimilarity(floatQueryVector, false);
             } else {
                 return field.get().cosineSimilarity(byteQueryVector, qvMagnitude);

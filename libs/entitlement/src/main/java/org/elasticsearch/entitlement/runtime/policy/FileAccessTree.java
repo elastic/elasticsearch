@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode;
 import org.elasticsearch.logging.LogManager;
@@ -202,6 +203,7 @@ public final class FileAccessTree {
     }
 
     private boolean checkPath(String path, String[] paths) {
+        logger.debug(() -> Strings.format("checking [%s] against [%s]", path, String.join(",", paths)));
         if (paths.length == 0) {
             return false;
         }
@@ -219,6 +221,7 @@ public final class FileAccessTree {
     }
 
     private static boolean isParent(String maybeParent, String path) {
+        logger.debug(() -> Strings.format("checking isParent [%s] for [%s]", maybeParent, path));
         return path.startsWith(maybeParent) && path.startsWith(FILE_SEPARATOR, maybeParent.length());
     }
 

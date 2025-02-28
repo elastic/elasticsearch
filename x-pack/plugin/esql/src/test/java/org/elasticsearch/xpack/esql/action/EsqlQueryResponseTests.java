@@ -724,6 +724,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     List.of(
                         new DriverProfile(
                             "test",
+                            "elasticsearch",
+                            "node-1",
                             1723489812649L,
                             1723489819929L,
                             20021,
@@ -759,6 +761,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     "drivers" : [
                       {
                         "task_description" : "test",
+                        "cluster_name" : "elasticsearch",
+                        "node_name" : "node-1",
                         "start_millis" : 1723489812649,
                         "stop_millis" : 1723489819929,
                         "took_nanos" : 20021,

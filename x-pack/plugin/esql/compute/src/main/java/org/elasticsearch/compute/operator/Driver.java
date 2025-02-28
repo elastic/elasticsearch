@@ -117,6 +117,8 @@ public class Driver implements Releasable, Describable {
     public Driver(
         String sessionId,
         String taskDescription,
+        String clusterName,
+        String nodeName,
         long startTime,
         long startNanos,
         DriverContext driverContext,
@@ -143,6 +145,8 @@ public class Driver implements Releasable, Describable {
             new DriverStatus(
                 sessionId,
                 taskDescription,
+                clusterName,
+                nodeName,
                 startTime,
                 System.currentTimeMillis(),
                 0,
@@ -152,37 +156,6 @@ public class Driver implements Releasable, Describable {
                 List.of(),
                 DriverSleeps.empty()
             )
-        );
-    }
-
-    /**
-     * Creates a new driver with a chain of operators.
-     * @param driverContext the driver context
-     * @param source source operator
-     * @param intermediateOperators  the chain of operators to execute
-     * @param sink sink operator
-     * @param releasable a {@link Releasable} to invoked once the chain of operators has run to completion
-     */
-    public Driver(
-        String taskDescription,
-        DriverContext driverContext,
-        SourceOperator source,
-        List<Operator> intermediateOperators,
-        SinkOperator sink,
-        Releasable releasable
-    ) {
-        this(
-            "unset",
-            taskDescription,
-            System.currentTimeMillis(),
-            System.nanoTime(),
-            driverContext,
-            () -> null,
-            source,
-            intermediateOperators,
-            sink,
-            DEFAULT_STATUS_INTERVAL,
-            releasable
         );
     }
 
@@ -198,9 +171,16 @@ public class Driver implements Releasable, Describable {
     SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier nowSupplier) {
         updateStatus(0, 0, DriverStatus.Status.RUNNING, "driver running");
         long maxTimeNanos = maxTime.nanos();
+        // Start time, used to stop the calculations after maxTime has passed.
         long startTime = nowSupplier.getAsLong();
+        // The time of the next forced status update.
         long nextStatus = startTime + statusNanos;
-        int iter = 0;
+        // Total executed iterations this run, used to stop the calculations after maxIterations have passed.
+        int totalIterationsThisRun = 0;
+        // The iterations to be reported on the next status update.
+        int iterationsSinceLastStatusUpdate = 0;
+        // The time passed since the last status update.
+        long lastStatusUpdateTime = startTime;
         while (true) {
             IsBlockedResult isBlocked = Operator.NOT_BLOCKED;
             try {
@@ -209,29 +189,33 @@ public class Driver implements Releasable, Describable {
                 closeEarlyFinishedOperators();
                 assert isFinished() : "not finished after early termination";
             }
-            iter++;
+            totalIterationsThisRun++;
+            iterationsSinceLastStatusUpdate++;
+
+            long now = nowSupplier.getAsLong();
             if (isBlocked.listener().isDone() == false) {
-                updateStatus(nowSupplier.getAsLong() - startTime, iter, DriverStatus.Status.ASYNC, isBlocked.reason());
+                updateStatus(now - lastStatusUpdateTime, iterationsSinceLastStatusUpdate, DriverStatus.Status.ASYNC, isBlocked.reason());
                 return isBlocked.listener();
             }
             if (isFinished()) {
-                finishNanos = nowSupplier.getAsLong();
-                updateStatus(finishNanos - startTime, iter, DriverStatus.Status.DONE, "driver done");
+                finishNanos = now;
+                updateStatus(finishNanos - lastStatusUpdateTime, iterationsSinceLastStatusUpdate, DriverStatus.Status.DONE, "driver done");
                 driverContext.finish();
                 Releasables.close(releasable, driverContext.getSnapshot());
                 return Operator.NOT_BLOCKED.listener();
             }
-            long now = nowSupplier.getAsLong();
-            if (iter >= maxIterations) {
-                updateStatus(now - startTime, iter, DriverStatus.Status.WAITING, "driver iterations");
+            if (totalIterationsThisRun >= maxIterations) {
+                updateStatus(now - lastStatusUpdateTime, iterationsSinceLastStatusUpdate, DriverStatus.Status.WAITING, "driver iterations");
                 return Operator.NOT_BLOCKED.listener();
             }
             if (now - startTime >= maxTimeNanos) {
-                updateStatus(now - startTime, iter, DriverStatus.Status.WAITING, "driver time");
+                updateStatus(now - lastStatusUpdateTime, iterationsSinceLastStatusUpdate, DriverStatus.Status.WAITING, "driver time");
                 return Operator.NOT_BLOCKED.listener();
             }
             if (now > nextStatus) {
-                updateStatus(now - startTime, iter, DriverStatus.Status.RUNNING, "driver running");
+                updateStatus(now - lastStatusUpdateTime, iterationsSinceLastStatusUpdate, DriverStatus.Status.RUNNING, "driver running");
+                iterationsSinceLastStatusUpdate = 0;
+                lastStatusUpdateTime = now;
                 nextStatus = now + statusNanos;
             }
         }
@@ -502,6 +486,8 @@ public class Driver implements Releasable, Describable {
         }
         return new DriverProfile(
             status.taskDescription(),
+            status.clusterName(),
+            status.nodeName(),
             status.started(),
             status.lastUpdated(),
             finishNanos - startNanos,
@@ -549,6 +535,8 @@ public class Driver implements Releasable, Describable {
             return new DriverStatus(
                 sessionId,
                 taskDescription,
+                prev.clusterName(),
+                prev.nodeName(),
                 startTime,
                 now,
                 prev.cpuNanos() + extraCpuNanos,

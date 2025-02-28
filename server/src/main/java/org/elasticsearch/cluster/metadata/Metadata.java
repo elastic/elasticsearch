@@ -1154,7 +1154,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 builder.put(ReservedStateMetadata.readFrom(in));
             }
 
-            builder.projectMetadata(in.readMap(ProjectId::new, ProjectMetadata::readFrom));
+            builder.projectMetadata(in.readMap(ProjectId::readFrom, ProjectMetadata::readFrom));
         }
         return builder.build();
     }

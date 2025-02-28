@@ -2021,7 +2021,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     }
 
     public static ProjectMetadata readFrom(StreamInput in) throws IOException {
-        ProjectId id = new ProjectId(in);
+        ProjectId id = ProjectId.readFrom(in);
         Builder builder = builder(id);
         Function<String, MappingMetadata> mappingLookup;
         Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);

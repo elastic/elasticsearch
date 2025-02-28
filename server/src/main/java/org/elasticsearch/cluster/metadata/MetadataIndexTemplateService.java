@@ -87,7 +87,53 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 /**
  * Service responsible for submitting index templates updates
  */
-public class MetadataIndexTemplateService {
+public class MetadataIndexTemplateService
+    implements
+        BulkMetadataService<
+            MetadataIndexTemplateService.BulkTemplateOperation,
+            Void,
+            MetadataIndexTemplateService.InterimTemplateValidationInfo> {
+
+    public static final String BULK_METADATA_SERVICE_NAME = "elasticsearch.template";
+
+    /**
+     * A simple request holder for component template updates
+     * @param name
+     * @param template
+     * @param create
+     */
+    public record ComponentTemplateOperation(String name, ComponentTemplate template, boolean create) {}
+
+    /**
+     * A simple request holder for index template updates
+     * @param name
+     * @param template
+     * @param create
+     */
+    public record ComposableTemplateOperation(String name, ComposableIndexTemplate template, boolean create, boolean validateV2Overlaps) {}
+
+    /**
+     * A Bulk template operation that can be submitted to the metadata content service
+     */
+    public static final class BulkTemplateOperation extends BulkMetadataOperation {
+        final Map<String, ComponentTemplateOperation> componentTemplateOperations;
+        final Map<String, ComposableTemplateOperation> composableTemplateOperations;
+
+        public BulkTemplateOperation(
+            Map<String, ComponentTemplateOperation> componentTemplateOperations,
+            Map<String, ComposableTemplateOperation> composableTemplateOperations
+        ) {
+            super(BULK_METADATA_SERVICE_NAME);
+            this.componentTemplateOperations = componentTemplateOperations;
+            this.composableTemplateOperations = composableTemplateOperations;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return (componentTemplateOperations == null || componentTemplateOperations.isEmpty())
+                && (composableTemplateOperations == null || composableTemplateOperations.isEmpty());
+        }
+    }
 
     public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
     public static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING_WITHOUT_ROUTING;
@@ -197,6 +243,11 @@ public class MetadataIndexTemplateService {
         this.globalRetentionSettings = globalRetentionSettings;
     }
 
+    @Override
+    public String getBulkMetadataServiceName() {
+        return BULK_METADATA_SERVICE_NAME;
+    }
+
     public void removeTemplates(
         final String templatePattern,
         final TimeValue timeout,
@@ -254,41 +305,22 @@ public class MetadataIndexTemplateService {
         );
     }
 
-    /**
-     * A simple request holder for component template updates
-     * @param name
-     * @param template
-     * @param create
-     */
-    public record ComponentTemplateOperation(String name, ComponentTemplate template, boolean create) {}
-
-    /**
-     * A simple request holder for index template updates
-     * @param name
-     * @param template
-     * @param create
-     */
-    public record ComposableTemplateOperation(String name, ComposableIndexTemplate template, boolean create, boolean validateV2Overlaps) {}
-
-    /**
-     * A name/template tuple record
-     * @param name of template
-     * @param template definition
-     */
-    private record NamedTemplateTuple(String name, ComposableIndexTemplate template) {}
-
     private ClusterState processBulkTemplateUpdate(
         final ClusterState currentState,
         final Map<String, ComponentTemplateOperation> componentTemplateOperations,
         final Map<String, ComposableTemplateOperation> composableTemplateOperations
     ) throws Exception {
         Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
-        var interimInfo = applyBulkTemplateUpdate(currentState, componentTemplateOperations, composableTemplateOperations, metadataBuilder);
-        if (interimInfo == null) {
+        var interimInfo = applyBatch(
+            new BulkTemplateOperation(componentTemplateOperations, composableTemplateOperations),
+            currentState,
+            metadataBuilder
+        );
+        if (interimInfo == null || interimInfo.isMetadataModified() == false) {
             return currentState;
         }
         ClusterState candidateState = ClusterState.builder(currentState).metadata(metadataBuilder).build();
-        validateCandidateClusterState(currentState, candidateState, interimInfo);
+        validateFinalClusterState(currentState, candidateState, interimInfo.getContext());
         return candidateState;
     }
 
@@ -306,26 +338,36 @@ public class MetadataIndexTemplateService {
         int composableTemplateOperationsCount
     ) {}
 
-    public InterimTemplateValidationInfo applyBulkTemplateUpdate(
-        final ClusterState currentState,
-        final Map<String, ComponentTemplateOperation> componentTemplateOperations,
-        final Map<String, ComposableTemplateOperation> composableTemplateOperations,
-        final Metadata.Builder metadataBuilder
+    /**
+     * A name/template tuple record
+     * @param name of template
+     * @param template definition
+     */
+    private record NamedTemplateTuple(String name, ComposableIndexTemplate template) {}
+
+    @Override
+    public BulkMetadataOperationContext<InterimTemplateValidationInfo> applyBatch(
+        BulkTemplateOperation batch,
+        ClusterState previousState,
+        Metadata.Builder metadataBuilder
     ) throws Exception {
-        Map<String, ComponentTemplate> intialComponentTemplates = currentState.metadata().componentTemplates();
-        Map<String, ComposableIndexTemplate> initialTemplatesV2 = currentState.metadata().templatesV2();
+        Map<String, ComponentTemplateOperation> componentTemplateOperations = batch.componentTemplateOperations;
+        Map<String, ComposableTemplateOperation> composableTemplateOperations = batch.composableTemplateOperations;
+
+        Map<String, ComponentTemplate> initialComponentTemplates = previousState.metadata().componentTemplates();
+        Map<String, ComposableIndexTemplate> initialTemplatesV2 = previousState.metadata().templatesV2();
 
         Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>();
         Map<String, ComposableIndexTemplate> updatedComposableIndexTemplates = new HashMap<>();
 
         // Keep a union of current and updated composable index templates to represent the updated cluster state contents
-        Map<String, ComponentTemplate> workingComponents = new HashMap<>(intialComponentTemplates);
+        Map<String, ComponentTemplate> workingComponents = new HashMap<>(initialComponentTemplates);
         Map<String, ComposableIndexTemplate> workingTemplatesV2 = new HashMap<>(initialTemplatesV2);
 
         // Process and finalize all templates to be operated on
         for (ComponentTemplateOperation componentTemplate : componentTemplateOperations.values()) {
             final ComponentTemplate maybeFinalComponentTemplate = prepareComponentTemplate(
-                intialComponentTemplates,
+                initialComponentTemplates,
                 componentTemplate.create,
                 componentTemplate.name,
                 componentTemplate.template
@@ -338,7 +380,7 @@ public class MetadataIndexTemplateService {
 
         for (ComposableTemplateOperation composableIndexTemplate : composableTemplateOperations.values()) {
             final ComposableIndexTemplate maybeFinalComposableTemplate = prepareComposableTemplate(
-                currentState,
+                previousState,
                 initialTemplatesV2,
                 composableIndexTemplate.create,
                 composableIndexTemplate.name,
@@ -351,7 +393,7 @@ public class MetadataIndexTemplateService {
         }
 
         if (updatedComponentTemplates.isEmpty() && updatedComposableIndexTemplates.isEmpty()) {
-            return null;
+            return BulkMetadataOperationContext.stateUnmodified(null);
         }
 
         // Collect all the composable index templates that use any of the updated component template. Additionally, collect all updated
@@ -415,36 +457,37 @@ public class MetadataIndexTemplateService {
             metadataBuilder.put(indexTemplate.getKey(), indexTemplate.getValue());
         }
 
-        return new InterimTemplateValidationInfo(
-            allTemplatesRequiringValidation,
-            updatedComponentTemplates,
-            updatedComposableIndexTemplates,
-            componentTemplateOperations.size(),
-            composableTemplateOperations.size()
+        return BulkMetadataOperationContext.stateModified(
+            new InterimTemplateValidationInfo(
+                allTemplatesRequiringValidation,
+                updatedComponentTemplates,
+                updatedComposableIndexTemplates,
+                componentTemplateOperations.size(),
+                composableTemplateOperations.size()
+            )
         );
     }
 
-    public void validateCandidateClusterState(
-        ClusterState currentState,
-        ClusterState candidateState,
-        InterimTemplateValidationInfo templateInfo
-    ) throws Exception {
+
+    @Override
+    public void validateFinalClusterState(ClusterState previousState, ClusterState newState, InterimTemplateValidationInfo context)
+        throws Exception {
         // Validate all changed composable index templates that have been updated, either directly or by changes to their dependencies
-        if (templateInfo.allTemplatesRequiringValidation.isEmpty() == false) {
+        if (context.allTemplatesRequiringValidation.isEmpty() == false) {
             Exception validationFailure = null;
-            for (Map.Entry<String, ComposableIndexTemplate> entry : templateInfo.allTemplatesRequiringValidation.entrySet()) {
+            for (Map.Entry<String, ComposableIndexTemplate> entry : context.allTemplatesRequiringValidation.entrySet()) {
                 final String composableTemplateName = entry.getKey();
                 final ComposableIndexTemplate composableTemplate = entry.getValue();
                 try {
                     validateIndexTemplateV2(
                         composableTemplateName,
                         composableTemplate,
-                        candidateState
+                        newState
                     );
                 } catch (Exception e) {
                     // For the sake of error message backwards compatibility, do not wrap the
                     // exception if this is a single composable index template updated
-                    if (templateInfo.composableTemplateOperationsCount == 1 && templateInfo.componentTemplateOperationsCount == 0) {
+                    if (context.composableTemplateOperationsCount == 1 && context.componentTemplateOperationsCount == 0) {
                         throw e;
                     }
                     if (validationFailure == null) {
@@ -453,8 +496,8 @@ public class MetadataIndexTemplateService {
                                 + generateTemplateNamesForException(
                                     composableTemplateName,
                                     composableTemplate,
-                                    templateInfo.updatedComponentTemplates,
-                                    templateInfo.updatedComposableIndexTemplates
+                                    context.updatedComponentTemplates,
+                                    context.updatedComposableIndexTemplates
                                 )
                                 + "] results in invalid composable template ["
                                 + composableTemplateName
@@ -471,7 +514,7 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        validateDataStreamsStillReferenced(candidateState, currentState, templateInfo.updatedComposableIndexTemplates.keySet());
+        validateDataStreamsStillReferenced(newState, previousState, context.updatedComposableIndexTemplates.keySet());
     }
 
     private static StringBuilder generateTemplateNamesForException(

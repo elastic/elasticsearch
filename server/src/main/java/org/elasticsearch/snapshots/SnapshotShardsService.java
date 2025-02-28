@@ -87,6 +87,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
     private final SnapshotShutdownProgressTracker snapshotShutdownProgressTracker;
 
+    /** Maps each snapshot to its collection of individual shard snapshots */
     private final Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> shardSnapshots = new HashMap<>();
 
     // A map of snapshots to the shardIds that we already reported to the master as failed
@@ -237,9 +238,16 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
     }
 
     private void logIndexShardSnapshotStatuses(Logger callerLogger) {
-        for (var snapshotStatuses : shardSnapshots.values()) {
-            for (var shardSnapshot : snapshotStatuses.entrySet()) {
-                callerLogger.info(Strings.format("ShardId %s, %s", shardSnapshot.getKey(), shardSnapshot.getValue()));
+        for (var snapshot : shardSnapshots.entrySet()) {  // iterate the snapshots
+            for (var shardSnapshot : snapshot.getValue().entrySet()) {  // iterate the individual shard snapshots
+                callerLogger.info(
+                    Strings.format(
+                        "SnapshotId %s, ShardId %s, shard snapshot status: %s",
+                        snapshot.getKey().getSnapshotId(),
+                        shardSnapshot.getKey(),
+                        shardSnapshot.getValue()
+                    )
+                );
             }
         }
     }

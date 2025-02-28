@@ -71,7 +71,7 @@ Integrations are not plugins, but are external tools or modules that make it eas
 
 ### Supported by Elastic: [_supported_by_elastic_2]
 
-* [es-hadoop](elasticsearch-hadoop://reference/preface.md): Elasticsearch real-time search and analytics natively integrated with Hadoop. Supports Map/Reduce, Cascading, Apache Hive, Apache Pig, Apache Spark and Apache Storm.
+* [es-hadoop](elasticsearch-hadoop://docs/reference/preface.md): Elasticsearch real-time search and analytics natively integrated with Hadoop. Supports Map/Reduce, Cascading, Apache Hive, Apache Pig, Apache Spark and Apache Storm.
 
 
 ### Supported by the community: [_supported_by_the_community_5]

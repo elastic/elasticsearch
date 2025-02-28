@@ -40,6 +40,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     public static final boolean DEFAULT_VERBOSE_MODE = true;
 
     private static final TransportVersion INDICES_FLAG_VERSION = TransportVersions.V_8_3_0;
+    private static final TransportVersion STATE_FLAG_VERSION = TransportVersions.STATE_PARAM_GET_SNAPSHOT;
 
     public static final int NO_LIMIT = -1;
 
@@ -121,7 +122,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         if (in.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
             includeIndexNames = in.readBoolean();
         }
-        state = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(STATE_FLAG_VERSION)) {
+            state = in.readOptionalString();
+        }
     }
 
     @Override
@@ -141,7 +144,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         if (out.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
             out.writeBoolean(includeIndexNames);
         }
-        out.writeOptionalString(state);
+        if (out.getTransportVersion().onOrAfter(STATE_FLAG_VERSION)) {
+            out.writeOptionalString(state);
+        }
     }
 
     @Override

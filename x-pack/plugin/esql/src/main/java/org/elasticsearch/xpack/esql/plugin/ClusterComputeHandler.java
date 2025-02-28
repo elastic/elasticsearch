@@ -27,6 +27,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -252,6 +253,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 configuration.pragmas().exchangeBufferSize(),
                 transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
             );
+            FoldContext foldContext = configuration.newFoldContext();
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 exchangeSink.addCompletionListener(computeListener.acquireAvoid());
                 computeService.runCompute(
@@ -262,7 +264,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         clusterAlias,
                         List.of(),
                         configuration,
-                        configuration.newFoldContext(),
+                        foldContext,
                         exchangeSource::createExchangeSource,
                         () -> exchangeSink.createExchangeSink(() -> {})
                     ),
@@ -274,6 +276,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     clusterAlias,
                     parentTask,
                     configuration,
+                    foldContext,
                     plan,
                     concreteIndices,
                     originalIndices,

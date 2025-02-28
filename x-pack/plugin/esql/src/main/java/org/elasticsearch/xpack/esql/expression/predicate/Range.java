@@ -200,13 +200,13 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
-        return translate(handler);
+    public Query asQuery(TranslatorHandler handler, FoldContext foldContext) {
+        return translate(handler, foldContext);
     }
 
-    private RangeQuery translate(TranslatorHandler handler) {
-        Object l = valueOf(FoldContext.small() /* TODO remove me */, lower);
-        Object u = valueOf(FoldContext.small() /* TODO remove me */, upper);
+    private RangeQuery translate(TranslatorHandler handler, FoldContext foldContext) {
+        Object l = valueOf(foldContext, lower);
+        Object u = valueOf(foldContext, upper);
         String format = null;
 
         DataType dataType = value.dataType();

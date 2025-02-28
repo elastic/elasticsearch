@@ -11,7 +11,7 @@ The Redact processor uses the Grok rules engine to obscure text in the input doc
 
 {{es}} comes packaged with a number of useful predefined [patterns](https://github.com/elastic/elasticsearch/blob/master/libs/grok/src/main/resources/patterns/ecs-v1) that can be conveniently referenced by the Redact processor. If one of those does not suit your needs, create a new pattern with a custom pattern definition. The Redact processor replaces every occurrence of a match. If there are multiple matches all will be replaced with the pattern name.
 
-The Redact processor is compatible with [Elastic Common Schema (ECS)](ecs://docs/reference/ecs-field-reference.md) patterns. Legacy Grok patterns are not supported.
+The Redact processor is compatible with [Elastic Common Schema (ECS)](ecs://reference/ecs-field-reference.md) patterns. Legacy Grok patterns are not supported.
 
 ## Using the Redact processor in a pipeline [using-redact]
 

@@ -1848,6 +1848,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      * Attempt to find a project for the supplied {@link Index}.
      */
     public Optional<ProjectMetadata> lookupProject(Index index) {
+        if (isSingleProject()) {
+            final var project = projectMetadata.get(DEFAULT_PROJECT_ID);
+            return project.hasIndex(index) ? Optional.of(project) : Optional.empty();
+        }
         return getProjectLookup().project(index);
     }
 
@@ -1866,6 +1870,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      * @throws org.elasticsearch.index.IndexNotFoundException if the index does not exist in any project
      */
     public IndexMetadata indexMetadata(Index index) {
+        if (isSingleProject()) {
+            return projectMetadata.get(DEFAULT_PROJECT_ID).getIndexSafe(index);
+        }
         return projectFor(index).getIndexSafe(index);
     }
 
@@ -1874,6 +1881,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      * throwing when either the project or the index is not found.
      */
     public Optional<IndexMetadata> findIndex(Index index) {
+        if (isSingleProject()) {
+            return Optional.ofNullable(projectMetadata.get(DEFAULT_PROJECT_ID).index(index));
+        }
         return lookupProject(index).map(projectMetadata -> projectMetadata.index(index));
     }
 
@@ -1883,16 +1893,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
          * That means it is possible that we will generate multiple lookup objects if there are multiple concurrent callers
          * Those lookup objects will be identical, and the double assignment will be safe, but there is the cost of building the lookup
          * more than once.
-         * In the single project case building the lookup is cheap, and synchronization would be costly.
+         * The single default project case has special handling and does not go through the project lookup.
          * In the multiple project case, it might be cheaper to synchronize, but the long term solution is to maintain the lookup table
          *  as projects/indices are added/removed rather than rebuild it each time the cluster-state/metadata object changes.
          */
         if (this.projectLookup == null) {
-            if (this.isSingleProject()) {
-                projectLookup = new SingleProjectLookup(getSingleProject());
-            } else {
-                projectLookup = new MultiProjectLookup();
-            }
+            assert isSingleProject() == false;
+            projectLookup = new ProjectLookup();
         }
         return projectLookup;
     }
@@ -1900,39 +1907,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     /**
      * A lookup table from {@link Index} to {@link ProjectId}
      */
-    interface ProjectLookup {
-        /**
-         * Return the {@link ProjectId} for the provided {@link Index}, if it exists
-         */
-        Optional<ProjectMetadata> project(Index index);
-    }
-
-    /**
-     * An implementation of {@link ProjectLookup} that is optimized for the case where there is a single project.
-     *
-     */
-    static class SingleProjectLookup implements ProjectLookup {
-
-        private final ProjectMetadata project;
-
-        SingleProjectLookup(ProjectMetadata project) {
-            this.project = project;
-        }
-
-        @Override
-        public Optional<ProjectMetadata> project(Index index) {
-            if (project.hasIndex(index)) {
-                return Optional.of(project);
-            } else {
-                return Optional.empty();
-            }
-        }
-    }
-
-    class MultiProjectLookup implements ProjectLookup {
+    class ProjectLookup {
         private final Map<String, ProjectMetadata> lookup;
 
-        private MultiProjectLookup() {
+        private ProjectLookup() {
             this.lookup = Maps.newMapWithExpectedSize(Metadata.this.getTotalNumberOfIndices());
             for (var project : projectMetadata.values()) {
                 for (var indexMetadata : project) {
@@ -1947,7 +1925,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
         }
 
-        @Override
         public Optional<ProjectMetadata> project(Index index) {
             final ProjectMetadata project = lookup.get(index.getUUID());
             if (project != null && project.hasIndex(index)) {

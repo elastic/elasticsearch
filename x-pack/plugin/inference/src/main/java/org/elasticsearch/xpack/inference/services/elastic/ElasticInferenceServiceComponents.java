@@ -18,9 +18,4 @@ public record ElasticInferenceServiceComponents(@Nullable String elasticInferenc
     public static ElasticInferenceServiceComponents of(String elasticInferenceServiceUrl) {
         return new ElasticInferenceServiceComponents(elasticInferenceServiceUrl);
     }
-
-    public static ElasticInferenceServiceComponents of(String elasticInferenceServiceUrl, boolean periodicAuthorizationEnabled) {
-        return new ElasticInferenceServiceComponents(elasticInferenceServiceUrl);
-    }
-
 }

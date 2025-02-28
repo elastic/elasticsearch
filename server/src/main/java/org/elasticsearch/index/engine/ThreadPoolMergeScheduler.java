@@ -189,12 +189,20 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         int configuredMaxMergeCount = config.getMaxMergeCount();
         // both currently running and enqueued merge tasks are considered "active" for throttling purposes
         int activeMerges = (int) (submittedMergesCount - doneMergesCount);
-        // maybe enable merge task throttling
-        if (activeMerges > configuredMaxMergeCount && shouldThrottleIncomingMerges.getAndSet(true) == false) {
-            enableIndexingThrottling(executingMergesCount, activeMerges - executingMergesCount, configuredMaxMergeCount);
-        } else if (activeMerges <= configuredMaxMergeCount && shouldThrottleIncomingMerges.getAndSet(false)) {
+        if (activeMerges > configuredMaxMergeCount && shouldThrottleIncomingMerges.get() == false) {
+            // maybe enable merge task throttling
+            synchronized (shouldThrottleIncomingMerges) {
+                if (shouldThrottleIncomingMerges.getAndSet(true) == false) {
+                    enableIndexingThrottling(executingMergesCount, activeMerges - executingMergesCount, configuredMaxMergeCount);
+                }
+            }
+        } else if (activeMerges <= configuredMaxMergeCount && shouldThrottleIncomingMerges.get()) {
             // maybe disable merge task throttling
-            disableIndexingThrottling(executingMergesCount, activeMerges - executingMergesCount, configuredMaxMergeCount);
+            synchronized (shouldThrottleIncomingMerges) {
+                if (shouldThrottleIncomingMerges.getAndSet(false)) {
+                    disableIndexingThrottling(executingMergesCount, activeMerges - executingMergesCount, configuredMaxMergeCount);
+                }
+            }
         }
     }
 

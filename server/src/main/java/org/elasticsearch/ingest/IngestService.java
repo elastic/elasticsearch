@@ -19,6 +19,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
@@ -34,6 +36,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.metadata.BulkMetadataService;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -102,15 +105,34 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.UpdateForV10.Owner.DATA_MANAGEMENT;
+import static org.elasticsearch.ingest.IngestService.BulkPipelineCreateOperation;
 
 /**
  * Holder class for several ingest related services.
  */
-public class IngestService implements ClusterStateApplier, ReportingService<IngestInfo> {
+public class IngestService
+    implements
+        ClusterStateApplier,
+        ReportingService<IngestInfo>,
+        BulkMetadataService<BulkPipelineCreateOperation, NodesInfoResponse, Void> {
 
     public static final String NOOP_PIPELINE_NAME = "_none";
 
     public static final String INGEST_ORIGIN = "ingest";
+
+    public static final String BULK_METADATA_SERVICE_NAME = "elasticsearch.ingest";
+    public static final class BulkPipelineCreateOperation extends BulkMetadataOperation {
+        final List<PutPipelineRequest> requests;
+        public BulkPipelineCreateOperation(List<PutPipelineRequest> requests) {
+            super(BULK_METADATA_SERVICE_NAME);
+            this.requests = requests;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return requests == null || requests.isEmpty();
+        }
+    }
 
     public static final NodeFeature PIPELINE_NAME_VALIDATION_WARNINGS = new NodeFeature("ingest.pipeline_name_special_chars_warning");
 
@@ -240,6 +262,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.pipelines = ingestService.pipelines;
         this.state = ingestService.state;
         this.failureStoreMetrics = ingestService.failureStoreMetrics;
+    }
+
+    @Override
+    public String getBulkMetadataServiceName() {
+        return BULK_METADATA_SERVICE_NAME;
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -486,6 +513,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ActionListener<AcknowledgedResponse> listener,
         Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener
     ) throws Exception {
+        // PRTODO: Update this to use the new mechanisms
         if (isNoOpPipelineUpdate(state, request)) {
             // existing pipeline matches request pipeline -- no need to update
             listener.onResponse(AcknowledgedResponse.TRUE);
@@ -501,6 +529,44 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 request.masterNodeTimeout()
             );
         }));
+    }
+
+    @Override
+    public BulkPipelineCreateOperation filterBatch(BulkPipelineCreateOperation batch, ClusterState currentState) {
+        // if any of the existing pipelines match the request pipelines -- no need to update that pipeline
+        return new BulkPipelineCreateOperation(batch.requests.stream().filter(request -> isNoOpPipelineUpdate(state, request)).toList());
+    }
+
+    @Override
+    public void collectDependencies(Client client, ActionListener<NodesInfoResponse> listener) {
+        NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
+        nodesInfoRequest.clear();
+        nodesInfoRequest.addMetric(NodesInfoMetrics.Metric.INGEST.metricName());
+        client.admin().cluster().nodesInfo(nodesInfoRequest, listener);
+    }
+
+    @Override
+    public void dependencyValidation(BulkPipelineCreateOperation batch, ClusterState currentState, NodesInfoResponse nodeInfos)
+        throws Exception {
+        for (PutPipelineRequest request : batch.requests) {
+            validatePipelineRequest(request, nodeInfos);
+        }
+    }
+
+    @Override
+    public BulkMetadataOperationContext<Void> applyBatch(
+        BulkPipelineCreateOperation batch,
+        ClusterState previousState,
+        Metadata.Builder accumulator
+    ) {
+        IngestMetadata initialIngestMetadata = previousState.metadata().custom(IngestMetadata.TYPE);
+        IngestMetadata finalIngestMetadata = clusterStateBulkUpdatePipelines(initialIngestMetadata, batch.requests);
+        if (finalIngestMetadata == initialIngestMetadata) {
+            return BulkMetadataOperationContext.stateUnmodified();
+        } else {
+            accumulator.putCustom(IngestMetadata.TYPE, finalIngestMetadata);
+            return BulkMetadataOperationContext.stateModified();
+        }
     }
 
     public void validatePipelineRequest(PutPipelineRequest request, NodesInfoResponse nodeInfos) throws Exception {

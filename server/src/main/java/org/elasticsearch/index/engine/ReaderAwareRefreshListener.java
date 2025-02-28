@@ -17,8 +17,7 @@ import java.io.IOException;
 public interface ReaderAwareRefreshListener extends ReferenceManager.RefreshListener {
 
     @Override
-    default void afterRefresh(boolean didRefresh) throws IOException {
-    }
+    default void afterRefresh(boolean didRefresh) throws IOException {}
 
     void afterRefresh(boolean didRefresh, ElasticsearchDirectoryReader reader) throws IOException;
 

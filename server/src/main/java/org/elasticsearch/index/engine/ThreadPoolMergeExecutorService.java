@@ -110,8 +110,8 @@ public class ThreadPoolMergeExecutorService {
 
     public boolean allDone() {
         return queuedMergeTasks.isEmpty()
-                && currentlyRunningMergeTasks.isEmpty()
-                && currentlySubmittedIOThrottledMergeTasksCount.get() == 0L;
+            && currentlyRunningMergeTasks.isEmpty()
+            && currentlySubmittedIOThrottledMergeTasksCount.get() == 0L;
     }
 
     /**

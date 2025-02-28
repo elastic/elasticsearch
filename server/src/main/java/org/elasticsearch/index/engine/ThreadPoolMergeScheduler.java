@@ -175,10 +175,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         boolean isAutoThrottle = mergeTrigger != MergeTrigger.CLOSING && merge.getStoreMergeInfo().mergeMaxNumSegments() == -1;
         // IO throttling cannot be toggled for existing merge tasks, only new merge tasks pick up the updated IO throttling setting
         return new MergeTask(
-                mergeSource,
-                merge,
-                isAutoThrottle && config.isAutoThrottle(),
-                "Lucene Merge Task #" + submittedMergeTaskCount.incrementAndGet() + " for shard " + shardId
+            mergeSource,
+            merge,
+            isAutoThrottle && config.isAutoThrottle(),
+            "Lucene Merge Task #" + submittedMergeTaskCount.incrementAndGet() + " for shard " + shardId
         );
     }
 

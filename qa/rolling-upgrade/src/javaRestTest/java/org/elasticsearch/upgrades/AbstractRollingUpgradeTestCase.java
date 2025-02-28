@@ -39,6 +39,8 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
         })
         .setting("xpack.security.enabled", "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)
+        .jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper")
+        .jvmArg("-da:org.elasticsearch.index.mapper.MapperService")
         .build();
 
     @ClassRule

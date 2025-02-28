@@ -794,6 +794,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         final ShardSnapshotStatus status,
         Consumer<String> postMasterNotificationAction
     ) {
+        snapshotShutdownProgressTracker.trackRequestSentToMaster(snapshot, shardId);
         ActionListener<Void> updateResultListener = new ActionListener<>() {
             @Override
             public void onResponse(Void aVoid) {

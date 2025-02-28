@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -67,7 +68,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
+import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
@@ -405,6 +409,21 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
+    public void testDocValuesFieldWithDocValueSkippers() throws Exception {
+        try (Directory dir = createNewDirectory()) {
+            var codecMode = randomFrom(CodecMode.values());
+            indexRandomly(dir, codecMode, between(100, 1000), doc -> addRandomDocValuesField(doc, true));
+            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+            logger.info("--> stats {}", stats);
+            try (Directory perFieldDir = createNewDirectory()) {
+                rewriteIndexWithPerFieldCodec(dir, codecMode, perFieldDir);
+                final IndexDiskUsageStats perFieldStats = collectPerFieldStats(perFieldDir);
+                assertStats(stats, perFieldStats);
+                assertStats(IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(perFieldDir), () -> {}), perFieldStats);
+            }
+        }
+    }
+
     private static void addFieldsToDoc(Document doc, IndexableField[] fields) {
         for (IndexableField field : fields) {
             doc.add(field);
@@ -442,23 +461,27 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
-    static void addRandomDocValuesField(Document doc) {
+    static void addRandomDocValuesField(Document doc, boolean indexed) {
         if (randomBoolean()) {
-            doc.add(new NumericDocValuesField("ndv", random().nextInt(1024)));
+            int val = random().nextInt(1024);
+            doc.add(indexed ? NumericDocValuesField.indexedField("ndv", val) : new NumericDocValuesField("ndv", val));
         }
-        if (randomBoolean()) {
+        if (randomBoolean() && indexed == false) {
             doc.add(new BinaryDocValuesField("bdv", new BytesRef(randomAlphaOfLength(3))));
         }
         if (randomBoolean()) {
-            doc.add(new SortedDocValuesField("sdv", new BytesRef(randomAlphaOfLength(3))));
+            var value = new BytesRef(randomAlphaOfLength(3));
+            doc.add(indexed ? SortedDocValuesField.indexedField("sdv", value) : new SortedDocValuesField("sdv", value));
         }
         int numValues = random().nextInt(5);
         for (int i = 0; i < numValues; ++i) {
-            doc.add(new SortedSetDocValuesField("ssdv", new BytesRef(randomAlphaOfLength(3))));
+            var value = new BytesRef(randomAlphaOfLength(3));
+            doc.add(indexed ? SortedSetDocValuesField.indexedField("ssdv", value) : new SortedSetDocValuesField("ssdv", value));
         }
         numValues = random().nextInt(5);
         for (int i = 0; i < numValues; ++i) {
-            doc.add(new SortedNumericDocValuesField("sndv", random().nextInt(1024)));
+            int value = random().nextInt(1024);
+            doc.add(indexed ? SortedNumericDocValuesField.indexedField("sndv", value) : new SortedNumericDocValuesField("sndv", value));
         }
     }
 
@@ -535,7 +558,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
 
     static void addRandomFields(Document doc) {
         if (randomBoolean()) {
-            addRandomDocValuesField(doc);
+            addRandomDocValuesField(doc, false);
         }
         if (randomBoolean()) {
             addRandomPostings(doc);

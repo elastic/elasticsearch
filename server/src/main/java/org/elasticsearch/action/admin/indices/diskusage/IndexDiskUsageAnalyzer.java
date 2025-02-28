@@ -289,6 +289,16 @@ final class IndexDiskUsageAnalyzer {
                     throw new IllegalStateException("Unknown docValues type [" + dvType + "]");
                 }
             }
+            switch (field.docValuesSkipIndexType()) {
+                case NONE -> {}
+                case RANGE -> {
+                    var skipper = docValuesReader.getSkipper(field);
+                    while(skipper.maxDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
+                        skipper.advance(skipper.maxDocID(0) + 1);
+                    }
+                }
+                default -> throw new IllegalStateException("Unknown skipper type [" + field.docValuesSkipIndexType() + "]");
+            }
             stats.addDocValues(field.name, directory.getBytesRead());
         }
     }

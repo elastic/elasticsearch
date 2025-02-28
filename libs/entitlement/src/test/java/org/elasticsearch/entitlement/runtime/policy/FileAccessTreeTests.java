@@ -318,7 +318,9 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canWrite(path("a")), is(false));
     }
 
-    public void testPipeAccess() {
+    public void testWindowsAbsolutPathAccess() {
+        assumeTrue("Specific to windows for paths with a root (DOS or UNC)", Platform.WINDOWS.isCurrent());
+
         var fileAccessTree = FileAccessTree.of(
             "test",
             "test",

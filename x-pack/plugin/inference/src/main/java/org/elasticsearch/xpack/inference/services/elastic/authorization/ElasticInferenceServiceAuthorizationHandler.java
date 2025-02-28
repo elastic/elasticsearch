@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.DefaultModelConfig;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -60,8 +60,6 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
     private final ModelRegistry modelRegistry;
     private final ElasticInferenceServiceAuthorizationRequestHandler authorizationHandler;
     private final AtomicReference<ElasticInferenceService.Configuration> configuration;
-    private final TimeValue requestInterval;
-    private final TimeValue maxJitter;
     private final Map<String, DefaultModelConfig> defaultModelsConfigs;
     private final CountDownLatch firstAuthorizationCompletedLatch = new CountDownLatch(1);
     private final EnumSet<TaskType> implementedTaskTypes;
@@ -70,7 +68,7 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
     private final Runnable callback;
     private final AtomicReference<Scheduler.ScheduledCancellable> lastAuthTask = new AtomicReference<>(null);
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
-    private final boolean periodAuthorizationEnabled;
+    private final ElasticInferenceServiceSettings elasticInferenceServiceSettings;
 
     public ElasticInferenceServiceAuthorizationHandler(
         ServiceComponents serviceComponents,
@@ -80,7 +78,7 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
         EnumSet<TaskType> implementedTaskTypes,
         InferenceService inferenceService,
         Sender sender,
-        ElasticInferenceServiceComponents elasticInferenceServiceComponents
+        ElasticInferenceServiceSettings elasticInferenceServiceSettings
     ) {
         this(
             serviceComponents,
@@ -90,7 +88,7 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
             implementedTaskTypes,
             Objects.requireNonNull(inferenceService),
             sender,
-            elasticInferenceServiceComponents,
+            elasticInferenceServiceSettings,
             null
         );
     }
@@ -104,7 +102,7 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
         EnumSet<TaskType> implementedTaskTypes,
         InferenceService inferenceService,
         Sender sender,
-        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         // this is a hack to facilitate testing
         Runnable callback
     ) {
@@ -116,11 +114,7 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
         // allow the service to be null for testing
         this.inferenceService = inferenceService;
         this.sender = Objects.requireNonNull(sender);
-
-        Objects.requireNonNull(elasticInferenceServiceComponents);
-        requestInterval = elasticInferenceServiceComponents.authRequestInterval();
-        maxJitter = elasticInferenceServiceComponents.maxAuthRequestJitter();
-        periodAuthorizationEnabled = elasticInferenceServiceComponents.periodicAuthorizationEnabled();
+        this.elasticInferenceServiceSettings = Objects.requireNonNull(elasticInferenceServiceSettings);
 
         configuration = new AtomicReference<>(
             new ElasticInferenceService.Configuration(authorizedContent.get().taskTypesAndModels.getAuthorizedTaskTypes())
@@ -186,19 +180,19 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
 
     private void scheduleAuthorizationRequest() {
         try {
-            if (periodAuthorizationEnabled == false) {
+            if (elasticInferenceServiceSettings.isPeriodicAuthorizationEnabled() == false) {
                 return;
             }
 
             // this call has to be on the individual thread otherwise we get an exception
             var random = Randomness.get();
-            var jitter = (long) (maxJitter.millis() * random.nextDouble());
-            var waitTime = TimeValue.timeValueMillis(requestInterval.millis() + jitter);
+            var jitter = (long) (elasticInferenceServiceSettings.getMaxAuthorizationRequestJitter().millis() * random.nextDouble());
+            var waitTime = TimeValue.timeValueMillis(elasticInferenceServiceSettings.getAuthRequestInterval().millis() + jitter);
 
             logger.debug(
                 () -> Strings.format(
                     "Scheduling the next authorization call with request interval: %s ms, jitter: %d ms",
-                    requestInterval.millis(),
+                    elasticInferenceServiceSettings.getAuthRequestInterval().millis(),
                     jitter
                 )
             );

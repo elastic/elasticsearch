@@ -1065,7 +1065,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 new ElasticInferenceServiceCompletionServiceSettings("model_id", new RateLimitSettings(100)),
                 EmptyTaskSettings.INSTANCE,
                 EmptySecretSettings.INSTANCE,
-                ElasticInferenceServiceComponents.withDefaults(eisGatewayUrl, false)
+                ElasticInferenceServiceComponents.of(eisGatewayUrl)
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
@@ -1122,7 +1122,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             factory,
             createWithEmptySettings(threadPool),
-            ElasticInferenceServiceComponents.EMPTY_INSTANCE,
+            new ElasticInferenceServiceSettings(Settings.EMPTY),
             mockModelRegistry(),
             mockAuthHandler
         );
@@ -1151,7 +1151,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            ElasticInferenceServiceComponents.withDefaults(gatewayUrl, false),
+            ElasticInferenceServiceSettingsTests.create(gatewayUrl),
             mockModelRegistry(),
             mockAuthHandler
         );
@@ -1161,7 +1161,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            ElasticInferenceServiceComponents.withDefaults(eisGatewayUrl, false),
+            ElasticInferenceServiceSettingsTests.create(eisGatewayUrl),
             mockModelRegistry(),
             new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool)
         );
@@ -1175,7 +1175,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            ElasticInferenceServiceComponents.withDefaults(eisGatewayUrl, false),
+            ElasticInferenceServiceSettingsTests.create(eisGatewayUrl),
             mockModelRegistry(threadPool),
             new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool)
         );

@@ -60,7 +60,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
@@ -105,12 +104,14 @@ public class ElasticInferenceService extends SenderService {
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
-        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         ModelRegistry modelRegistry,
         ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler
     ) {
         super(factory, serviceComponents);
-        this.elasticInferenceServiceComponents = Objects.requireNonNull(elasticInferenceServiceComponents);
+        this.elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
+            elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
+        );
         authorizationHandler = new ElasticInferenceServiceAuthorizationHandler(
             serviceComponents,
             modelRegistry,
@@ -119,7 +120,7 @@ public class ElasticInferenceService extends SenderService {
             IMPLEMENTED_TASK_TYPES,
             this,
             getSender(),
-            elasticInferenceServiceComponents
+            elasticInferenceServiceSettings
         );
     }
 
@@ -166,7 +167,7 @@ public class ElasticInferenceService extends SenderService {
      * @param waitTime the max time to wait
      * @throws IllegalStateException if the wait time is exceeded or the call receives an {@link InterruptedException}
      */
-    public void waitForAuthorizationToComplete(TimeValue waitTime) {
+    void waitForAuthorizationToComplete(TimeValue waitTime) {
         authorizationHandler.waitForAuthorizationToComplete(waitTime);
     }
 

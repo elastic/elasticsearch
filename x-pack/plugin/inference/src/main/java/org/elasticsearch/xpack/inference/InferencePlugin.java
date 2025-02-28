@@ -274,17 +274,11 @@ public class InferencePlugin extends Plugin
         );
         elasicInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
 
-        ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
-        String elasticInferenceUrl = inferenceServiceSettings.getElasticInferenceServiceUrl();
-
-        var elasticInferenceServiceComponentsInstance = ElasticInferenceServiceComponents.withDefaults(
-            elasticInferenceUrl,
-            inferenceServiceSettings.isPeriodicAuthorizationEnabled()
-        );
-        elasticInferenceServiceComponents.set(elasticInferenceServiceComponentsInstance);
+        var inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
+        inferenceServiceSettings.init(services.clusterService());
 
         var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
-            elasticInferenceServiceComponentsInstance.elasticInferenceServiceUrl(),
+            inferenceServiceSettings.getElasticInferenceServiceUrl(),
             services.threadPool()
         );
 
@@ -293,7 +287,7 @@ public class InferencePlugin extends Plugin
                 context -> new ElasticInferenceService(
                     elasicInferenceServiceFactory.get(),
                     serviceComponents.get(),
-                    elasticInferenceServiceComponentsInstance,
+                    inferenceServiceSettings,
                     modelRegistry,
                     authorizationHandler
                 )

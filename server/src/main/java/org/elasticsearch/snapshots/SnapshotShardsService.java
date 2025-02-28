@@ -676,6 +676,8 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                     if (masterShard != null && masterShard.state().completed() == false) {
                         final IndexShardSnapshotStatus.Copy indexShardSnapshotStatus = localShard.getValue().asCopy();
                         final Stage stage = indexShardSnapshotStatus.getStage();
+                        final String statusDescription = indexShardSnapshotStatus.getStatusDescription();
+                        final int maxStatusAppend = 1000;
                         // Master knows about the shard and thinks it has not completed
                         if (stage == Stage.DONE) {
                             // but we think the shard is done - we need to make new master know that the shard is done
@@ -689,10 +691,20 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                 snapshot.snapshot(),
                                 shardId,
                                 localShard.getValue().getShardSnapshotResult(),
-                                (outcomeInfoString) -> localShard.getValue().updateStatusDescription(Strings.format("""
-                                    Data node already successfully finished shard snapshot, but a new master needed to be notified. New
-                                    remote master notification outcome: [%s]. The prior shard snapshot status description was [%s]
-                                    """, outcomeInfoString, indexShardSnapshotStatus.getStatusDescription()))
+                                (outcomeInfoString) -> localShard.getValue()
+                                    .updateStatusDescription(
+                                        Strings.format(
+                                            """
+                                                Data node already successfully finished shard snapshot, but a new master needed to be
+                                                notified. New remote master notification outcome: [%s]. The prior shard snapshot status
+                                                description was [%s]
+                                                """,
+                                            outcomeInfoString,
+                                            statusDescription.length() < maxStatusAppend
+                                                ? statusDescription
+                                                : statusDescription.substring(0, maxStatusAppend)
+                                        )
+                                    )
                             );
                         } else if (stage == Stage.FAILURE) {
                             // but we think the shard failed - we need to make new master know that the shard failed
@@ -710,10 +722,19 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                 localShard.getValue().generation(),
                                 // Update the original statusDescription with the latest remote master call outcome, but include the old
                                 // response. This will allow us to see when/whether the information reached the previous and current master.
-                                (outcomeInfoString) -> localShard.getValue().updateStatusDescription(Strings.format("""
-                                    Data node already failed shard snapshot, but a new master needed to be notified. New remote master
-                                    notification outcome: [%s]. The prior shard snapshot status description was [%s]
-                                    """, outcomeInfoString, indexShardSnapshotStatus.getStatusDescription()))
+                                (outcomeInfoString) -> localShard.getValue()
+                                    .updateStatusDescription(
+                                        Strings.format(
+                                            """
+                                                Data node already failed shard snapshot, but a new master needed to be notified. New remote
+                                                master notification outcome: [%s]. The prior shard snapshot status description was [%s]
+                                                """,
+                                            outcomeInfoString,
+                                            statusDescription.length() < maxStatusAppend
+                                                ? statusDescription
+                                                : statusDescription.substring(0, maxStatusAppend)
+                                        )
+                                    )
                             );
                         } else if (stage == Stage.PAUSED) {
                             // but we think the shard has paused - we need to make new master know that
@@ -727,10 +748,19 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                 ShardState.PAUSED_FOR_NODE_REMOVAL,
                                 indexShardSnapshotStatus.getFailure(),
                                 localShard.getValue().generation(),
-                                (outcomeInfoString) -> localShard.getValue().updateStatusDescription(Strings.format("""
-                                    Data node already paused shard snapshot, but a new master needed to be notified. New remote
-                                    master notification outcome: [%s]. The prior shard snapshot status description was [%s]
-                                    """, outcomeInfoString, indexShardSnapshotStatus.getStatusDescription()))
+                                (outcomeInfoString) -> localShard.getValue()
+                                    .updateStatusDescription(
+                                        Strings.format(
+                                            """
+                                                Data node already paused shard snapshot, but a new master needed to be notified. New remote
+                                                master notification outcome: [%s]. The prior shard snapshot status description was [%s]
+                                                """,
+                                            outcomeInfoString,
+                                            statusDescription.length() < maxStatusAppend
+                                                ? statusDescription
+                                                : statusDescription.substring(0, maxStatusAppend)
+                                        )
+                                    )
                             );
                         }
                     }

@@ -202,6 +202,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.rank.hybrid.HybridRetrieverBuilder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -521,6 +522,9 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     @Override
     public List<RetrieverSpec<?>> getRetrievers() {
-        return List.of(new RetrieverSpec<>(new ParseField(QueryRuleRetrieverBuilder.NAME), QueryRuleRetrieverBuilder::fromXContent));
+        return List.of(
+            new RetrieverSpec<>(new ParseField(QueryRuleRetrieverBuilder.NAME), QueryRuleRetrieverBuilder::fromXContent),
+            new RetrieverSpec<>(new ParseField(HybridRetrieverBuilder.NAME), HybridRetrieverBuilder::fromXContent)
+        );
     }
 }

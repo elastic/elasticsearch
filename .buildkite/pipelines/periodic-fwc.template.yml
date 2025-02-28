@@ -1,0 +1,14 @@
+steps:
+  - label: $FWC_VERSION / fwc
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$FWC_VERSION#fwcTest -Dtests.bwc.snapshot=false
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: n1-standard-32
+      buildDirectory: /dev/shm/bk
+    matrix:
+      setup:
+        FWC_VERSION: $FWC_LIST
+    env:
+      FWC_VERSION: $FWC_VERSION

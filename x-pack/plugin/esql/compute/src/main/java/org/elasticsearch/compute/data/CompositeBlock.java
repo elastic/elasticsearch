@@ -96,7 +96,11 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
 
     @Override
     public int getValueCount(int position) {
-        return blocks[0].getValueCount(position);
+        int max = 0;
+        for (var block : blocks) {
+            max = Math.max(max, block.getValueCount(position));
+        }
+        return max;
     }
 
     @Override

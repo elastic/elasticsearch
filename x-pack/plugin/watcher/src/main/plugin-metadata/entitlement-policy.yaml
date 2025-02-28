@@ -1,2 +1,10 @@
 ALL-UNNAMED:
   - manage_threads
+  - files:
+    - relative_path: ".mime.types"
+      relative_to: "home"
+      mode: "read"
+    - relative_path: ".mailcap"
+      relative_to: "home"
+      mode: "read"
+

@@ -1,0 +1,5 @@
+pr: 123155
+summary: Add `ElasticInferenceServiceCompletionServiceSettings`
+area: Machine Learning
+type: bug
+issues: []

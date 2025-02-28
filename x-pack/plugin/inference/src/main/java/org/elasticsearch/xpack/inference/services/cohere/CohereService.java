@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
@@ -286,7 +287,6 @@ public class CohereService extends SenderService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(model.getServiceSettings().elementType()),
             cohereModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -314,7 +314,7 @@ public class CohereService extends SenderService {
         if (model instanceof CohereEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
+            var similarityToUse = similarityFromModel == null ? defaultSimilarity(serviceSettings.getEmbeddingType()) : similarityFromModel;
 
             var updatedServiceSettings = new CohereEmbeddingsServiceSettings(
                 new CohereServiceSettings(
@@ -342,7 +342,11 @@ public class CohereService extends SenderService {
      *
      * @return The default similarity.
      */
-    static SimilarityMeasure defaultSimilarity() {
+    static SimilarityMeasure defaultSimilarity(CohereEmbeddingType embeddingType) {
+        if (embeddingType == CohereEmbeddingType.BIT || embeddingType == CohereEmbeddingType.BINARY) {
+            return SimilarityMeasure.L2_NORM;
+        }
+
         return SimilarityMeasure.DOT_PRODUCT;
     }
 

@@ -212,6 +212,7 @@ public class OperatorTests extends MapperServiceTestCase {
                             randomPageSize(),
                             false
                         ),
+                        randomPageSize(),
                         driverContext
                     )
                 );

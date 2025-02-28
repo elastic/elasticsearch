@@ -205,16 +205,16 @@ public class OrdinalsGroupingOperator implements Operator {
             return null;
         }
         if (valuesAggregator != null) {
-            try {
-                return valuesAggregator.getOutput();
-            } finally {
-                final ValuesAggregator aggregator = this.valuesAggregator;
-                this.valuesAggregator = null;
-                Releasables.close(aggregator);
+            final Page output = valuesAggregator.getOutput();
+            if (output == null) {
+                Releasables.close(valuesAggregator, () -> this.valuesAggregator = null);
+            } else {
+                return output;
             }
         }
         if (ordinalAggregators.isEmpty() == false) {
             try {
+                // TODO: chunk output pages
                 return mergeOrdinalsSegmentResults();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -510,6 +510,7 @@ public class OrdinalsGroupingOperator implements Operator {
                     maxPageSize,
                     false
                 ),
+                maxPageSize,
                 driverContext
             );
         }

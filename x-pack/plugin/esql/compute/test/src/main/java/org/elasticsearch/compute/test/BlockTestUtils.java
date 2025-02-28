@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -266,5 +267,45 @@ public class BlockTestUtils {
             result.add(positionValues);
         }
         return result;
+    }
+
+    /**
+     * Merges a list of pages to a single page
+     */
+    public static Page mergePages(BlockFactory blockFactory, List<Page> pages) {
+        if (pages.isEmpty()) {
+            return null;
+        }
+        Page first = pages.getFirst();
+        if (pages.size() == 1) {
+            pages.clear();
+            return first;
+        }
+        boolean success = false;
+        final Block.Builder[] builders = new Block.Builder[first.getBlockCount()];
+        try {
+            for (int b = 0; b < builders.length; b++) {
+                ElementType elementType = ElementType.NULL;
+                int totalPositions = 0;
+                for (Page p : pages) {
+                    Block block = p.getBlock(b);
+                    ElementType e = block.elementType();
+                    if (e != ElementType.NULL) {
+                        assert elementType == ElementType.NULL || elementType == e : elementType + " != " + e;
+                        elementType = e;
+                    }
+                    totalPositions += block.getPositionCount();
+                }
+                builders[b] = elementType.newBlockBuilder(totalPositions, blockFactory);
+                for (Page p : pages) {
+                    builders[b].copyFrom(p.getBlock(b), 0, p.getPositionCount());
+                }
+            }
+            return new Page(Block.Builder.buildAll(builders));
+        } finally {
+            if (success == false) {
+                Releasables.close(builders);
+            }
+        }
     }
 }

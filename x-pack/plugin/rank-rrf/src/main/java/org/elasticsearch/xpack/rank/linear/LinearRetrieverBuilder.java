@@ -205,4 +205,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         }
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
     }
+
+    // TODO: Need doEquals & doHashCode to check weights and normalizers
 }

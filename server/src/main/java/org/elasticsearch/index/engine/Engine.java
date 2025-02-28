@@ -989,6 +989,10 @@ public abstract class Engine implements Closeable {
         ensureOpen(null);
     }
 
+    public boolean isOperable() {
+        return true;
+    }
+
     /** get commits stats for the last commit */
     public final CommitStats commitStats() {
         return new CommitStats(getLastCommittedSegmentInfos());

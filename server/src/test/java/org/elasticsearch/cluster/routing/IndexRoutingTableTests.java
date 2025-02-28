@@ -9,29 +9,18 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.mockito.Mockito;
 
 import java.util.List;
-
-import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class IndexRoutingTableTests extends ESTestCase {
 
     public void testReadyForSearch() {
         Index index = new Index(randomIdentifier(), UUIDs.randomBase64UUID());
-        ClusterState clusterState = mock(ClusterState.class, Mockito.RETURNS_DEEP_STUBS);
-        when(clusterState.metadata().index(any(Index.class)).getSettings()).thenReturn(
-            Settings.builder().put(INDEX_FAST_REFRESH_SETTING.getKey(), randomBoolean()).build()
-        );
+
         // 2 primaries that are search and index
         ShardId p1 = new ShardId(index, 0);
         IndexShardRoutingTable shardTable1 = new IndexShardRoutingTable(

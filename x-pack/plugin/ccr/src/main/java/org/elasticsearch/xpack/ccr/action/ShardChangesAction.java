@@ -15,9 +15,10 @@ import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -347,6 +348,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             ClusterService clusterService,
             TransportService transportService,
             ActionFilters actionFilters,
+            ProjectResolver projectResolver,
             IndexNameExpressionResolver indexNameExpressionResolver,
             IndicesService indicesService
         ) {
@@ -356,6 +358,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                 clusterService,
                 transportService,
                 actionFilters,
+                projectResolver,
                 indexNameExpressionResolver,
                 Request::new,
                 threadPool.executor(ThreadPool.Names.SEARCH)
@@ -458,7 +461,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             );
             if (e instanceof TimeoutException) {
                 try {
-                    final IndexMetadata indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
+                    final IndexMetadata indexMetadata = clusterService.state().metadata().getProject().index(shardId.getIndex());
                     if (indexMetadata == null) {
                         listener.onFailure(new IndexNotFoundException(shardId.getIndex()));
                         return;
@@ -495,7 +498,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         }
 
         @Override
-        protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+        protected ShardsIterator shards(ProjectState state, InternalRequest request) {
             return state.routingTable()
                 .shardRoutingTable(request.concreteIndex(), request.request().getShard().id())
                 .activeInitializingShardsRandomIt();

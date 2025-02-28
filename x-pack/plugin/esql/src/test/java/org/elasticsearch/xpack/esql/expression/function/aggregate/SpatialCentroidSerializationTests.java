@@ -24,9 +24,4 @@ public class SpatialCentroidSerializationTests extends AbstractExpressionSeriali
             randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild)
         );
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

@@ -121,6 +121,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.jdk.RuntimeVersionFeature;
+import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
@@ -263,6 +264,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final Collection<String> loggedLeaks = new ArrayList<>();
 
     private HeaderWarningAppender headerWarningAppender;
+    private org.elasticsearch.logging.Level capturedLogLevel;
 
     @AfterClass
     public static void resetPortCounter() {
@@ -584,6 +586,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             this.threadContext = new ThreadContext(Settings.EMPTY);
             HeaderWarning.setThreadContext(threadContext);
         }
+        capturedLogLevel = LoggerFactory.provider().getRootLevel();
     }
 
     private static final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
@@ -618,6 +621,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @After
     public final void after() throws Exception {
+        LoggerFactory.provider().setRootLevel(capturedLogLevel);
         if (enableBigArraysReleasedCheck()) {
             MockBigArrays.ensureAllArraysAreReleased();
         }

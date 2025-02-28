@@ -9,11 +9,8 @@
 
 package org.elasticsearch.cli;
 
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -46,8 +43,6 @@ public abstract class CommandTestCase extends ESTestCase {
     /** The ES config dir */
     protected Path configDir;
 
-    private Level capturedLogLevel;
-
     /** Whether to include a whitespace in the file-system path. */
     private final boolean spaceInPath;
 
@@ -61,7 +56,6 @@ public abstract class CommandTestCase extends ESTestCase {
 
     @Before
     public void resetTerminal() throws IOException {
-        capturedLogLevel = LoggerFactory.provider().getRootLevel();
         terminal.reset();
         terminal.setSupportsBinary(false);
         terminal.setVerbosity(Terminal.Verbosity.NORMAL);
@@ -77,11 +71,6 @@ public abstract class CommandTestCase extends ESTestCase {
         sysprops.put("es.path.conf", esHomeDir.resolve("config").toString());
         sysprops.put("os.name", "Linux"); // default to linux, tests can override to check specific OS behavior
         envVars.clear();
-    }
-
-    @After
-    public void restoreRootLogLevel() {
-        LoggerFactory.provider().setRootLevel(capturedLogLevel);
     }
 
     /** Creates a Command to test execution. */

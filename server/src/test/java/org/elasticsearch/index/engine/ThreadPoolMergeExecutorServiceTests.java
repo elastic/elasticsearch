@@ -13,13 +13,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Comparator;
@@ -35,17 +32,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
-
-    DeterministicTaskQueue deterministicTaskQueue;
-    ThreadPool testThreadPool;
-    IndexSettings indexSettings;
-
-    @Before
-    public void setUpThreadPool() {
-        deterministicTaskQueue = new DeterministicTaskQueue();
-        testThreadPool = deterministicTaskQueue.getThreadPool();
-        indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
-    }
 
     public void testMergeTasksAreAbortedWhenThreadPoolIsShutdown() {
         TestThreadPool testThreadPool = new TestThreadPool("test");
@@ -125,9 +111,11 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
     }
 
     public void testBackloggedMergeTasksExecuteInSizeOrder() {
+        DeterministicTaskQueue mergeExecutorTaskQueue = new DeterministicTaskQueue();
+        ThreadPool mergeExecutorThreadPool = mergeExecutorTaskQueue.getThreadPool();
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
             .maybeCreateThreadPoolMergeExecutorService(
-                testThreadPool,
+                mergeExecutorThreadPool,
                 Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true).build()
             );
         assertNotNull(threadPoolMergeExecutorService);
@@ -179,14 +167,14 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 boolean backlogReEnqueued = runOneTask(reEnqueueBackloggedTaskQueue);
                 if (mergeTasksAvailableToRun.isEmpty() && backlogReEnqueued == false) {
                     // test complete, all merges ran, and none is backlogged
-                    assertFalse(deterministicTaskQueue.hasAnyTasks());
+                    assertFalse(mergeExecutorTaskQueue.hasAnyTasks());
                     assertFalse(reEnqueueBackloggedTaskQueue.hasAnyTasks());
                     assertTrue(threadPoolMergeExecutorService.allDone());
                     break;
                 }
             } else {
                 // run one merge task
-                runOneTask(deterministicTaskQueue);
+                runOneTask(mergeExecutorTaskQueue);
             }
         }
     }

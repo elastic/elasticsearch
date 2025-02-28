@@ -1,9 +1,10 @@
 [[paginate-search-results]]
 === Paginate search results
 
-Pagination organizes search results into manageable pages, enhancing user interaction. Whether selecting specific page ranges or using infinite scroll, pagination offers a tailored user experience.
+{es} uses pagination to segment large result sets into manageable pages for efficient retrieval and processing.
 
-The three commonly used pagination techniques are:
+{es} supports three pagination techniques:
+
 
 * <<from-and-size-pagination, From and size pagination>>: Ideal for creating a list of pages that users can navigate.
 * <<search-after, Search after>>: Supports infinite scroll or allows loading additional results with a "next" button.

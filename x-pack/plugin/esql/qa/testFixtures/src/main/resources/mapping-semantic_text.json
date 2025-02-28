@@ -76,6 +76,9 @@
     "st_logs": {
       "type": "semantic_text",
       "inference_id": "test_sparse_inference"
+    },
+    "language_name": {
+      "type": "keyword"
     }
   }
 }

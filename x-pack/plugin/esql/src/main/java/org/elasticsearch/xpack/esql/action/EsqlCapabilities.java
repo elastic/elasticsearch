@@ -82,6 +82,11 @@ public class EsqlCapabilities {
         AGG_VALUES,
 
         /**
+         * Expand the {@code VALUES} agg to cover spatial types.
+         */
+        AGG_VALUES_SPATIAL,
+
+        /**
          * Does ESQL support async queries.
          */
         ASYNC_QUERY,

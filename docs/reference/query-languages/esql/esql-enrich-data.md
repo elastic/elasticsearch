@@ -93,7 +93,7 @@ To begin, add documents to one or more source indices. These documents should co
 
 You can manage source indices just like regular {{es}} indices using the [document](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-document) and [index](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-indices) APIs.
 
-You also can set up [{{beats}}](beats://reference/index.md), such as a [{{filebeat}}](beats://reference/filebeat/filebeat-installation-configuration.md), to automatically send and index documents to your source indices. See [Getting started with {{beats}}](beats://reference/index.md).
+You also can set up [{{beats}}](beats://docs/reference/index.md), such as a [{{filebeat}}](beats://docs/reference/filebeat/filebeat-installation-configuration.md), to automatically send and index documents to your source indices. See [Getting started with {{beats}}](beats://reference/index.md).
 
 
 ### Create an enrich policy [esql-create-enrich-policy]
@@ -197,13 +197,13 @@ Once created, you can’t update or change an enrich policy. Instead, you can:
 The {{esql}} `ENRICH` command supports all three enrich policy types:
 
 `geo_match`
-:   Matches enrich data to incoming documents based on a [`geo_shape` query](/reference/query-languages/query-dsl/query-dsl-geo-shape-query.md). For an example, see [Example: Enrich your data based on geolocation](docs-content://manage-data/ingest/transform-enrich/example-enrich-data-based-on-geolocation.md).
+:   Matches enrich data to incoming documents based on a [`geo_shape` query](/reference/query-languages/query-dsl-geo-shape-query.md). For an example, see [Example: Enrich your data based on geolocation](docs-content://manage-data/ingest/transform-enrich/example-enrich-data-based-on-geolocation.md).
 
 `match`
-:   Matches enrich data to incoming documents based on a [`term` query](/reference/query-languages/query-dsl/query-dsl-term-query.md). For an example, see [Example: Enrich your data based on exact values](docs-content://manage-data/ingest/transform-enrich/example-enrich-data-based-on-exact-values.md).
+:   Matches enrich data to incoming documents based on a [`term` query](/reference/query-languages/query-dsl-term-query.md). For an example, see [Example: Enrich your data based on exact values](docs-content://manage-data/ingest/transform-enrich/example-enrich-data-based-on-exact-values.md).
 
 `range`
-:   Matches a number, date, or IP address in incoming documents to a range in the enrich index based on a [`term` query](/reference/query-languages/query-dsl/query-dsl-term-query.md). For an example, see [Example: Enrich your data by matching a value to a range](docs-content://manage-data/ingest/transform-enrich/example-enrich-data-by-matching-value-to-range.md).
+:   Matches a number, date, or IP address in incoming documents to a range in the enrich index based on a [`term` query](/reference/query-languages/query-dsl-term-query.md). For an example, see [Example: Enrich your data by matching a value to a range](docs-content://manage-data/ingest/transform-enrich/example-enrich-data-by-matching-value-to-range.md).
 
 While all three enrich policy types are supported, there are some limitations to be aware of:
 

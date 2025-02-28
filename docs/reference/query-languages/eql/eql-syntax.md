@@ -16,7 +16,7 @@ EQL queries require an event category and a matching condition. The `where` keyw
 event_category where condition
 ```
 
-An event category is an indexed value of the [event category field](/reference/query-languages/eql.md#eql-required-fields). By default, the [EQL search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-search) uses the `event.category` field from the [Elastic Common Schema (ECS)][Elastic Common Schema (ECS)](ecs://docs/reference/index.md)). You can specify another event category field using the API’s [`event_category_field`](/reference/query-languages/eql.md#specify-a-timestamp-or-event-category-field) parameter.
+An event category is an indexed value of the [event category field](/reference/query-languages/eql.md#eql-required-fields). By default, the [EQL search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-search) uses the `event.category` field from the [Elastic Common Schema (ECS)][Elastic Common Schema (ECS)](ecs://reference/index.md)). You can specify another event category field using the API’s [`event_category_field`](/reference/query-languages/eql.md#specify-a-timestamp-or-event-category-field) parameter.
 
 For example, the following EQL query matches events with an event category of `process` and a `process.name` of `svchost.exe`:
 

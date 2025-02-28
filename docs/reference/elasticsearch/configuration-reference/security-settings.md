@@ -21,7 +21,7 @@ All of these settings can be added to the `elasticsearch.yml` configuration file
 `xpack.security.enabled`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Defaults to `true`, which enables {{es}} {{security-features}} on the node. This setting must be enabled to use Elasticsearch’s authentication, authorization and audit features.<br>
 
-    If set to `false`, {{security-features}} are disabled, which is not recommended. It also affects all {{kib}} instances that connect to this {{es}} instance; you do not need to disable {{security-features}} in those `kibana.yml` files. For more information about disabling {{security-features}} in specific {{kib}} instances, see [{{kib}} security settings](kibana://docs/reference/configuration-reference/security-settings.md).
+    If set to `false`, {{security-features}} are disabled, which is not recommended. It also affects all {{kib}} instances that connect to this {{es}} instance; you do not need to disable {{security-features}} in those `kibana.yml` files. For more information about disabling {{security-features}} in specific {{kib}} instances, see [{{kib}} security settings](kibana://reference/configuration-reference/security-settings.md).
 
 
 `xpack.security.autoconfiguration.enabled`

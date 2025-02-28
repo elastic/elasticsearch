@@ -296,9 +296,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.TracesApmIT
   method: testApmIntegration
   issue: https://github.com/elastic/elasticsearch/issues/122129
-- class: org.elasticsearch.test.apmintegration.MetricsApmIT
-  method: testApmIntegration
-  issue: https://github.com/elastic/elasticsearch/issues/123022
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
   method: testClientsAreNotSharedAcrossRepositories
   issue: https://github.com/elastic/elasticsearch/issues/123090
@@ -335,6 +332,9 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
+- class: org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests
+  method: testFilesEntitlementsWithExclusive
+  issue: https://github.com/elastic/elasticsearch/issues/123657
 
 # Examples:
 #

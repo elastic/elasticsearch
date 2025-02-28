@@ -42,7 +42,9 @@ public class FileUtilsTests extends ESTestCase {
         assertThat(isAbsolutePath(""), is(false));
     }
 
-    public void testPathOrder() {
+    public void testPathOrderPosix() {
+        assumeFalse("path ordering rules specific to non-Windows path styles", Platform.WINDOWS.isCurrent());
+
         // Unix-style
         // Directories come BEFORE files; note that this differs from natural lexicographical order
         assertThat(PATH_ORDER.compare("/a/b", "/a.xml"), lessThan(0));
@@ -60,27 +62,20 @@ public class FileUtilsTests extends ESTestCase {
         assertThat(PATH_ORDER.compare("C:/a/b", "C:/a/b.txt"), lessThan(0));
         assertThat(PATH_ORDER.compare("C:/a/c", "C:/a/b.txt"), greaterThan(0));
         assertThat(PATH_ORDER.compare("C:/a/b", "C:/a/b/foo.txt"), lessThan(0));
-    }
 
-    public void testPathOrderPosix() {
-        assumeFalse("path ordering rules specific to non-Windows platforms", Platform.WINDOWS.isCurrent());
-
+        // "\" is a valid file name character on Posix, test we treat it like that
         assertThat(PATH_ORDER.compare("/a\\b", "/a/b.txt"), greaterThan(0));
     }
 
     public void testPathOrderWindows() {
         assumeTrue("path ordering rules specific to Windows", Platform.WINDOWS.isCurrent());
 
-        // Windows-style
+        // Directories come BEFORE files; note that this differs from natural lexicographical order
         assertThat(PATH_ORDER.compare("C:\\a\\b", "C:\\a.xml"), lessThan(0));
+
+        // Natural lexicographical order is respected in all the other cases
         assertThat(PATH_ORDER.compare("C:\\a\\b", "C:\\a\\b.txt"), lessThan(0));
         assertThat(PATH_ORDER.compare("C:\\a\\b", "C:\\a\\b\\foo.txt"), lessThan(0));
         assertThat(PATH_ORDER.compare("C:\\a\\c", "C:\\a\\b.txt"), greaterThan(0));
-
-        // Mixed-style
-        assertThat(PATH_ORDER.compare("C:\\a\\b", "C:/a.xml"), lessThan(0));
-        assertThat(PATH_ORDER.compare("C:\\a\\b", "C:/a/b.txt"), lessThan(0));
-        assertThat(PATH_ORDER.compare("C:\\a\\b", "C:/a/b\\foo.txt"), lessThan(0));
-        assertThat(PATH_ORDER.compare("C:/a\\b", "C:\\a\\b.txt"), lessThan(0));
     }
 }

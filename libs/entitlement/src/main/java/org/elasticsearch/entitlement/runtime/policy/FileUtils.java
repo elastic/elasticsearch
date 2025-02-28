@@ -50,23 +50,18 @@ public class FileUtils {
         return len1 - len2;
     };
 
-    /**
-     * Java allows to use both forward and backslash on Windows systems as path separators;
-     * On posix filesystems however '\' is a valid character for file or directory names, so we stick to just the
-     * standard platform separator for anything that is not Windows.
-     */
     @SuppressForbidden(reason = "we need the separator as a char, not a string")
     private static boolean isPathSeparator(char c) {
-        if (Platform.WINDOWS.isCurrent()) {
-            return isSlash(c);
-        }
         return c == File.separatorChar;
     }
 
     /**
      * Tests if a path is absolute or relative, taking into consideration both Unix and Windows conventions.
      * Note that this leads to a conflict, resolved in favor of Unix rules: `/foo` can be either a Unix absolute path, or a Windows
-     * relative path with "wrong" directory separator (using non-canonical slash in Windows).
+     * relative path with "wrong" directory separator (using non-canonical / in Windows).
+     * This method is intended to be used as validation for different file entitlements format: therefore it is preferable to reject a
+     * relative path that is definitely absolute on Unix, rather than accept it as a possible relative path on Windows (if that is the case,
+     * the developer can easily fix the path by using the correct platform separators).
      */
     public static boolean isAbsolutePath(String path) {
         if (path.isEmpty()) {
@@ -80,6 +75,10 @@ public class FileUtils {
         return isWindowsAbsolutePath(path);
     }
 
+    /**
+     * When testing for path separators in a platform-agnostic way, we may encounter both kinds of slashes, especially when
+     * processing windows paths. The JDK parses paths the same way under Windows.
+     */
     static boolean isSlash(char c) {
         return (c == '\\') || (c == '/');
     }

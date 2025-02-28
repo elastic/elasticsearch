@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @ESTestCase.WithoutSecurityManager
@@ -192,6 +193,48 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canRead(path("foo/../bar/")), is(true));
         assertThat(tree.canRead(path("foo")), is(false));
         assertThat(tree.canRead(path("")), is(false));
+    }
+
+    public void testNormalizeDirectorySeparatorWindows() {
+        assumeTrue("normalization of windows paths", Platform.WINDOWS.isCurrent());
+
+        assertThat(FileAccessTree.normalizePath(Path.of("C:\\a\\b")), equalTo("C:\\a\\b"));
+        assertThat(FileAccessTree.normalizePath(Path.of("C:/a.xml")), equalTo("C:\\a.xml"));
+        assertThat(FileAccessTree.normalizePath(Path.of("C:/a/b.txt")), equalTo("C:\\a\\b.txt"));
+        assertThat(FileAccessTree.normalizePath(Path.of("C:/a/c\\foo.txt")), equalTo("C:\\a\\c\\foo.txt"));
+
+        var tree = accessTree(
+            entitlement("C:\\a\\b", "read", "C:/a.xml", "read", "C:/a/b.txt", "read", "C:/a/c\\foo.txt", "read"),
+            List.of()
+        );
+
+        assertThat(tree.canRead(Path.of("C:/a.xml")), is(true));
+        assertThat(tree.canRead(Path.of("C:\\a.xml")), is(true));
+        assertThat(tree.canRead(Path.of("C:/a/")), is(false));
+        assertThat(tree.canRead(Path.of("C:/a/b.txt")), is(true));
+        assertThat(tree.canRead(Path.of("C:/a/b/c.txt")), is(true));
+        assertThat(tree.canRead(Path.of("C:\\a\\b\\c.txt")), is(true));
+        assertThat(tree.canRead(Path.of("C:\\a\\c\\")), is(false));
+        assertThat(tree.canRead(Path.of("C:\\a\\c\\foo.txt")), is(true));
+    }
+
+    public void testNormalizeDirectorySeparatorPosix() {
+        assumeFalse("normalization of posix paths", Platform.WINDOWS.isCurrent());
+
+        assertThat(FileAccessTree.normalizePath(Path.of("\\a\\b")), equalTo("/a/b"));
+        assertThat(FileAccessTree.normalizePath(Path.of("/a.xml")), equalTo("/a.xml"));
+        assertThat(FileAccessTree.normalizePath(Path.of("/a/c\\foo.txt")), equalTo("/a/c/foo.txt"));
+
+        var tree = accessTree(entitlement("\\a\\b", "read", "/a.xml", "read", "/a/b.txt", "read", "/a/c\\foo.txt", "read"), List.of());
+
+        assertThat(tree.canRead(Path.of("/a.xml")), is(true));
+        assertThat(tree.canRead(Path.of("\\a.xml")), is(true));
+        assertThat(tree.canRead(Path.of("/a/")), is(false));
+        assertThat(tree.canRead(Path.of("/a/b.txt")), is(true));
+        assertThat(tree.canRead(Path.of("/a/b/c.txt")), is(true));
+        assertThat(tree.canRead(Path.of("\\a\\b\\c.txt")), is(true));
+        assertThat(tree.canRead(Path.of("\\a\\c\\")), is(false));
+        assertThat(tree.canRead(Path.of("\\a\\c\\foo.txt")), is(true));
     }
 
     public void testNormalizeTrailingSlashes() {

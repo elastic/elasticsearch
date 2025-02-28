@@ -52,12 +52,12 @@ To use `LOOKUP JOIN`, you must have:
 The following is a list of current limitations with `LOOKUP JOIN`
 
 * `LOOKUP JOIN` will be sucessfull if both left and right type of the join are both `KEYWORD` types or if the left type is of `TEXT` and the right type is `KEYWORD`.
-* Indices in [lookup](elasticsearch/docs/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) mode are always single-sharded.
+* Indices in [lookup](reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) mode are always single-sharded.
 * Cross cluster search is unsupported. Both source and lookup indicies must be local.
 * `LOOKUP JOIN` can only use a single match field, and can only use a single index. Wildcards, aliases, and datastreams are not supported.
 * The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require renames or evals to achieve it.
 * The query will circuit break if you fetch too much data in a single page. A large heap is needed to manage results of multiple megabytes.
   * This limit is per page of data which is about about 10,000 rows.
   * Matching many rows per incoming row will count against this limit.
-  * This limit is approximately the same as for [`ENRICH`](elasticsearch/docs/reference/query-languages/esql/esql-commands.md#esql-enrich).
+  * This limit is approximately the same as for [`ENRICH`](reference/query-languages/esql/esql-commands.md#esql-enrich).
 

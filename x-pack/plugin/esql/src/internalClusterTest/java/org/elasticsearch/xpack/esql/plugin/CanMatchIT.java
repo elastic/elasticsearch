@@ -18,13 +18,8 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.test.transport.StubbableTransport;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -281,24 +276,13 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         Set<String> queriedIndices = ConcurrentCollections.newConcurrentSet();
         for (TransportService ts : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService = as(ts, MockTransportService.class);
-            mockTransportService.addRequestHandlingBehavior(
-                ComputeService.DATA_ACTION_NAME,
-                new StubbableTransport.RequestHandlingBehavior<TransportRequest>() {
-                    @Override
-                    public void messageReceived(
-                        TransportRequestHandler<TransportRequest> handler,
-                        TransportRequest request,
-                        TransportChannel channel,
-                        Task task
-                    ) throws Exception {
-                        DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
-                        for (ShardId shardId : dataNodeRequest.shardIds()) {
-                            queriedIndices.add(shardId.getIndexName());
-                        }
-                        handler.messageReceived(request, channel, task);
-                    }
+            mockTransportService.addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
+                DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
+                for (ShardId shardId : dataNodeRequest.shardIds()) {
+                    queriedIndices.add(shardId.getIndexName());
                 }
-            );
+                handler.messageReceived(request, channel, task);
+            });
         }
         try {
             for (int i = 0; i < numIndices; i++) {

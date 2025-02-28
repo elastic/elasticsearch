@@ -34,7 +34,6 @@ import java.io.File;
 import java.lang.StackWalker.StackFrame;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
-import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -312,12 +311,14 @@ public class PolicyManager {
     public void checkFileRead(Class<?> callerClass, Path path) {
         var pathFileSystemClass = path.getFileSystem().getClass();
         if (path.getFileSystem().getClass() != DEFAULT_FILESYSTEM_CLASS) {
-            logger.info(() -> Strings.format(
-                "File entitlement trivially allowed: path [%s] is for a different FileSystem class [%s], default is [%s]",
-                path.toString(),
-                pathFileSystemClass.getName(),
-                DEFAULT_FILESYSTEM_CLASS.getName()
-            ));
+            logger.info(
+                () -> Strings.format(
+                    "File entitlement trivially allowed: path [%s] is for a different FileSystem class [%s], default is [%s]",
+                    path.toString(),
+                    pathFileSystemClass.getName(),
+                    DEFAULT_FILESYSTEM_CLASS.getName()
+                )
+            );
             return;
         }
         var requestingClass = requestingClass(callerClass);

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.application.connector.syncjob.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -37,11 +37,6 @@ public class CheckInConnectorSyncJobAction {
         public static final ParseField CONNECTOR_SYNC_JOB_ID_FIELD = new ParseField("connector_sync_job_id");
         private final String connectorSyncJobId;
 
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.connectorSyncJobId = in.readString();
-        }
-
         public Request(String connectorSyncJobId) {
             this.connectorSyncJobId = connectorSyncJobId;
         }
@@ -66,8 +61,7 @@ public class CheckInConnectorSyncJobAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(connectorSyncJobId);
+            TransportAction.localOnly();
         }
 
         @Override

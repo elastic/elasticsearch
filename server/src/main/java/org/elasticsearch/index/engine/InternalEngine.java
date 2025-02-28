@@ -304,12 +304,12 @@ public class InternalEngine extends Engine {
             assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
             // don't allow commits until we are done with recovering
             pendingTranslogRecovery.set(true);
-            for (ReferenceManager.RefreshListener listener : engineConfig.getExternalRefreshListener()) {
-                this.externalReaderManager.addListener(listener);
-            }
-            for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
-                this.internalReaderManager.addListener(listener);
-            }
+            new ElasticsearchDirectoryReaderRefreshListener(externalReaderManager, engineConfig.getExternalRefreshListener()); // add itself
+            // as
+            // listener
+            new ElasticsearchDirectoryReaderRefreshListener(internalReaderManager, engineConfig.getInternalRefreshListener()); // add itself
+            // as
+            // listener
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getProcessedCheckpoint());
             this.internalReaderManager.addListener(lastRefreshedCheckpointListener);
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo()));

@@ -94,6 +94,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
+import org.elasticsearch.index.engine.ReaderAwareRefreshListener;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.engine.Segment;
@@ -2259,6 +2260,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private void onNewEngine(Engine newEngine) {
         assert engineLock.isWriteLockedByCurrentThread();
+        refreshPendingLocationListener.setTranslogLastWriteLocationSupplier(newEngine::getTranslogLastWriteLocation);
         refreshListeners.setCurrentRefreshLocationSupplier(newEngine::getTranslogLastWriteLocation);
         refreshListeners.setCurrentProcessedCheckpointSupplier(newEngine::getProcessedLocalCheckpoint);
         refreshListeners.setMaxIssuedSeqNoSupplier(newEngine::getMaxSeqNo);
@@ -4168,12 +4170,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private class RefreshPendingLocationListener implements ReferenceManager.RefreshListener {
+        Supplier<Translog.Location> supplier;
         Translog.Location lastWriteLocation;
+
+        public void setTranslogLastWriteLocationSupplier(Supplier<Translog.Location> translogLastWriteLocation) {
+            this.supplier = translogLastWriteLocation;
+        }
 
         @Override
         public void beforeRefresh() {
             try {
-                lastWriteLocation = getEngine().getTranslogLastWriteLocation();
+                lastWriteLocation = supplier.get();
             } catch (AlreadyClosedException exc) {
                 // shard is closed - no location is fine
                 lastWriteLocation = null;
@@ -4194,18 +4201,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private class RefreshFieldHasValueListener implements ReferenceManager.RefreshListener {
+    private class RefreshFieldHasValueListener implements ReaderAwareRefreshListener {
         @Override
         public void beforeRefresh() {}
 
         @Override
-        public void afterRefresh(boolean didRefresh) {
+        public void afterRefresh(boolean didRefresh, ElasticsearchDirectoryReader reader) throws IOException {
             if (enableFieldHasValue && (didRefresh || fieldInfos == FieldInfos.EMPTY)) {
-                try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
-                    setFieldInfos(FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader()));
-                } catch (AlreadyClosedException ignore) {
-                    // engine is closed - no updated FieldInfos is fine
-                }
+                setFieldInfos(FieldInfos.getMergedFieldInfos(reader.getContext().reader()));
             }
         }
     }
@@ -4218,35 +4221,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return shardFieldStats;
     }
 
-    private class RefreshShardFieldStatsListener implements ReferenceManager.RefreshListener {
+    private class RefreshShardFieldStatsListener implements ReaderAwareRefreshListener {
         @Override
-        public void beforeRefresh() {
-
-        }
+        public void beforeRefresh() {}
 
         @Override
-        public void afterRefresh(boolean didRefresh) {
+        public void afterRefresh(boolean didRefresh, ElasticsearchDirectoryReader reader) throws IOException {
             if (shardFieldStats == null || didRefresh) {
-                try (var searcher = getEngine().acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
-                    int numSegments = 0;
-                    int totalFields = 0;
-                    long usages = 0;
-                    for (LeafReaderContext leaf : searcher.getLeafContexts()) {
-                        numSegments++;
-                        var fieldInfos = leaf.reader().getFieldInfos();
-                        totalFields += fieldInfos.size();
-                        if (fieldInfos instanceof FieldInfosWithUsages ft) {
-                            if (usages != -1) {
-                                usages += ft.getTotalUsages();
-                            }
-                        } else {
-                            usages = -1;
+                int numSegments = 0;
+                int totalFields = 0;
+                long usages = 0;
+                for (LeafReaderContext leaf : reader.getContext().leaves()) {
+                    numSegments++;
+                    var fieldInfos = leaf.reader().getFieldInfos();
+                    totalFields += fieldInfos.size();
+                    if (fieldInfos instanceof FieldInfosWithUsages ft) {
+                        if (usages != -1) {
+                            usages += ft.getTotalUsages();
                         }
+                    } else {
+                        usages = -1;
                     }
-                    shardFieldStats = new ShardFieldStats(numSegments, totalFields, usages);
-                } catch (AlreadyClosedException ignored) {
-
                 }
+                shardFieldStats = new ShardFieldStats(numSegments, totalFields, usages);
             }
         }
     }

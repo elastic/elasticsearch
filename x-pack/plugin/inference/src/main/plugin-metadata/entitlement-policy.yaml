@@ -1,2 +1,10 @@
 com.google.api.client:
   - set_https_connection_properties
+software.amazon.awssdk.profiles:
+  - files: # AWS Clients always try to access the credentials and config files, even if we configure otherwise
+    - relative_path: .aws/credentials
+      relative_to: home
+      mode: read
+    - relative_path: .aws/config
+      relative_to: home
+      mode: read

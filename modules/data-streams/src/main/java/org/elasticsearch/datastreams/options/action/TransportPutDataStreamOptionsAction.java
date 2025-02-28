@@ -12,12 +12,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeProjectAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.SystemIndices;
@@ -31,7 +32,7 @@ import java.util.List;
 /**
  * Transport action that resolves the data stream names from the request and sets the data stream lifecycle provided in the request.
  */
-public class TransportPutDataStreamOptionsAction extends AcknowledgedTransportMasterNodeAction<PutDataStreamOptionsAction.Request> {
+public class TransportPutDataStreamOptionsAction extends AcknowledgedTransportMasterNodeProjectAction<PutDataStreamOptionsAction.Request> {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final MetadataDataStreamsService metadataDataStreamsService;
@@ -43,6 +44,7 @@ public class TransportPutDataStreamOptionsAction extends AcknowledgedTransportMa
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         MetadataDataStreamsService metadataDataStreamsService,
         SystemIndices systemIndices
@@ -54,6 +56,7 @@ public class TransportPutDataStreamOptionsAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             PutDataStreamOptionsAction.Request::new,
+            projectResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -65,12 +68,12 @@ public class TransportPutDataStreamOptionsAction extends AcknowledgedTransportMa
     protected void masterOperation(
         Task task,
         PutDataStreamOptionsAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
         List<String> dataStreamNames = DataStreamsActionUtil.getDataStreamNames(
             indexNameExpressionResolver,
-            state,
+            state.metadata(),
             request.getNames(),
             request.indicesOptions()
         );
@@ -87,7 +90,7 @@ public class TransportPutDataStreamOptionsAction extends AcknowledgedTransportMa
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutDataStreamOptionsAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutDataStreamOptionsAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

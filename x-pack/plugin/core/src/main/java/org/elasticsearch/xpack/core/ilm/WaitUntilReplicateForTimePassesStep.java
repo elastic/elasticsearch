@@ -67,11 +67,11 @@ public class WaitUntilReplicateForTimePassesStep extends AsyncWaitStep {
 
     @Override
     public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
-        IndexMetadata indexMetadata = metadata.index(index);
+        IndexMetadata indexMetadata = metadata.getProject().index(index);
         assert indexMetadata != null
             : "the index metadata for index [" + index.getName() + "] must exist in the cluster state for step [" + NAME + "]";
 
-        final LifecycleExecutionState executionState = metadata.index(index.getName()).getLifecycleExecutionState();
+        final LifecycleExecutionState executionState = metadata.getProject().index(index.getName()).getLifecycleExecutionState();
         assert executionState != null
             : "the lifecycle execution state for index [" + index.getName() + "] must exist in the cluster state for step [" + NAME + "]";
 

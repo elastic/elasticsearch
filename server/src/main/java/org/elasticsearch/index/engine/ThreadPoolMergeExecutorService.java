@@ -65,6 +65,8 @@ public class ThreadPoolMergeExecutorService {
      * The maximum number of concurrently running merges, given the number of threads in the pool.
      */
     private final int maxConcurrentMerges;
+    private final int concurrentMergesFloorLimitForThrottling;
+    private final int concurrentMergesCeilLimitForThrottling;
 
     public static @Nullable ThreadPoolMergeExecutorService maybeCreateThreadPoolMergeExecutorService(
         ThreadPool threadPool,
@@ -80,6 +82,8 @@ public class ThreadPoolMergeExecutorService {
     private ThreadPoolMergeExecutorService(ThreadPool threadPool) {
         this.executorService = threadPool.executor(ThreadPool.Names.MERGE);
         this.maxConcurrentMerges = threadPool.info(ThreadPool.Names.MERGE).getMax();
+        this.concurrentMergesFloorLimitForThrottling = maxConcurrentMerges * 2;
+        this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 4;
     }
 
     boolean submitMergeTask(MergeTask mergeTask) {
@@ -102,6 +106,12 @@ public class ThreadPoolMergeExecutorService {
 
     void reEnqueueBackloggedMergeTask(MergeTask mergeTask) {
         queuedMergeTasks.add(mergeTask);
+    }
+
+    public boolean allDone() {
+        return queuedMergeTasks.isEmpty()
+                && currentlyRunningMergeTasks.isEmpty()
+                && currentlySubmittedIOThrottledMergeTasksCount.get() == 0L;
     }
 
     /**
@@ -165,14 +175,15 @@ public class ThreadPoolMergeExecutorService {
         }
     }
 
-    private void maybeUpdateIORateBytesPerSec(int submittedIOThrottledMergeTasks) {
+    private void maybeUpdateIORateBytesPerSec(int currentlySubmittedIOThrottledMergeTasks) {
         long currentTargetIORateBytesPerSec = targetIORateBytesPerSec.get(), newTargetIORateBytesPerSec = 0L;
         for (boolean isNewComputed = false;;) {
             if (isNewComputed == false) {
                 newTargetIORateBytesPerSec = newTargetIORateBytesPerSec(
                     currentTargetIORateBytesPerSec,
-                    submittedIOThrottledMergeTasks,
-                    maxConcurrentMerges
+                    currentlySubmittedIOThrottledMergeTasks,
+                    concurrentMergesFloorLimitForThrottling,
+                    concurrentMergesCeilLimitForThrottling
                 );
                 if (newTargetIORateBytesPerSec == currentTargetIORateBytesPerSec) {
                     break;
@@ -194,23 +205,30 @@ public class ThreadPoolMergeExecutorService {
         }
     }
 
-    private static long newTargetIORateBytesPerSec(long currentTargetIORateBytesPerSec, int activeTasksCount, int maxConcurrentMerges) {
+    private static long newTargetIORateBytesPerSec(
+        long currentTargetIORateBytesPerSec,
+        int currentlySubmittedIOThrottledMergeTasks,
+        int concurrentMergesFloorLimitForThrottling,
+        int concurrentMergesCeilLimitForThrottling
+    ) {
         final long newTargetIORateBytesPerSec;
-        if (activeTasksCount < maxConcurrentMerges * 2 && currentTargetIORateBytesPerSec > MIN_IO_RATE.getBytes()) {
+        if (currentlySubmittedIOThrottledMergeTasks < concurrentMergesFloorLimitForThrottling
+            && currentTargetIORateBytesPerSec > MIN_IO_RATE.getBytes()) {
             // decrease target IO rate by 10% (capped)
             newTargetIORateBytesPerSec = Math.max(
                 MIN_IO_RATE.getBytes(),
                 currentTargetIORateBytesPerSec - currentTargetIORateBytesPerSec / 10L
             );
-        } else if (activeTasksCount > maxConcurrentMerges * 4 && currentTargetIORateBytesPerSec < MAX_IO_RATE.getBytes()) {
-            // increase target IO rate by 10% (capped)
-            newTargetIORateBytesPerSec = Math.min(
-                MAX_IO_RATE.getBytes(),
-                currentTargetIORateBytesPerSec + currentTargetIORateBytesPerSec / 10L
-            );
-        } else {
-            newTargetIORateBytesPerSec = currentTargetIORateBytesPerSec;
-        }
+        } else if (currentlySubmittedIOThrottledMergeTasks > concurrentMergesCeilLimitForThrottling
+            && currentTargetIORateBytesPerSec < MAX_IO_RATE.getBytes()) {
+                // increase target IO rate by 10% (capped)
+                newTargetIORateBytesPerSec = Math.min(
+                    MAX_IO_RATE.getBytes(),
+                    currentTargetIORateBytesPerSec + currentTargetIORateBytesPerSec / 10L
+                );
+            } else {
+                newTargetIORateBytesPerSec = currentTargetIORateBytesPerSec;
+            }
         return newTargetIORateBytesPerSec;
     }
 
@@ -224,9 +242,13 @@ public class ThreadPoolMergeExecutorService {
         return maxConcurrentMerges;
     }
 
-    public boolean allDone() {
-        return queuedMergeTasks.isEmpty()
-            && currentlyRunningMergeTasks.isEmpty()
-            && currentlySubmittedIOThrottledMergeTasksCount.get() == 0L;
+    // exposed for tests
+    int getConcurrentMergesFloorLimitForThrottling() {
+        return concurrentMergesFloorLimitForThrottling;
+    }
+
+    // exposed for tests
+    int getConcurrentMergesCeilLimitForThrottling() {
+        return concurrentMergesCeilLimitForThrottling;
     }
 }

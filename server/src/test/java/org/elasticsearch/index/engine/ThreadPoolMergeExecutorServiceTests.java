@@ -54,6 +54,10 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         assertTrue(threadPoolMergeExecutorService.allDone());
     }
 
+    public void testIORateDecreasesWhenNewMergeTaskRateDecreases() {
+
+    }
+
     public void testBackloggedMergeTasksExecuteExactlyOnce() throws Exception {
         int mergeExecutorThreadCount = randomIntBetween(1, 3);
         Settings settings = Settings.builder()

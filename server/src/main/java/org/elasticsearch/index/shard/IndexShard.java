@@ -4403,7 +4403,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (currentEngine.isOperable() != operability) {
                     currentEngine.prepareForEngineReset();
                     var newEngine = createEngine(newEngineConfig(replicationTracker));
-                    assert newEngine.isOperable() == operability  : newEngine.isOperable() + " != " + operability;
+                    assert newEngine.isOperable() == operability : newEngine.isOperable() + " != " + operability;
                     IOUtils.close(getAndSetCurrentEngine(newEngine));
                     onNewEngine(newEngine);
                 }

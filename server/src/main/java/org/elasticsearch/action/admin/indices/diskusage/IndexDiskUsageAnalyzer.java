@@ -290,10 +290,11 @@ final class IndexDiskUsageAnalyzer {
                 }
             }
             switch (field.docValuesSkipIndexType()) {
-                case NONE -> {}
+                case NONE -> {
+                }
                 case RANGE -> {
                     var skipper = docValuesReader.getSkipper(field);
-                    while(skipper.maxDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
+                    while (skipper.maxDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
                         skipper.advance(skipper.maxDocID(0) + 1);
                     }
                 }

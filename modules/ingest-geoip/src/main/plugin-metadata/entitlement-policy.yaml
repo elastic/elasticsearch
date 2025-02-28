@@ -1,4 +1,5 @@
 org.elasticsearch.ingest.geoip:
+  - outbound_network
   - files:
       - relative_path: "ingest-geoip"
         relative_to: config

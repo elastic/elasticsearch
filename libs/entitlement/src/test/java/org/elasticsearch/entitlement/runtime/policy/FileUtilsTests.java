@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.entitlement.runtime.policy.FileUtils.PATH_ORDER;
@@ -77,5 +78,15 @@ public class FileUtilsTests extends ESTestCase {
         assertThat(PATH_ORDER.compare("C:\\a\\b", "C:\\a\\b.txt"), lessThan(0));
         assertThat(PATH_ORDER.compare("C:\\a\\b", "C:\\a\\b\\foo.txt"), lessThan(0));
         assertThat(PATH_ORDER.compare("C:\\a\\c", "C:\\a\\b.txt"), greaterThan(0));
+    }
+
+    public void testPathOrderingSpecialCharacters() {
+        assertThat(PATH_ORDER.compare("aa\uD801\uDC28", "aa\uD801\uDC28"), is(0));
+        assertThat(PATH_ORDER.compare("aa\uD801\uDC28", "aa\uD801\uDC28a"), lessThan(0));
+
+        var s = PathUtils.getDefaultFileSystem().getSeparator();
+        // Similarly to the other tests, we assert that Directories come BEFORE files, even when names are special characters
+        assertThat(PATH_ORDER.compare(s + "\uD801\uDC28" + s + "b", s + "\uD801\uDC28.xml"), lessThan(0));
+        assertThat(PATH_ORDER.compare(s + "\uD801\uDC28" + s + "b", s + "b.xml"), greaterThan(0));
     }
 }

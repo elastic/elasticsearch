@@ -6,7 +6,7 @@ mapped_pages:
 
 # LOOKUP JOIN [esql-lookup-join]
 
-The {{esql}} [`LOOKUP join`](/reference/query-languages/esql/esql-commands.md#esql-lookup-index) processing command combines, at query-time, data from one or more source indexes with field-value combinations found in an input table.
+The {{esql}} [`LOOKUP join`](/reference/query-languages/esql/esql-commands.md#esql-lookup-join) processing command combines, at query-time, data from one or more source indexes with field-value combinations found in an input table.
 
 For example, you can use `LOOKUP JOIN` to:
 

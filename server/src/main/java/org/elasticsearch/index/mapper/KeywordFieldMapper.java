@@ -29,6 +29,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
@@ -69,6 +70,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.CharArrayReader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
@@ -891,7 +893,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return null;
             }
 
-            return normalizeValue(normalizer(), name(), value);
+            return normalizeValue(normalizer(), name(), new CharsRef(value)).toString();
         }
 
         @Override
@@ -1104,9 +1106,10 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        String value = context.parser().textOrNull();
+        CharsRef value = parseTextOrNull(context.parser());
         if (value == null) {
-            value = fieldType().nullValue;
+            // TODO: fix conversion
+            value = new CharsRef(fieldType().nullValue);
         }
 
         boolean indexed = indexValue(context, value);
@@ -1119,6 +1122,24 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
+    /**
+     * Parses values without making a copy, like when {@link XContentParser#textOrNull()} gets invoked.
+     *
+     * Typically, two copies are made, first time when {@link XContentParser#textOrNull()} is invoked,
+     * then second time when we convert to {@link BytesRef}.
+     */
+    public static CharsRef parseTextOrNull(XContentParser parser) throws IOException {
+        var currentToken = parser.currentToken();
+        if (currentToken == XContentParser.Token.VALUE_NULL) {
+            return null;
+        } else if (currentToken.isValue()) {
+            return new CharsRef(parser.textCharacters(), parser.textOffset(), parser.textLength());
+        } else {
+            assert false : "unexpected token [" + currentToken + "]";
+            return null;
+        }
+    }
+
     @Override
     protected void indexScriptValues(
         SearchLookup searchLookup,
@@ -1126,10 +1147,15 @@ public final class KeywordFieldMapper extends FieldMapper {
         int doc,
         DocumentParserContext documentParserContext
     ) {
-        this.fieldType().scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
+        this.fieldType().scriptValues.valuesForDoc(
+            searchLookup,
+            readerContext,
+            doc,
+            value -> indexValue(documentParserContext, new CharsRef(value))
+        );
     }
 
-    private boolean indexValue(DocumentParserContext context, String value) {
+    private boolean indexValue(DocumentParserContext context, CharsRef value) {
         if (value == null) {
             return false;
         }
@@ -1186,11 +1212,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         return true;
     }
 
-    private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) {
+    private static CharsRef normalizeValue(NamedAnalyzer normalizer, String field, CharsRef value) {
         if (normalizer == Lucene.KEYWORD_ANALYZER) {
             return value;
         }
-        try (TokenStream ts = normalizer.tokenStream(field, value)) {
+        try (TokenStream ts = normalizer.tokenStream(field, new CharArrayReader(value.chars, value.offset, value.length))) {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             if (ts.incrementToken() == false) {
@@ -1199,7 +1225,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     but got 0 for analyzer %s and input "%s"
                     """, normalizer, value));
             }
-            final String newValue = termAtt.toString();
+            final CharsRef newValue = new CharsRef(termAtt.buffer(), 0, termAtt.length());
             if (ts.incrementToken()) {
                 throw new IllegalStateException(String.format(Locale.ROOT, """
                     The normalization token stream is expected to produce exactly 1 token, \

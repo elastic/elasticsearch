@@ -28,6 +28,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
@@ -69,6 +70,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.index.mapper.KeywordFieldMapper.parseTextOrNull;
 
 /**
  * A {@link FieldMapper} for full-text fields that only indexes
@@ -438,18 +441,19 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        final String value = context.parser().textOrNull();
+        final CharsRef value = parseTextOrNull(context.parser());
 
         if (value == null) {
             return;
         }
 
-        Field field = new Field(fieldType().name(), value, fieldType);
+        BytesRef copy = new BytesRef(value);
+        Field field = new Field(fieldType().name(), copy, fieldType);
         context.doc().add(field);
         context.addToFieldNames(fieldType().name());
 
         if (storeSource) {
-            context.doc().add(new StoredField(fieldType().storedFieldNameForSyntheticSource(), value));
+            context.doc().add(new StoredField(fieldType().storedFieldNameForSyntheticSource(), copy));
         }
     }
 

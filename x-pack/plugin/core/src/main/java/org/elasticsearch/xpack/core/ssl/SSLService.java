@@ -501,7 +501,8 @@ public class SSLService {
             sslContext.init(new X509ExtendedKeyManager[] { keyManager }, new X509ExtendedTrustManager[] { trustManager }, null);
 
             // check the supported ciphers and log them here to prevent spamming logs on every call
-            supportedCiphers(sslContext.getSupportedSSLParameters().getCipherSuites(), sslConfiguration.getCipherSuites(), true);
+            // FIXME error log for unsupported ciphers on JDK 24 breaks packaging tests (see ES-10984)
+            supportedCiphers(sslContext.getSupportedSSLParameters().getCipherSuites(), sslConfiguration.getCipherSuites(), false);
 
             return new SSLContextHolder(sslContext, sslConfiguration);
         } catch (NoSuchAlgorithmException | KeyManagementException e) {

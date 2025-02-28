@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.function;
 
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -68,5 +70,9 @@ public abstract class Function extends Expression {
             sj.add(ex.nodeString());
         }
         return sj.toString();
+    }
+
+    public List<? extends Attribute> resolveLambdaInputs(Lambda lambda, List<Attribute> previousInputs) {
+        return lambda.getFields();
     }
 }

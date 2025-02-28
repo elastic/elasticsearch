@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.ExpressionCoreWritables;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextWritables;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AnyMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFunctionWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
@@ -124,6 +126,7 @@ public class ExpressionWritables {
         entries.addAll(ExpressionCoreWritables.expressions());
         entries.add(UnsupportedAttribute.EXPRESSION_ENTRY);
         entries.add(Order.ENTRY);
+        entries.add(Lambda.ENTRY);
         return entries;
     }
 
@@ -147,6 +150,7 @@ public class ExpressionWritables {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.add(Abs.ENTRY);
         entries.add(Acos.ENTRY);
+        entries.add(AnyMatch.ENTRY);
         entries.add(Asin.ENTRY);
         entries.add(Atan.ENTRY);
         entries.add(ByteLength.ENTRY);

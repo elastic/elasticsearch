@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -602,7 +603,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
         String name = visitFunctionName(ctx.functionName());
-        List<Expression> args = expressions(ctx.booleanExpression());
+        List<Expression> args = expressions(ctx.functionParam());
         if (ctx.mapExpression() != null) {
             MapExpression mapArg = visitMapExpression(ctx.mapExpression());
             args.add(mapArg);
@@ -613,6 +614,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 "is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
             );
         }
+
         if ("count".equals(EsqlFunctionRegistry.normalizeName(name))) {
             // to simplify the registration, handle in the parser the special count cases
             if (args.isEmpty() || ctx.ASTERISK() != null) {
@@ -701,6 +703,19 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             throw new ParsingException(source(ctx), "Unknown data type named [{}]", typeName);
         }
         return dataType;
+    }
+
+    public Object visitFunctionParam(EsqlBaseParser.FunctionParamContext ctx) {
+        if (ctx.booleanExpression() != null) {
+            return expression(ctx.booleanExpression());
+        }
+        List<String> identifiers = visitList(this, ctx.lambda().identifier(), String.class);
+        Expression lambdaExp = expression(ctx.lambda());
+        return new Lambda(source(ctx), identifiers.stream().map(x -> new UnresolvedAttribute(Source.EMPTY, x)).toList(), lambdaExp);
+    }
+
+    private List<EsqlBaseParser.FunctionParamContext> functionParams(List<EsqlBaseParser.FunctionParamContext> functionParamContexts) {
+        return null;
     }
 
     @Override

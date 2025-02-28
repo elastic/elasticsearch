@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -114,6 +115,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -501,7 +503,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveFork(f, context);
             }
 
-            return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            plan = plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            // TODO double-check the order of things, this could be wrong
+            plan = plan.transformExpressionsOnly(
+                org.elasticsearch.xpack.esql.core.expression.function.Function.class,
+                f -> resolveLambdas(f, childrenOutput)
+            );
+            return plan;
         }
 
         private Aggregate resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -790,7 +798,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
             for (Alias field : eval.fields()) {
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
+                Alias r = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
+                // TODO Check, this could be wrong:
+                // functions need to provide the type of lambda inputs, so they need other inputs to be resolved
+                // but lambda inputs should be resolved _before_ the lambda expressions
+                Alias result = (Alias) r.transformUp(
+                    org.elasticsearch.xpack.esql.core.expression.function.Function.class,
+                    f -> resolveLambdas(f, allResolvedInputs)
+                );
 
                 changed |= result != field;
                 newFields.add(result);
@@ -807,7 +822,55 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     allResolvedInputs.add(result.toAttribute());
                 }
             }
+
             return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;
+        }
+
+        private org.elasticsearch.xpack.esql.core.expression.function.Function resolveLambdas(
+            org.elasticsearch.xpack.esql.core.expression.function.Function f,
+            List<Attribute> allResolvedInputs
+        ) {
+            var result = (org.elasticsearch.xpack.esql.core.expression.function.Function) f.transformUp(
+                Lambda.class,
+                l -> resolveLambda(f, l, allResolvedInputs)
+            );
+            return result;
+        }
+
+        private Lambda resolveLambda(
+            org.elasticsearch.xpack.esql.core.expression.function.Function function,
+            Lambda lambda,
+            List<Attribute> previousInputs
+        ) {
+            List<Attribute> allResolvedAttributes = new ArrayList<>(previousInputs);
+            List<Attribute> newInputs = new ArrayList<>();
+            if (lambda.getFields().stream().allMatch(Expression::resolved)) {
+                return lambda;
+            }
+            for (Attribute attribute : function.resolveLambdaInputs(lambda, previousInputs)) {
+                newInputs.add(attribute);
+                if (attribute.resolved()) {
+                    // for proper resolution, duplicate attribute names are problematic, only last occurrence matters
+                    Attribute existing = allResolvedAttributes.stream()
+                        .filter(attr -> attr.name().equals(attribute.name()))
+                        .findFirst()
+                        .orElse(null);
+                    if (existing != null) {
+                        allResolvedAttributes.remove(existing);
+                    }
+                    allResolvedAttributes.add(attribute.toAttribute());
+                }
+            }
+
+            Expression resolvedExp = lambda.children().get(0).transformUp(Attribute.class, attr -> {
+                if (attr instanceof UnresolvedAttribute ua) {
+                    var resolved = resolveAttribute(ua, allResolvedAttributes);
+                    return resolved;
+                }
+                Optional<Attribute> toReplace = newInputs.stream().filter(x -> x.name().equals(attr.name())).findFirst();
+                return toReplace.orElse(attr);
+            });
+            return new Lambda(lambda.source(), newInputs, resolvedExp);
         }
 
         /**

@@ -7130,9 +7130,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         String from = "row a = 1 | eval b = ";
 
         StringBuilder queryBuilder = new StringBuilder();
-        queryBuilder.append(prefix.repeat(MAX_EXPRESSION_DEPTH / 2 - 1));
+        queryBuilder.append(prefix.repeat(MAX_EXPRESSION_DEPTH / 3 - 1));
         queryBuilder.append("a");
-        queryBuilder.append(suffix.repeat(MAX_EXPRESSION_DEPTH / 2 - 1));
+        queryBuilder.append(suffix.repeat(MAX_EXPRESSION_DEPTH / 3 - 1));
         var expression = queryBuilder.toString();
 
         physicalPlan(from + expression);

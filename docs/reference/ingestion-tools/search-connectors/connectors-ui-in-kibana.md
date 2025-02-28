@@ -4,7 +4,7 @@ applies_to:
   serverless: 
     elasticsearch: ga
 mapped_pages:
-- https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-usage.html
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-usage.html
 ---
 
 # Connectors UI [es-connectors-usage]

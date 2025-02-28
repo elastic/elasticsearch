@@ -246,7 +246,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
 
     private final ReentrantReadWriteLock engineLock = new ReentrantReadWriteLock();  // lock ordering: engineLock.writeLock -> mutex
-    private Engine currentEngine = null;
+    private Engine currentEngine = null; // must be accessed while holding engineLock
     final EngineFactory engineFactory;
 
     private final IndexingOperationListener indexingOperationListeners;
@@ -3352,7 +3352,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 try {
                     engine = getCurrentEngine(allowNoEngine);
                     if (engine != null && engine.isOperable() == false) {
-                        resetEngine();
+                        resetEngine(true);
                         engine = getCurrentEngine(allowNoEngine);
                     }
                     engineLock.readLock().lock();
@@ -4393,17 +4393,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * In general, resetting the engine should be done with care, to consider any in-progress operations and listeners.
      * At the moment, this is implemented in serverless for a special case that ensures the engine is prepared for reset.
      */
-    public void resetEngine() {
+    public void resetEngine(boolean operability) {
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
         assert waitForEngineOrClosedShardListeners.isDone();
         try {
             engineLock.writeLock().lock(); // might already be held
             try {
                 verifyNotClosed();
-                getEngine().prepareForEngineReset();
-                var newEngine = createEngine(newEngineConfig(replicationTracker));
-                IOUtils.close(getAndSetCurrentEngine(newEngine));
-                onNewEngine(newEngine);
+                if (currentEngine.isOperable() != operability) {
+                    currentEngine.prepareForEngineReset();
+                    var newEngine = createEngine(newEngineConfig(replicationTracker));
+                    assert newEngine.isOperable() == operability  : newEngine.isOperable() + " != " + operability;
+                    IOUtils.close(getAndSetCurrentEngine(newEngine));
+                    onNewEngine(newEngine);
+                }
             } finally {
                 engineLock.writeLock().unlock();
             }

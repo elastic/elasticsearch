@@ -4577,11 +4577,19 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testResetEngine() throws Exception {
         var newEngineCreated = new CountDownLatch(2);
+        final AtomicBoolean shared = new AtomicBoolean();
         var indexShard = newStartedShard(true, Settings.EMPTY, config -> {
             try {
                 return new ReadOnlyEngine(config, null, new TranslogStats(), false, Function.identity(), true, true) {
                     @Override
-                    public void prepareForEngineReset() throws IOException {}
+                    public void prepareForEngineReset() {
+                        shared.set(true);
+                    }
+
+                    @Override
+                    public boolean isOperable() {
+                        return shared.get();
+                    }
                 };
             } finally {
                 newEngineCreated.countDown();
@@ -4593,7 +4601,7 @@ public class IndexShardTests extends IndexShardTestCase {
         var onAcquired = new PlainActionFuture<Releasable>();
         indexShard.acquireAllPrimaryOperationsPermits(onAcquired, TimeValue.timeValueMinutes(1L));
         try (var permits = safeGet(onAcquired)) {
-            indexShard.resetEngine();
+            indexShard.resetEngine(true);
         }
         safeAwait(newEngineCreated);
         safeAwait(newEngineNotification);

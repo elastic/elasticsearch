@@ -91,8 +91,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             return new RelativePathFileData(relativePath, baseDir, mode, null, false);
         }
 
-        static FileData ofConfigPathSetting(String setting, Mode mode, boolean ignoreUrl) {
-            return new ConfigPathSettingFileData(setting, mode, ignoreUrl, null, false);
+        static FileData ofPathSetting(String setting, BaseDir baseDir, Mode mode, boolean ignoreUrl) {
+            return new PathSettingFileData(setting, baseDir, mode, ignoreUrl, null, false);
         }
 
         /**
@@ -221,17 +221,17 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
     }
 
-    private record ConfigPathSettingFileData(String setting, Mode mode, boolean ignoreUrl, Platform platform, boolean exclusive)
+    private record PathSettingFileData(String setting, BaseDir baseDir, Mode mode, boolean ignoreUrl, Platform platform, boolean exclusive)
         implements
-            FileData {
+            RelativeFileData {
 
         @Override
-        public ConfigPathSettingFileData withExclusive(boolean exclusive) {
-            return new ConfigPathSettingFileData(setting, mode, ignoreUrl, platform, exclusive);
+        public PathSettingFileData withExclusive(boolean exclusive) {
+            return new PathSettingFileData(setting, baseDir, mode, ignoreUrl, platform, exclusive);
         }
 
         @Override
-        public Stream<Path> resolvePaths(PathLookup pathLookup) {
+        public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
             Stream<String> result;
             if (setting.contains("*")) {
                 result = pathLookup.settingGlobResolver().apply(setting);
@@ -250,7 +250,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             if (platform == platform()) {
                 return this;
             }
-            return new ConfigPathSettingFileData(setting, mode, ignoreUrl, platform, exclusive);
+            return new PathSettingFileData(setting, baseDir, mode, ignoreUrl, platform, exclusive);
         }
     }
 
@@ -334,7 +334,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             String pathAsString = checkString.apply(file, "path");
             String relativePathAsString = checkString.apply(file, "relative_path");
             String relativeTo = checkString.apply(file, "relative_to");
-            String configPathSetting = checkString.apply(file, "config_path_setting");
+            String pathSetting = checkString.apply(file, "path_setting");
+            String settingBaseDirAsString = checkString.apply(file, "basedir_if_relative");
             String modeAsString = checkString.apply(file, "mode");
             String platformAsString = checkString.apply(file, "platform");
             Boolean ignoreUrlAsStringBoolean = checkBoolean.apply(file, "ignore_url");
@@ -345,10 +346,10 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             if (file.isEmpty() == false) {
                 throw new PolicyValidationException("unknown key(s) [" + file + "] in a listed file for files entitlement");
             }
-            int foundKeys = (pathAsString != null ? 1 : 0) + (relativePathAsString != null ? 1 : 0) + (configPathSetting != null ? 1 : 0);
+            int foundKeys = (pathAsString != null ? 1 : 0) + (relativePathAsString != null ? 1 : 0) + (pathSetting != null ? 1 : 0);
             if (foundKeys != 1) {
                 throw new PolicyValidationException(
-                    "a files entitlement entry must contain one of " + "[path, relative_path, config_path_setting]"
+                    "a files entitlement entry must contain one of " + "[path, relative_path, path_setting]"
                 );
             }
 
@@ -361,20 +362,23 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 platform = parsePlatform(platformAsString);
             }
 
-            BaseDir baseDir = null;
-            if (relativeTo != null) {
-                baseDir = parseBaseDir(relativeTo);
+            if (relativeTo != null && relativePathAsString == null) {
+                throw new PolicyValidationException("'relative_to' may only be used with 'relative_path'");
             }
 
-            if (ignoreUrlAsStringBoolean != null && (relativePathAsString != null || pathAsString != null)) {
-                throw new PolicyValidationException("'ignore_url' may only be used with 'config_path_setting'");
+            if (ignoreUrlAsStringBoolean != null && pathSetting == null) {
+                throw new PolicyValidationException("'ignore_url' may only be used with 'path_setting'");
+            }
+            if (settingBaseDirAsString != null && pathSetting == null) {
+                throw new PolicyValidationException("'basedir_if_relative' may only be used with 'path_setting'");
             }
 
             final FileData fileData;
             if (relativePathAsString != null) {
-                if (baseDir == null) {
+                if (relativeTo == null) {
                     throw new PolicyValidationException("files entitlement with a 'relative_path' must specify 'relative_to'");
                 }
+                BaseDir baseDir = parseBaseDir(relativeTo);
                 Path relativePath = Path.of(relativePathAsString);
                 if (FileData.isAbsolutePath(relativePathAsString)) {
                     throw new PolicyValidationException("'relative_path' [" + relativePathAsString + "] must be relative");
@@ -386,8 +390,12 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                     throw new PolicyValidationException("'path' [" + pathAsString + "] must be absolute");
                 }
                 fileData = FileData.ofPath(path, mode);
-            } else if (configPathSetting != null) {
-                fileData = FileData.ofConfigPathSetting(configPathSetting, mode, ignoreUrlAsString);
+            } else if (pathSetting != null) {
+                if (settingBaseDirAsString == null) {
+                    throw new PolicyValidationException("files entitlement with a 'path_setting' must specify 'basedir_if_relative'");
+                }
+                BaseDir baseDir = parseBaseDir(settingBaseDirAsString);
+                fileData = FileData.ofPathSetting(pathSetting, baseDir, mode, ignoreUrlAsString);
             } else {
                 throw new AssertionError("File entry validation error");
             }

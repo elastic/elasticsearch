@@ -513,6 +513,7 @@ toc:
           - file: query-languages/esql/esql-multivalued-fields.md
           - file: query-languages/esql/esql-process-data-with-dissect-grok.md
           - file: query-languages/esql/esql-enrich-data.md
+          - file: query-languages/esql/esql-lookup-join.md
           - file: query-languages/esql/esql-implicit-casting.md
           - file: query-languages/esql/esql-time-spans.md
           - file: query-languages/esql/limitations.md

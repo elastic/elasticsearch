@@ -108,7 +108,6 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 // Unix/BSD absolute
                 return true;
             }
-
             return isWindowsAbsolutePath(path);
         }
 

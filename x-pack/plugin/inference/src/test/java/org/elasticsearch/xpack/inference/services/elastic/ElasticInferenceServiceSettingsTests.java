@@ -42,6 +42,15 @@ public class ElasticInferenceServiceSettingsTests extends ESTestCase {
         return new ElasticInferenceServiceSettings(settings);
     }
 
+    public static ElasticInferenceServiceSettings createWithUrlAndDnsLookup(String elasticInferenceServiceUrl) {
+        var settings = Settings.builder()
+            .put(ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL.getKey(), elasticInferenceServiceUrl)
+            .put(ElasticInferenceServiceSettings.AUTH_DEBUGGING_DNS_LOOKUP_ENABLED.getKey(), true)
+            .build();
+
+        return new ElasticInferenceServiceSettings(settings);
+    }
+
     public void testGetElasticInferenceServiceUrl_WithUrlSetting() {
         var settings = Settings.builder()
             .put(ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_URL.getKey(), ELASTIC_INFERENCE_SERVICE_URL)

@@ -1163,7 +1163,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             createWithEmptySettings(threadPool),
             ElasticInferenceServiceSettingsTests.create(eisGatewayUrl),
             mockModelRegistry(),
-            new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool)
+            new ElasticInferenceServiceAuthorizationRequestHandler(ElasticInferenceServiceSettingsTests.create(eisGatewayUrl), threadPool)
         );
     }
 
@@ -1177,7 +1177,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             createWithEmptySettings(threadPool),
             ElasticInferenceServiceSettingsTests.create(eisGatewayUrl),
             mockModelRegistry(threadPool),
-            new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool)
+            new ElasticInferenceServiceAuthorizationRequestHandler(ElasticInferenceServiceSettingsTests.create(eisGatewayUrl), threadPool)
         );
     }
 }

@@ -34,6 +34,16 @@ public class ElasticInferenceServiceSettings {
     );
 
     /**
+     * This controls whether the authorization logic will look up the ip address of the gateway.
+     * This should only be enabled for testing and debugging purposes.
+     */
+    static final Setting<Boolean> AUTH_DEBUGGING_DNS_LOOKUP_ENABLED = Setting.boolSetting(
+        "xpack.inference.elastic.authorization_debugging_dns_lookup_enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * This setting is for testing only. It controls whether authorization is only performed once at bootup. If set to true, an
      * authorization request will be made repeatedly on an interval.
      */
@@ -75,6 +85,7 @@ public class ElasticInferenceServiceSettings {
 
     private final String elasticInferenceServiceUrl;
     private final boolean periodicAuthorizationEnabled;
+    private final boolean authDebuggingDnsLookupEnabled;
     private volatile TimeValue authRequestInterval;
     private volatile TimeValue maxAuthorizationRequestJitter;
 
@@ -84,6 +95,7 @@ public class ElasticInferenceServiceSettings {
         periodicAuthorizationEnabled = PERIODIC_AUTHORIZATION_ENABLED.get(settings);
         authRequestInterval = AUTHORIZATION_REQUEST_INTERVAL.get(settings);
         maxAuthorizationRequestJitter = MAX_AUTHORIZATION_REQUEST_JITTER.get(settings);
+        authDebuggingDnsLookupEnabled = AUTH_DEBUGGING_DNS_LOOKUP_ENABLED.get(settings);
     }
 
     /**
@@ -115,6 +127,14 @@ public class ElasticInferenceServiceSettings {
         return maxAuthorizationRequestJitter;
     }
 
+    public boolean isAuthDebuggingDnsLookupEnabled() {
+        return authDebuggingDnsLookupEnabled;
+    }
+
+    public boolean isPeriodicAuthorizationEnabled() {
+        return periodicAuthorizationEnabled;
+    }
+
     public static List<Setting<?>> getSettingsDefinitions() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
         settings.add(EIS_GATEWAY_URL);
@@ -124,14 +144,11 @@ public class ElasticInferenceServiceSettings {
         settings.add(PERIODIC_AUTHORIZATION_ENABLED);
         settings.add(AUTHORIZATION_REQUEST_INTERVAL);
         settings.add(MAX_AUTHORIZATION_REQUEST_JITTER);
+        settings.add(AUTH_DEBUGGING_DNS_LOOKUP_ENABLED);
         return settings;
     }
 
     public String getElasticInferenceServiceUrl() {
         return Strings.isEmpty(elasticInferenceServiceUrl) ? eisGatewayUrl : elasticInferenceServiceUrl;
-    }
-
-    public boolean isPeriodicAuthorizationEnabled() {
-        return periodicAuthorizationEnabled;
     }
 }

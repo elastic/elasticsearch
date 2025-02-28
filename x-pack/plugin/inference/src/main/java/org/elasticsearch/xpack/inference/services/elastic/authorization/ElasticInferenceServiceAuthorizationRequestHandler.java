@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.tasks.Task;
@@ -22,8 +21,11 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceAuthorizationRequest;
 import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAuthorizationResponseEntity;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
+import java.net.InetAddress;
+import java.net.URI;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
@@ -48,20 +50,25 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         );
     }
 
-    private final String baseUrl;
+    private final ElasticInferenceServiceSettings elasticInferenceServiceSettings;
     private final ThreadPool threadPool;
     private final Logger logger;
     private final CountDownLatch requestCompleteLatch = new CountDownLatch(1);
 
-    public ElasticInferenceServiceAuthorizationRequestHandler(@Nullable String baseUrl, ThreadPool threadPool) {
-        this.baseUrl = baseUrl;
-        this.threadPool = Objects.requireNonNull(threadPool);
-        logger = LogManager.getLogger(ElasticInferenceServiceAuthorizationRequestHandler.class);
+    public ElasticInferenceServiceAuthorizationRequestHandler(
+        ElasticInferenceServiceSettings elasticInferenceServiceSettings,
+        ThreadPool threadPool
+    ) {
+        this(elasticInferenceServiceSettings, threadPool, LogManager.getLogger(ElasticInferenceServiceAuthorizationRequestHandler.class));
     }
 
     // only use for testing
-    ElasticInferenceServiceAuthorizationRequestHandler(@Nullable String baseUrl, ThreadPool threadPool, Logger logger) {
-        this.baseUrl = baseUrl;
+    ElasticInferenceServiceAuthorizationRequestHandler(
+        ElasticInferenceServiceSettings elasticInferenceServiceSettings,
+        ThreadPool threadPool,
+        Logger logger
+    ) {
+        this.elasticInferenceServiceSettings = Objects.requireNonNull(elasticInferenceServiceSettings);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.logger = Objects.requireNonNull(logger);
     }
@@ -75,7 +82,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
         try {
             logger.debug("Retrieving authorization information from the Elastic Inference Service.");
 
-            if (Strings.isNullOrEmpty(baseUrl)) {
+            if (Strings.isNullOrEmpty(elasticInferenceServiceSettings.getElasticInferenceServiceUrl())) {
                 logger.debug("The base URL for the authorization service is not valid, rejecting authorization.");
                 listener.onResponse(ElasticInferenceServiceAuthorizationModel.newDisabledService());
                 return;
@@ -108,7 +115,28 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
                 requestCompleteLatch.countDown();
             });
 
-            var request = new ElasticInferenceServiceAuthorizationRequest(baseUrl, getCurrentTraceInfo());
+            if (logger.isDebugEnabled() && elasticInferenceServiceSettings.isAuthDebuggingDnsLookupEnabled()) {
+                logger.debug("Attempting to look up authorization gateway host info");
+                try {
+                    var baseUri = new URI(elasticInferenceServiceSettings.getElasticInferenceServiceUrl());
+                    logger.debug(
+                        Strings.format(
+                            "Looking up authorization gateway ip for url: %s, host: %s",
+                            elasticInferenceServiceSettings.getElasticInferenceServiceUrl(),
+                            baseUri.getHost()
+                        )
+                    );
+                    var gatewayAddress = InetAddress.getByName(baseUri.getHost());
+                    logger.debug(Strings.format("Gateway address: %s", gatewayAddress.getHostAddress()));
+                } catch (Exception e) {
+                    logger.debug("Failed to resolve gateway address", e);
+                }
+            }
+
+            var request = new ElasticInferenceServiceAuthorizationRequest(
+                elasticInferenceServiceSettings.getElasticInferenceServiceUrl(),
+                getCurrentTraceInfo()
+            );
 
             sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, newListener);
         } catch (Exception e) {

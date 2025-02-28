@@ -277,10 +277,7 @@ public class InferencePlugin extends Plugin
         var inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
         inferenceServiceSettings.init(services.clusterService());
 
-        var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
-            inferenceServiceSettings.getElasticInferenceServiceUrl(),
-            services.threadPool()
-        );
+        var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(inferenceServiceSettings, services.threadPool());
 
         inferenceServices.add(
             () -> List.of(

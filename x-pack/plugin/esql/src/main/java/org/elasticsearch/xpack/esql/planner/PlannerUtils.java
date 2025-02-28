@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -182,11 +183,8 @@ public class PlannerUtils {
     /**
      * Extracts a filter that can be used to skip unmatched shards on the coordinator.
      */
-    private static final Set<String> CAN_MATCH_FIELDS = Set.of("@timestamp", "event.ingested");
-
     public static QueryBuilder canMatchFilter(PhysicalPlan plan) {
-        // metadata field like _index, _tier
-        return detectFilter(plan, f -> CAN_MATCH_FIELDS.contains(f) || f.startsWith("_"));
+        return detectFilter(plan, CoordinatorRewriteContext.SUPPORTED_FIELDS::contains);
     }
 
     /**

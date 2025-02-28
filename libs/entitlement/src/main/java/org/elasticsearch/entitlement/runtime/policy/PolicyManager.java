@@ -311,7 +311,7 @@ public class PolicyManager {
     private static boolean isPathOnDefaultFilesystem(Path path) {
         var pathFileSystemClass = path.getFileSystem().getClass();
         if (path.getFileSystem().getClass() != DEFAULT_FILESYSTEM_CLASS) {
-            logger.debug(
+            logger.trace(
                 () -> Strings.format(
                     "File entitlement trivially allowed: path [%s] is for a different FileSystem class [%s], default is [%s]",
                     path.toString(),

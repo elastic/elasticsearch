@@ -1,0 +1,82 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.entitlement.runtime.policy;
+
+import org.elasticsearch.test.ESTestCase;
+
+import static org.elasticsearch.entitlement.runtime.policy.FileUtils.PATH_ORDER;
+import static org.elasticsearch.entitlement.runtime.policy.FileUtils.isAbsolutePath;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+
+public class FileUtilsTests extends ESTestCase {
+
+    public void testPathIsAbsolute() {
+        var windowsNamedPipe = "\\\\.\\pipe";
+        var windowsDosAbsolutePath = "C:\\temp";
+        var unixAbsolutePath = "/tmp/foo";
+        var unixStyleUncPath = "//C/temp";
+        var uncPath = "\\\\C\\temp";
+        var longPath = "\\\\?\\C:\\temp";
+
+        var relativePath = "foo";
+        var headingSlashRelativePath = "\\foo";
+
+        assertThat(isAbsolutePath(windowsNamedPipe), is(true));
+        assertThat(isAbsolutePath(windowsDosAbsolutePath), is(true));
+        assertThat(isAbsolutePath(unixAbsolutePath), is(true));
+        assertThat(isAbsolutePath(unixStyleUncPath), is(true));
+        assertThat(isAbsolutePath(uncPath), is(true));
+        assertThat(isAbsolutePath(longPath), is(true));
+
+        assertThat(isAbsolutePath(relativePath), is(false));
+        assertThat(isAbsolutePath(headingSlashRelativePath), is(false));
+        assertThat(isAbsolutePath(""), is(false));
+    }
+
+    public void testPathOrder() {
+        // Files come before directories with same name
+        // Unix-style
+        assertThat(PATH_ORDER.compare("/a/b", "/a.xml"), lessThan(0));
+        assertThat(PATH_ORDER.compare("/a/b", "/a/b.txt"), lessThan(0));
+        assertThat(PATH_ORDER.compare("/a/c", "/a/b.txt"), greaterThan(0));
+        // Inverted-windows style
+        assertThat(PATH_ORDER.compare("C:/a/b", "C:/a.xml"), lessThan(0));
+        assertThat(PATH_ORDER.compare("C:/a/b", "C:/a/b.txt"), lessThan(0));
+        assertThat(PATH_ORDER.compare("C:/a/c", "C:/a/b.txt"), greaterThan(0));
+
+        // Files in subdirectories come before
+        assertThat(PATH_ORDER.compare("/a/b", "/a/b/foo.txt"), lessThan(0));
+        assertThat(PATH_ORDER.compare("C:/a/b", "C:/a/b/foo.txt"), lessThan(0));
+    }
+
+    public void testPathOrderPosix() {
+        assumeFalse("path ordering rules specific to non-Windows platforms", Platform.WINDOWS.isCurrent());
+
+        assertThat(PATH_ORDER.compare("/a\\b", "/a/b.txt"), greaterThan(0));
+    }
+
+    public void testPathOrderWindows() {
+        assumeTrue("path ordering rules specific to Windows", Platform.WINDOWS.isCurrent());
+
+        // Windows-style
+        assertThat(PATH_ORDER.compare("C:\\a\\b", "C:\\a.xml"), lessThan(0));
+        assertThat(PATH_ORDER.compare("C:\\a\\b", "C:\\a\\b.txt"), lessThan(0));
+        assertThat(PATH_ORDER.compare("C:\\a\\b", "C:\\a\\b\\foo.txt"), lessThan(0));
+        assertThat(PATH_ORDER.compare("C:\\a\\c", "C:\\a\\b.txt"), greaterThan(0));
+
+        // Mixed-style
+        assertThat(PATH_ORDER.compare("C:\\a\\b", "C:/a.xml"), lessThan(0));
+        assertThat(PATH_ORDER.compare("C:\\a\\b", "C:/a/b.txt"), lessThan(0));
+        assertThat(PATH_ORDER.compare("C:\\a\\b", "C:/a/b\\foo.txt"), lessThan(0));
+        assertThat(PATH_ORDER.compare("C:/a\\b", "C:\\a\\b.txt"), lessThan(0));
+    }
+}

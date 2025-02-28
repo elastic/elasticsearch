@@ -231,6 +231,8 @@ public class FileAccessTreeTests extends ESTestCase {
 
     @SuppressForbidden(reason = "don't care about the directory location in tests")
     public void testFollowLinks() throws IOException {
+        assumeFalse("Windows requires admin right to create symbolic links", Platform.WINDOWS.isCurrent());
+
         Path baseSourceDir = Files.createTempDirectory("fileaccess_source");
         Path source1Dir = baseSourceDir.resolve("source1");
         Files.createDirectory(source1Dir);
@@ -314,6 +316,29 @@ public class FileAccessTreeTests extends ESTestCase {
         tree = accessTree(entitlement("a", "read"), exclusivePaths("diff-component", "diff-module", "a"));
         assertThat(tree.canRead(path("a")), is(false));
         assertThat(tree.canWrite(path("a")), is(false));
+    }
+
+    public void testPipeAccess() {
+        var fileAccessTree = FileAccessTree.of(
+            "test",
+            "test",
+            new FilesEntitlement(
+                List.of(
+                    FilesEntitlement.FileData.ofPath(Path.of("\\\\.\\pipe\\"), FilesEntitlement.Mode.READ),
+                    FilesEntitlement.FileData.ofPath(Path.of("D:\\.gradle"), FilesEntitlement.Mode.READ),
+                    FilesEntitlement.FileData.ofPath(Path.of("D:\\foo"), FilesEntitlement.Mode.READ),
+                    FilesEntitlement.FileData.ofPath(Path.of("C:\\foo"), FilesEntitlement.Mode.READ_WRITE)
+                )
+            ),
+            TEST_PATH_LOOKUP,
+            List.of()
+        );
+
+        assertThat(fileAccessTree.canRead(Path.of("\\\\.\\pipe\\bar")), is(true));
+        assertThat(fileAccessTree.canRead(Path.of("C:\\foo")), is(true));
+        assertThat(fileAccessTree.canWrite(Path.of("C:\\foo")), is(true));
+        assertThat(fileAccessTree.canRead(Path.of("D:\\foo")), is(true));
+        assertThat(fileAccessTree.canWrite(Path.of("D:\\foo")), is(false));
     }
 
     FileAccessTree accessTree(FilesEntitlement entitlement, List<ExclusivePath> exclusivePaths) {

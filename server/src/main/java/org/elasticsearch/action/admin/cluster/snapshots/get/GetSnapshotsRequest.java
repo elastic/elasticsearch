@@ -182,7 +182,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         } else if (after != null && fromSortValue != null) {
             validationException = addValidationError("can't use after and from_sort_value simultaneously", validationException);
         }
-        if (state != null && !(Arrays.stream(SnapshotState.values()).anyMatch(s -> s.name().equalsIgnoreCase(state)))) {
+        if (state != null && Arrays.stream(SnapshotState.values()).noneMatch(s -> s.name().equalsIgnoreCase(state))) {
             validationException = addValidationError(
                 "state must be SUCCESS, IN_PROGRESS, FAILED, PARTIAL, or INCOMPATIBLE",
                 validationException

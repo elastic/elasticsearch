@@ -43,18 +43,22 @@ public class FileUtilsTests extends ESTestCase {
     }
 
     public void testPathOrder() {
-        // Files come before directories with same name
         // Unix-style
+        // Directories come BEFORE files; note that this differs from natural lexicographical order
         assertThat(PATH_ORDER.compare("/a/b", "/a.xml"), lessThan(0));
+
+        // Natural lexicographical order is respected in all the other cases
         assertThat(PATH_ORDER.compare("/a/b", "/a/b.txt"), lessThan(0));
         assertThat(PATH_ORDER.compare("/a/c", "/a/b.txt"), greaterThan(0));
+        assertThat(PATH_ORDER.compare("/a/b", "/a/b/foo.txt"), lessThan(0));
+
         // Inverted-windows style
+        // Directories come BEFORE files; note that this differs from natural lexicographical order
         assertThat(PATH_ORDER.compare("C:/a/b", "C:/a.xml"), lessThan(0));
+
+        // Natural lexicographical order is respected in all the other cases
         assertThat(PATH_ORDER.compare("C:/a/b", "C:/a/b.txt"), lessThan(0));
         assertThat(PATH_ORDER.compare("C:/a/c", "C:/a/b.txt"), greaterThan(0));
-
-        // Files in subdirectories come before
-        assertThat(PATH_ORDER.compare("/a/b", "/a/b/foo.txt"), lessThan(0));
         assertThat(PATH_ORDER.compare("C:/a/b", "C:/a/b/foo.txt"), lessThan(0));
     }
 

@@ -31,6 +31,7 @@ import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -52,7 +53,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final Logger logger;
     private final MergeTracking mergeTracking;
     private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
-    private final PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>();
+    private final PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>(
+        16,
+        Comparator.comparingLong(MergeTask::estimatedMergeSize)
+    );
     private final Map<MergePolicy.OneMerge, MergeTask> currentlyRunningMergeTasks = new HashMap<>();
     // set when incoming merges should be throttled (i.e. restrict the indexing rate)
     private final AtomicBoolean shouldThrottleIncomingMerges = new AtomicBoolean();
@@ -289,7 +293,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         };
     }
 
-    class MergeTask implements Runnable, Comparable<MergeTask> {
+    class MergeTask implements Runnable {
         private final String name;
         private final AtomicLong mergeStartTimeNS;
         private final MergeSource mergeSource;
@@ -308,12 +312,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         boolean runNowOrBacklog() {
             return ThreadPoolMergeScheduler.this.runNowOrBacklog(this);
-        }
-
-        @Override
-        public int compareTo(MergeTask other) {
-            // sort smaller merges first, so they are executed before larger ones
-            return Long.compare(estimatedMergeSize(), other.estimatedMergeSize());
         }
 
         public boolean supportsIOThrottling() {

@@ -22,15 +22,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.Comparator;
 import java.util.PriorityQueue;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -63,7 +59,6 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         // shutdown the thread pool
         testThreadPool.shutdown();
         MergeTask mergeTask = mock(MergeTask.class);
-        when(mergeTask.isRunning()).thenReturn(false);
         boolean mergeTaskSupportsIOThrottling = randomBoolean();
         when(mergeTask.supportsIOThrottling()).thenReturn(mergeTaskSupportsIOThrottling);
         assertFalse(threadPoolMergeExecutorService.submitMergeTask(mergeTask));
@@ -73,11 +68,11 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         assertTrue(threadPoolMergeExecutorService.allDone());
     }
 
-    public void testBackloggedMergeTasksAreAllExecutedExactlyOnce() throws Exception {
-        int mergeExecutorThreadCount = randomIntBetween(1, 2);
+    public void testBackloggedMergeTasksExecuteExactlyOnce() throws Exception {
+        int mergeExecutorThreadCount = randomIntBetween(1, 3);
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
-            // results in few merge threads, in order to increase contention
+            // few merge threads, in order to increase contention
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
             .build();
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
@@ -85,15 +80,14 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
             assertNotNull(threadPoolMergeExecutorService);
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
-            int mergeTaskCount = randomIntBetween(5, 50);
-            CountDownLatch mergeTasksDoneLatch = new CountDownLatch(mergeTaskCount);
+            // many merge tasks concurrently
+            int mergeTaskCount = randomIntBetween(10, 100);
             CountDownLatch mergeTasksReadyLatch = new CountDownLatch(mergeTaskCount);
             CountDownLatch submitTaskLatch = new CountDownLatch(1);
             Collection<MergeTask> generatedMergeTasks = ConcurrentCollections.newConcurrentSet();
             for (int i = 0; i < mergeTaskCount; i++) {
                 new Thread(() -> {
                     MergeTask mergeTask = mock(MergeTask.class);
-                    when(mergeTask.isRunning()).thenReturn(false);
                     boolean supportsIOThrottling = randomBoolean();
                     when(mergeTask.supportsIOThrottling()).thenReturn(supportsIOThrottling);
                     long mergeSize = randomNonNegativeLong();
@@ -101,9 +95,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     doAnswer(mock -> {
                         // each individual merge task can either "run" or be "backlogged"
                         boolean runNowOrBacklog = randomBoolean();
-                        if (runNowOrBacklog) {
-                            mergeTasksDoneLatch.countDown();
-                        } else {
+                        if (runNowOrBacklog == false) {
                             testThreadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
                                 // reenqueue backlogged merge task
                                 threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(mergeTask);
@@ -120,13 +112,10 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             }
             safeAwait(mergeTasksReadyLatch);
             submitTaskLatch.countDown();
-            safeAwait(mergeTasksDoneLatch);
             assertBusy(() -> {
                 for (MergeTask mergeTask : generatedMergeTasks) {
                     verify(mergeTask, times(1)).run();
-                    if (mergeTask.supportsIOThrottling()) {
-                        verify(mergeTask).setIORateLimit(anyDouble());
-                    } else {
+                    if (mergeTask.supportsIOThrottling() == false) {
                         verify(mergeTask, times(0)).setIORateLimit(anyDouble());
                     }
                 }
@@ -135,57 +124,82 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         }
     }
 
-    public void testMergeTasksRunInSizeOrderWithBacklog() {
+    public void testBackloggedMergeTasksExecuteInSizeOrder() {
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
             .maybeCreateThreadPoolMergeExecutorService(
                 testThreadPool,
                 Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true).build()
             );
         assertNotNull(threadPoolMergeExecutorService);
-        threadPoolMergeExecutorService.submitMergeTask()
-//        int mergeTaskCount = randomIntBetween(5, 50);
-        int mergeTaskCount = 4;
-        PriorityQueue<MergeTask> mergeTasksStillToRun = new PriorityQueue<>();
+        DeterministicTaskQueue reEnqueueBackloggedTaskQueue = new DeterministicTaskQueue();
+        int mergeTaskCount = randomIntBetween(10, 100);
+        PriorityQueue<MergeTask> mergeTasksAvailableToRun = new PriorityQueue<>(
+            mergeTaskCount,
+            Comparator.comparingLong(MergeTask::estimatedMergeSize)
+        );
         for (int i = 0; i < mergeTaskCount; i++) {
             MergeTask mergeTask = mock(MergeTask.class);
             when(mergeTask.isRunning()).thenReturn(false);
             boolean supportsIOThrottling = randomBoolean();
             when(mergeTask.supportsIOThrottling()).thenReturn(supportsIOThrottling);
-            long mergeSize = randomLongBetween(1, 10);
+            // merge tasks of various sizes (0 might be a valid value)
+            long mergeSize = randomLongBetween(0, 10);
             when(mergeTask.estimatedMergeSize()).thenReturn(mergeSize);
             doAnswer(mock -> {
-                @SuppressWarnings("unchecked")
-                MergeTask other = (MergeTask) mock.getArguments()[1];
-                return Long.com
-            }).when(mergeTask).compareTo(any(MergeTask.class));
-            doAnswer(mock -> {
-                mergeTasksStillToRun.remove(mergeTask);
-                // each individual merge task can either "run" or be "backlogged"
+                // each individual merge task can either "run" or be "backlogged" at any point in time
                 boolean runNowOrBacklog = randomBoolean();
+                // in either case, the merge task is, at least temporarily, not "available" to run
+                mergeTasksAvailableToRun.remove(mergeTask);
+                // if merge task cannot run, it is backlogged, and should be re enqueued some time in the future
                 if (runNowOrBacklog == false) {
-                    if (mergeTasksStillToRun.isEmpty()) {
-                        // reenqueue backlogged merge task now, otherwise the task won't finish
+                    // reenqueue backlogged merge task sometime in the future
+                    reEnqueueBackloggedTaskQueue.scheduleNow(() -> {
+                        // reenqueue backlogged merge task sometime in the future
                         threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(mergeTask);
-                        mergeTasksStillToRun.add(mergeTask);
-                    } else {
-                        testThreadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                            // reenqueue backlogged merge task sometime in the future
-                            threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(mergeTask);
-                            mergeTasksStillToRun.add(mergeTask);
-                        });
-                    }
+                        // the merge task should once again be "available" to run
+                        mergeTasksAvailableToRun.add(mergeTask);
+                    });
+                }
+                // avoid blocking for unavailable merge task by running one re-enqueuing task now
+                if (runNowOrBacklog == false && mergeTasksAvailableToRun.isEmpty()) {
+                    assertTrue(runOneTask(reEnqueueBackloggedTaskQueue));
+                }
+                if (runNowOrBacklog && mergeTasksAvailableToRun.isEmpty() == false) {
+                    // assert the merge task that's now going to run is the smallest of the ones currently available to run
+                    assertTrue(mergeTask.estimatedMergeSize() <= mergeTasksAvailableToRun.peek().estimatedMergeSize());
                 }
                 return runNowOrBacklog;
             }).when(mergeTask).runNowOrBacklog();
-            doAnswer(mock -> {
-                if (mergeTasksStillToRun.isEmpty() == false) {
-                    assertTrue(mergeTask.estimatedMergeSize() <= mergeTasksStillToRun.peek().estimatedMergeSize());
-                }
-                return null;
-            }).when(mergeTask).run();
-            mergeTasksStillToRun.add(mergeTask);
+            mergeTasksAvailableToRun.add(mergeTask);
             threadPoolMergeExecutorService.submitMergeTask(mergeTask);
         }
-        deterministicTaskQueue.runAllTasks();
+        while (true) {
+            // re-enqueue merge tasks
+            if (mergeTasksAvailableToRun.isEmpty() || randomBoolean()) {
+                boolean backlogReEnqueued = runOneTask(reEnqueueBackloggedTaskQueue);
+                if (mergeTasksAvailableToRun.isEmpty() && backlogReEnqueued == false) {
+                    // test complete, all merges ran, and none is backlogged
+                    assertFalse(deterministicTaskQueue.hasAnyTasks());
+                    assertFalse(reEnqueueBackloggedTaskQueue.hasAnyTasks());
+                    assertTrue(threadPoolMergeExecutorService.allDone());
+                    break;
+                }
+            } else {
+                // run one merge task
+                runOneTask(deterministicTaskQueue);
+            }
+        }
+    }
+
+    private boolean runOneTask(DeterministicTaskQueue deterministicTaskQueue) {
+        while (deterministicTaskQueue.hasAnyTasks()) {
+            if (deterministicTaskQueue.hasRunnableTasks()) {
+                deterministicTaskQueue.runRandomTask();
+                return true;
+            } else {
+                deterministicTaskQueue.advanceTime();
+            }
+        }
+        return false;
     }
 }

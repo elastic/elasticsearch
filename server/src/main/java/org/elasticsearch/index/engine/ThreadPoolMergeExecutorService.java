@@ -47,7 +47,7 @@ public class ThreadPoolMergeExecutorService {
      * For instance, this can be empty while there are backlogged merge tasks awaiting re-enqueuing.
      */
     private final PriorityBlockingQueue<MergeTask> queuedMergeTasks = new PriorityBlockingQueue<>(
-        32,
+        64,
         Comparator.comparingLong(MergeTask::estimatedMergeSize)
     );
     /**

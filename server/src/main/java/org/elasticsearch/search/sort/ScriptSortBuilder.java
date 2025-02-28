@@ -344,7 +344,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     final Map<Object, NumberSortScript> leafScripts = ConcurrentCollections.newConcurrentMap();
 
                     @Override
-                    protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
+                    protected SortedNumericDoubleValues getValues(LeafReaderContext context) {
                         NumberSortScript leafScript = getLeafScript(context);
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override

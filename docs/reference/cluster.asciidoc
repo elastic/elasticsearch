@@ -35,7 +35,7 @@ one of the following:
   master-eligible nodes, all data nodes, all ingest nodes, all voting-only
   nodes, all machine learning nodes, and all coordinating-only nodes.
 * a pair of patterns, using `*` wildcards, of the form `attrname:attrvalue`,
-  which adds to the subset all nodes with a custom node attribute whose name
+  which adds to the subset all nodes with a <<custom-node-attributes,custom node attribute>> whose name
   and value match the respective patterns. Custom node attributes are
   configured by setting properties in the configuration file of the form
   `node.attr.attrname: attrvalue`.

@@ -93,7 +93,9 @@ public class RemoteClusterSecurityRCS1ResolveClusterIT extends AbstractRemoteClu
             assertLocalMatching(responseMap);
 
             Map<String, ?> remoteClusterResponse = (Map<String, ?>) responseMap.get("my_remote_cluster");
-            assertThat((Boolean) remoteClusterResponse.get("connected"), equalTo(true));
+            // with security exceptions, the remote should be marked as connected=false, since you can't tell whether a security
+            // exception comes from the local cluster (intercepted) or the remote
+            assertThat((Boolean) remoteClusterResponse.get("connected"), equalTo(false));
             assertThat((String) remoteClusterResponse.get("error"), containsString("unauthorized for user [remote_search_user]"));
 
             // TEST CASE 2: Query cluster -> add user role and user on remote cluster and try resolve again
@@ -171,7 +173,7 @@ public class RemoteClusterSecurityRCS1ResolveClusterIT extends AbstractRemoteClu
             Map<String, Object> responseMap = responseAsMap(response);
             assertThat(responseMap.get(LOCAL_CLUSTER_NAME_REPRESENTATION), nullValue());
             Map<String, ?> remoteClusterResponse = (Map<String, ?>) responseMap.get("my_remote_cluster");
-            assertThat((Boolean) remoteClusterResponse.get("connected"), equalTo(true));
+            assertThat((Boolean) remoteClusterResponse.get("connected"), equalTo(false));
             assertThat((String) remoteClusterResponse.get("error"), containsString("unauthorized for user [remote_search_user]"));
             assertThat((String) remoteClusterResponse.get("error"), containsString("on indices [secretindex]"));
         }
@@ -183,7 +185,7 @@ public class RemoteClusterSecurityRCS1ResolveClusterIT extends AbstractRemoteClu
             Map<String, Object> responseMap = responseAsMap(response);
             assertThat(responseMap.get(LOCAL_CLUSTER_NAME_REPRESENTATION), nullValue());
             Map<String, ?> remoteClusterResponse = (Map<String, ?>) responseMap.get("my_remote_cluster");
-            assertThat((Boolean) remoteClusterResponse.get("connected"), equalTo(true));
+            assertThat((Boolean) remoteClusterResponse.get("connected"), equalTo(false));
             assertThat((String) remoteClusterResponse.get("error"), containsString("unauthorized for user [remote_search_user]"));
             assertThat((String) remoteClusterResponse.get("error"), containsString("on indices [doesnotexist]"));
         }
@@ -195,6 +197,7 @@ public class RemoteClusterSecurityRCS1ResolveClusterIT extends AbstractRemoteClu
             Map<String, Object> responseMap = responseAsMap(response);
             assertThat(responseMap.get(LOCAL_CLUSTER_NAME_REPRESENTATION), nullValue());
             Map<String, ?> remoteClusterResponse = (Map<String, ?>) responseMap.get("my_remote_cluster");
+            // with IndexNotFoundExceptions, we know that error came from the remote cluster, so we can mark the remote as connected=true
             assertThat((Boolean) remoteClusterResponse.get("connected"), equalTo(true));
             assertThat((String) remoteClusterResponse.get("error"), containsString("no such index [index99]"));
         }
@@ -210,7 +213,7 @@ public class RemoteClusterSecurityRCS1ResolveClusterIT extends AbstractRemoteClu
             Map<String, Object> responseMap = responseAsMap(response);
             assertThat(responseMap.get(LOCAL_CLUSTER_NAME_REPRESENTATION), nullValue());
             Map<String, ?> remoteClusterResponse = (Map<String, ?>) responseMap.get("my_remote_cluster");
-            assertThat((Boolean) remoteClusterResponse.get("connected"), equalTo(true));
+            assertThat((Boolean) remoteClusterResponse.get("connected"), equalTo(false));
             assertThat((String) remoteClusterResponse.get("error"), containsString("unauthorized for user [remote_search_user]"));
             assertThat((String) remoteClusterResponse.get("error"), containsString("on indices [secretindex]"));
         }

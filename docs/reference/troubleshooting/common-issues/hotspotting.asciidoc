@@ -9,7 +9,13 @@ Computer link:{wikipedia}/Hot_spot_(computer_programming)[hot spotting]
 may occur in {es} when resource utilizations are unevenly distributed across 
 <<modules-node,nodes>>. Temporary spikes are not usually considered problematic, but 
 ongoing significantly unique utilization may lead to cluster bottlenecks 
-and should be reviewed. 
+and should be reviewed.
+
+See link:https://www.youtube.com/watch?v=Q5ODJ5nIKAM[this video] for a walkthrough of troubleshooting a hot spotting issue.
+
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
 
 [discrete]
 [[detect]]

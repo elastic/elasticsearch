@@ -395,10 +395,10 @@ the model definition is not supplied.
 (Required, object)
 The default configuration for inference. This can be: `regression`,
 `classification`, `fill_mask`, `ner`, `question_answering`,
-`text_classification`, `text_embedding` or `zero_shot_classification`.
+`text_classification`, `text_embedding`, `text_expansion` or `zero_shot_classification`.
 If `regression` or `classification`, it must match the `target_type` of the
 underlying `definition.trained_model`. If `fill_mask`, `ner`,
-`question_answering`, `text_classification`, or `text_embedding`; the
+`question_answering`, `text_classification`, `text_embedding` or `text_expansion`; the
 `model_type` must be `pytorch`.
 +
 .Properties of `inference_config`
@@ -580,6 +580,25 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-embedding]
 (Optional, integer)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-embedding-size]
 
+`results_field`::::
+(Optional, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+
+`tokenization`::::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
++
+Refer to <<tokenization-properties>> to review the properties of the
+`tokenization` object.
+=====
+
+`text_expansion`:::
+(Object, optional)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-expansion]
++
+.Properties of text_expansion inference
+[%collapsible%open]
+=====
 `results_field`::::
 (Optional, string)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]

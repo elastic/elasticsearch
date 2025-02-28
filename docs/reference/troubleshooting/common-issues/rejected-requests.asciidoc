@@ -12,6 +12,10 @@ thread pool returns a `TOO_MANY_REQUESTS` error message.
 * High <<index-modules-indexing-pressure,indexing pressure>> that exceeds the
 <<memory-limits,`indexing_pressure.memory.limit`>>.
 
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
+
 [discrete]
 [[check-rejected-tasks]]
 ==== Check rejected tasks

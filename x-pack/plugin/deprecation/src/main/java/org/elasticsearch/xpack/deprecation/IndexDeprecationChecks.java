@@ -215,7 +215,7 @@ public class IndexDeprecationChecks {
             }));
             if (useSourceMode[0]) {
                 return new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
+                    DeprecationIssue.Level.WARNING,
                     SourceFieldMapper.DEPRECATION_WARNING,
                     "https://github.com/elastic/elasticsearch/pull/117172",
                     SourceFieldMapper.DEPRECATION_WARNING,

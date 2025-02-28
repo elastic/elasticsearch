@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -112,21 +113,8 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         Integer numAllocations,
         int numThreads,
         String modelId,
-        AdaptiveAllocationsSettings adaptiveAllocationsSettings
-    ) {
-        this.numAllocations = numAllocations;
-        this.numThreads = numThreads;
-        this.modelId = Objects.requireNonNull(modelId);
-        this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
-        this.deploymentId = null;
-    }
-
-    public ElasticsearchInternalServiceSettings(
-        Integer numAllocations,
-        int numThreads,
-        String modelId,
         AdaptiveAllocationsSettings adaptiveAllocationsSettings,
-        String deploymentId
+        @Nullable String deploymentId
     ) {
         this.numAllocations = numAllocations;
         this.numThreads = numThreads;

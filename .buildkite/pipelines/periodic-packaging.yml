@@ -304,8 +304,8 @@ steps:
         env:
           BWC_VERSION: 7.16.3
 
-      - label: "{{matrix.image}} / 7.17.27 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v7.17.27
+      - label: "{{matrix.image}} / 7.17.29 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v7.17.29
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -318,7 +318,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 7.17.27
+          BWC_VERSION: 7.17.29
 
       - label: "{{matrix.image}} / 8.0.1 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.0.1
@@ -576,8 +576,8 @@ steps:
         env:
           BWC_VERSION: 8.15.5
 
-      - label: "{{matrix.image}} / 8.16.3 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.16.3
+      - label: "{{matrix.image}} / 8.16.5 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.16.5
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -590,10 +590,10 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.16.3
+          BWC_VERSION: 8.16.5
 
-      - label: "{{matrix.image}} / 8.17.1 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.17.1
+      - label: "{{matrix.image}} / 8.17.3 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.17.3
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -606,7 +606,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.17.1
+          BWC_VERSION: 8.17.3
 
   - group: packaging-tests-windows
     steps:
@@ -617,7 +617,6 @@ steps:
         matrix:
           setup:
             image:
-              - windows-2016
               - windows-2019
               - windows-2022
         agents:

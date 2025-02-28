@@ -9,18 +9,25 @@ Learn how to combine different retrievers in these hands-on examples.
 ==== Add example data
 
 To begin with, lets create the `retrievers_example` index, and add some documents to it.
+We will set `number_of_shards=1` for our examples to ensure consistent and reproducible ordering.
 
 [source,console]
 ----
 PUT retrievers_example
 {
+    "settings": {
+        "number_of_shards": 1
+    },
    "mappings": {
        "properties": {
            "vector": {
                "type": "dense_vector",
                "dims": 3,
                "similarity": "l2_norm",
-               "index": true
+               "index": true,
+               "index_options": {
+                    "type": "flat"
+               }
            },
            "text": {
                "type": "text"
@@ -459,6 +466,9 @@ and index a couple of documents.
 ----
 PUT retrievers_example_nested
 {
+    "settings": {
+         "number_of_shards": 1
+     },
     "mappings": {
         "properties": {
             "nested_field": {
@@ -471,7 +481,10 @@ PUT retrievers_example_nested
                         "type": "dense_vector",
                         "dims": 3,
                         "similarity": "l2_norm",
-                        "index": true
+                        "index": true,
+                        "index_options": {
+                            "type": "flat"
+                        }
                     }
                 }
             },
@@ -640,7 +653,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                 "value": 3,
                                 "relation": "eq"
                             },
-                            "max_score": 0.44353113,
+                            "max_score": 0.44444445,
                             "hits": [
                                 {
                                     "_index": "retrievers_example_nested",
@@ -649,7 +662,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                         "field": "nested_field",
                                         "offset": 2
                                     },
-                                    "_score": 0.44353113,
+                                    "_score": 0.44444445,
                                     "fields": {
                                         "nested_field": [
                                             {
@@ -667,7 +680,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                         "field": "nested_field",
                                         "offset": 1
                                     },
-                                    "_score": 0.26567122,
+                                    "_score": 0.21301977,
                                     "fields": {
                                         "nested_field": [
                                             {
@@ -685,7 +698,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                         "field": "nested_field",
                                         "offset": 0
                                     },
-                                    "_score": 0.18478848,
+                                    "_score": 0.16889325,
                                     "fields": {
                                         "nested_field": [
                                             {
@@ -717,7 +730,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                 "value": 1,
                                 "relation": "eq"
                             },
-                            "max_score": 0.32002488,
+                            "max_score": 0.31715825,
                             "hits": [
                                 {
                                     "_index": "retrievers_example_nested",
@@ -726,7 +739,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                         "field": "nested_field",
                                         "offset": 0
                                     },
-                                    "_score": 0.32002488,
+                                    "_score": 0.31715825,
                                     "fields": {
                                         "nested_field": [
                                             {

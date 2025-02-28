@@ -251,4 +251,16 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
     public void testValidOutput() throws IOException {
         // no-op since RankDocsQueryBuilder is an internal only API
     }
+
+    public void shouldThrowForNegativeScores() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(new Document());
+            try (IndexReader reader = iw.getReader()) {
+                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
+                RankDocsQueryBuilder queryBuilder = new RankDocsQueryBuilder(new RankDoc[] { new RankDoc(0, -1.0f, 0) }, null, false);
+                IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> queryBuilder.doToQuery(context));
+                assertEquals("RankDoc scores must be positive values. Missing a normalization step?", ex.getMessage());
+            }
+        }
+    }
 }

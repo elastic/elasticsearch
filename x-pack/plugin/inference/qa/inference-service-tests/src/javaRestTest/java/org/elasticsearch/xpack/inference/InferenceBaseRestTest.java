@@ -22,6 +22,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -37,6 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class InferenceBaseRestTest extends ESRestTestCase {
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -45,6 +47,22 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         .plugin("inference-service-test")
         .user("x_pack_rest_user", "x-pack-test-password")
         .build();
+
+    @ClassRule
+    public static MlModelServer mlModelServer = new MlModelServer();
+
+    @Before
+    public void setMlModelRepository() throws IOException {
+        logger.info("setting ML model repository to: {}", mlModelServer.getUrl());
+        var request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity(Strings.format("""
+            {
+              "persistent": {
+                "xpack.ml.model_repository": "%s"
+              }
+            }""", mlModelServer.getUrl()));
+        assertOK(client().performRequest(request));
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -217,6 +235,11 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return putRequest(endpoint, modelConfig);
     }
 
+    static Map<String, Object> updateEndpoint(String inferenceID, String modelConfig) throws IOException {
+        String endpoint = Strings.format("_inference/%s/_update", inferenceID);
+        return putRequest(endpoint, modelConfig);
+    }
+
     protected Map<String, Object> putPipeline(String pipelineId, String modelId) throws IOException {
         String endpoint = Strings.format("_ingest/pipeline/%s", pipelineId);
         String body = """
@@ -248,7 +271,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return putRequest(endpoint, modelConfig);
     }
 
-    Map<String, Object> putRequest(String endpoint, String body) throws IOException {
+    static Map<String, Object> putRequest(String endpoint, String body) throws IOException {
         var request = new Request("PUT", endpoint);
         request.setJsonEntity(body);
         var response = client().performRequest(request);

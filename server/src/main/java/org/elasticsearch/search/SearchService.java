@@ -917,32 +917,38 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
-        runAsync(getExecutor(readerContext.indexShard()), () -> {
-            try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.FETCH, false)) {
-                if (request.lastEmittedDoc() != null) {
-                    searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
-                }
-                searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
-                searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
-                try (
-                    SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())
-                ) {
-                    fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks());
-                    if (readerContext.singleSession()) {
-                        freeReaderContext(request.contextId());
+        rewriteAndFetchShardRequest(readerContext.indexShard(), shardSearchRequest, listener.delegateFailure((l, rewritten) -> {
+            runAsync(getExecutor(readerContext.indexShard()), () -> {
+                try (SearchContext searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false)) {
+                    if (request.lastEmittedDoc() != null) {
+                        searchContext.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
                     }
-                    executor.success();
+                    searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(request.getRescoreDocIds()));
+                    searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(request.getAggregatedDfs()));
+                    try (
+                        SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(
+                            searchContext,
+                            true,
+                            System.nanoTime()
+                        )
+                    ) {
+                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks());
+                        if (readerContext.singleSession()) {
+                            freeReaderContext(request.contextId());
+                        }
+                        executor.success();
+                    }
+                    var fetchResult = searchContext.fetchResult();
+                    // inc-ref fetch result because we close the SearchContext that references it in this try-with-resources block
+                    fetchResult.incRef();
+                    return fetchResult;
+                } catch (Exception e) {
+                    assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
+                    // we handle the failure in the failure listener below
+                    throw e;
                 }
-                var fetchResult = searchContext.fetchResult();
-                // inc-ref fetch result because we close the SearchContext that references it in this try-with-resources block
-                fetchResult.incRef();
-                return fetchResult;
-            } catch (Exception e) {
-                assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
-                // we handle the failure in the failure listener below
-                throw e;
-            }
-        }, wrapFailureListener(listener, readerContext, markAsUsed));
+            }, wrapFailureListener(l, readerContext, markAsUsed));
+        }));
     }
 
     protected void checkCancelled(SearchShardTask task) {

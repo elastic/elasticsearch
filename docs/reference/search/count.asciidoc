@@ -18,10 +18,6 @@ GET /my-index-000001/_count?q=user:kimchy
 --------------------------------------------------
 // TEST[setup:my_index]
 
-NOTE: The query being sent in the body must be nested in a `query` key, same as
-the <<search-search,search API>> works.
-
-
 [[search-count-api-request]]
 ==== {api-request-title}
 
@@ -39,9 +35,12 @@ or alias.
 ==== {api-description-title}
 
 The count API allows you to execute a query and get the number of matches for
-that query. The query can either
-be provided using a simple query string as a parameter, or using the
-<<query-dsl,Query DSL>> defined within the request body.
+that query. You can provide the query by either:
+
+* Including the <<search-count-api-query-params,`q` query string parameter>> 
+* Defining <<query-dsl,Query DSL>> within the <<search-count-request-body,request body>> 
+
+Using both returns an error.
 
 The count API supports <<api-multi-index,multi-target syntax>>. You can run a single
 count API search across multiple data streams and indices.
@@ -92,6 +91,8 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=lenient]
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=search-q]
++
+NOTE: If the `q` parameter is specified, the count API does not accept a <<search-count-request-body,request body>>.
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
@@ -140,5 +141,5 @@ Both examples above do the same: count the number of documents in
 }
 --------------------------------------------------
 
-The query is optional, and when not provided, it will use `match_all` to
-count all the docs.
+The query is optional. When no query is provided, the API uses <<query-dsl-match-all-query,`match_all`>> to
+count all the documents.

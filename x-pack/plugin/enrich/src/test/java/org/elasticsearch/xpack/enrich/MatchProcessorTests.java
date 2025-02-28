@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
@@ -376,7 +377,7 @@ public class MatchProcessorTests extends ESTestCase {
         assertThat(entry.get("tld"), equalTo("co"));
     }
 
-    private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> {
+    private static final class MockSearchFunction implements EnrichProcessorFactory.SearchRunner {
         private final List<Map<?, ?>> mockResponse;
         private final SetOnce<SearchRequest> capturedRequest;
         private final Exception exception;
@@ -394,8 +395,13 @@ public class MatchProcessorTests extends ESTestCase {
         }
 
         @Override
-        public void accept(SearchRequest request, BiConsumer<List<Map<?, ?>>, Exception> handler) {
-            capturedRequest.set(request);
+        public void accept(
+            Object value,
+            int maxMatches,
+            Supplier<SearchRequest> searchRequestSupplier,
+            BiConsumer<List<Map<?, ?>>, Exception> handler
+        ) {
+            capturedRequest.set(searchRequestSupplier.get());
             if (exception != null) {
                 handler.accept(null, exception);
             } else {

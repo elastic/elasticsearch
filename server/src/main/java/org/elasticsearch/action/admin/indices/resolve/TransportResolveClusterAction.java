@@ -51,7 +51,6 @@ import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVers
 public class TransportResolveClusterAction extends HandledTransportAction<ResolveClusterActionRequest, ResolveClusterActionResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportResolveClusterAction.class);
-    private static final String TRANSPORT_VERSION_ERROR_MESSAGE = "ResolveClusterAction requires at least Transport Version";
 
     public static final String NAME = "indices:admin/resolve/cluster";
     public static final ActionType<ResolveClusterActionResponse> TYPE = new ActionType<>(NAME);
@@ -175,7 +174,13 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                             failure,
                             ElasticsearchSecurityException.class
                         ) instanceof ElasticsearchSecurityException ese) {
-                            clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable, ese.getMessage()));
+                            /*
+                             * some ElasticsearchSecurityExceptions come from the local cluster security interceptor after you've
+                             * issued the client.execute call but before any call went to the remote cluster, so with an
+                             * ElasticsearchSecurityException you can't tell whether the remote cluster is available or not, so mark
+                             * it as connected=false
+                             */
+                            clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable, ese.getMessage()));
                         } else if (ExceptionsHelper.unwrap(failure, IndexNotFoundException.class) instanceof IndexNotFoundException infe) {
                             clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(true, skipUnavailable, infe.getMessage()));
                         } else {
@@ -184,7 +189,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                             // this error at the Transport layer BEFORE it sends the request to the remote cluster, since there
                             // are version guards on the Writeables for this Action, namely ResolveClusterActionRequest.writeTo
                             if (cause instanceof UnsupportedOperationException
-                                && cause.getMessage().contains(TRANSPORT_VERSION_ERROR_MESSAGE)) {
+                                && cause.getMessage().contains(ResolveClusterActionRequest.TRANSPORT_VERSION_ERROR_MESSAGE_PREFIX)) {
                                 // Since this cluster does not have _resolve/cluster, we call the _resolve/index
                                 // endpoint to fill in the matching_indices field of the response for that cluster
                                 ResolveIndexAction.Request resolveIndexRequest = new ResolveIndexAction.Request(

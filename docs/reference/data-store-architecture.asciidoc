@@ -9,10 +9,16 @@ from any node.
 The topics in this section provides information about the architecture of {es} and how it stores and retrieves data: 
 
 * <<nodes-shards,Nodes and shards>>: Learn about the basic building blocks of an {es} cluster, including nodes, shards, primaries, and replicas.
+* <<node-roles-overview,Node roles>>: Learn about the different roles that nodes can have in an {es} cluster.
 * <<docs-replication,Reading and writing documents>>: Learn how {es} replicates read and write operations across shards and shard copies.
 * <<shard-allocation-relocation-recovery,Shard allocation, relocation, and recovery>>: Learn how {es} allocates and balances shards across nodes.
+** <<shard-allocation-awareness,Shard allocation awareness>>: Learn how to use custom node attributes to distribute shards across different racks or availability zones.
+* <<shard-request-cache,Shard request cache>>: Learn how {es} caches search requests to improve performance.
 --
 
 include::nodes-shards.asciidoc[]
+include::node-roles.asciidoc[]
 include::docs/data-replication.asciidoc[leveloffset=-1]
 include::modules/shard-ops.asciidoc[]
+include::modules/cluster/allocation_awareness.asciidoc[leveloffset=+1]
+include::shard-request-cache.asciidoc[leveloffset=-1]

@@ -19,6 +19,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionDescriptor;
 import org.elasticsearch.test.cluster.local.distribution.DistributionResolver;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.local.model.User;
+import org.elasticsearch.test.cluster.util.ArchivePatcher;
 import org.elasticsearch.test.cluster.util.IOUtils;
 import org.elasticsearch.test.cluster.util.OS;
 import org.elasticsearch.test.cluster.util.Pair;
@@ -76,6 +77,8 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     private static final String TESTS_CLUSTER_FIPS_JAR_PATH_SYSPROP = "tests.cluster.fips.jars.path";
     private static final String TESTS_CLUSTER_DEBUG_ENABLED_SYSPROP = "tests.cluster.debug.enabled";
     private static final String ENABLE_DEBUG_JVM_ARGS = "-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=";
+    private static final String ENTITLEMENT_POLICY_YAML = "entitlement-policy.yaml";
+    private static final String PLUGIN_DESCRIPTOR_PROPERTIES = "plugin-descriptor.properties";
 
     private final DistributionResolver distributionResolver;
 
@@ -332,15 +335,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                         IOUtils.deleteWithRetry(distributionDir);
                     }
 
-                    try {
-                        IOUtils.syncWithLinks(distributionDescriptor.getDistributionDir(), distributionDir);
-                    } catch (IOUtils.LinkCreationException e) {
-                        // Note does not work for network drives, e.g. Vagrant
-                        LOGGER.info("Failed to create working dir using hard links. Falling back to copy", e);
-                        // ensure we get a clean copy
-                        IOUtils.deleteWithRetry(distributionDir);
-                        IOUtils.syncWithCopy(distributionDescriptor.getDistributionDir(), distributionDir);
-                    }
+                    IOUtils.syncMaybeWithLinks(distributionDescriptor.getDistributionDir(), distributionDir);
                 }
                 Files.createDirectories(repoDir);
                 Files.createDirectories(dataDir);
@@ -649,27 +644,56 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     .toList();
 
                 List<String> toInstall = spec.getPlugins()
+                    .entrySet()
                     .stream()
                     .map(
-                        pluginName -> pluginPaths.stream()
+                        plugin -> pluginPaths.stream()
                             .map(path -> Pair.of(pattern.matcher(path.getFileName().toString()), path))
-                            .filter(pair -> pair.left.matches() && pair.left.group(1).equals(pluginName))
+                            .filter(pair -> pair.left.matches() && pair.left.group(1).equals(plugin.getKey()))
                             .map(p -> p.right.getParent().resolve(p.left.group(0)))
                             .findFirst()
+                            .map(path -> {
+                                DefaultPluginInstallSpec installSpec = plugin.getValue();
+                                // Patch the plugin archive with configured overrides if necessary
+                                if (installSpec.entitlementsOverride != null || installSpec.propertiesOverride != null) {
+                                    Path target;
+                                    try {
+                                        target = Files.createTempFile("patched-", path.getFileName().toString());
+                                    } catch (IOException e) {
+                                        throw new UncheckedIOException("Failed to create temporary file", e);
+                                    }
+                                    ArchivePatcher patcher = new ArchivePatcher(path, target);
+                                    if (installSpec.entitlementsOverride != null) {
+                                        patcher.override(
+                                            ENTITLEMENT_POLICY_YAML,
+                                            original -> installSpec.entitlementsOverride.apply(original).asStream()
+                                        );
+                                    }
+                                    if (installSpec.propertiesOverride != null) {
+                                        patcher.override(
+                                            PLUGIN_DESCRIPTOR_PROPERTIES,
+                                            original -> installSpec.propertiesOverride.apply(original).asStream()
+                                        );
+                                    }
+                                    return patcher.patch();
+                                } else {
+                                    return path;
+                                }
+                            })
                             .orElseThrow(() -> {
                                 String taskPath = System.getProperty("tests.task");
                                 String project = taskPath.substring(0, taskPath.lastIndexOf(':'));
 
-                                throw new RuntimeException(
+                                return new RuntimeException(
                                     "Unable to locate plugin '"
-                                        + pluginName
+                                        + plugin.getKey()
                                         + "'. Ensure you've added the following to the build script for project '"
                                         + project
                                         + "':\n\n"
                                         + "dependencies {\n"
                                         + "  clusterPlugins "
                                         + "project(':plugins:"
-                                        + pluginName
+                                        + plugin.getKey()
                                         + "')"
                                         + "\n}"
                                 );
@@ -697,11 +721,11 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     .map(Path::of)
                     .toList();
 
-                spec.getModules().forEach(module -> installModule(module, modulePaths));
+                spec.getModules().forEach((module, spec) -> installModule(module, spec, modulePaths));
             }
         }
 
-        private void installModule(String moduleName, List<Path> modulePaths) {
+        private void installModule(String moduleName, DefaultPluginInstallSpec installSpec, List<Path> modulePaths) {
             Path destination = distributionDir.resolve("modules").resolve(moduleName);
             if (Files.notExists(destination)) {
                 Path modulePath = modulePaths.stream().filter(path -> path.endsWith(moduleName)).findFirst().orElseThrow(() -> {
@@ -711,7 +735,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                         ? "project(xpackModule('" + moduleName.substring(7) + "'))"
                         : "project(':modules:" + moduleName + "')";
 
-                    throw new RuntimeException(
+                    return new RuntimeException(
                         "Unable to locate module '"
                             + moduleName
                             + "'. Ensure you've added the following to the build script for project '"
@@ -725,21 +749,43 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
                 });
 
-                IOUtils.syncWithCopy(modulePath, destination);
+                // If we aren't overriding anything we can use links here, otherwise do a full copy
+                if (installSpec.entitlementsOverride == null && installSpec.propertiesOverride == null) {
+                    IOUtils.syncMaybeWithLinks(modulePath, destination);
+                } else {
+                    IOUtils.syncWithCopy(modulePath, destination);
+                }
 
-                // Install any extended plugins
+                try {
+                    if (installSpec.entitlementsOverride != null) {
+                        Path entitlementsFile = modulePath.resolve(ENTITLEMENT_POLICY_YAML);
+                        String original = Files.exists(entitlementsFile) ? Files.readString(entitlementsFile) : "";
+                        Path target = destination.resolve(ENTITLEMENT_POLICY_YAML);
+                        installSpec.entitlementsOverride.apply(original).writeTo(target);
+                    }
+                    if (installSpec.propertiesOverride != null) {
+                        Path propertiesFiles = modulePath.resolve(PLUGIN_DESCRIPTOR_PROPERTIES);
+                        String original = Files.exists(propertiesFiles) ? Files.readString(propertiesFiles) : "";
+                        Path target = destination.resolve(PLUGIN_DESCRIPTOR_PROPERTIES);
+                        installSpec.propertiesOverride.apply(original).writeTo(target);
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Error patching module '" + moduleName + "'", e);
+                }
+
+                // Install any extended modules
                 Properties pluginProperties = new Properties();
                 try (
-                    InputStream in = new BufferedInputStream(
-                        new FileInputStream(modulePath.resolve("plugin-descriptor.properties").toFile())
-                    )
+                    InputStream in = new BufferedInputStream(new FileInputStream(modulePath.resolve(PLUGIN_DESCRIPTOR_PROPERTIES).toFile()))
                 ) {
                     pluginProperties.load(in);
                     String extendedProperty = pluginProperties.getProperty("extended.plugins");
                     if (extendedProperty != null) {
-                        String[] extendedPlugins = extendedProperty.split(",");
-                        for (String plugin : extendedPlugins) {
-                            installModule(plugin, modulePaths);
+                        String[] extendedModules = extendedProperty.split(",");
+                        for (String module : extendedModules) {
+                            if (spec.getModules().containsKey(module) == false) {
+                                installModule(module, new DefaultPluginInstallSpec(), modulePaths);
+                            }
                         }
                     }
                 } catch (IOException e) {

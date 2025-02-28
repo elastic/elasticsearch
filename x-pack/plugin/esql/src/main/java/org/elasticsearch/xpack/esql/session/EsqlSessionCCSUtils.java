@@ -204,6 +204,10 @@ class EsqlSessionCCSUtils {
          * Mark it as SKIPPED with 0 shards searched and took=0.
          */
         for (String c : clustersWithNoMatchingIndices) {
+            if (executionInfo.getCluster(c).getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                // if cluster was already marked SKIPPED during enrich policy resolution, do not overwrite
+                continue;
+            }
             final String indexExpression = executionInfo.getCluster(c).getIndexExpression();
             if (missingIndicesIsFatal(c, executionInfo)) {
                 String error = Strings.format(

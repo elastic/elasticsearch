@@ -290,7 +290,7 @@ with the number and sizes of arrays present in source of each document, naturall
 [[synthetic-source-fields-native-list]]
 ===== Field types that support synthetic source with no storage overhead
 The following field types support synthetic source using data from <<doc-values,`doc_values`>> or
-<stored-fields, stored fields>>, and require no additional storage space to construct the `_source` field.
+<<stored-fields, stored fields>>, and require no additional storage space to construct the `_source` field.
 
 NOTE: If you enable the <<ignore-malformed,`ignore_malformed`>> or <<ignore-above,`ignore_above`>> settings, then
 additional storage is required to store ignored field values for these types.

@@ -2350,6 +2350,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     magnitudeReader = leafReader.getNumericDocValues(fullPath() + COSINE_MAGNITUDE_FIELD_SUFFIX);
                 }
                 return docId -> {
+                    if (values.docID() > docId) {
+                        return hasValue = false;
+                    }
+                    if (values.docID() == docId) {
+                        return hasValue = true;
+                    }
                     hasValue = docId == values.advance(docId);
                     hasMagnitude = hasValue && magnitudeReader != null && magnitudeReader.advanceExact(docId);
                     return hasValue;
@@ -2358,6 +2364,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             byteVectorValues = leafReader.getByteVectorValues(fullPath());
             if (byteVectorValues != null) {
                 return docId -> {
+                    if (byteVectorValues.docID() > docId) {
+                        return hasValue = false;
+                    }
+                    if (byteVectorValues.docID() == docId) {
+                        return hasValue = true;
+                    }
                     hasValue = docId == byteVectorValues.advance(docId);
                     return hasValue;
                 };
@@ -2419,6 +2431,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return null;
             }
             return docId -> {
+                if (values.docID() > docId) {
+                    return hasValue = false;
+                }
+                if (values.docID() == docId) {
+                    return hasValue = true;
+                }
                 hasValue = docId == values.advance(docId);
                 return hasValue;
             };

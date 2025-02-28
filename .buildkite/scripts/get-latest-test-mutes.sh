@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [[ ! "${BUILDKITE_PULL_REQUEST:-}" || "${BUILDKITE_AGENT_META_DATA_PROVIDER:-}" == "k8s" ]]; then
+if [[ "${BUILDKITE_PULL_REQUEST:-false}" == "false"  || "${BUILDKITE_AGENT_META_DATA_PROVIDER:-}" == "k8s" ]]; then
   exit 0
 fi
 

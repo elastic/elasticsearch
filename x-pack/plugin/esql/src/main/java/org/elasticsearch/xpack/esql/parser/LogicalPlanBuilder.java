@@ -433,7 +433,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 : matchField instanceof UnresolvedStar ? WILDCARD
                 : null;
             if (patternString != null) {
-                throw new ParsingException(source, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", patternString);
+                throw new ParsingException(
+                    source,
+                    "Using wildcards [*] in ENRICH WITH projections is not allowed, found [{}]",
+                    patternString
+                );
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);

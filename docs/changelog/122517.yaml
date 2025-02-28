@@ -1,0 +1,5 @@
+pr: 122517
+summary: Block running ES 8.17 with JDK 24+
+area: Infra/Node Lifecycle
+type: bug
+issues: []

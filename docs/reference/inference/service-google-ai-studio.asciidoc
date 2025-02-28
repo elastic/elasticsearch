@@ -1,5 +1,5 @@
 [[infer-service-google-ai-studio]]
-=== Google AI Studio {infer} service
+=== Google AI Studio {infer} integration
 
 .New API reference
 [sidebar]
@@ -43,7 +43,7 @@ Available task types:
 (Optional, object)
 include::inference-shared.asciidoc[tag=chunking-settings]
 
-`max_chunking_size`:::
+`max_chunk_size`:::
 (Optional, integer)
 include::inference-shared.asciidoc[tag=chunking-settings-max-chunking-size]
 

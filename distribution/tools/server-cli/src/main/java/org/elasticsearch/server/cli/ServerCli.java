@@ -78,6 +78,13 @@ class ServerCli extends EnvironmentAwareCommand {
             return;
         }
 
+        if (Runtime.version().feature() >= 24) {
+            throw new UserException(
+                ExitCodes.USAGE,
+                "Elasticsearch 8.17.x cannot run with JDK 24+, but you are running JDK " + Runtime.version()
+            );
+        }
+
         validateConfig(options, env);
 
         var secureSettingsLoader = secureSettingsLoader(env);

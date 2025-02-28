@@ -109,6 +109,23 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
         cluster.restart();
     }
 
+    public void nextNodeToNextVersion(Provider<ElasticsearchCluster> cluster) {
+        nextNodeToNextVersion(cluster.get());
+    }
+
+    public void nextNodeToNextVersion(ElasticsearchCluster cluster) {
+        nextNodeToNextVersion(cluster.getPath(), cluster.getName());
+    }
+
+    public void nextNodeToNextVersion(String path, String clusterName) {
+        ElasticsearchCluster cluster = runningClusters.stream()
+            .filter(c -> c.getPath().equals(path))
+            .filter(c -> c.getName().equals(clusterName))
+            .findFirst()
+            .orElseThrow();
+        cluster.nextNodeToNextVersion();
+    }
+
     public void storeProcess(String id, Process esProcess) {
         nodeProcesses.put(id, esProcess);
     }

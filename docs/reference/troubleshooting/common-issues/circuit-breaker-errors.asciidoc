@@ -12,6 +12,10 @@ memory pressure if usage consistently exceeds 85%.
 See https://www.youtube.com/watch?v=k3wYlRVbMSw[this video] for a walkthrough
 of diagnosing circuit breaker errors.
 
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
+
 [discrete]
 [[diagnose-circuit-breaker-errors]]
 ==== Diagnose circuit breaker errors

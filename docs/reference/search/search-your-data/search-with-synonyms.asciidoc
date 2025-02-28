@@ -145,15 +145,35 @@ The following example adds `my_analyzer` as a search analyzer to the `title` fie
 
 [source,JSON]
 ----
+{
   "mappings": {
     "properties": {
       "title": {
         "type": "text",
-        "search_analyzer": "my_analyzer",
-        "updateable": true
+        "search_analyzer": "my_analyzer"
+      }
+    }
+  },
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "whitespace",
+          "filter": [
+            "synonyms_filter"
+          ]
+        }
+      },
+      "filter": {
+        "synonyms_filter": {
+          "type": "synonym",
+          "synonyms_path": "analysis/synonym-set.txt",
+          "updateable": true
+        }
       }
     }
   }
+}
 ----
 
 

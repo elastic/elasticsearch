@@ -776,7 +776,7 @@ Discontinue use of the deprecated setting.
 *Details* +
 The `gateway.auto_import_dangling_indices` cluster setting has been removed.
 Previously, you could use this setting to automatically import
-{ref}/modules-gateway.html#dangling-indices[dangling indices]. However,
+<<dangling-indices,dangling indices>>. However,
 automatically importing dangling indices is unsafe. Use the
 {ref}/indices.html#dangling-indices-api[dangling indices APIs] to manage and
 import dangling indices instead.

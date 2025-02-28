@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.UUIDs;
@@ -41,17 +42,20 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
     private final LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider;
     private final Supplier<IndexVersion> createdIndexVersion;
+    private final Supplier<Version> minNodeVersion;
 
     SyntheticSourceIndexSettingsProvider(
         SyntheticSourceLicenseService syntheticSourceLicenseService,
         CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory,
         LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider,
-        Supplier<IndexVersion> createdIndexVersion
+        Supplier<IndexVersion> createdIndexVersion,
+        Supplier<Version> minNodeVersion
     ) {
         this.syntheticSourceLicenseService = syntheticSourceLicenseService;
         this.mapperServiceFactory = mapperServiceFactory;
         this.logsdbIndexModeSettingsProvider = logsdbIndexModeSettingsProvider;
         this.createdIndexVersion = createdIndexVersion;
+        this.minNodeVersion = minNodeVersion;
     }
 
     @Override
@@ -70,6 +74,10 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
+        if (minNodeVersion.get().before(Version.V_8_17_0)) {
+            return Settings.EMPTY;
+        }
+
         var logsdbSettings = logsdbIndexModeSettingsProvider.getLogsdbModeSetting(dataStreamName, indexTemplateAndCreateRequestSettings);
         if (logsdbSettings != Settings.EMPTY) {
             indexTemplateAndCreateRequestSettings = Settings.builder()

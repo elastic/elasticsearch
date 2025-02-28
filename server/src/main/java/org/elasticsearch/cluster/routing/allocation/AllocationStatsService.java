@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShar
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.transport.Transports;
 
 import java.util.Map;
 
@@ -41,6 +42,10 @@ public class AllocationStatsService {
     }
 
     public Map<String, NodeAllocationStats> stats() {
+        assert Transports.assertNotTransportThread("too expensive for a transport worker");
+
+        writeLoadForecaster.refreshLicense();
+
         var state = clusterService.state();
         var info = clusterInfoService.getClusterInfo();
         var desiredBalance = desiredBalanceShardsAllocator != null ? desiredBalanceShardsAllocator.getDesiredBalance() : null;

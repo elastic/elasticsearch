@@ -1,5 +1,0 @@
-pr: 119495
-summary: Add mapping for `event_name` for OTel logs
-area: Data streams
-type: enhancement
-issues: []

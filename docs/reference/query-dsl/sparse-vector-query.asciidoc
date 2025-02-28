@@ -61,10 +61,13 @@ GET _search
 (Required, string) The name of the field that contains the token-weight pairs to be searched against.
 
 `inference_id`::
-(Optional, string) The <<inference-apis,inference ID>> to use to convert the query text into token-weight pairs.
+(Optional, string)
+The <<inference-apis,inference ID>> to use to convert the query text into token-weight pairs.
 It must be the same inference ID that was used to create the tokens from the input text.
 Only one of `inference_id` and `query_vector` is allowed.
 If `inference_id` is specified, `query` must also be specified.
+You can reference a `deployment_id` of a {ml} trained model deployment as an `inference_id`.
+For example, if you download and deploy the ELSER model in the {ml-cap} trained models UI in {kib}, you can use the `deployment_id` of that deployment as the `inference_id`.
 
 `query`::
 (Optional, string) The query text you want to use for search.

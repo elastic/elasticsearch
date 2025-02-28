@@ -182,10 +182,6 @@ for those that were created by an SLM policy with a name starting with `policy-a
 created by an SLM policy but not those snapshots that were not created by an SLM policy. To include snapshots not created by an SLM
 policy you can use the special pattern `_none` that will match all snapshots without an SLM policy.
 
-`state`::
-(Optional, string)
-Filter snapshots by state. Valid values are `SUCCESS`, `IN_PROGRESS`, `FAILED`, `PARTIAL`, or `INCOMPATIBLE`.
-
 NOTE: The `after` parameter and `next` field allow for iterating through snapshots with some consistency guarantees regarding concurrent
 creation or deletion of snapshots. It is guaranteed that any snapshot that exists at the beginning of the iteration and is not concurrently
 deleted will be seen during the iteration. Snapshots concurrently created may be seen during an iteration.

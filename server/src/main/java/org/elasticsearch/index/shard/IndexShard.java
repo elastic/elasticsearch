@@ -1615,14 +1615,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Engine.IndexCommitRef indexCommit = null;
         store.incRef();
         try {
-            // if the engine is not running, we can access the store directly, but we need to make sure no one starts
-            // the engine on us. If the engine is running, we can get a snapshot via the deletion policy of the engine.
-            indexCommit = withEngineOrNull(engine -> engine != null ? engine.acquireLastIndexCommit(false) : null);
-            if (indexCommit != null) {
-                return store.getMetadata(indexCommit.getIndexCommit());
-            } else {
-                return store.getMetadata(null, true);
+            engineLock.writeLock().lock();
+            try {
+                // if the engine is not running, we can access the store directly, but we need to make sure no one starts
+                // the engine on us. If the engine is running, we can get a snapshot via the deletion policy of the engine.
+                final Engine engine = getEngineOrNull();
+                if (engine != null) {
+                    indexCommit = engine.acquireLastIndexCommit(false);
+                }
+                if (indexCommit == null) {
+                    return store.getMetadata(null, true);
+                }
+            } finally {
+                engineLock.writeLock().unlock();
             }
+            return store.getMetadata(indexCommit.getIndexCommit());
         } finally {
             store.decRef();
             IOUtils.close(indexCommit);

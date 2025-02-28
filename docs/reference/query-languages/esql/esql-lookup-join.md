@@ -59,5 +59,5 @@ The following is a list of current limitations with `LOOKUP JOIN`
 * The query will circuit break if you fetch too much data in a single page. A large heap is needed to manage results of multiple megabytes.
   * This limit is per page of data which is about about 10,000 rows.
   * Matching many rows per incoming row will count against this limit.
-  * This limit is approximately the same as for [`ENRICH`](/reference/query-languages/esql/esql-commands.md#esql-enrich).
+  * This limit is approximately the same as for [`ENRICH`](elasticsearch/docs/reference/query-languages/esql/esql-commands.md#esql-enrich).
 

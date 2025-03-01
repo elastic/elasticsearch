@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Symbol;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -162,6 +163,21 @@ class BytesReferenceStreamInput extends StreamInput {
         Objects.checkFromIndexSize(offset(), len, bytesReference.length());
         final int bytesRead = read(b, bOffset, len);
         assert bytesRead == len : bytesRead + " vs " + len;
+    }
+
+    @Override
+    public Symbol readSymbol() throws IOException {
+        final int length = readVInt();
+        validateArraySize(length);
+        if (slice.hasArray() && slice.remaining() >= length) {
+            int start = slice.position() + slice.arrayOffset();
+            Symbol symbol = Symbol.lookupOrThrow(slice.array(), start, start + length);
+            slice.position(slice.position() + length);
+            return symbol;
+        } else {
+            ensureCanReadBytes(length);
+            return Symbol.lookupOrThrow(doReadByteArray(length));
+        }
     }
 
     @Override

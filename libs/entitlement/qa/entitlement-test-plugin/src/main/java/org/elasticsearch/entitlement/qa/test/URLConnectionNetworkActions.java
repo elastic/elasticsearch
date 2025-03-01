@@ -259,4 +259,47 @@ class URLConnectionNetworkActions {
     static void baseHttpURLConnectionGetHeaderFieldDate() throws Exception {
         withPlainNetworkConnection(conn -> conn.getHeaderFieldDate("date", 0));
     }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpURLConnectionConnect() throws Exception {
+        withJdkHttpConnection(HttpURLConnection::connect);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpURLConnectionGetOutputStream() throws Exception {
+        withJdkHttpConnection(httpURLConnection -> {
+            httpURLConnection.setDoOutput(true);
+            httpURLConnection.getOutputStream();
+        });
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpURLConnectionGetInputStream() throws Exception {
+        withJdkHttpConnection(HttpURLConnection::getInputStream);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpURLConnectionGetErrorStream() throws Exception {
+        withJdkHttpConnection(HttpURLConnection::getErrorStream);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpURLConnectionGetHeaderFieldWithName() throws Exception {
+        withJdkHttpConnection(conn -> conn.getHeaderField("date"));
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpURLConnectionGetHeaderFields() throws Exception {
+        withJdkHttpConnection(HttpURLConnection::getHeaderFields);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpURLConnectionGetHeaderFieldWithIndex() throws Exception {
+        withJdkHttpConnection(conn -> conn.getHeaderField(0));
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpURLConnectionGetHeaderFieldKey() throws Exception {
+        withJdkHttpConnection(conn -> conn.getHeaderFieldKey(0));
+    }
 }

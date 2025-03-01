@@ -871,6 +871,66 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$$openConnectionCheckRedirects(
+        Class<?> callerClass,
+        java.net.URLConnection c
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$connect(Class<?> callerClass, java.net.HttpURLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$getOutputStream(Class<?> callerClass, java.net.HttpURLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$getInputStream(Class<?> callerClass, java.net.HttpURLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$getErrorStream(Class<?> callerClass, java.net.HttpURLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderField(
+        Class<?> callerClass,
+        java.net.HttpURLConnection that,
+        String name
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderFields(Class<?> callerClass, java.net.HttpURLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderField(
+        Class<?> callerClass,
+        java.net.HttpURLConnection that,
+        int n
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderFieldKey(
+        Class<?> callerClass,
+        java.net.HttpURLConnection that,
+        int n
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
     public void check$jdk_internal_net_http_HttpClientImpl$send(
         Class<?> callerClass,
         HttpClient that,

@@ -388,6 +388,28 @@ public interface EntitlementChecker {
 
     void check$sun_net_www_protocol_ftp_FtpURLConnection$getOutputStream(Class<?> callerClass, java.net.URLConnection that);
 
+    void check$sun_net_www_protocol_http_HttpURLConnection$$openConnectionCheckRedirects(Class<?> callerClass, java.net.URLConnection c);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$connect(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getOutputStream(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getInputStream(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getErrorStream(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderField(
+        Class<?> callerClass,
+        java.net.HttpURLConnection that,
+        String name
+    );
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderFields(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderField(Class<?> callerClass, java.net.HttpURLConnection that, int n);
+
+    void check$sun_net_www_protocol_http_HttpURLConnection$getHeaderFieldKey(Class<?> callerClass, java.net.HttpURLConnection that, int n);
+
     // Network miscellanea
 
     // HttpClient#send and sendAsync are abstract, so we instrument their internal implementations

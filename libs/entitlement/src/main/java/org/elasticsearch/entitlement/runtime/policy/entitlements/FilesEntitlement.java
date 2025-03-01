@@ -108,7 +108,6 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 // Unix/BSD absolute
                 return true;
             }
-
             return isWindowsAbsolutePath(path);
         }
 
@@ -232,13 +231,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
         @Override
         public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
-            Stream<String> result;
-            if (setting.contains("*")) {
-                result = pathLookup.settingGlobResolver().apply(setting);
-            } else {
-                String path = pathLookup.settingResolver().apply(setting);
-                result = path == null ? Stream.of() : Stream.of(path);
-            }
+            Stream<String> result = pathLookup.settingResolver().apply(setting);
             if (ignoreUrl) {
                 result = result.filter(s -> s.toLowerCase(Locale.ROOT).startsWith("https://") == false);
             }

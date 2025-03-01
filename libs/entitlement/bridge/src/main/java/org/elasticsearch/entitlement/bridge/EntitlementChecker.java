@@ -358,7 +358,18 @@ public interface EntitlementChecker {
 
     void check$java_net_URLConnection$getContent(Class<?> callerClass, java.net.URLConnection that, Class<?>[] classes);
 
-    // Using java.net.URLConnection for "that" as sun.net.www.URLConnection is not exported
+    void check$java_net_HttpURLConnection$getResponseCode(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$java_net_HttpURLConnection$getResponseMessage(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$java_net_HttpURLConnection$getHeaderFieldDate(
+        Class<?> callerClass,
+        java.net.HttpURLConnection that,
+        String name,
+        long defaultValue
+    );
+
+    // Using java.net.URLConnection for "that" as sun.net.www.* is not exported
     void check$sun_net_www_URLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, String name);
 
     void check$sun_net_www_URLConnection$getHeaderFields(Class<?> callerClass, java.net.URLConnection that);
@@ -370,6 +381,12 @@ public interface EntitlementChecker {
     void check$sun_net_www_URLConnection$getContentType(Class<?> callerClass, java.net.URLConnection that);
 
     void check$sun_net_www_URLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_ftp_FtpURLConnection$connect(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_ftp_FtpURLConnection$getInputStream(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_ftp_FtpURLConnection$getOutputStream(Class<?> callerClass, java.net.URLConnection that);
 
     // Network miscellanea
 

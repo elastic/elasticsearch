@@ -792,6 +792,26 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         }
     }
 
+    @Override
+    public void check$java_net_HttpURLConnection$getResponseCode(Class<?> callerClass, java.net.HttpURLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$java_net_HttpURLConnection$getResponseMessage(Class<?> callerClass, java.net.HttpURLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$java_net_HttpURLConnection$getHeaderFieldDate(
+        Class<?> callerClass,
+        java.net.HttpURLConnection that,
+        String name,
+        long defaultValue
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
     // Using java.net.URLConnection for "that" as sun.net.www.URLConnection is not exported
     @Override
     public void check$sun_net_www_URLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, String name) {
@@ -833,6 +853,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
         }
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_ftp_FtpURLConnection$connect(Class<?> callerClass, java.net.URLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_ftp_FtpURLConnection$getInputStream(Class<?> callerClass, java.net.URLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_ftp_FtpURLConnection$getOutputStream(Class<?> callerClass, java.net.URLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
     }
 
     @Override

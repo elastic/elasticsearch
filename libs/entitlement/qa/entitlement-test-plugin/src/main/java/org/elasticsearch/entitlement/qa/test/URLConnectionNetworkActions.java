@@ -40,7 +40,7 @@ class URLConnectionNetworkActions {
         }
     }
 
-    private static void withPlainNetworkConnection(CheckedConsumer<URLConnection, Exception> connectionConsumer) throws Exception {
+    private static void withPlainNetworkConnection(CheckedConsumer<HttpURLConnection, Exception> connectionConsumer) throws Exception {
         // Create a HttpURLConnection with minimal overrides to test calling directly into URLConnection methods as much as possible
         var conn = new HttpURLConnection(HTTP_URL) {
             @Override
@@ -74,6 +74,17 @@ class URLConnectionNetworkActions {
         assert HttpURLConnection.class.isAssignableFrom(conn.getClass());
         try {
             connectionConsumer.accept((HttpURLConnection) conn);
+        } catch (java.net.ConnectException e) {
+            // It's OK, it means we passed entitlement checks, and we tried to connect
+        }
+    }
+
+    private static void withJdkFtpConnection(CheckedConsumer<URLConnection, Exception> connectionConsumer) throws Exception {
+        var conn = EntitledActions.createFtpURLConnection();
+        // Be sure we got the connection implementation we want
+        assert conn.getClass().getSimpleName().equals("FtpURLConnection");
+        try {
+            connectionConsumer.accept(conn);
         } catch (java.net.ConnectException e) {
             // It's OK, it means we passed entitlement checks, and we tried to connect
         }
@@ -217,5 +228,35 @@ class URLConnectionNetworkActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void sunHttpConnectionGetContentWithClasses() throws Exception {
         withJdkHttpConnection(conn -> conn.getContent(new Class<?>[] { String.class }));
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunFtpURLConnectionConnect() throws Exception {
+        withJdkFtpConnection(URLConnection::connect);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunFtpURLConnectionGetInputStream() throws Exception {
+        withJdkFtpConnection(URLConnection::getInputStream);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunFtpURLConnectionGetOutputStream() throws Exception {
+        withJdkFtpConnection(URLConnection::getOutputStream);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void baseHttpURLConnectionGetResponseCode() throws Exception {
+        withPlainNetworkConnection(HttpURLConnection::getResponseCode);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void baseHttpURLConnectionGetResponseMessage() throws Exception {
+        withPlainNetworkConnection(HttpURLConnection::getResponseMessage);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void baseHttpURLConnectionGetHeaderFieldDate() throws Exception {
+        withPlainNetworkConnection(conn -> conn.getHeaderFieldDate("date", 0));
     }
 }

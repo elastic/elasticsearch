@@ -39,6 +39,7 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
     public void testV7Handshake() throws Exception {
         final BytesRef handshakeRequestBytes;
         final var requestId = randomNonNegativeLong();
+        final var requestNodeTransportVersionId = TransportVersionUtils.randomCompatibleVersion(random()).id();
         try (var outputStream = new BytesStreamOutput()) {
             outputStream.setTransportVersion(TransportHandshaker.V7_HANDSHAKE_VERSION);
             outputStream.writeLong(requestId);
@@ -50,7 +51,6 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
             outputStream.writeString("internal:tcp/handshake");
             outputStream.writeByte((byte) 0); // no parent task ID;
 
-            final var requestNodeTransportVersionId = TransportVersionUtils.randomCompatibleVersion(random()).id();
             assertThat(requestNodeTransportVersionId, allOf(greaterThanOrEqualTo(1 << 22), lessThan(1 << 28))); // 4-byte vInt
             outputStream.writeByte((byte) 4); // payload length
             outputStream.writeVInt(requestNodeTransportVersionId);
@@ -80,7 +80,7 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
             assertEquals((byte) 0, inputStream.readByte()); // no request headers
             assertEquals((byte) 0, inputStream.readByte()); // no response headers
             inputStream.setTransportVersion(TransportHandshaker.V7_HANDSHAKE_VERSION);
-            assertEquals(TransportVersion.current().id(), inputStream.readVInt());
+            assertEquals(requestNodeTransportVersionId, inputStream.readVInt());
             assertEquals(-1, inputStream.read());
         }
     }

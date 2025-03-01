@@ -341,6 +341,9 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
   method: testCreateAndRestorePartialSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/123773
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testDropAllColumns
+  issue: https://github.com/elastic/elasticsearch/issues/123791
 
 # Examples:
 #

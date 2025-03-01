@@ -273,7 +273,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * @throws IllegalStateException if this listener is not complete yet and assertions are disabled.
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    protected final T rawResult() throws Exception {
+    public final T rawResult() throws Exception {
         final Object currentState = state;
         if (currentState instanceof SuccessResult result) {
             return (T) result.result();

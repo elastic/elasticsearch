@@ -31,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
@@ -1970,7 +1971,7 @@ public class RBACEngineTests extends ESTestCase {
         final ResolvedIndices resolvedIndices = new ResolvedIndices(List.of(indices), List.of());
         final TransportRequest searchRequest = new SearchRequest(indices);
         final RequestInfo requestInfo = createRequestInfo(searchRequest, action, parentAuthorization);
-        final AsyncSupplier<ResolvedIndices> indicesAsyncSupplier = s -> s.onResponse(resolvedIndices);
+        final AsyncSupplier<ResolvedIndices> indicesAsyncSupplier = () -> ListenableFuture.newSucceeded(resolvedIndices);
 
         Metadata.Builder metadata = Metadata.builder();
         Stream.of(indices)
@@ -1981,7 +1982,7 @@ public class RBACEngineTests extends ESTestCase {
                 )
             );
 
-        engine.authorizeIndexAction(requestInfo, authzInfo, indicesAsyncSupplier, metadata.build().getProject(), listener);
+        engine.authorizeIndexAction(requestInfo, authzInfo, indicesAsyncSupplier, metadata.build().getProject()).addListener(listener);
     }
 
     private static RequestInfo createRequestInfo(TransportRequest request, String action, ParentActionAuthorization parentAuthorization) {

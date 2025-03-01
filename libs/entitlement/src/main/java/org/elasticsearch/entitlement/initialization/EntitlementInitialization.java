@@ -144,8 +144,7 @@ public class EntitlementInitialization {
             bootstrapArgs.dataDirs(),
             bootstrapArgs.sharedRepoDirs(),
             bootstrapArgs.tempDir(),
-            bootstrapArgs.settingResolver(),
-            bootstrapArgs.settingGlobResolver()
+            bootstrapArgs.settingResolver()
         );
 
         List<Scope> serverScopes = new ArrayList<>();

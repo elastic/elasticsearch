@@ -248,9 +248,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121625
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   issue: https://github.com/elastic/elasticsearch/issues/121537
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testWatcherWithApiKey {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/122061
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
   issue: https://github.com/elastic/elasticsearch/issues/122102
@@ -335,6 +332,18 @@ tests:
 - class: org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests
   method: testFilesEntitlementsWithExclusive
   issue: https://github.com/elastic/elasticsearch/issues/123657
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Test knn search}
+  issue: https://github.com/elastic/elasticsearch/issues/123727
+- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleDisruptionIT
+  method: testDataStreamLifecycleDownsampleRollingRestart
+  issue: https://github.com/elastic/elasticsearch/issues/123769
+- class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
+  method: testCreateAndRestorePartialSearchableSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/123773
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testDropAllColumns
+  issue: https://github.com/elastic/elasticsearch/issues/123791
 
 # Examples:
 #

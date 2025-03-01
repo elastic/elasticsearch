@@ -12,6 +12,9 @@ package org.elasticsearch.entitlement.qa.entitled;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -56,5 +59,9 @@ public final class EntitledActions {
 
     public static Path createTempSymbolicLink() throws IOException {
         return Files.createSymbolicLink(readDir().resolve("entitlements-link-" + random.nextLong()), readWriteDir());
+    }
+
+    public static URLConnection createHttpURLConnection() throws IOException {
+        return URI.create("http://127.0.0.1:12345/").toURL().openConnection();
     }
 }

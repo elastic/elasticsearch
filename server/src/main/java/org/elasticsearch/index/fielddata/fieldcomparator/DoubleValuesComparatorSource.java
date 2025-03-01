@@ -91,7 +91,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
 
                     @Override
                     public void setScorer(Scorable scorer) {
-                        //DoubleValuesComparatorSource.this.setScorer(context, scorer);
+                        // DoubleValuesComparatorSource.this.setScorer(context, scorer);
                     }
                 };
             }

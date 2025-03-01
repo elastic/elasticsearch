@@ -114,7 +114,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
                     @Override
                     public void setScorer(Scorable scorer) throws IOException {
-                        //TODO why is this missing?
+                        // TODO why is this missing?
                     }
                 };
             }

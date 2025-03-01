@@ -963,7 +963,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertEquals(iters, sectionsUsage.get("query").longValue());
     }
 
-    //TODO re-enable this
+    // TODO re-enable this
     @AwaitsFix(bugUrl = "temporary")
     public void testSupportsParallelCollection() {
         Supplier<SearchSourceBuilder> newSearchSourceBuilder = () -> {

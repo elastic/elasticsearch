@@ -12,7 +12,6 @@ package org.elasticsearch.entitlement.qa.entitled;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URLConnection;
 import java.nio.file.Files;

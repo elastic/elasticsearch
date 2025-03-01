@@ -324,7 +324,15 @@ public interface EntitlementChecker {
 
     // URLConnection (java.net + sun.net.www)
 
+    void check$java_net_URL$openConnection(Class<?> callerClass, java.net.URL that);
+
     void check$java_net_URL$openConnection(Class<?> callerClass, java.net.URL that, Proxy proxy);
+
+    void check$java_net_URL$openStream(Class<?> callerClass, java.net.URL that);
+
+    void check$java_net_URL$getContent(Class<?> callerClass, java.net.URL that);
+
+    void check$java_net_URL$getContent(Class<?> callerClass, java.net.URL that, Class<?>[] classes);
 
     void check$java_net_URLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that);
 

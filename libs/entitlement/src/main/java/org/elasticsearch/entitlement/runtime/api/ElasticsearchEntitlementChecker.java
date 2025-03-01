@@ -641,8 +641,36 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_net_URL$openConnection(Class<?> callerClass, java.net.URL that) {
+        if (isNetworkUrl(that)) {
+            policyManager.checkOutboundNetworkAccess(callerClass);
+        }
+    }
+
+    @Override
     public void check$java_net_URL$openConnection(Class<?> callerClass, URL that, Proxy proxy) {
-        if (proxy.type() != Proxy.Type.DIRECT) {
+        if (proxy.type() != Proxy.Type.DIRECT || isNetworkUrl(that)) {
+            policyManager.checkOutboundNetworkAccess(callerClass);
+        }
+    }
+
+    @Override
+    public void check$java_net_URL$openStream(Class<?> callerClass, java.net.URL that) {
+        if (isNetworkUrl(that)) {
+            policyManager.checkOutboundNetworkAccess(callerClass);
+        }
+    }
+
+    @Override
+    public void check$java_net_URL$getContent(Class<?> callerClass, java.net.URL that) {
+        if (isNetworkUrl(that)) {
+            policyManager.checkOutboundNetworkAccess(callerClass);
+        }
+    }
+
+    @Override
+    public void check$java_net_URL$getContent(Class<?> callerClass, java.net.URL that, Class<?>[] classes) {
+        if (isNetworkUrl(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
         }
     }
@@ -652,6 +680,12 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         "sun.net.www.protocol.ftp.FtpURLConnection",
         "sun.net.www.protocol.mailto.MailToURLConnection"
     );
+
+    private static final Set<String> NETWORK_PROTOCOLS = Set.of("http", "https", "ftp", "mailto");
+
+    private static boolean isNetworkUrl(java.net.URL url) {
+        return NETWORK_PROTOCOLS.contains(url.getProtocol());
+    }
 
     private static boolean isNetworkUrlConnection(java.net.URLConnection urlConnection) {
         var connectionClass = urlConnection.getClass();

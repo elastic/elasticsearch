@@ -10,14 +10,18 @@
 package org.elasticsearch.entitlement.qa.test;
 
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
+import java.net.Proxy;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 
@@ -70,6 +74,46 @@ class URLConnectionNetworkActions {
         assert HttpURLConnection.class.isAssignableFrom(conn.getClass());
         try {
             connectionConsumer.accept((HttpURLConnection) conn);
+        } catch (java.net.ConnectException e) {
+            // It's OK, it means we passed entitlement checks, and we tried to connect
+        }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void urlOpenConnection() throws Exception {
+        URI.create("http://127.0.0.1:12345/").toURL().openConnection();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    @SuppressForbidden(reason = "just testing, not a real connection")
+    static void urlOpenConnectionWithProxy() throws URISyntaxException, IOException {
+        var url = new URI("http://localhost").toURL();
+        var urlConnection = url.openConnection(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(0)));
+        assert urlConnection != null;
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void urlOpenStream() throws Exception {
+        try {
+            URI.create("http://127.0.0.1:12345/").toURL().openStream().close();
+        } catch (java.net.ConnectException e) {
+            // It's OK, it means we passed entitlement checks, and we tried to connect
+        }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void urlGetContent() throws Exception {
+        try {
+            URI.create("http://127.0.0.1:12345/").toURL().getContent();
+        } catch (java.net.ConnectException e) {
+            // It's OK, it means we passed entitlement checks, and we tried to connect
+        }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void urlGetContentWithClasses() throws Exception {
+        try {
+            URI.create("http://127.0.0.1:12345/").toURL().getContent(new Class<?>[] { String.class });
         } catch (java.net.ConnectException e) {
             // It's OK, it means we passed entitlement checks, and we tried to connect
         }

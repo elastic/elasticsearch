@@ -198,8 +198,8 @@ public class LocalExecutionPlanner {
             new DriverFactory(
                 new DriverSupplier(
                     taskDescription,
-                    Node.NODE_NAME_SETTING.get(settings),
                     ClusterName.CLUSTER_NAME_SETTING.get(settings).value(),
+                    Node.NODE_NAME_SETTING.get(settings),
                     context.bigArrays,
                     context.blockFactory,
                     physicalOperation,

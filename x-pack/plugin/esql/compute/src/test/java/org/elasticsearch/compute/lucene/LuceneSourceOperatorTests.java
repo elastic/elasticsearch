@@ -147,9 +147,6 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             });
             Driver driver = new Driver(
                 "driver" + i,
-                "test",
-                "cluster",
-                "node",
                 0,
                 0,
                 driverContext,

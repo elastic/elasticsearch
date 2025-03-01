@@ -167,9 +167,6 @@ public class LimitOperatorTests extends OperatorTestCase {
             drivers.add(
                 new Driver(
                     "unset",
-                    "test",
-                    "cluster",
-                    "node",
                     0,
                     0,
                     driverContext,

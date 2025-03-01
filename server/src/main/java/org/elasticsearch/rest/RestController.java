@@ -933,7 +933,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private void close() {
             // attempt to close once atomically
             if (closed.compareAndSet(false, true) == false) {
-                throw new IllegalStateException("Channel is already closed");
+                final IllegalStateException e = new IllegalStateException("Channel is already closed");
+                assert false : e; // this is always a bug, we tried to send two responses to the same channel
+                throw e;
             }
             inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
         }

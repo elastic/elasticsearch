@@ -58,6 +58,7 @@ public final class EngineConfig {
     private final MapperService mapperService;
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final ThreadPool threadPool;
+    private final ThreadPoolMergeExecutor threadPoolMergeExecutor;
     private final Engine.Warmer warmer;
     private final Store store;
     private final MergePolicy mergePolicy;
@@ -150,6 +151,7 @@ public final class EngineConfig {
     public EngineConfig(
         ShardId shardId,
         ThreadPool threadPool,
+        ThreadPoolMergeExecutor threadPoolMergeExecutor,
         IndexSettings indexSettings,
         Engine.Warmer warmer,
         Store store,
@@ -179,6 +181,7 @@ public final class EngineConfig {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
+        this.threadPoolMergeExecutor = threadPoolMergeExecutor;
         this.warmer = warmer == null ? (a) -> {} : warmer;
         this.store = store;
         this.mergePolicy = mergePolicy;
@@ -285,6 +288,10 @@ public final class EngineConfig {
      */
     public ThreadPool getThreadPool() {
         return threadPool;
+    }
+
+    public ThreadPoolMergeExecutor getThreadPoolMergeExecutor() {
+        return threadPoolMergeExecutor;
     }
 
     /**

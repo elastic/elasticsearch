@@ -155,6 +155,7 @@ public abstract class EngineTestCase extends ESTestCase {
     protected static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 
     protected ThreadPool threadPool;
+    protected ThreadPoolMergeExecutor threadPoolMergeExecutor;
     protected TranslogHandler translogHandler;
 
     protected Store store;
@@ -241,6 +242,8 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         defaultSettings = IndexSettingsModule.newIndexSettings("index", indexSettings());
         threadPool = new TestThreadPool(getClass().getName());
+        threadPoolMergeExecutor = new ThreadPoolMergeExecutor(threadPool);
+
         store = createStore();
         storeReplica = createStore();
         Lucene.cleanLuceneIndex(store.directory());
@@ -272,6 +275,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
+            config.getThreadPoolMergeExecutor(),
             config.getIndexSettings(),
             config.getWarmer(),
             config.getStore(),
@@ -304,6 +308,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
+            config.getThreadPoolMergeExecutor(),
             config.getIndexSettings(),
             config.getWarmer(),
             config.getStore(),
@@ -336,6 +341,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
+            config.getThreadPoolMergeExecutor(),
             config.getIndexSettings(),
             config.getWarmer(),
             config.getStore(),
@@ -840,6 +846,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             shardId,
             threadPool,
+            threadPoolMergeExecutor,
             indexSettings,
             null,
             store,
@@ -880,6 +887,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
+            config.getThreadPoolMergeExecutor(),
             indexSettings,
             config.getWarmer(),
             store,

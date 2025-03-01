@@ -264,7 +264,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final Collection<String> loggedLeaks = new ArrayList<>();
 
     private HeaderWarningAppender headerWarningAppender;
-    private org.elasticsearch.logging.Level capturedLogLevel;
 
     @AfterClass
     public static void resetPortCounter() {
@@ -577,6 +576,22 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    private org.elasticsearch.logging.Level capturedLogLevel = null;
+
+    @Before
+    public void captureLoggingLevel() {
+        capturedLogLevel = LoggerFactory.provider().getRootLevel();
+    }
+
+    @After
+    public void restoreLoggingLevel() {
+        if (capturedLogLevel != null) {
+            // log level might not have been captured if test was skipped
+            LoggerFactory.provider().setRootLevel(capturedLogLevel);
+            capturedLogLevel = null;
+        }
+    }
+
     @Before
     public final void before() {
         LeakTracker.setContextHint(getTestName());
@@ -586,7 +601,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             this.threadContext = new ThreadContext(Settings.EMPTY);
             HeaderWarning.setThreadContext(threadContext);
         }
-        capturedLogLevel = LoggerFactory.provider().getRootLevel();
     }
 
     private static final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
@@ -621,7 +635,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @After
     public final void after() throws Exception {
-        LoggerFactory.provider().setRootLevel(capturedLogLevel);
         if (enableBigArraysReleasedCheck()) {
             MockBigArrays.ensureAllArraysAreReleased();
         }

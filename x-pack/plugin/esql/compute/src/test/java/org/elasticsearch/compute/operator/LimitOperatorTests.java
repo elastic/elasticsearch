@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.core.TimeValue;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -164,7 +165,21 @@ public class LimitOperatorTests extends OperatorTestCase {
                 p.releaseBlocks();
             });
             drivers.add(
-                new Driver("driver" + i, driverContext, sourceOperator, List.of(limitFactory.get(driverContext)), sinkOperator, () -> {})
+                new Driver(
+                    "unset",
+                    "test",
+                    "cluster",
+                    "node",
+                    0,
+                    0,
+                    driverContext,
+                    () -> "test",
+                    sourceOperator,
+                    List.of(limitFactory.get(driverContext)),
+                    sinkOperator,
+                    TimeValue.timeValueMillis(1),
+                    () -> {}
+                )
             );
         }
         runDriver(drivers);

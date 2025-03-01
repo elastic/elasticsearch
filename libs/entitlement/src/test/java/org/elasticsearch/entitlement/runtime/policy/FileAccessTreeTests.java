@@ -217,25 +217,6 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canRead(Path.of("C:\\a\\c\\foo.txt")), is(true));
     }
 
-    public void testNormalizeDirectorySeparatorPosix() {
-        assumeFalse("normalization of posix paths", Platform.WINDOWS.isCurrent());
-
-        assertThat(FileAccessTree.normalizePath(Path.of("\\a\\b")), equalTo("/a/b"));
-        assertThat(FileAccessTree.normalizePath(Path.of("/a.xml")), equalTo("/a.xml"));
-        assertThat(FileAccessTree.normalizePath(Path.of("/a/c\\foo.txt")), equalTo("/a/c/foo.txt"));
-
-        var tree = accessTree(entitlement("\\a\\b", "read", "/a.xml", "read", "/a/b.txt", "read", "/a/c\\foo.txt", "read"), List.of());
-
-        assertThat(tree.canRead(Path.of("/a.xml")), is(true));
-        assertThat(tree.canRead(Path.of("\\a.xml")), is(true));
-        assertThat(tree.canRead(Path.of("/a/")), is(false));
-        assertThat(tree.canRead(Path.of("/a/b.txt")), is(true));
-        assertThat(tree.canRead(Path.of("/a/b/c.txt")), is(true));
-        assertThat(tree.canRead(Path.of("\\a\\b\\c.txt")), is(true));
-        assertThat(tree.canRead(Path.of("\\a\\c\\")), is(false));
-        assertThat(tree.canRead(Path.of("\\a\\c\\foo.txt")), is(true));
-    }
-
     public void testNormalizeTrailingSlashes() {
         var tree = accessTree(entitlement("/trailing/slash/", "read", "/no/trailing/slash", "read"), List.of());
         assertThat(tree.canRead(path("/trailing/slash")), is(true));

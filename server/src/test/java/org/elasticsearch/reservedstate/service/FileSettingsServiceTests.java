@@ -12,6 +12,7 @@ package org.elasticsearch.reservedstate.service;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -84,6 +85,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class FileSettingsServiceTests extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(FileSettingsServiceTests.class);
     private Environment env;

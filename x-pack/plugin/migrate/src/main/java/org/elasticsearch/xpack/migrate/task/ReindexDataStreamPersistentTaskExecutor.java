@@ -88,7 +88,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             id,
             type,
             action,
-            "id=" + taskInProgress.getId(),
+            "Reindexing data stream " + taskInProgress.getParams().getSourceDataStream(),
             parentTaskId,
             headers
         );

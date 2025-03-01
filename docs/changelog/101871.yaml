@@ -1,0 +1,6 @@
+pr: 101871
+summary: Add static factoryNumber in SnifferThreadFactory
+area: Data Management
+type: enhancement
+issues:
+  - 78271

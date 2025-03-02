@@ -412,11 +412,13 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         try {
             startInParallel(threadCount, i -> {
                 try {
-                    indicesAdmin().prepareAddBlock(block, indexName).get();
+                    assertBusy(() -> assertAcked(indicesAdmin().prepareAddBlock(block, indexName).get()));
                     assertIndexHasBlock(block, indexName);
                 } catch (final ClusterBlockException e) {
                     assertThat(e.blocks(), hasSize(1));
                     assertTrue(e.blocks().stream().allMatch(b -> b.id() == block.getBlock().id()));
+                } catch (Exception e) {
+                    throw new RuntimeException("Unable to ack an index block request", e);
                 }
             });
             assertIndexHasBlock(block, indexName);

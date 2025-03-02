@@ -23,7 +23,7 @@
     }
   },
   "_meta": {
-    "description": "Index lifecycle policy generated for [monitoring-*-8] data streams",
+    "description": "Index lifecycle policy generated for [monitoring-*-9] data streams",
     "defaults": {
       "delete_min_age": "Using value of [${xpack.stack.monitoring.history.duration}] based on ${xpack.stack.monitoring.history.duration.reason}"
     }

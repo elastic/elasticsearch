@@ -18,15 +18,19 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -158,6 +162,58 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         assertTrue(threadPoolMergeExecutorService.allDone());
     }
 
+    public void testThreadPoolStatsWithBackloggedMergeTasks() throws Exception {
+        int mergeExecutorThreadCount = randomIntBetween(1, 3);
+        Settings settings = Settings.builder()
+                .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+                .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+                .build();
+        try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
+                    .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
+            assertNotNull(threadPoolMergeExecutorService);
+            assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
+            int totalMergeTasksCount = randomIntBetween(1, 10);
+            ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
+            List<MergeTask> backloggedMergeTasksList = new ArrayList<>();
+            for (int i = 0; i < totalMergeTasksCount; i++) {
+                MergeTask mergeTask = mock(MergeTask.class);
+                boolean supportsIOThrottling = randomBoolean();
+                when(mergeTask.supportsIOThrottling()).thenReturn(supportsIOThrottling);
+                boolean runNowOrBacklog = randomBoolean();
+                when(mergeTask.runNowOrBacklog()).thenReturn(runNowOrBacklog);
+                if (runNowOrBacklog == false) {
+                    backloggedMergeTasksList.add(mergeTask);
+                }
+                threadPoolMergeExecutorService.submitMergeTask(mergeTask);
+            }
+            assertBusy(() -> {
+                // all runnable merge tasks should show as "completed"
+                assertThat(threadPoolExecutor.getCompletedTaskCount(), is((long) (totalMergeTasksCount - backloggedMergeTasksList.size())));
+                if (backloggedMergeTasksList.size() >= mergeExecutorThreadCount) {
+                    // active tasks waiting for backlogged merge tasks to be re-enqueued
+                    assertThat(threadPoolExecutor.getActiveCount(), is(mergeExecutorThreadCount));
+                    assertThat(threadPoolExecutor.getQueue().size(), is(backloggedMergeTasksList.size() - mergeExecutorThreadCount));
+                } else {
+                    assertThat(threadPoolExecutor.getActiveCount(), is(backloggedMergeTasksList.size()));
+                    assertThat(threadPoolExecutor.getQueue().size(), is(0));
+                }
+            });
+            // re-enqueue backlogged merge tasks, and make them "runnable" now
+            for (MergeTask backloggedMergeTask : backloggedMergeTasksList) {
+                when(backloggedMergeTask.runNowOrBacklog()).thenReturn(true);
+                threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(backloggedMergeTask);
+            }
+            assertBusy(() -> {
+                // all merge tasks should now show as "completed"
+                assertThat(threadPoolExecutor.getCompletedTaskCount(), is((long) totalMergeTasksCount));
+                assertThat(threadPoolExecutor.getActiveCount(), is(0));
+                assertThat(threadPoolExecutor.getQueue().size(), is(0));
+                assertTrue(threadPoolMergeExecutorService.allDone());
+            });
+        }
+    }
+
     public void testBackloggedMergeTasksExecuteExactlyOnce() throws Exception {
         int mergeExecutorThreadCount = randomIntBetween(1, 3);
         Settings settings = Settings.builder()
@@ -209,7 +265,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                         verify(mergeTask, times(0)).setIORateLimit(anyLong());
                     }
                 }
-                threadPoolMergeExecutorService.allDone();
+                assertTrue(threadPoolMergeExecutorService.allDone());
             });
         }
     }

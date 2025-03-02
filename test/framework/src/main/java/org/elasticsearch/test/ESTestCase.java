@@ -576,17 +576,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    private org.elasticsearch.logging.Level capturedLogLevel = null;
+    private static org.elasticsearch.logging.Level capturedLogLevel = null;
 
-    @Before
-    public void captureLoggingLevel() {
+    // just capture the expected level once before the suite starts
+    @BeforeClass
+    public static void captureLoggingLevel() {
         capturedLogLevel = LoggerFactory.provider().getRootLevel();
     }
 
-    @After
-    public void restoreLoggingLevel() {
+    @AfterClass
+    public static void restoreLoggingLevel() {
         if (capturedLogLevel != null) {
-            // log level might not have been captured if test was skipped
+            // log level might not have been captured if suite was skipped
             LoggerFactory.provider().setRootLevel(capturedLogLevel);
             capturedLogLevel = null;
         }

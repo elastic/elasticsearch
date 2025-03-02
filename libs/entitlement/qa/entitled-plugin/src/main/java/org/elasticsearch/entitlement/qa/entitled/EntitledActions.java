@@ -64,6 +64,10 @@ public final class EntitledActions {
         return URI.create("http://127.0.0.1:12345/").toURL().openConnection();
     }
 
+    public static URLConnection createHttpsURLConnection() throws IOException {
+        return URI.create("https://127.0.0.1:12345/").toURL().openConnection();
+    }
+
     public static URLConnection createFtpURLConnection() throws IOException {
         return URI.create("ftp://127.0.0.1:12345/").toURL().openConnection();
     }

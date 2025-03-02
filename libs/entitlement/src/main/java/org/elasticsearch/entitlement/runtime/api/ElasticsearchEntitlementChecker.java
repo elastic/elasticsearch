@@ -931,6 +931,200 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$connect(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getOutputStream(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getInputStream(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getErrorStream(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderField(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        String name
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFields(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderField(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        int n
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFieldKey(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        int n
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getResponseCode(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getResponseMessage(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContentLength(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContentLengthLong(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContentType(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContentEncoding(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getExpiration(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getDate(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getLastModified(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFieldInt(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        String name,
+        int defaultValue
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFieldLong(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        String name,
+        long defaultValue
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getHeaderFieldDate(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        String name,
+        long defaultValue
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContent(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_HttpsURLConnectionImpl$getContent(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that,
+        Class<?>[] classes
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_https_AbstractDelegateHttpsURLConnection$connect(
+        Class<?> callerClass,
+        javax.net.ssl.HttpsURLConnection that
+    ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
     public void check$jdk_internal_net_http_HttpClientImpl$send(
         Class<?> callerClass,
         HttpClient that,

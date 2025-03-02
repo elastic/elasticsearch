@@ -25,6 +25,8 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 
+import javax.net.ssl.HttpsURLConnection;
+
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
 @SuppressWarnings("unused") // everything is called via reflection
@@ -74,6 +76,17 @@ class URLConnectionNetworkActions {
         assert HttpURLConnection.class.isAssignableFrom(conn.getClass());
         try {
             connectionConsumer.accept((HttpURLConnection) conn);
+        } catch (java.net.ConnectException e) {
+            // It's OK, it means we passed entitlement checks, and we tried to connect
+        }
+    }
+
+    private static void withJdkHttpsConnection(CheckedConsumer<HttpsURLConnection, Exception> connectionConsumer) throws Exception {
+        var conn = EntitledActions.createHttpsURLConnection();
+        // Be sure we got the connection implementation we want
+        assert HttpsURLConnection.class.isAssignableFrom(conn.getClass());
+        try {
+            connectionConsumer.accept((HttpsURLConnection) conn);
         } catch (java.net.ConnectException e) {
             // It's OK, it means we passed entitlement checks, and we tried to connect
         }
@@ -301,5 +314,119 @@ class URLConnectionNetworkActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void sunHttpURLConnectionGetHeaderFieldKey() throws Exception {
         withJdkHttpConnection(conn -> conn.getHeaderFieldKey(0));
+    }
+
+    // https
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplConnect() throws Exception {
+        withJdkHttpsConnection(HttpsURLConnection::connect);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetOutputStream() throws Exception {
+        withJdkHttpsConnection(httpsURLConnection -> {
+            httpsURLConnection.setDoOutput(true);
+            httpsURLConnection.getOutputStream();
+        });
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetInputStream() throws Exception {
+        withJdkHttpsConnection(HttpsURLConnection::getInputStream);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetErrorStream() throws Exception {
+        withJdkHttpsConnection(HttpsURLConnection::getErrorStream);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetHeaderFieldWithName() throws Exception {
+        withJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderField("date"));
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetHeaderFields() throws Exception {
+        withJdkHttpsConnection(HttpsURLConnection::getHeaderFields);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetHeaderFieldWithIndex() throws Exception {
+        withJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderField(0));
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetHeaderFieldKey() throws Exception {
+        withJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderFieldKey(0));
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetResponseCode() throws Exception {
+        withJdkHttpsConnection(HttpsURLConnection::getResponseCode);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetResponseMessage() throws Exception {
+        withJdkHttpsConnection(HttpsURLConnection::getResponseMessage);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetContentLength() throws Exception {
+        withJdkHttpsConnection(HttpsURLConnection::getContentLength);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImpl$getContentLengthLong() throws Exception {
+        withJdkHttpsConnection(HttpsURLConnection::getContentLengthLong);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetContentType() throws Exception {
+        withJdkHttpsConnection(HttpsURLConnection::getContentType);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetContentEncoding() throws Exception {
+        withJdkHttpsConnection(HttpsURLConnection::getContentEncoding);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetExpiration() throws Exception {
+        withJdkHttpsConnection(HttpsURLConnection::getExpiration);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetDate() throws Exception {
+        withJdkHttpsConnection(HttpsURLConnection::getDate);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetLastModified() throws Exception {
+        withJdkHttpsConnection(HttpsURLConnection::getLastModified);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetHeaderFieldInt() throws Exception {
+        withJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderFieldInt("content-length", -1));
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetHeaderFieldLong() throws Exception {
+        withJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderFieldLong("content-length", -1));
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetHeaderFieldDate() throws Exception {
+        withJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getHeaderFieldDate("date", 0));
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetContent() throws Exception {
+        withJdkHttpsConnection(HttpsURLConnection::getContent);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunHttpsURLConnectionImplGetContentWithClasses() throws Exception {
+        withJdkHttpsConnection(httpsURLConnection -> httpsURLConnection.getContent(new Class<?>[] { String.class }));
     }
 }

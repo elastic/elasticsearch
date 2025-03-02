@@ -114,6 +114,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -2636,6 +2637,85 @@ public class InternalEngineTests extends EngineTestCase {
             Loggers.setLevel(rootLogger, savedLevel);
             Loggers.removeAppender(rootLogger, mockAppender);
             mockAppender.stop();
+        }
+    }
+
+    public void testMergeEstimatesMemorySize() throws Exception {
+
+        try (Store store = createStore()) {
+            LogMergePolicy lmp = newLogMergePolicy();
+            lmp.setMergeFactor(2);
+
+            EngineConfig config = config(defaultSettings, store, createTempDir(), lmp, null);
+
+            store.createEmpty();
+            final String translogUuid = Translog.createEmptyTranslog(
+                config.getTranslogConfig().getTranslogPath(),
+                SequenceNumbers.NO_OPS_PERFORMED,
+                shardId,
+                primaryTerm.get()
+            );
+            store.associateIndexWithNewTranslog(translogUuid);
+
+            AtomicInteger estimatedMerges = new AtomicInteger();
+            AtomicInteger actualMerges = new AtomicInteger();
+            Set<Long> estimatedMemorySizes = Collections.synchronizedSet(new HashSet<>());
+
+            InternalEngine engine = new InternalTestEngine(config) {
+                @Override
+                protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
+                    return new IndexWriter(directory, iwc) {
+                        @Override
+                        public void merge(MergePolicy.OneMerge merge) throws IOException {
+                            actualMerges.addAndGet(1);
+                            super.merge(merge);
+                        }
+                    };
+                }
+
+                @Override
+                protected ElasticsearchMergeScheduler createMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+                    return new ElasticsearchConcurrentMergeScheduler(shardId, indexSettings) {
+                        @Override
+                        protected long estimateMergeMemory(MergePolicy.OneMerge merge) {
+                            // Estimate merge memory randomly, and record the estimated merges and memory sizes for later comparison
+                            long estimation = randomLongBetween(1, 100000000L);
+                            estimatedMerges.addAndGet(1);
+                            estimatedMemorySizes.add(estimation);
+                            return estimation;
+                        }
+
+                        @Override
+                        protected void beforeMerge(OnGoingMerge merge) {
+                            // Checks the estimation is available before merging, and that it has been done previously
+                            assertThat(merge.getMemoryBytesNeeded(), Matchers.greaterThan(0L));
+                            assertTrue(estimatedMemorySizes.remove(merge.getMemoryBytesNeeded()));
+                        }
+
+                        @Override
+                        protected void afterMerge(OnGoingMerge merge) {}
+                    };
+                }
+            };
+            recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
+
+            int numDocs = randomIntBetween(10, 100);
+            for (int i = 0; i < numDocs; i++) {
+                engine.index(indexForDoc(testParsedDocument(randomIdentifier(), null, testDocument(), B_1, null)));
+                if (randomBoolean()) {
+                    engine.flush();
+                    engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+                }
+            }
+
+            assertBusy(() -> {
+                // All scheduled merges have been done
+                assertThat(estimatedMerges.get(), is(actualMerges.get()));
+                // All estimations have been accounted for
+                assertTrue(estimatedMemorySizes.isEmpty());
+            });
+
+            engine.close();
         }
     }
 

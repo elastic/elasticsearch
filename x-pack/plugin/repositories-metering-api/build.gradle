@@ -5,7 +5,11 @@ esplugin {
   name = 'repositories-metering-api'
   description = 'Repositories metering API'
   classname = 'org.elasticsearch.xpack.repositories.metering.RepositoriesMeteringPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
 }
 base {
   archivesName = 'x-pack-repositories-metering-api'

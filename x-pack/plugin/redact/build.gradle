@@ -4,7 +4,11 @@ esplugin {
   name = 'x-pack-redact'
   description = 'Elasticsearch Expanded Pack Plugin - Redact'
   classname ='org.elasticsearch.xpack.redact.RedactPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
 }
 base {
   archivesName = 'x-pack-redact'

@@ -5,7 +5,11 @@ esplugin {
   name = 'spi-extension'
   description = 'An example spi extension plugin for security'
   classname = 'org.elasticsearch.example.SpiExtensionPlugin'
-  extendedPlugins = ['x-pack-security']
+  extendedPluginProjects {
+    "x-pack-security" {
+      path = ':x-pack:plugin:security'
+    }
+  }
 }
 
 dependencies {

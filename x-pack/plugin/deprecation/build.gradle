@@ -4,7 +4,11 @@ esplugin {
   name = 'x-pack-deprecation'
   description = 'Elasticsearch Expanded Pack Plugin - Deprecation'
   classname ='org.elasticsearch.xpack.deprecation.Deprecation'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
 }
 base {
   archivesName = 'x-pack-deprecation'

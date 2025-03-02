@@ -8,7 +8,11 @@ esplugin {
   description = 'Elasticsearch Expanded Pack Plugin - Security'
   classname = 'org.elasticsearch.xpack.security.Security'
   requiresKeystore =true
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
 }
 
 base {

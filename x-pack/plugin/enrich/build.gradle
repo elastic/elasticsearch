@@ -4,8 +4,13 @@ esplugin {
   name = 'x-pack-enrich'
   description = 'Elasticsearch Expanded Pack Plugin - Enrich'
   classname ='org.elasticsearch.xpack.enrich.EnrichPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
 }
+
 base {
   archivesName = 'x-pack-enrich'
 }

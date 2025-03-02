@@ -1,11 +1,16 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
-    name = 'x-pack-async'
-    description = 'A module which handles common async operations'
-    classname ='org.elasticsearch.xpack.async.AsyncResultsIndexPlugin'
-    extendedPlugins = ['x-pack-core']
+  name = 'x-pack-async'
+  description = 'A module which handles common async operations'
+  classname = 'org.elasticsearch.xpack.async.AsyncResultsIndexPlugin'
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
 }
+
 base {
   archivesName = 'x-pack-async'
 }

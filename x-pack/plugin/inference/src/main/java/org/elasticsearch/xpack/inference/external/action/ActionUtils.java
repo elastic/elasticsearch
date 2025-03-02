@@ -12,11 +12,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
-
-import java.net.URI;
 
 public class ActionUtils {
 
@@ -30,7 +27,12 @@ public class ActionUtils {
             if (unwrappedException instanceof ElasticsearchException esException) {
                 l.onFailure(esException);
             } else {
-                l.onFailure(createInternalServerError(unwrappedException, errorMessage));
+                l.onFailure(
+                    createInternalServerError(
+                        unwrappedException,
+                        Strings.format("%s. Cause: %s", errorMessage, unwrappedException.getMessage())
+                    )
+                );
             }
         });
     }
@@ -39,11 +41,7 @@ public class ActionUtils {
         return new ElasticsearchStatusException(message, RestStatus.INTERNAL_SERVER_ERROR, e);
     }
 
-    public static String constructFailedToSendRequestMessage(@Nullable URI uri, String message) {
-        if (uri != null) {
-            return Strings.format("Failed to send %s request to [%s]", message, uri);
-        }
-
+    public static String constructFailedToSendRequestMessage(String message) {
         return Strings.format("Failed to send %s request", message);
     }
 

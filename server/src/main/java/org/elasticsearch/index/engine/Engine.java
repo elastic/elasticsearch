@@ -989,6 +989,10 @@ public abstract class Engine implements Closeable {
         ensureOpen(null);
     }
 
+    public boolean isOperable() {
+        return true;
+    }
+
     /** get commits stats for the last commit */
     public final CommitStats commitStats() {
         return new CommitStats(getLastCommittedSegmentInfos());
@@ -2341,7 +2345,7 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Ensures the engine is in a state that it can be closed by a call to {@link IndexShard#resetEngine()}.
+     * Ensures the engine is in a state that it can be closed by a call to {@link IndexShard#resetEngine(boolean)}.
      *
      * In general, resetting the engine should be done with care, to consider any
      * in-progress operations and listeners (e.g., primary term and generation listeners).

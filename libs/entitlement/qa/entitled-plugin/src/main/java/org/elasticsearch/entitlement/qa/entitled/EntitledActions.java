@@ -63,4 +63,9 @@ public final class EntitledActions {
     public static URLConnection createHttpURLConnection() throws IOException {
         return URI.create("http://127.0.0.1:12345/").toURL().openConnection();
     }
+
+    public static URLConnection createFileURLConnection() throws IOException {
+        var fileUrl = createTempFileForWrite().toUri().toURL();
+        return fileUrl.openConnection();
+    }
 }

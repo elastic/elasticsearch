@@ -85,6 +85,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.IntPredicate;
 
+import static org.elasticsearch.index.mapper.KeywordFieldMapper.parseTextOrNull;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /** A {@link FieldMapper} for full-text fields. */
@@ -1296,23 +1297,24 @@ public final class TextFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        final String value = context.parser().textOrNull();
+        final var value = parseTextOrNull(context.parser());
 
         if (value == null) {
             return;
         }
 
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new Field(fieldType().name(), value, fieldType);
+            BytesRef copy = new BytesRef(value);
+            Field field = new Field(fieldType().name(), copy, fieldType);
             context.doc().add(field);
             if (fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());
             }
             if (prefixFieldInfo != null) {
-                context.doc().add(new Field(prefixFieldInfo.field, value, prefixFieldInfo.fieldType));
+                context.doc().add(new Field(prefixFieldInfo.field, copy, prefixFieldInfo.fieldType));
             }
             if (phraseFieldInfo != null) {
-                context.doc().add(new Field(phraseFieldInfo.field, value, phraseFieldInfo.fieldType));
+                context.doc().add(new Field(phraseFieldInfo.field, copy, phraseFieldInfo.fieldType));
             }
         }
     }

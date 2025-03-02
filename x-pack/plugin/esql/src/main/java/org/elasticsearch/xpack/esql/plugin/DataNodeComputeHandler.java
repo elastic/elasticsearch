@@ -189,7 +189,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             clusterAlias,
             concreteIndices,
             originalIndices,
-            PlannerUtils.requestTimestampFilter(dataNodePlan),
+            PlannerUtils.canMatchFilter(dataNodePlan),
             runOnTaskFailure,
             ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())
         );

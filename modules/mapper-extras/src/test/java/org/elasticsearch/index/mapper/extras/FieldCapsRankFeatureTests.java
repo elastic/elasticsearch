@@ -59,10 +59,7 @@ public class FieldCapsRankFeatureTests extends ESIntegTestCase {
         Map<String, FieldCapabilities> fooRankField = response.getField("fooRank");
         assertEquals(1, fooRankField.size());
         assertThat(fooRankField, Matchers.hasKey("rank_feature"));
-        assertEquals(
-            new FieldCapabilitiesBuilder("fooRank", "rank_feature").isAggregatable(false).build(),
-            fooRankField.get("rank_feature")
-        );
+        assertEquals(fieldCapabilities("fooRank"), fooRankField.get("rank_feature"));
     }
 
     public void testRankFeatureInIndexAfterRestart() throws Exception {

@@ -12,6 +12,9 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -40,7 +43,7 @@ public class FieldCapabilitiesBuilder {
         this.isSearchable = true;
         this.isAggregatable = true;
 
-        this.meta = Map.of();
+        this.meta = Collections.emptyMap();
     }
 
     public FieldCapabilitiesBuilder isMetadataField(boolean isMetadataField) {
@@ -69,7 +72,7 @@ public class FieldCapabilitiesBuilder {
     }
 
     public FieldCapabilitiesBuilder indices(String... indices) {
-        this.indices = indices;
+        this.indices = Arrays.copyOf(indices, indices.length);
         return this;
     }
 
@@ -94,7 +97,7 @@ public class FieldCapabilitiesBuilder {
     }
 
     public FieldCapabilitiesBuilder meta(Map<String, Set<String>> meta) {
-        this.meta = meta;
+        this.meta = new HashMap<>(meta);
         return this;
     }
 

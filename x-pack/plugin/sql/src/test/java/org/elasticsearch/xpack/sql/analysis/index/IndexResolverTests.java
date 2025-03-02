@@ -284,7 +284,7 @@ public class IndexResolverTests extends ESTestCase {
 
         Map<String, FieldCapabilities> multi = new HashMap<>();
         multi.put("long", new FieldCapabilitiesBuilder(fieldName, "long").indices("one-index").build());
-        multi.put("text", new FieldCapabilitiesBuilder(fieldName, "text").indices("another-index").build());
+        multi.put("text", new FieldCapabilitiesBuilder(fieldName, "text").indices("another-index").isAggregatable(false).build());
         fieldCaps.put(fieldName, multi);
 
         String wildcard = "*";

@@ -1716,10 +1716,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             for (String type : types) {
                 caps.put(
                     type,
-                    new FieldCapabilitiesBuilder(field, type).isMetadataField(isMetadataField)
-                        .isSearchable(true)
-                        .isAggregatable(isAggregatable)
-                        .build()
+                    new FieldCapabilitiesBuilder(field, type).isMetadataField(isMetadataField).isAggregatable(isAggregatable).build()
                 );
             }
             fieldCaps.put(field, caps);

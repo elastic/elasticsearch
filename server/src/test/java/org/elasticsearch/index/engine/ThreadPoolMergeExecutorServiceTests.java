@@ -36,7 +36,7 @@ import static org.mockito.Mockito.when;
 
 public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
 
-    public void testMergeTasksAreAbortedWhenThreadPoolIsShutdown() {
+    public void testMergeTaskIsAbortedWhenThreadPoolIsShutdown() {
         TestThreadPool testThreadPool = new TestThreadPool("test");
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
             .maybeCreateThreadPoolMergeExecutorService(

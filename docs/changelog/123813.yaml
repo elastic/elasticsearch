@@ -1,0 +1,5 @@
+pr: 123813
+summary: ensure that LOOKUP JOIN correctly enforces constraints on valid fields and index resolution.
+area: ES|QL
+type: enhancement
+issues: [120189]

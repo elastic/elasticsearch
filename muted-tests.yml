@@ -332,6 +332,33 @@ tests:
 - class: org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests
   method: testFilesEntitlementsWithExclusive
   issue: https://github.com/elastic/elasticsearch/issues/123657
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Test knn search}
+  issue: https://github.com/elastic/elasticsearch/issues/123727
+- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleDisruptionIT
+  method: testDataStreamLifecycleDownsampleRollingRestart
+  issue: https://github.com/elastic/elasticsearch/issues/123769
+- class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
+  method: testCreateAndRestorePartialSearchableSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/123773
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testDropAllColumns
+  issue: https://github.com/elastic/elasticsearch/issues/123791
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=snapshot/10_basic/Create a source only snapshot and then restore it}
+  issue: https://github.com/elastic/elasticsearch/issues/122755
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testFromStatsGroupingByDate
+  issue: https://github.com/elastic/elasticsearch/issues/123808
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testDefaultTruncationSizeSetting
+  issue: https://github.com/elastic/elasticsearch/issues/123809
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testFromStatsEvalWithPragma
+  issue: https://github.com/elastic/elasticsearch/issues/123810
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testProjectRenameEval
+  issue: https://github.com/elastic/elasticsearch/issues/123811
 
 # Examples:
 #

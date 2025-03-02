@@ -75,7 +75,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *         can actually impersonate the user running the request.</li>
  *     <li>{@link #authorizeClusterAction(RequestInfo, AuthorizationInfo, ActionListener)} if the
  *         request is a cluster level operation.</li>
- *     <li>{@link #authorizeIndexAction(RequestInfo, AuthorizationInfo, AsyncSupplier, ProjectMetadata, ActionListener)} if
+ *     <li>{@link #authorizeIndexAction(RequestInfo, AuthorizationInfo, AsyncSupplier, Supplier, ActionListener)} if
  *         the request is a an index action. This method may be called multiple times for a single
  *         request as the request may be made up of sub-requests that also need to be authorized. The async supplier
  *         for resolved indices will invoke the
@@ -85,7 +85,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * <br><p>
  * <em>NOTE:</em> the {@link #loadAuthorizedIndices(RequestInfo, AuthorizationInfo, Map, ActionListener)}
  * method may be called prior to
- * {@link #authorizeIndexAction(RequestInfo, AuthorizationInfo, AsyncSupplier, ProjectMetadata, ActionListener)}
+ * {@link #authorizeIndexAction(RequestInfo, AuthorizationInfo, AsyncSupplier, Supplier, ActionListener)}
  * in cases where wildcards need to be expanded.
  * </p><br>
  * Authorization engines can be called from various threads including network threads that should
@@ -167,7 +167,7 @@ public interface AuthorizationEngine {
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-        ProjectMetadata metadata,
+        Supplier<ProjectMetadata> metadata,
         ActionListener<IndexAuthorizationResult> listener
     );
 

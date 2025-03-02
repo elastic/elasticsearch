@@ -48,6 +48,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -63,11 +65,12 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     private Executor executor = null;
     private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
 
-    private final DiscoveryNode node1 = DiscoveryNodeUtils.create("node-1");
-    private final DiscoveryNode node2 = DiscoveryNodeUtils.create("node-2");
-    private final DiscoveryNode node3 = DiscoveryNodeUtils.create("node-3");
-    private final DiscoveryNode node4 = DiscoveryNodeUtils.create("node-4");
-    private final DiscoveryNode node5 = DiscoveryNodeUtils.create("node-5");
+    private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node-1").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
+    private final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node-2").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
+    private final DiscoveryNode node3 = DiscoveryNodeUtils.builder("node-3").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
+    private final DiscoveryNode node4 = DiscoveryNodeUtils.builder("node-4").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
+    private final DiscoveryNode node5 = DiscoveryNodeUtils.builder("node-5").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
+    private final DiscoveryNode warmNode1 = DiscoveryNodeUtils.builder("node-1-warm").roles(Set.of(DATA_FROZEN_NODE_ROLE)).build();
     private final ShardId shard1 = new ShardId("index", "n/a", 1);
     private final ShardId shard2 = new ShardId("index", "n/a", 2);
     private final ShardId shard3 = new ShardId("index", "n/a", 3);
@@ -242,6 +245,26 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(resp.totalShards, equalTo(3));
         assertThat(resp.failedShards, equalTo(2));
         assertThat(resp.successfulShards, equalTo(1));
+    }
+
+    public void testQueryHotShardsFirst() {
+        var targetShards = shuffledList(
+            List.of(
+                targetShard(shard1, node1),
+                targetShard(shard2, node2),
+                targetShard(shard3, node3),
+                targetShard(shard4, node4),
+                targetShard(shard5, warmNode1)
+            )
+        );
+        var sent = Collections.synchronizedList(new ArrayList<NodeRequest>());
+        var future = sendRequests(targetShards, randomBoolean(), (node, shardIds, aliasFilters, listener) -> {
+            sent.add(new NodeRequest(node, shardIds, aliasFilters));
+            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
+        });
+        safeGet(future);
+        assertThat(sent.size(), equalTo(5));
+        assertThat(sent.getLast().node(), equalTo(warmNode1));
     }
 
     static DataNodeRequestSender.TargetShard targetShard(ShardId shardId, DiscoveryNode... nodes) {

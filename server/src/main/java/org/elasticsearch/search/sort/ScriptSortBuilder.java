@@ -306,7 +306,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                     @Override
                     protected void setScorer(LeafReaderContext context, Scorable scorer) {
-                        getLeafScript(context).setScorer(scorer);
+                        //getLeafScript(context).setScorer(scorer);
                     }
 
                     StringSortScript getLeafScript(LeafReaderContext context) {
@@ -363,7 +363,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                     @Override
                     protected void setScorer(LeafReaderContext context, Scorable scorer) {
-                        getLeafScript(context).setScorer(scorer);
+                        //getLeafScript(context).setScorer(scorer);
                     }
 
                     NumberSortScript getLeafScript(LeafReaderContext context) {
@@ -415,7 +415,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                     @Override
                     protected void setScorer(LeafReaderContext context, Scorable scorer) {
-                        getLeafScript(context).setScorer(scorer);
+                        //getLeafScript(context).setScorer(scorer);
                     }
 
                     BytesRefSortScript getLeafScript(LeafReaderContext context) {

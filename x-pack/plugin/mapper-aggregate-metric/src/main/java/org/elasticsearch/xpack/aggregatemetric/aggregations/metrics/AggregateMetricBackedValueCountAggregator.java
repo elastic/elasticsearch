@@ -20,7 +20,7 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,7 +32,7 @@ import java.util.Map;
  */
 class AggregateMetricBackedValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
-    private final AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource;
+    private final AggregateMetricsValuesSource.AggregateMetricDouble valuesSource;
 
     // a count per bucket
     LongArray counts;
@@ -46,7 +46,7 @@ class AggregateMetricBackedValueCountAggregator extends NumericMetricsAggregator
     ) throws IOException {
         super(name, aggregationContext, parent, metadata);
         assert valuesSourceConfig.hasValues();
-        this.valuesSource = (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSourceConfig.getValuesSource();
+        this.valuesSource = (AggregateMetricsValuesSource.AggregateMetricDouble) valuesSourceConfig.getValuesSource();
         counts = bigArrays().newLongArray(1, true);
     }
 
@@ -55,7 +55,7 @@ class AggregateMetricBackedValueCountAggregator extends NumericMetricsAggregator
         final BigArrays bigArrays = bigArrays();
         final SortedNumericDoubleValues values = valuesSource.getAggregateMetricValues(
             aggCtx.getLeafReaderContext(),
-            AggregateDoubleMetricFieldMapper.Metric.value_count
+            AggregateMetricDoubleFieldMapper.Metric.value_count
         );
 
         return new LeafBucketCollectorBase(sub, values) {

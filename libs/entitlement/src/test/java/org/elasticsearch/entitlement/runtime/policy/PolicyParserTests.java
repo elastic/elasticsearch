@@ -9,26 +9,38 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
-import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@ESTestCase.WithoutSecurityManager
 public class PolicyParserTests extends ESTestCase {
+
+    public static String TEST_ABSOLUTE_PATH_TO_FILE;
+
+    @BeforeClass
+    public static void beforeClass() throws IOException {
+        TEST_ABSOLUTE_PATH_TO_FILE = createTempFile().toAbsolutePath().toString();
+    }
 
     private static class TestWrongEntitlementName implements Entitlement {}
 
@@ -38,6 +50,35 @@ public class PolicyParserTests extends ESTestCase {
 
         @ExternalEntitlement
         public ManyConstructorsEntitlement(int i) {}
+    }
+
+    public static class ManyMethodsEntitlement implements Entitlement {
+        @ExternalEntitlement
+        public static ManyMethodsEntitlement create(String s) {
+            return new ManyMethodsEntitlement();
+        }
+
+        @ExternalEntitlement
+        public static ManyMethodsEntitlement create(int i) {
+            return new ManyMethodsEntitlement();
+        }
+    }
+
+    public static class ConstructorAndMethodEntitlement implements Entitlement {
+        @ExternalEntitlement
+        public static ConstructorAndMethodEntitlement create(String s) {
+            return new ConstructorAndMethodEntitlement(s);
+        }
+
+        @ExternalEntitlement
+        public ConstructorAndMethodEntitlement(String s) {}
+    }
+
+    public static class NonStaticMethodEntitlement implements Entitlement {
+        @ExternalEntitlement
+        public NonStaticMethodEntitlement create() {
+            return new NonStaticMethodEntitlement();
+        }
     }
 
     public void testGetEntitlementTypeName() {
@@ -50,24 +91,123 @@ public class PolicyParserTests extends ESTestCase {
         );
     }
 
+    private static InputStream createFilesTestPolicy() {
+        return new ByteArrayInputStream(Strings.format("""
+            entitlement-module-name:
+              - files:
+                - path: '%s'
+                  mode: "read_write"
+            """, TEST_ABSOLUTE_PATH_TO_FILE).getBytes(StandardCharsets.UTF_8));
+    }
+
     public void testPolicyBuilder() throws IOException {
-        Policy parsedPolicy = new PolicyParser(PolicyParserTests.class.getResourceAsStream("test-policy.yaml"), "test-policy.yaml", false)
-            .parsePolicy();
+        Policy parsedPolicy = new PolicyParser(createFilesTestPolicy(), "test-policy.yaml", false).parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
-            List.of(new Scope("entitlement-module-name", List.of(new FileEntitlement("test/path/to/file", "read_write"))))
+            List.of(
+                new Scope(
+                    "entitlement-module-name",
+                    List.of(FilesEntitlement.build(List.of(Map.of("path", TEST_ABSOLUTE_PATH_TO_FILE, "mode", "read_write"))))
+                )
+            )
         );
         assertEquals(expected, parsedPolicy);
     }
 
     public void testPolicyBuilderOnExternalPlugin() throws IOException {
-        Policy parsedPolicy = new PolicyParser(PolicyParserTests.class.getResourceAsStream("test-policy.yaml"), "test-policy.yaml", true)
-            .parsePolicy();
+        Policy parsedPolicy = new PolicyParser(createFilesTestPolicy(), "test-policy.yaml", true).parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
-            List.of(new Scope("entitlement-module-name", List.of(new FileEntitlement("test/path/to/file", "read_write"))))
+            List.of(
+                new Scope(
+                    "entitlement-module-name",
+                    List.of(FilesEntitlement.build(List.of(Map.of("path", TEST_ABSOLUTE_PATH_TO_FILE, "mode", "read_write"))))
+                )
+            )
         );
         assertEquals(expected, parsedPolicy);
+    }
+
+    public void testParseFiles() throws IOException {
+        Policy policyWithOnePath = new PolicyParser(createFilesTestPolicy(), "test-policy.yaml", false).parsePolicy();
+        Policy expected = new Policy(
+            "test-policy.yaml",
+            List.of(
+                new Scope(
+                    "entitlement-module-name",
+                    List.of(FilesEntitlement.build(List.of(Map.of("path", TEST_ABSOLUTE_PATH_TO_FILE, "mode", "read_write"))))
+                )
+            )
+        );
+        assertEquals(expected, policyWithOnePath);
+
+        String testPathToReadDir = createTempDir().toAbsolutePath().toString();
+        Policy policyWithTwoPaths = new PolicyParser(new ByteArrayInputStream(Strings.format("""
+            entitlement-module-name:
+              - files:
+                - path: '%s'
+                  mode: "read_write"
+                - path: '%s'
+                  mode: "read"
+            """, TEST_ABSOLUTE_PATH_TO_FILE, testPathToReadDir).getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+        expected = new Policy(
+            "test-policy.yaml",
+            List.of(
+                new Scope(
+                    "entitlement-module-name",
+                    List.of(
+                        FilesEntitlement.build(
+                            List.of(
+                                Map.of("path", TEST_ABSOLUTE_PATH_TO_FILE, "mode", "read_write"),
+                                Map.of("path", testPathToReadDir, "mode", "read")
+                            )
+                        )
+                    )
+                )
+            )
+        );
+        assertEquals(expected, policyWithTwoPaths);
+
+        String relativePathToFile = Path.of("test/path/to/file").normalize().toString();
+        String relativePathToDir = Path.of("test/path/to/read-dir/").normalize().toString();
+        Policy policyWithMultiplePathsAndBaseDir = new PolicyParser(
+            new ByteArrayInputStream(Strings.format("""
+                entitlement-module-name:
+                  - files:
+                    - relative_path: '%s'
+                      relative_to: "data"
+                      mode: "read_write"
+                    - relative_path: '%s'
+                      relative_to: "config"
+                      mode: "read"
+                    - path: '%s'
+                      mode: "read_write"
+                    - path_setting: foo.bar
+                      basedir_if_relative: config
+                      mode: read
+                """, relativePathToFile, relativePathToDir, TEST_ABSOLUTE_PATH_TO_FILE).getBytes(StandardCharsets.UTF_8)),
+            "test-policy.yaml",
+            false
+        ).parsePolicy();
+        expected = new Policy(
+            "test-policy.yaml",
+            List.of(
+                new Scope(
+                    "entitlement-module-name",
+                    List.of(
+                        FilesEntitlement.build(
+                            List.of(
+                                Map.of("relative_path", relativePathToFile, "mode", "read_write", "relative_to", "data"),
+                                Map.of("relative_path", relativePathToDir, "mode", "read", "relative_to", "config"),
+                                Map.of("path", TEST_ABSOLUTE_PATH_TO_FILE, "mode", "read_write"),
+                                Map.of("path_setting", "foo.bar", "basedir_if_relative", "config", "mode", "read")
+                            )
+                        )
+                    )
+                )
+            )
+        );
+        assertEquals(expected, policyWithMultiplePathsAndBaseDir);
     }
 
     public void testParseNetwork() throws IOException {
@@ -171,6 +311,62 @@ public class PolicyParserTests extends ESTestCase {
                 "entitlement class "
                     + "[org.elasticsearch.entitlement.runtime.policy.PolicyParserTests$ManyConstructorsEntitlement]"
                     + " has more than one constructor annotated with ExternalEntitlement"
+            )
+        );
+    }
+
+    public void testMultipleMethodsAnnotated() throws IOException {
+        var parser = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - many_methods
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", true, Map.of("many_methods", ManyMethodsEntitlement.class));
+
+        var e = expectThrows(IllegalStateException.class, parser::parsePolicy);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "entitlement class "
+                    + "[org.elasticsearch.entitlement.runtime.policy.PolicyParserTests$ManyMethodsEntitlement]"
+                    + " has more than one constructor and/or method annotated with ExternalEntitlement"
+            )
+        );
+    }
+
+    public void testConstructorAndMethodAnnotated() throws IOException {
+        var parser = new PolicyParser(
+            new ByteArrayInputStream("""
+                entitlement-module-name:
+                  - constructor_and_method
+                """.getBytes(StandardCharsets.UTF_8)),
+            "test-policy.yaml",
+            true,
+            Map.of("constructor_and_method", ConstructorAndMethodEntitlement.class)
+        );
+
+        var e = expectThrows(IllegalStateException.class, parser::parsePolicy);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "entitlement class "
+                    + "[org.elasticsearch.entitlement.runtime.policy.PolicyParserTests$ConstructorAndMethodEntitlement]"
+                    + " has more than one constructor and/or method annotated with ExternalEntitlement"
+            )
+        );
+    }
+
+    public void testNonStaticMethodAnnotated() throws IOException {
+        var parser = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - non_static
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", true, Map.of("non_static", NonStaticMethodEntitlement.class));
+
+        var e = expectThrows(IllegalStateException.class, parser::parsePolicy);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "entitlement class "
+                    + "[org.elasticsearch.entitlement.runtime.policy.PolicyParserTests$NonStaticMethodEntitlement]"
+                    + " has non-static method annotated with ExternalEntitlement"
             )
         );
     }

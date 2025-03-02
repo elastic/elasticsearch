@@ -39,7 +39,9 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -133,7 +135,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private User userDashIndices;
     private User userNoIndices;
     private CompositeRolesStore rolesStore;
-    private Metadata metadata;
+    private ProjectMetadata projectMetadata;
     private IndicesAndAliasesResolver defaultIndicesResolver;
     private Map<String, RoleDescriptor> roleMap;
     private String todaySuffix;
@@ -161,7 +163,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndexMetadata dataStreamFailureStore1 = DataStreamTestHelper.createFailureStore(dataStreamName, 1).build();
         IndexMetadata dataStreamFailureStore2 = DataStreamTestHelper.createFailureStore(dataStreamName, 2).build();
         IndexMetadata dataStreamIndex3 = DataStreamTestHelper.createBackingIndex(otherDataStreamName, 1).build();
-        Metadata.Builder metadataBuilder = Metadata.builder()
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(new ProjectId(randomUUID()))
             .put(
                 indexBuilder("foo").putAlias(AliasMetadata.builder("foofoobar"))
                     .putAlias(AliasMetadata.builder("foounauthorized"))
@@ -224,9 +226,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // Only add the failure indices if the failure store flag is enabled
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            metadataBuilder.put(dataStreamFailureStore1, true).put(dataStreamFailureStore2, true);
+            projectBuilder.put(dataStreamFailureStore1, true).put(dataStreamFailureStore2, true);
         }
-        metadataBuilder.put(
+        projectBuilder.put(
             newInstance(
                 dataStreamName,
                 List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex()),
@@ -236,9 +238,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             )
         );
         if (withAlias) {
-            this.metadata = SecurityTestUtils.addAliasToMetadata(metadataBuilder.build(), securityIndexName);
+            this.projectMetadata = SecurityTestUtils.addAliasToMetadata(projectBuilder.build(), securityIndexName);
         } else {
-            this.metadata = metadataBuilder.build();
+            this.projectMetadata = projectBuilder.build();
         }
 
         user = new User("user", "role");
@@ -255,6 +257,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 fieldPermissionsCache,
                 mock(ApiKeyService.class),
                 mock(ServiceAccountService.class),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 new DocumentSubsetBitsetCache(Settings.EMPTY, mock(ThreadPool.class)),
                 RESTRICTED_INDICES,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -370,7 +373,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
         doAnswer((i) -> {
             @SuppressWarnings("unchecked")
-            ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[1];
+            ActionListener<Role> callback = (ActionListener<Role>) i.getArguments()[2];
             final RoleReference.NamedRoleReference namedRoleReference = (RoleReference.NamedRoleReference) i.getArguments()[0];
             Set<RoleDescriptor> roleDescriptors = new HashSet<>();
             for (String name : namedRoleReference.getRoleNames()) {
@@ -392,7 +395,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 );
             }
             return Void.TYPE;
-        }).when(rolesStore).buildRoleFromRoleReference(any(RoleReference.NamedRoleReference.class), anyActionListener());
+        }).when(rolesStore)
+            .buildRoleFromRoleReference(any(RoleReference.NamedRoleReference.class), any(ProjectId.class), anyActionListener());
 
         doAnswer(i -> {
             User user = ((Subject) i.getArguments()[0]).getUser();
@@ -461,22 +465,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             throwableWithMessage(
                 "the action indices:data/read/search[s] does not support wildcards;"
                     + " the provided index expression(s) [index*::data] are not allowed"
-            )
-        );
-    }
-
-    public void testWildcardSelectorsAreNotAllowedInShardLevelRequests() {
-        ShardSearchRequest request = mock(ShardSearchRequest.class);
-        when(request.indices()).thenReturn(new String[] { "index10::*" });
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(TransportSearchAction.TYPE.name() + "[s]", request)
-        );
-        assertThat(
-            exception,
-            throwableWithMessage(
-                "the action indices:data/read/search[s] does not support wildcard selectors;"
-                    + " the provided index expression(s) [index10::*] are not allowed"
             )
         );
     }
@@ -1935,21 +1923,25 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         User user = new User("alias-writer", "alias_read_write");
         AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportPutMappingAction.TYPE.name());
 
-        String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices::check, metadata);
+        String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(
+            request,
+            authorizedIndices::check,
+            projectMetadata
+        );
         assertEquals("barbaz", putMappingIndexOrAlias);
 
         // multiple indices map to an alias so we can only return the concrete index
         final String index = randomFrom("foo", "foobar");
         request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
-        putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices::check, metadata);
+        putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices::check, projectMetadata);
         assertEquals(index, putMappingIndexOrAlias);
     }
 
     public void testWhenAliasToMultipleIndicesAndUserIsAuthorizedUsingAliasReturnsAliasNameForDynamicPutMappingRequestOnWriteIndex() {
         String index = "logs-00003"; // write index
         PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
-        assert metadata.getIndicesLookup().get("logs-alias").getIndices().size() == 3;
-        String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, "logs-alias"::equals, metadata);
+        assert projectMetadata.getIndicesLookup().get("logs-alias").getIndices().size() == 3;
+        String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, "logs-alias"::equals, projectMetadata);
         String message = "user is authorized to access `logs-alias` and the put mapping request is for a write index"
             + "so this should have returned the alias name";
         assertEquals(message, "logs-alias", putMappingIndexOrAlias);
@@ -1958,8 +1950,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testWhenAliasToMultipleIndicesAndUserIsAuthorizedUsingAliasReturnsIndexNameForDynamicPutMappingRequestOnReadIndex() {
         String index = "logs-00002"; // read index
         PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
-        assert metadata.getIndicesLookup().get("logs-alias").getIndices().size() == 3;
-        String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, "logs-alias"::equals, metadata);
+        assert projectMetadata.getIndicesLookup().get("logs-alias").getIndices().size() == 3;
+        String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, "logs-alias"::equals, projectMetadata);
         String message = "user is authorized to access `logs-alias` and the put mapping request is for a read index"
             + "so this should have returned the concrete index as fallback";
         assertEquals(message, index, putMappingIndexOrAlias);
@@ -1972,7 +1964,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             searchRequest,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(
@@ -2000,7 +1992,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             searchRequest,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(
@@ -2025,7 +2017,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             searchRequest,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".hidden-open"));
@@ -2038,7 +2030,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             searchRequest,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder("bar-closed", "foofoo-closed", "hidden-closed", ".hidden-closed"));
@@ -2051,7 +2043,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             searchRequest,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".hidden-closed"));
@@ -2064,7 +2056,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             searchRequest,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), contains("-*"));
@@ -2076,7 +2068,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             searchRequest,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), contains(oneOf("date-hidden-" + todaySuffix, "date-hidden-" + tomorrowSuffix)));
@@ -2093,7 +2085,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             searchRequest,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder("alias-visible", "alias-visible-mixed"));
@@ -2105,7 +2097,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             searchRequest,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(
@@ -2128,7 +2120,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             searchRequest,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder("alias-hidden", "alias-hidden-datemath-" + todaySuffix));
@@ -2140,7 +2132,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             searchRequest,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".alias-hidden", ".alias-hidden-datemath-" + todaySuffix));
@@ -2152,7 +2144,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             searchRequest,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), contains("-*"));
@@ -2164,7 +2156,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             searchRequest,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder("hidden-open"));
@@ -2183,7 +2175,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
                 TransportSearchAction.TYPE.name(),
                 searchRequest,
-                metadata,
+                projectMetadata,
                 authorizedIndices
             );
             assertThat(resolvedIndices.getLocal(), contains("logs-foobar"));
@@ -2196,7 +2188,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
                 TransportSearchAction.TYPE.name(),
                 searchRequest,
-                metadata,
+                projectMetadata,
                 authorizedIndices
             );
             // if data streams are to be ignored then this happens in IndexNameExpressionResolver:
@@ -2214,7 +2206,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
                 TransportSearchAction.TYPE.name(),
                 searchRequest,
-                metadata,
+                projectMetadata,
                 authorizedIndices
             );
             assertThat(resolvedIndices.getLocal(), containsInAnyOrder("logs-foo", "logs-foobar"));
@@ -2235,7 +2227,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         for (String dsName : dataStreams) {
             assertThat(authorizedIndices.all().get(), hasItem(dsName));
             assertThat(authorizedIndices.check(dsName), is(true));
-            DataStream dataStream = metadata.dataStreams().get(dsName);
+            DataStream dataStream = projectMetadata.dataStreams().get(dsName);
             assertThat(authorizedIndices.all().get(), hasItem(dsName));
             assertThat(authorizedIndices.check(dsName), is(true));
             for (Index i : dataStream.getIndices()) {
@@ -2249,12 +2241,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             GetAliasesAction.NAME,
             request,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         for (String dsName : dataStreams) {
             assertThat(resolvedIndices.getLocal(), hasItem(dsName));
-            DataStream dataStream = metadata.dataStreams().get(dsName);
+            DataStream dataStream = projectMetadata.dataStreams().get(dsName);
             assertThat(resolvedIndices.getLocal(), hasItem(dsName));
             for (Index i : dataStream.getIndices()) {
                 assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
@@ -2274,7 +2266,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
         assertThat(authorizedIndices.all().get(), hasItem(dataStreamName));
         assertThat(authorizedIndices.check(dataStreamName), is(true));
-        DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+        DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
         assertThat(authorizedIndices.all().get(), hasItem(dataStreamName));
         assertThat(authorizedIndices.check(dataStreamName), is(true));
         for (Index i : dataStream.getIndices()) {
@@ -2287,7 +2279,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             GetAliasesAction.NAME,
             request,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), hasItem(dataStreamName));
@@ -2306,7 +2298,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> expectedDataStreams = List.of("logs-foo", "logs-foobar");
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportSearchAction.TYPE.name(), request);
         for (String dsName : expectedDataStreams) {
-            DataStream dataStream = metadata.dataStreams().get(dsName);
+            DataStream dataStream = projectMetadata.dataStreams().get(dsName);
             assertThat(authorizedIndices.all().get(), hasItem(dsName));
             assertThat(authorizedIndices.check(dsName), is(true));
             for (Index i : dataStream.getIndices()) {
@@ -2320,7 +2312,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             request,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), hasItem("logs-foo"));
@@ -2330,7 +2322,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(resolvedIndices.getLocal(), hasItem("logs-00003"));
         assertThat(resolvedIndices.getLocal(), hasItem("logs-alias"));
         for (String dsName : expectedDataStreams) {
-            DataStream dataStream = metadata.dataStreams().get(dsName);
+            DataStream dataStream = projectMetadata.dataStreams().get(dsName);
             assertNotNull(dataStream);
             for (Index i : dataStream.getIndices()) {
                 assertThat(resolvedIndices.getLocal(), not(hasItem(i.getName())));
@@ -2341,7 +2333,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testDataStreamsAreVisibleWhenIncludedByRequestWithoutWildcard() {
         final User user = new User("data-stream-tester3", "data_stream_test3");
         String dataStreamName = "logs-foobar";
-        DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+        DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
         SearchRequest request = new SearchRequest(dataStreamName);
         assertThat(request, instanceOf(IndicesRequest.Replaceable.class));
         assertThat(request.includeDataStreams(), is(true));
@@ -2358,7 +2350,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             request,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         // data streams without their backing indices will be in the resolved list since the backing indices do not match the requested
@@ -2380,7 +2372,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> expectedDataStreams = failureStore ? List.of("logs-foobar") : List.of("logs-foo", "logs-foobar");
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportSearchAction.TYPE.name(), request);
         for (String dsName : expectedDataStreams) {
-            DataStream dataStream = metadata.dataStreams().get(dsName);
+            DataStream dataStream = projectMetadata.dataStreams().get(dsName);
             assertThat(authorizedIndices.all().get(), hasItem(dsName));
             assertThat(authorizedIndices.check(dsName), is(true));
             for (Index i : dataStream.getIndices()) {
@@ -2398,11 +2390,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             request,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         for (String dsName : expectedDataStreams) {
-            DataStream dataStream = metadata.dataStreams().get(dsName);
+            DataStream dataStream = projectMetadata.dataStreams().get(dsName);
             assertThat(resolvedIndices.getLocal(), not(hasItem(dsName)));
             for (Index i : dataStream.getDataStreamIndices(failureStore).getIndices()) {
                 assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
@@ -2422,7 +2414,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
         assertThat(authorizedIndices.all().get(), hasItem(dataStreamName));
         assertThat(authorizedIndices.check(dataStreamName), is(true));
-        DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+        DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
         for (Index i : dataStream.getIndices()) {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
@@ -2437,7 +2429,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             GetAliasesAction.NAME,
             request,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), hasItem(dataStreamName));
@@ -2462,7 +2454,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
         assertThat(authorizedIndices.all().get(), not(hasItem("logs-foobar")));
         assertThat(authorizedIndices.check("logs-foobar"), is(false));
-        DataStream dataStream = metadata.dataStreams().get("logs-foobar");
+        DataStream dataStream = projectMetadata.dataStreams().get("logs-foobar");
         assertThat(authorizedIndices.all().get(), not(hasItem(indexName)));
         // request pattern is subset of the authorized pattern, but be aware that patterns are never passed to #check in main code
         assertThat(authorizedIndices.check(indexName), is(true));
@@ -2480,7 +2472,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             request,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), not(hasItem(dataStream.getName())));
@@ -2514,7 +2506,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             TransportSearchAction.TYPE.name(),
             request,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), not(hasItem("logs-foobar")));
@@ -2534,7 +2526,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
         assertThat(authorizedIndices.all().get(), not(hasItem("logs-foobar")));
         assertThat(authorizedIndices.check("logs-foobar"), is(false));
-        DataStream dataStream = metadata.dataStreams().get("logs-foobar");
+        DataStream dataStream = projectMetadata.dataStreams().get("logs-foobar");
         assertThat(authorizedIndices.all().get(), not(hasItem(indexName)));
         // request pattern is subset of the authorized pattern, but be aware that patterns are never passed to #check in main code
         assertThat(authorizedIndices.check(indexName), is(true));
@@ -2552,7 +2544,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             GetAliasesAction.NAME,
             request,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), not(hasItem(dataStream.getName())));
@@ -2585,7 +2577,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
             GetAliasesAction.NAME,
             request,
-            metadata,
+            projectMetadata,
             authorizedIndices
         );
         assertThat(resolvedIndices.getLocal(), not(hasItem("logs-foobar")));
@@ -2608,7 +2600,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             final ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
                 TransportSearchShardsAction.TYPE.name(),
                 request,
-                metadata,
+                projectMetadata,
                 authorizedIndices
             );
             assertThat(resolvedIndices.getLocal(), contains("logs-foobar"));
@@ -2630,7 +2622,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             final ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
                 TransportSearchShardsAction.TYPE.name(),
                 request,
-                metadata,
+                projectMetadata,
                 authorizedIndices
             );
             assertThat(resolvedIndices.getLocal(), containsInAnyOrder("logs-foo", "logs-foobar"));
@@ -2649,7 +2641,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         return RBACEngine.resolveAuthorizedIndicesFromRole(
             rolesListener.actionGet(),
             getRequestInfo(request, action),
-            metadata.getIndicesLookup(),
+            projectMetadata.getIndicesLookup(),
             () -> ignore -> {}
         );
     }
@@ -2663,7 +2655,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     private ResolvedIndices resolveIndices(String action, TransportRequest request, AuthorizedIndices authorizedIndices) {
-        return defaultIndicesResolver.resolve(action, request, this.metadata, authorizedIndices);
+        return defaultIndicesResolver.resolve(action, request, this.projectMetadata, authorizedIndices);
     }
 
     private static void assertNoIndices(IndicesRequest.Replaceable request, ResolvedIndices resolvedIndices) {

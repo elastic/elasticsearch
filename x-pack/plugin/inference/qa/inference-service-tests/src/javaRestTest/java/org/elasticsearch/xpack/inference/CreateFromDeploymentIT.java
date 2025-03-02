@@ -40,6 +40,14 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
             is(Map.of("num_allocations", 1, "num_threads", 1, "model_id", "attach_to_deployment", "deployment_id", "existing_deployment"))
         );
 
+        var getModel = getModel(inferenceId);
+        serviceSettings = getModel.get("service_settings");
+        assertThat(
+            getModel.toString(),
+            serviceSettings,
+            is(Map.of("num_allocations", 1, "num_threads", 1, "model_id", "attach_to_deployment", "deployment_id", "existing_deployment"))
+        );
+
         var results = infer(inferenceId, List.of("washing machine"));
         assertNotNull(results.get("sparse_embedding"));
 
@@ -83,6 +91,25 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         var serviceSettings = putModel.get("service_settings");
         assertThat(
             putModel.toString(),
+            serviceSettings,
+            is(
+                Map.of(
+                    "num_allocations",
+                    1,
+                    "num_threads",
+                    1,
+                    "model_id",
+                    "attach_with_model_id",
+                    "deployment_id",
+                    "existing_deployment_with_model_id"
+                )
+            )
+        );
+
+        var getModel = getModel(inferenceId);
+        serviceSettings = getModel.get("service_settings");
+        assertThat(
+            getModel.toString(),
             serviceSettings,
             is(
                 Map.of(

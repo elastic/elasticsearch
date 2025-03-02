@@ -238,7 +238,6 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99929")
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
         // Have at least two nodes so that we have parallel execution of two request guaranteed even if max concurrent requests per node
         // are limited to 1
@@ -268,7 +267,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
                 if (letOneShardProceed.compareAndSet(false, true)) {
                     // Let one shard continue.
                 } else {
-                    safeAwait(shardTaskLatch); // Block the other shards.
+                    safeAwait(shardTaskLatch, TimeValue.timeValueSeconds(30)); // Block the other shards.
                 }
             });
         }

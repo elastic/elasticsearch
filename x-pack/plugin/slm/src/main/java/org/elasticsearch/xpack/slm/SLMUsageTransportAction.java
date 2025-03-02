@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.slm;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -30,8 +29,7 @@ public class SLMUsageTransportAction extends XPackUsageFeatureTransportAction {
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(XPackUsageFeatureAction.SNAPSHOT_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters);
     }
@@ -43,7 +41,7 @@ public class SLMUsageTransportAction extends XPackUsageFeatureTransportAction {
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        final SnapshotLifecycleMetadata slmMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        final SnapshotLifecycleMetadata slmMeta = state.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
         final SLMFeatureSetUsage usage = new SLMFeatureSetUsage(slmMeta == null ? null : slmMeta.getStats());
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }

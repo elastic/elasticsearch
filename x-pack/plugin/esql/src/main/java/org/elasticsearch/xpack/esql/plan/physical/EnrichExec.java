@@ -121,8 +121,9 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
             out.writeMap(concreteIndices(), StreamOutput::writeString, StreamOutput::writeString);
         } else {
             if (concreteIndices().keySet().equals(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))) {
-                String concreteIndex = concreteIndices().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                new EsIndex(concreteIndex, Map.of(), Map.of(concreteIndex, IndexMode.STANDARD)).writeTo(out);
+                String enrichIndex = concreteIndices().get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                EsIndex esIndex = new EsIndex(enrichIndex, Map.of(), Map.of(enrichIndex, IndexMode.STANDARD));
+                esIndex.writeTo(out);
             } else {
                 throw new IllegalStateException("expected a single concrete enrich index; got " + concreteIndices());
             }

@@ -25,9 +25,12 @@ public final class SearchFeatures implements FeatureSpecification {
     }
 
     public static final NodeFeature RETRIEVER_RESCORER_ENABLED = new NodeFeature("search.retriever.rescorer.enabled");
+    public static final NodeFeature COMPLETION_FIELD_SUPPORTS_DUPLICATE_SUGGESTIONS = new NodeFeature(
+        "search.completion_field.duplicate.support"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(RETRIEVER_RESCORER_ENABLED);
+        return Set.of(RETRIEVER_RESCORER_ENABLED, COMPLETION_FIELD_SUPPORTS_DUPLICATE_SUGGESTIONS);
     }
 }

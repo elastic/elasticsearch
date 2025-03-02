@@ -76,7 +76,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        final var unpromotableShards = request.indexShardRoutingTable.unpromotableShards();
+        final var unpromotableShards = request.indexShardRoutingTable.assignedUnpromotableShards();
         final var responses = new ArrayList<Response>(unpromotableShards.size());
 
         try (var listeners = new RefCountingListener(listener.map(v -> combineUnpromotableShardResponses(responses)))) {
@@ -121,7 +121,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
         shardStateAction.remoteShardFailed(
             shardRouting.shardId(),
             shardRouting.allocationId().getId(),
-            clusterState.metadata().index(shardRouting.getIndexName()).primaryTerm(shardRouting.shardId().getId()),
+            clusterState.metadata().getProject().index(shardRouting.getIndexName()).primaryTerm(shardRouting.shardId().getId()),
             true,
             "mark unpromotable copy as stale after refresh failure",
             e,

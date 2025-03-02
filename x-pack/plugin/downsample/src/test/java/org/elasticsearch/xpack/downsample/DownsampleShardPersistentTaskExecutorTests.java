@@ -54,7 +54,7 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
     }
 
     public void testGetAssignment() {
-        var backingIndex = initialClusterState.metadata().dataStreams().get("metrics-app1").getWriteIndex();
+        var backingIndex = initialClusterState.metadata().getProject().dataStreams().get("metrics-app1").getWriteIndex();
         var node = newNode();
         var shardId = new ShardId(backingIndex, 0);
         var clusterState = ClusterState.builder(initialClusterState)
@@ -83,7 +83,7 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
     }
 
     public void testGetAssignmentMissingIndex() {
-        var backingIndex = initialClusterState.metadata().dataStreams().get("metrics-app1").getWriteIndex();
+        var backingIndex = initialClusterState.metadata().getProject().dataStreams().get("metrics-app1").getWriteIndex();
         var node = newNode();
         var shardId = new ShardId(backingIndex, 0);
         var clusterState = ClusterState.builder(initialClusterState)

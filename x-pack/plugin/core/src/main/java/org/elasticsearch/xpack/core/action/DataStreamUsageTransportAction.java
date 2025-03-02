@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -33,7 +32,6 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings
     ) {
         super(XPackUsageFeatureAction.DATA_STREAMS.name(), transportService, clusterService, threadPool, actionFilters);
@@ -47,7 +45,7 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        final Map<String, DataStream> dataStreams = state.metadata().dataStreams();
+        final Map<String, DataStream> dataStreams = state.metadata().getProject().dataStreams();
         long backingIndicesCounter = 0;
         long failureStoreExplicitlyEnabledCounter = 0;
         long failureStoreEffectivelyEnabledCounter = 0;

@@ -15,7 +15,6 @@ import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.test.ESTestCase;
 import org.objectweb.asm.Type;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -40,9 +39,16 @@ public class InstrumentationServiceImplTests extends ESTestCase {
 
     abstract static class TestTargetBaseClass {
         abstract void instanceMethod(int x, String y);
+
+        abstract void instanceMethod2(int x, String y);
     }
 
-    static class TestTargetImplementationClass extends TestTargetBaseClass {
+    abstract static class TestTargetIntermediateClass extends TestTargetBaseClass {
+        @Override
+        public void instanceMethod2(int x, String y) {}
+    }
+
+    static class TestTargetImplementationClass extends TestTargetIntermediateClass {
         @Override
         public void instanceMethod(int x, String y) {}
     }
@@ -54,6 +60,14 @@ public class InstrumentationServiceImplTests extends ESTestCase {
 
         void check$org_example_TestTargetClass$instanceMethodWithArgs(Class<?> clazz, TestTargetClass that, int x, int y);
     }
+
+    interface TestCheckerDerived extends TestChecker {
+        void check$org_example_TestTargetClass$instanceMethodNoArgs(Class<?> clazz, TestTargetClass that);
+
+        void check$org_example_TestTargetClass$differentInstanceMethod(Class<?> clazz, TestTargetClass that);
+    }
+
+    interface TestCheckerDerived2 extends TestCheckerDerived, TestChecker {}
 
     interface TestCheckerOverloads {
         void check$org_example_TestTargetClass$$staticMethodWithOverload(Class<?> clazz, int x, int y);
@@ -75,7 +89,9 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         void checkInstanceMethodManual(Class<?> clazz, TestTargetBaseClass that, int x, String y);
     }
 
-    public void testInstrumentationTargetLookup() throws IOException {
+    interface TestCheckerDerived3 extends TestCheckerMixed {}
+
+    public void testInstrumentationTargetLookup() throws ClassNotFoundException {
         Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethods(TestChecker.class);
 
         assertThat(checkMethods, aMapWithSize(3));
@@ -128,7 +144,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         );
     }
 
-    public void testInstrumentationTargetLookupWithOverloads() throws IOException {
+    public void testInstrumentationTargetLookupWithOverloads() throws ClassNotFoundException {
         Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethods(TestCheckerOverloads.class);
 
         assertThat(checkMethods, aMapWithSize(2));
@@ -160,7 +176,76 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         );
     }
 
-    public void testInstrumentationTargetLookupWithCtors() throws IOException {
+    public void testInstrumentationTargetLookupWithDerivedClass() throws ClassNotFoundException {
+        Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethods(TestCheckerDerived2.class);
+
+        assertThat(checkMethods, aMapWithSize(4));
+        assertThat(
+            checkMethods,
+            hasEntry(
+                equalTo(new MethodKey("org/example/TestTargetClass", "staticMethod", List.of("I", "java/lang/String", "java/lang/Object"))),
+                equalTo(
+                    new CheckMethod(
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
+                        "check$org_example_TestTargetClass$$staticMethod",
+                        List.of("Ljava/lang/Class;", "I", "Ljava/lang/String;", "Ljava/lang/Object;")
+                    )
+                )
+            )
+        );
+        assertThat(
+            checkMethods,
+            hasEntry(
+                equalTo(new MethodKey("org/example/TestTargetClass", "instanceMethodNoArgs", List.of())),
+                equalTo(
+                    new CheckMethod(
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerDerived",
+                        "check$org_example_TestTargetClass$instanceMethodNoArgs",
+                        List.of(
+                            "Ljava/lang/Class;",
+                            "Lorg/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass;"
+                        )
+                    )
+                )
+            )
+        );
+        assertThat(
+            checkMethods,
+            hasEntry(
+                equalTo(new MethodKey("org/example/TestTargetClass", "instanceMethodWithArgs", List.of("I", "I"))),
+                equalTo(
+                    new CheckMethod(
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
+                        "check$org_example_TestTargetClass$instanceMethodWithArgs",
+                        List.of(
+                            "Ljava/lang/Class;",
+                            "Lorg/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass;",
+                            "I",
+                            "I"
+                        )
+                    )
+                )
+            )
+        );
+        assertThat(
+            checkMethods,
+            hasEntry(
+                equalTo(new MethodKey("org/example/TestTargetClass", "differentInstanceMethod", List.of())),
+                equalTo(
+                    new CheckMethod(
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerDerived",
+                        "check$org_example_TestTargetClass$differentInstanceMethod",
+                        List.of(
+                            "Ljava/lang/Class;",
+                            "Lorg/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass;"
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    public void testInstrumentationTargetLookupWithCtors() throws ClassNotFoundException {
         Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethods(TestCheckerCtors.class);
 
         assertThat(checkMethods, aMapWithSize(2));
@@ -192,7 +277,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         );
     }
 
-    public void testInstrumentationTargetLookupWithExtraMethods() throws IOException {
+    public void testInstrumentationTargetLookupWithExtraMethods() throws ClassNotFoundException {
         Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethods(TestCheckerMixed.class);
 
         assertThat(checkMethods, aMapWithSize(1));
@@ -266,6 +351,82 @@ public class InstrumentationServiceImplTests extends ESTestCase {
                 new MethodKey(
                     "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetImplementationClass",
                     "instanceMethod",
+                    List.of("I", "java/lang/String")
+                )
+            )
+        );
+        assertThat(
+            info.checkMethod(),
+            equalTo(
+                new CheckMethod(
+                    "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerMixed",
+                    "checkInstanceMethodManual",
+                    List.of(
+                        "Ljava/lang/Class;",
+                        "Lorg/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetBaseClass;",
+                        "I",
+                        "Ljava/lang/String;"
+                    )
+                )
+            )
+        );
+    }
+
+    public void testLookupImplementationMethodWithInheritanceOnTarget() throws ClassNotFoundException, NoSuchMethodException {
+        var info = instrumentationService.lookupImplementationMethod(
+            TestTargetBaseClass.class,
+            "instanceMethod2",
+            TestTargetImplementationClass.class,
+            TestCheckerMixed.class,
+            "checkInstanceMethodManual",
+            int.class,
+            String.class
+        );
+
+        assertThat(
+            info.targetMethod(),
+            equalTo(
+                new MethodKey(
+                    "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetIntermediateClass",
+                    "instanceMethod2",
+                    List.of("I", "java/lang/String")
+                )
+            )
+        );
+        assertThat(
+            info.checkMethod(),
+            equalTo(
+                new CheckMethod(
+                    "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerMixed",
+                    "checkInstanceMethodManual",
+                    List.of(
+                        "Ljava/lang/Class;",
+                        "Lorg/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetBaseClass;",
+                        "I",
+                        "Ljava/lang/String;"
+                    )
+                )
+            )
+        );
+    }
+
+    public void testLookupImplementationMethodWithInheritanceOnChecker() throws ClassNotFoundException, NoSuchMethodException {
+        var info = instrumentationService.lookupImplementationMethod(
+            TestTargetBaseClass.class,
+            "instanceMethod2",
+            TestTargetImplementationClass.class,
+            TestCheckerDerived3.class,
+            "checkInstanceMethodManual",
+            int.class,
+            String.class
+        );
+
+        assertThat(
+            info.targetMethod(),
+            equalTo(
+                new MethodKey(
+                    "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetIntermediateClass",
+                    "instanceMethod2",
                     List.of("I", "java/lang/String")
                 )
             )

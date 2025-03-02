@@ -136,7 +136,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
     ) {
         this.source = getCanMatchSource(searchRequest);
         this.indicesOptions = indicesOptions;
-        this.shards = new ArrayList<>(shards);
+        this.shards = shards;
         this.searchType = searchRequest.searchType();
         this.requestCache = searchRequest.requestCache();
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted

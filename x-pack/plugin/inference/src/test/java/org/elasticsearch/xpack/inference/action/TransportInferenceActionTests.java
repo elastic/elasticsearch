@@ -19,14 +19,17 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
-import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
+import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.RateLimitAssignment;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -50,7 +53,7 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        InferenceServiceNodeLocalRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
+        InferenceServiceRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
         NodeClient nodeClient,
         ThreadPool threadPool
     ) {
@@ -77,33 +80,43 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         TaskType unsupportedTaskType = TaskType.COMPLETION;
         mockService(listener -> listener.onResponse(mock()));
 
-        when(inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, unsupportedTaskType)).thenReturn(false);
+        when(inferenceServiceRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, unsupportedTaskType)).thenReturn(false);
 
         var listener = doExecute(unsupportedTaskType);
 
         verify(listener).onResponse(any());
         // Verify request was handled locally (not rerouted using TransportService)
         verify(transportService, never()).sendRequest(any(), any(), any(), any());
+        // Verify request metric attributes were recorded on the node performing inference
+        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
+            assertThat(attributes.get("node_id"), is(localNodeId));
+        }));
     }
 
     public void testNoRerouting_WhenNoGroupingCalculatedYet() {
         mockService(listener -> listener.onResponse(mock()));
 
-        when(inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
-        when(inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(null);
+        when(inferenceServiceRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
+        when(inferenceServiceRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(null);
 
         var listener = doExecute(taskType);
 
         verify(listener).onResponse(any());
         // Verify request was handled locally (not rerouted using TransportService)
         verify(transportService, never()).sendRequest(any(), any(), any(), any());
+        // Verify request metric attributes were recorded on the node performing inference
+        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
+            assertThat(attributes.get("node_id"), is(localNodeId));
+        }));
     }
 
     public void testNoRerouting_WhenEmptyNodeList() {
         mockService(listener -> listener.onResponse(mock()));
 
-        when(inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
-        when(inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(
+        when(inferenceServiceRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
+        when(inferenceServiceRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(
             new RateLimitAssignment(List.of())
         );
 
@@ -112,6 +125,11 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         verify(listener).onResponse(any());
         // Verify request was handled locally (not rerouted using TransportService)
         verify(transportService, never()).sendRequest(any(), any(), any(), any());
+        // Verify request metric attributes were recorded on the node performing inference
+        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
+            assertThat(attributes.get("node_id"), is(localNodeId));
+        }));
     }
 
     public void testRerouting_ToOtherNode() {
@@ -120,10 +138,10 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
 
         // The local node is different to the "other-node" responsible for serviceId
         when(nodeClient.getLocalNodeId()).thenReturn("local-node");
-        when(inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
+        when(inferenceServiceRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
         // Requests for serviceId are always routed to "other-node"
         var assignment = new RateLimitAssignment(List.of(otherNode));
-        when(inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(assignment);
+        when(inferenceServiceRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(assignment);
 
         mockService(listener -> listener.onResponse(mock()));
         var listener = doExecute(taskType);
@@ -132,6 +150,8 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         verify(transportService).sendRequest(same(otherNode), eq(InferenceAction.NAME), any(), any());
         // Verify local execution didn't happen
         verify(listener, never()).onResponse(any());
+        // Verify that request metric attributes were NOT recorded on the node rerouting the request to another node
+        verify(inferenceStats.inferenceDuration(), never()).record(anyLong(), any());
     }
 
     public void testRerouting_ToLocalNode_WithoutGoingThroughTransportLayerAgain() {
@@ -141,9 +161,9 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
 
         // The local node is the only one responsible for serviceId
         when(nodeClient.getLocalNodeId()).thenReturn(localNodeId);
-        when(inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
+        when(inferenceServiceRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
         var assignment = new RateLimitAssignment(List.of(localNode));
-        when(inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(assignment);
+        when(inferenceServiceRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(assignment);
 
         mockService(listener -> listener.onResponse(mock()));
         var listener = doExecute(taskType);
@@ -151,6 +171,11 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         verify(listener).onResponse(any());
         // Verify request was handled locally (not rerouted using TransportService)
         verify(transportService, never()).sendRequest(any(), any(), any(), any());
+        // Verify request metric attributes were recorded on the node performing inference
+        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
+            assertThat(attributes.get("node_id"), is(localNodeId));
+        }));
     }
 
     public void testRerouting_HandlesTransportException_FromOtherNode() {
@@ -158,9 +183,9 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         when(otherNode.getId()).thenReturn("other-node");
 
         when(nodeClient.getLocalNodeId()).thenReturn("local-node");
-        when(inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
+        when(inferenceServiceRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
         var assignment = new RateLimitAssignment(List.of(otherNode));
-        when(inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(assignment);
+        when(inferenceServiceRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(assignment);
 
         mockService(listener -> listener.onResponse(mock()));
 
@@ -173,7 +198,13 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
 
         var listener = doExecute(taskType);
 
+        // Verify request was rerouted
+        verify(transportService).sendRequest(same(otherNode), eq(InferenceAction.NAME), any(), any());
+        // Verify local execution didn't happen
+        verify(listener, never()).onResponse(any());
         // Verify exception was propagated from "other-node" to "local-node"
         verify(listener).onFailure(same(expectedException));
+        // Verify that request metric attributes were NOT recorded on the node rerouting the request to another node
+        verify(inferenceStats.inferenceDuration(), never()).record(anyLong(), any());
     }
 }

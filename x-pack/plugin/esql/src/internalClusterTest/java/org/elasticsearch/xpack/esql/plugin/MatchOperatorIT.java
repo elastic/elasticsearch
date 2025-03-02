@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.util.List;
@@ -106,7 +105,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoring() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var query = """
             FROM test
             METADATA _score
@@ -123,7 +121,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoringDifferentSort() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var query = """
             FROM test
             METADATA _score
@@ -140,7 +137,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoringNoSort() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var query = """
             FROM test
             METADATA _score
@@ -230,7 +226,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(ElasticsearchException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("[:] operator cannot operate on [\"a brown fox\"], which is not a field from an index mapping")
+            containsString("line 2:9: [:] operator cannot operate on [content], which is not a field from an index mapping")
         );
     }
 

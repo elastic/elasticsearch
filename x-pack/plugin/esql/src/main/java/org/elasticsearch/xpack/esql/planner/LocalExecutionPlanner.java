@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
@@ -17,14 +18,17 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneOperator;
+import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
+import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
+import org.elasticsearch.compute.operator.MergeOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
@@ -48,6 +52,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -71,6 +76,7 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -86,6 +92,7 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -110,7 +117,6 @@ import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
-import static org.elasticsearch.compute.operator.LimitOperator.Factory;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
@@ -157,19 +163,19 @@ public class LocalExecutionPlanner {
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
         this.settings = settings;
+        this.configuration = configuration;
         this.exchangeSourceSupplier = exchangeSourceSupplier;
         this.exchangeSinkSupplier = exchangeSinkSupplier;
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.physicalOperationProviders = physicalOperationProviders;
-        this.configuration = configuration;
         this.shardContexts = shardContexts;
     }
 
     /**
      * turn the given plan into a list of drivers to execute
      */
-    public LocalExecutionPlan plan(FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
+    public LocalExecutionPlan plan(String taskDescription, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
@@ -190,7 +196,16 @@ public class LocalExecutionPlanner {
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
         context.addDriverFactory(
             new DriverFactory(
-                new DriverSupplier(context.bigArrays, context.blockFactory, physicalOperation, statusInterval, settings),
+                new DriverSupplier(
+                    taskDescription,
+                    ClusterName.CLUSTER_NAME_SETTING.get(settings).value(),
+                    Node.NODE_NAME_SETTING.get(settings),
+                    context.bigArrays,
+                    context.blockFactory,
+                    physicalOperation,
+                    statusInterval,
+                    settings
+                ),
                 context.driverParallelism().get()
             )
         );
@@ -221,6 +236,8 @@ public class LocalExecutionPlanner {
             return planLimit(limit, context);
         } else if (node instanceof MvExpandExec mvExpand) {
             return planMvExpand(mvExpand, context);
+        } else if (node instanceof ChangePointExec changePoint) {
+            return planChangePoint(changePoint, context);
         }
         // source nodes
         else if (node instanceof EsQueryExec esQuery) {
@@ -247,6 +264,8 @@ public class LocalExecutionPlanner {
             return planOutput(outputExec, context);
         } else if (node instanceof ExchangeSinkExec exchangeSink) {
             return planExchangeSink(exchangeSink, context);
+        } else if (node instanceof MergeExec mergeExec) {
+            return planMerge(mergeExec, context);
         }
 
         throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
@@ -684,7 +703,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limit.child(), context);
-        return source.with(new Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
+        return source.with(new LimitOperator.Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
@@ -696,6 +715,27 @@ public class LocalExecutionPlanner {
             new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize),
             layout.build()
         );
+    }
+
+    private PhysicalOperation planChangePoint(ChangePointExec changePoint, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(changePoint.child(), context);
+        Layout layout = source.layout.builder().append(changePoint.targetType()).append(changePoint.targetPvalue()).build();
+        return source.with(
+            new ChangePointOperator.Factory(
+                layout.get(changePoint.value().id()).channel(),
+                changePoint.sourceText(),
+                changePoint.sourceLocation().getLineNumber(),
+                changePoint.sourceLocation().getColumnNumber()
+            ),
+            layout
+        );
+    }
+
+    private PhysicalOperation planMerge(MergeExec mergeExec, LocalExecutionPlannerContext context) {
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(mergeExec.output());
+        MergeOperator.BlockSuppliers suppliers = () -> mergeExec.suppliers().stream().map(s -> s.get()).toList();
+        return PhysicalOperation.fromSource(new MergeOperator.MergeOperatorFactory(suppliers), layout.build());
     }
 
     /**
@@ -831,6 +871,9 @@ public class LocalExecutionPlanner {
     }
 
     record DriverSupplier(
+        String taskDescription,
+        String clusterName,
+        String nodeName,
         BigArrays bigArrays,
         BlockFactory blockFactory,
         PhysicalOperation physicalOperation,
@@ -857,6 +900,9 @@ public class LocalExecutionPlanner {
                 success = true;
                 return new Driver(
                     sessionId,
+                    taskDescription,
+                    clusterName,
+                    nodeName,
                     System.currentTimeMillis(),
                     System.nanoTime(),
                     driverContext,

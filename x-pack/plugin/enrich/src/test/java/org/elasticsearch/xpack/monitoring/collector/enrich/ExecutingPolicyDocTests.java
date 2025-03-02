@@ -23,8 +23,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.enrich.action.EnrichStatsResponseTests.randomTaskInfo;
 import static org.elasticsearch.xpack.monitoring.collector.enrich.EnrichCoordinatorDocTests.DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.monitoring.collector.enrich.EnrichStatsCollectorTests.randomTaskInfo;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

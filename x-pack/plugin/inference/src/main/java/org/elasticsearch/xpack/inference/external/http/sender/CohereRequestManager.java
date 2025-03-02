@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.cohere.CohereModel;
+import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 
 import java.util.Objects;
 
@@ -24,5 +25,10 @@ abstract class CohereRequestManager extends BaseRequestManager {
 
             return new RateLimitGrouping(model.apiKey().hashCode());
         }
+    }
+
+    @Override
+    public String service() {
+        return CohereService.NAME;
     }
 }

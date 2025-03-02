@@ -79,6 +79,17 @@ class URLConnectionNetworkActions {
         }
     }
 
+    private static void withJdkMailToConnection(CheckedConsumer<URLConnection, Exception> connectionConsumer) throws Exception {
+        var conn = EntitledActions.createMailToURLConnection();
+        // Be sure we got the connection implementation we want
+        assert conn.getClass().getSimpleName().equals("MailToURLConnection");
+        try {
+            connectionConsumer.accept(conn);
+        } catch (IOException e) {
+            // It's OK, it means we passed entitlement checks, and we tried to perform some IO
+        }
+    }
+
     @EntitlementTest(expectedAccess = PLUGINS)
     static void urlOpenConnection() throws Exception {
         URI.create("http://127.0.0.1:12345/").toURL().openConnection();
@@ -217,5 +228,15 @@ class URLConnectionNetworkActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void sunHttpConnectionGetContentWithClasses() throws Exception {
         withJdkHttpConnection(conn -> conn.getContent(new Class<?>[] { String.class }));
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunMailToURLConnectionConnect() throws Exception {
+        withJdkMailToConnection(URLConnection::connect);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void sunMailToURLConnectionGetOutputStream() throws Exception {
+        withJdkMailToConnection(URLConnection::connect);
     }
 }

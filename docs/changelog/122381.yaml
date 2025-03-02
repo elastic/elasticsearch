@@ -1,0 +1,6 @@
+pr: 122381
+summary: Adds implementations of dotProduct and cosineSimilarity painless methods to operate on float vectors for byte fields
+area: Vector Search
+type: enhancement
+issues:
+ - 117274

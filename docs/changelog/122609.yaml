@@ -1,0 +1,5 @@
+pr: 122609
+summary: Update `TransportNodesCapabilitiesAction` for V9
+area: Infra/REST API
+type: enhancement
+issues: []

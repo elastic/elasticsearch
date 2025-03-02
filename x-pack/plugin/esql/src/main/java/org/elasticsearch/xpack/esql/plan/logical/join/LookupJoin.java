@@ -89,9 +89,10 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
         right().forEachDown(EsRelation.class, esr -> {
             var indexNameWithModes = esr.indexNameWithModes();
             if (indexNameWithModes.size() != 1) {
-                failures.add(
-                    fail(esr, "invalid [{}] resolution in lookup mode to [{}] indices", esr.indexPattern(), indexNameWithModes.size())
-                );
+                String errorMessage = indexNameWithModes.isEmpty()
+                    ? "Index [" + esr.indexPattern() + "] exists, but no valid fields for LOOKUP JOIN were found"
+                    : "Invalid [" + esr.indexPattern() + "] resolution in lookup mode to [" + indexNameWithModes.size() + "] indices";
+                failures.add(fail(esr, errorMessage));
             } else if (indexNameWithModes.values().iterator().next() != IndexMode.LOOKUP) {
                 failures.add(
                     fail(

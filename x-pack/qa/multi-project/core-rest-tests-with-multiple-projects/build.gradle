@@ -85,7 +85,7 @@ tasks.named("yamlRestTest").configure {
     '^reindex/90_remote/*',
     '^reindex/95_parent_join/Reindex from remote*'
   ];
-  if (buildParams.isSnapshotBuild() == false) {
+  if (buildParams.snapshotBuild == false) {
     blacklist += [];
   }
   systemProperty 'tests.rest.blacklist', blacklist.join(',')

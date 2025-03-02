@@ -38,7 +38,7 @@ buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
 
 tasks.register("verifyDocsLuceneVersion") {
   doFirst {
-    File docsVersionsFile = rootProject.file('docs/Versions.asciidoc')
+    File docsVersionsFile = layout.settingsDirectory.file('docs/Versions.asciidoc').asFile
     List<String> versionLines = docsVersionsFile.readLines('UTF-8')
     String docsLuceneVersion = null
     for (String line : versionLines) {

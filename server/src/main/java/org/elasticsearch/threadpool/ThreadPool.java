@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionHandler;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -343,13 +344,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                 handler.registerCounter(meterRegistry, prefix + THREAD_POOL_METRIC_NAME_REJECTED, name);
             }
 
-            if (holder.executor() instanceof EsThreadPoolExecutor esThreadPoolExecutor) {
+            if (holder.executor() instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor timeTrackingExecutor) {
                 instruments.add(
                     meterRegistry.registerDoubleGauge(
                         prefix + THREAD_POOL_METRIC_NAME_UTILISATION,
                         "percentage of maximum threads active for " + name,
                         "percent",
-                        () -> new DoubleWithAttributes(esThreadPoolExecutor.getUtilisation(), at)
+                        () -> new DoubleWithAttributes(timeTrackingExecutor.getUtilisation(), at)
                     )
                 );
             }

@@ -94,7 +94,6 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     /**
      * This returns the percentage of the maximum time spent since the last poll executing tasks
      */
-    @Override
     public double getUtilisation() {
         final long currentTotalExecutionTimeNanos = totalExecutionTime.sum();
         final long currentPollTimeNanos = System.nanoTime();

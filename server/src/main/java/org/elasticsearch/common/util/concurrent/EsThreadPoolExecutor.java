@@ -121,15 +121,6 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         return this.getQueue().stream().map(this::unwrap);
     }
 
-    /**
-     * Basic implementation only returns instantaneous utilisation
-     *
-     * @return The percentage of the maximum threads that are in use right now
-     */
-    public double getUtilisation() {
-        return (double) getActiveCount() / getMaximumPoolSize();
-    }
-
     @Override
     public final String toString() {
         StringBuilder b = new StringBuilder();

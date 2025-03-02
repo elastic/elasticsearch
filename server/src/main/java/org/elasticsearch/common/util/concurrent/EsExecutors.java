@@ -17,8 +17,11 @@ import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.security.PrivilegedExceptionAction;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
@@ -456,6 +459,22 @@ public class EsExecutors {
          */
         private final boolean rejectAfterShutdown;
 
+        private static final MethodHandle ensurePrestart$mh = lookupEnsurePrestart();
+
+        @SuppressForbidden(reason = "reflective access")
+        static MethodHandle lookupEnsurePrestart() {
+            try {
+                return AccessController.doPrivileged((PrivilegedExceptionAction<MethodHandle>) () -> {
+                    var ensurePrestartMethod = ThreadPoolExecutor.class.getDeclaredMethod("ensurePrestart");
+                    ensurePrestartMethod.setAccessible(true);
+
+                    return MethodHandles.lookup().unreflect(ensurePrestartMethod);
+                });
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         /**
          * @param rejectAfterShutdown indicates if {@link Runnable} should be rejected once the thread pool is shutting down
          */
@@ -475,6 +494,20 @@ public class EsExecutors {
                     if (executor.isShutdown() && executor.remove(task)) {
                         reject(executor, task);
                     }
+                    // The equivalent code in the JDK here would check if the worker count (aka pool size) is 0, and if so it would
+                    // add a worker. We cannot reproduce that exact behaviour.
+                    if (executor.getPoolSize() == 0) {
+                        // add a worker. We could use:
+                        // a) executor.setCorePoolSize(1); (but then we would need to bring it back to 0 "later", and "later" is not trivial
+                        // b) var t = executor.getQueue().poll(); if (t != null) executor.execute(t); (re-enqueue) but this will likely
+                        // have undesired side effects (it's a recursive call in disguise)
+                        // c) executor.ensurePrestart(); which is not public nor protected, so we would have to call it reflectively
+                        try {
+                            ensurePrestart$mh.invokeExact(executor);
+                        } catch (Throwable e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
                 }
             } else {
                 put(executor, task);
@@ -486,6 +519,9 @@ public class EsExecutors {
             // force queue policy should only be used with a scaling queue
             assert queue instanceof ExecutorScalingQueue;
             try {
+                // If core size is 0, we risk adding the task onto the queue despite the only remaining worker timing out
+                // before the task can be worked on.
+                // Why not use allowCoreThreadTimeOut with core/max size 1 instead?
                 queue.put(task);
             } catch (final InterruptedException e) {
                 assert false : "a scaling queue never blocks so a put to it can never be interrupted";

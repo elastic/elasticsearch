@@ -45,10 +45,12 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
@@ -157,7 +159,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class)
+                    mock(TransformNode.class),
+                    Tracer.NOOP
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -255,7 +258,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class)
+                    mock(TransformNode.class),
+                    Tracer.NOOP
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -337,7 +341,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class)
+                    mock(TransformNode.class),
+                    Tracer.NOOP
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -405,7 +410,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class)
+                    mock(TransformNode.class),
+                    Tracer.NOOP
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -573,7 +579,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 nextCheckpoint,
                 seqNoPrimaryTermAndIndex,
                 context,
-                shouldStopAtCheckpoint
+                shouldStopAtCheckpoint,
+                EventHook.NOOP
             );
         }
 
@@ -717,7 +724,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(TransformCheckpointService.class),
                 mock(TransformAuditor.class),
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                mock(TransformNode.class)
+                mock(TransformNode.class),
+                Tracer.NOOP
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),
@@ -730,7 +738,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
             new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 2L, Collections.emptyMap(), Instant.now().toEpochMilli()),
             new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
             context,
-            false
+            false,
+            AsyncTwoPhaseIndexer.EventHook.NOOP
         );
     }
 }

@@ -89,10 +89,10 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         DeterministicTaskQueue mergeExecutorTaskQueue = new DeterministicTaskQueue();
         ThreadPool mergeExecutorThreadPool = mergeExecutorTaskQueue.getThreadPool();
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-                .maybeCreateThreadPoolMergeExecutorService(
-                        mergeExecutorThreadPool,
-                        Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true).build()
-                );
+            .maybeCreateThreadPoolMergeExecutorService(
+                mergeExecutorThreadPool,
+                Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true).build()
+            );
         assertNotNull(threadPoolMergeExecutorService);
         final AtomicInteger currentlySubmittedMergeTaskCount = new AtomicInteger();
         final AtomicLong targetIORateLimit = new AtomicLong(ThreadPoolMergeExecutorService.START_IO_RATE.getBytes());
@@ -130,20 +130,20 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 if (currentlySubmittedMergeTaskCount.get() < threadPoolMergeExecutorService.getConcurrentMergesFloorLimitForThrottling()) {
                     // assert the IO rate decreases, with a floor limit, when there are few merge tasks enqueued
                     assertTrue(
-                            newTargetIORateLimit == ThreadPoolMergeExecutorService.MIN_IO_RATE.getBytes()
-                                    || newTargetIORateLimit < targetIORateLimit.get()
+                        newTargetIORateLimit == ThreadPoolMergeExecutorService.MIN_IO_RATE.getBytes()
+                            || newTargetIORateLimit < targetIORateLimit.get()
                     );
                 } else if (currentlySubmittedMergeTaskCount.get() > threadPoolMergeExecutorService
-                        .getConcurrentMergesCeilLimitForThrottling()) {
-                    // assert the IO rate increases, with a ceiling limit, when there are many merge tasks enqueued
-                    assertTrue(
+                    .getConcurrentMergesCeilLimitForThrottling()) {
+                        // assert the IO rate increases, with a ceiling limit, when there are many merge tasks enqueued
+                        assertTrue(
                             newTargetIORateLimit == ThreadPoolMergeExecutorService.MAX_IO_RATE.getBytes()
-                                    || newTargetIORateLimit > targetIORateLimit.get()
-                    );
-                } else {
-                    // assert the IO rate does change, when there are a couple of merge tasks enqueued
-                    assertThat(newTargetIORateLimit, equalTo(targetIORateLimit.get()));
-                }
+                                || newTargetIORateLimit > targetIORateLimit.get()
+                        );
+                    } else {
+                        // assert the IO rate does change, when there are a couple of merge tasks enqueued
+                        assertThat(newTargetIORateLimit, equalTo(targetIORateLimit.get()));
+                    }
                 targetIORateLimit.set(newTargetIORateLimit);
             } else {
                 setIORateForTaskInvoked.set(false);

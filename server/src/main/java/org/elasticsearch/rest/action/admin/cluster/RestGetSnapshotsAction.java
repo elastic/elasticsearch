@@ -82,6 +82,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         final SortOrder order = SortOrder.fromString(request.param("order", getSnapshotsRequest.order().toString()));
         getSnapshotsRequest.order(order);
         getSnapshotsRequest.includeIndexNames(request.paramAsBoolean(INDEX_NAMES_XCONTENT_PARAM, getSnapshotsRequest.includeIndexNames()));
+        getSnapshotsRequest.state(request.param("state"));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
             .getSnapshots(getSnapshotsRequest, new RestRefCountedChunkedToXContentListener<>(channel));

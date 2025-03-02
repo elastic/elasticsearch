@@ -380,8 +380,16 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             }
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : nestedMapper.fullPath();
             NestedObjectMapper parentObjectMapper = searchExecutionContext.nestedScope().nextLevel(nestedMapper);
+
+            // We rewrite the query to ensure that child documents can receive scores from approximate nearest neighbor queries.
+            PerDocumentQueryRewriteContext innerHitsRewriteContext = new PerDocumentQueryRewriteContext(
+                searchExecutionContext.getParserConfig(),
+                searchExecutionContext.nowInMillis
+            );
+            var childQuery = Rewriteable.rewrite(query, innerHitsRewriteContext, true);
             NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
                 name,
+                childQuery,
                 parentSearchContext,
                 parentObjectMapper,
                 nestedMapper
@@ -399,11 +407,12 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
         NestedInnerHitSubContext(
             String name,
+            QueryBuilder query,
             SearchContext context,
             NestedObjectMapper parentObjectMapper,
             NestedObjectMapper childObjectMapper
         ) {
-            super(name, context);
+            super(name, query, context);
             this.parentObjectMapper = parentObjectMapper;
             this.childObjectMapper = childObjectMapper;
         }

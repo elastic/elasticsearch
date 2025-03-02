@@ -117,7 +117,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     public static final String THREAD_POOL_METRIC_NAME_CURRENT = ".threads.count.current";
     public static final String THREAD_POOL_METRIC_NAME_QUEUE = ".threads.queue.size";
     public static final String THREAD_POOL_METRIC_NAME_ACTIVE = ".threads.active.current";
-    public static final String THREAD_POOL_METRIC_NAME_UTILISATION = ".threads.utilisation.current";
+    public static final String THREAD_POOL_METRIC_NAME_UTILIZATION = ".threads.utilization.current";
     public static final String THREAD_POOL_METRIC_NAME_LARGEST = ".threads.largest.current";
     public static final String THREAD_POOL_METRIC_NAME_REJECTED = ".threads.rejected.total";
 
@@ -347,10 +347,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             if (holder.executor() instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor timeTrackingExecutor) {
                 instruments.add(
                     meterRegistry.registerDoubleGauge(
-                        prefix + THREAD_POOL_METRIC_NAME_UTILISATION,
-                        "percentage of maximum threads active for " + name,
-                        "percent",
-                        () -> new DoubleWithAttributes(timeTrackingExecutor.getUtilisation(), at)
+                        prefix + THREAD_POOL_METRIC_NAME_UTILIZATION,
+                        "fraction of maximum thread time utilized for " + name,
+                        "fraction",
+                        () -> new DoubleWithAttributes(timeTrackingExecutor.pollUtilization(), at)
                     )
                 );
             }

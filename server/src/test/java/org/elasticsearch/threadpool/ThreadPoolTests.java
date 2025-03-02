@@ -487,7 +487,7 @@ public class ThreadPoolTests extends ESTestCase {
         }
     }
 
-    public void testDetailedUtilisationMetric() {
+    public void testDetailedUtilizationMetric() {
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final BuiltInExecutorBuilders builtInExecutorBuilders = new DefaultBuiltInExecutorBuilders();
 
@@ -508,7 +508,7 @@ public class ThreadPoolTests extends ESTestCase {
             assertLatestMetricValueMatches(
                 meterRegistry,
                 InstrumentType.DOUBLE_GAUGE,
-                ThreadPool.THREAD_POOL_METRIC_NAME_UTILISATION,
+                ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION,
                 threadPoolName,
                 Measurement::getDouble,
                 equalTo(0.0d)
@@ -534,19 +534,19 @@ public class ThreadPoolTests extends ESTestCase {
             // Calculate upper bound on utilisation metric
             final long minimumPollIntervalNanos = beforeMetricsCollectedNanos - afterPreviousCollectNanos;
             final long minimumMaxExecutionTimeNanos = minimumPollIntervalNanos * threadPoolInfo.getMax();
-            final double maximumUtilisation = (double) maxDurationNanos / minimumMaxExecutionTimeNanos;
+            final double maximumUtilization = (double) maxDurationNanos / minimumMaxExecutionTimeNanos;
 
             // Calculate lower bound on utilisation metric
             final long maximumPollIntervalNanos = afterMetricsCollectedNanos - beforePreviousCollectNanos;
             final long maximumMaxExecutionTimeNanos = maximumPollIntervalNanos * threadPoolInfo.getMax();
-            final double minimumUtilisation = (double) minimumDurationNanos.get() / maximumMaxExecutionTimeNanos;
+            final double minimumUtilization = (double) minimumDurationNanos.get() / maximumMaxExecutionTimeNanos;
 
-            logger.info("Utilisation must be in [{}, {}]", minimumUtilisation, maximumUtilisation);
-            Matcher<Double> matcher = allOf(greaterThan(minimumUtilisation), lessThan(maximumUtilisation));
+            logger.info("Utilization must be in [{}, {}]", minimumUtilization, maximumUtilization);
+            Matcher<Double> matcher = allOf(greaterThan(minimumUtilization), lessThan(maximumUtilization));
             assertLatestMetricValueMatches(
                 meterRegistry,
                 InstrumentType.DOUBLE_GAUGE,
-                ThreadPool.THREAD_POOL_METRIC_NAME_UTILISATION,
+                ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION,
                 threadPoolName,
                 Measurement::getDouble,
                 matcher

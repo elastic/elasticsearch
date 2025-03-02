@@ -356,7 +356,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
         private void onBatchCompleted(int lastBatchIndex) {
             PhysicalPlan nextPlan = null;
-            if (lastBatchIndex < request.shardIds().size()) {
+            if (lastBatchIndex < request.shardIds().size() && exchangeSink.isFinished() == false) {
                 nextPlan = fragmentOptimizer.optimizeFragment(request.plan());
             }
             if (nextPlan != null) {

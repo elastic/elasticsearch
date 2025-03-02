@@ -57,21 +57,51 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         assertTrue(threadPoolMergeExecutorService.allDone());
     }
 
-    public void testIORateAdjustedForNewlySubmittedTasks() {
+    public void testIORateAdjustedForSubmittedTasksWhenExecutionRateIsSpeedy() {
+        // the executor runs merge tasks at a faster rate than the rate that merge tasks are submitted
+        int submittedVsExecutedRateOutOf1000 = randomIntBetween(0, 250);
+        testIORateAdjustedForNewlySubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(0, 5));
+        // executor starts running merges only after a considerable amount of merge tasks have already been submitted
+        testIORateAdjustedForNewlySubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(5, 50));
+    }
+
+    public void testIORateAdjustedForSubmittedTasksWhenExecutionRateIsSluggish() {
+        // the executor runs merge tasks at a faster rate than the rate that merge tasks are submitted
+        int submittedVsExecutedRateOutOf1000 = randomIntBetween(750, 1000);
+        testIORateAdjustedForNewlySubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(0, 5));
+        // executor starts running merges only after a considerable amount of merge tasks have already been submitted
+        testIORateAdjustedForNewlySubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(5, 50));
+    }
+
+    public void testIORateAdjustedForSubmittedTasksWhenExecutionRateIsOnPar() {
+        // the executor runs merge tasks at a faster rate than the rate that merge tasks are submitted
+        int submittedVsExecutedRateOutOf1000 = randomIntBetween(250, 750);
+        testIORateAdjustedForNewlySubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(0, 5));
+        // executor starts running merges only after a considerable amount of merge tasks have already been submitted
+        testIORateAdjustedForNewlySubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(5, 50));
+    }
+
+    private void testIORateAdjustedForNewlySubmittedTasks(
+        int totalTasksToSubmit,
+        int submittedVsExecutedRateOutOf1000,
+        int initialTasksToSubmit
+    ) {
         DeterministicTaskQueue mergeExecutorTaskQueue = new DeterministicTaskQueue();
         ThreadPool mergeExecutorThreadPool = mergeExecutorTaskQueue.getThreadPool();
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-            .maybeCreateThreadPoolMergeExecutorService(
-                mergeExecutorThreadPool,
-                Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true).build()
-            );
+                .maybeCreateThreadPoolMergeExecutorService(
+                        mergeExecutorThreadPool,
+                        Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true).build()
+                );
         assertNotNull(threadPoolMergeExecutorService);
-        int totalTasksToSubmit = randomIntBetween(10, 100);
         final AtomicInteger currentlySubmittedMergeTaskCount = new AtomicInteger();
         final AtomicLong targetIORateLimit = new AtomicLong(ThreadPoolMergeExecutorService.START_IO_RATE.getBytes());
         final AtomicBoolean setIORateForTaskInvoked = new AtomicBoolean();
+        int initialTasksCounter = Math.min(initialTasksToSubmit, totalTasksToSubmit);
         while (totalTasksToSubmit > 0 || mergeExecutorTaskQueue.hasAnyTasks()) {
-            if (mergeExecutorTaskQueue.hasAnyTasks() == false || randomBoolean() && totalTasksToSubmit > 0) {
+            if (mergeExecutorTaskQueue.hasAnyTasks() == false // always submit if there are no outstanding merge tasks
+                || initialTasksCounter > 0 // first submit all the initial tasks
+                || (randomIntBetween(0, 1000) < submittedVsExecutedRateOutOf1000 && totalTasksToSubmit > 0)) {
                 // submit new merge task
                 MergeTask mergeTask = mock(MergeTask.class);
                 // all merge tasks support IO throttling in this test
@@ -94,25 +124,26 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 }).when(mergeTask).run();
                 currentlySubmittedMergeTaskCount.incrementAndGet();
                 totalTasksToSubmit--;
+                initialTasksCounter--;
                 threadPoolMergeExecutorService.submitMergeTask(mergeTask);
                 long newTargetIORateLimit = threadPoolMergeExecutorService.getTargetIORateBytesPerSec();
                 if (currentlySubmittedMergeTaskCount.get() < threadPoolMergeExecutorService.getConcurrentMergesFloorLimitForThrottling()) {
                     // assert the IO rate decreases, with a floor limit, when there are few merge tasks enqueued
                     assertTrue(
-                        newTargetIORateLimit == ThreadPoolMergeExecutorService.MIN_IO_RATE.getBytes()
-                            || newTargetIORateLimit < targetIORateLimit.get()
+                            newTargetIORateLimit == ThreadPoolMergeExecutorService.MIN_IO_RATE.getBytes()
+                                    || newTargetIORateLimit < targetIORateLimit.get()
                     );
                 } else if (currentlySubmittedMergeTaskCount.get() > threadPoolMergeExecutorService
-                    .getConcurrentMergesCeilLimitForThrottling()) {
-                        // assert the IO rate increases, with a ceiling limit, when there are many merge tasks enqueued
-                        assertTrue(
+                        .getConcurrentMergesCeilLimitForThrottling()) {
+                    // assert the IO rate increases, with a ceiling limit, when there are many merge tasks enqueued
+                    assertTrue(
                             newTargetIORateLimit == ThreadPoolMergeExecutorService.MAX_IO_RATE.getBytes()
-                                || newTargetIORateLimit > targetIORateLimit.get()
-                        );
-                    } else {
-                        // assert the IO rate does change, when there are a couple of merge tasks enqueued
-                        assertThat(newTargetIORateLimit, equalTo(targetIORateLimit.get()));
-                    }
+                                    || newTargetIORateLimit > targetIORateLimit.get()
+                    );
+                } else {
+                    // assert the IO rate does change, when there are a couple of merge tasks enqueued
+                    assertThat(newTargetIORateLimit, equalTo(targetIORateLimit.get()));
+                }
                 targetIORateLimit.set(newTargetIORateLimit);
             } else {
                 setIORateForTaskInvoked.set(false);

@@ -159,6 +159,15 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
     }
 
+    private boolean assertEmptyRequestHeaders() {
+        final var threadContext = threadPool.getThreadContext();
+        final var headers = threadContext.getHeaders();
+        assert headers.isEmpty() : headers;
+        final var transientHeaders = threadContext.getTransientHeaders();
+        assert transientHeaders.isEmpty() : transientHeaders;
+        return true;
+    }
+
     private class AsyncRefresh {
 
         private final List<ActionListener<ClusterInfo>> thisRefreshListeners;
@@ -181,11 +190,15 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             logger.trace("starting async refresh");
 
             try (var ignoredRefs = fetchRefs) {
+
+                assert assertEmptyRequestHeaders();
                 try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
                     fetchNodeStats();
+                    assert assertEmptyRequestHeaders();
                 }
                 try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
                     fetchIndicesStats();
+                    assert assertEmptyRequestHeaders();
                 }
             }
         }
@@ -205,6 +218,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         ActionListener.releaseAfter(new ActionListener<>() {
                             @Override
                             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
+                                assert assertEmptyRequestHeaders();
                                 logger.trace("received indices stats response");
 
                                 if (indicesStatsResponse.getShardFailures().length > 0) {
@@ -289,6 +303,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
                 public void onResponse(NodesStatsResponse nodesStatsResponse) {
+                    assert assertEmptyRequestHeaders();
                     logger.trace("received node stats response");
 
                     for (final FailedNodeException failure : nodesStatsResponse.failures()) {
@@ -321,6 +336,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         private void callListeners() {
             try {
+                assert assertEmptyRequestHeaders();
                 logger.trace("stats all received, computing cluster info and notifying listeners");
                 final ClusterInfo clusterInfo = getClusterInfo();
                 boolean anyListeners = false;
@@ -339,6 +355,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     listener.onResponse(clusterInfo);
                 }
             } finally {
+                assert assertEmptyRequestHeaders();
                 onRefreshComplete(this);
             }
         }

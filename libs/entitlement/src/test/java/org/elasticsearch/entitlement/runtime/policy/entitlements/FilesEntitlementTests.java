@@ -48,8 +48,7 @@ public class FilesEntitlementTests extends ESTestCase {
         new Path[] { Path.of("/data1"), Path.of("/data2") },
         new Path[] { Path.of("/shared1"), Path.of("/shared2") },
         Path.of("/tmp"),
-        setting -> settings.get(setting),
-        glob -> settings.getGlobValues(glob)
+        pattern -> settings.getValues(pattern)
     );
 
     public void testEmptyBuild() {

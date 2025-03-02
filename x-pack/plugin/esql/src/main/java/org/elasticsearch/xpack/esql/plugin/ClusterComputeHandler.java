@@ -111,8 +111,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 } else {
                     try {
                         groupTask = computeService.createGroupTask(rootTask, () -> "compute group: cluster [" + clusterAlias + "]");
-                    } catch (Exception e) {
-                        assert e instanceof TaskCancelledException : new AssertionError(e);
+                    } catch (TaskCancelledException e) {
                         l.onFailure(e);
                         return;
                     }

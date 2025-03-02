@@ -135,8 +135,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     parentTask,
                                     () -> "compute group: data-node [" + node.getName() + "], " + shardIds + " [" + shardIds + "]"
                                 );
-                            } catch (Exception e) {
-                                assert e instanceof TaskCancelledException : new AssertionError(e);
+                            } catch (TaskCancelledException e) {
                                 l.onFailure(e);
                                 return;
                             }

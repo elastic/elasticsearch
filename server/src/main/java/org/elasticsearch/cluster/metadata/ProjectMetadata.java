@@ -46,6 +46,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -1761,7 +1762,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             if (indices.isEmpty()) {
                 return Collections.emptySortedMap();
             }
-            SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
+            Map<String, IndexAbstraction> indicesLookup = new HashMap<>();
             Map<String, DataStream> indexToDataStreamLookup = new HashMap<>();
             collectDataStreams(dataStreamMetadata, indicesLookup, indexToDataStreamLookup);
 
@@ -1769,7 +1770,110 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             collectIndices(indices, indexToDataStreamLookup, indicesLookup, aliasToIndices);
             collectAliases(aliasToIndices, indicesLookup);
 
-            return Collections.unmodifiableSortedMap(indicesLookup);
+            return new SortedMap<>() {
+
+                private final SortedMap<String, IndexAbstraction> map = new TreeMap<>(indicesLookup);
+
+                @Override
+                public Comparator<? super String> comparator() {
+                    return map.comparator();
+                }
+
+                @Override
+                public SortedMap<String, IndexAbstraction> subMap(String fromKey, String toKey) {
+                    return Collections.unmodifiableSortedMap(map.subMap(fromKey, toKey));
+                }
+
+                @Override
+                public SortedMap<String, IndexAbstraction> headMap(String toKey) {
+                    return Collections.unmodifiableSortedMap(map.headMap(toKey));
+                }
+
+                @Override
+                public SortedMap<String, IndexAbstraction> tailMap(String fromKey) {
+                    return Collections.unmodifiableSortedMap(map.tailMap(fromKey));
+                }
+
+                @Override
+                public String firstKey() {
+                    return map.firstKey();
+                }
+
+                @Override
+                public String lastKey() {
+                    return map.lastKey();
+                }
+
+                @Override
+                public Set<String> keySet() {
+                    return Collections.unmodifiableSet(map.keySet());
+                }
+
+                @Override
+                public Collection<IndexAbstraction> values() {
+                    return Collections.unmodifiableCollection(map.values());
+                }
+
+                @Override
+                public Set<Entry<String, IndexAbstraction>> entrySet() {
+                    return Collections.unmodifiableSet(map.entrySet());
+                }
+
+                @Override
+                public int size() {
+                    return indicesLookup.size();
+                }
+
+                @Override
+                public boolean isEmpty() {
+                    return indicesLookup.isEmpty();
+                }
+
+                @Override
+                public boolean containsKey(Object key) {
+                    return indicesLookup.containsKey(key);
+                }
+
+                @Override
+                public boolean containsValue(Object value) {
+                    return indicesLookup.containsValue(value);
+                }
+
+                @Override
+                public IndexAbstraction get(Object key) {
+                    return indicesLookup.get(key);
+                }
+
+                @Override
+                public IndexAbstraction put(String key, IndexAbstraction value) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public IndexAbstraction remove(Object key) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void putAll(Map<? extends String, ? extends IndexAbstraction> m) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void clear() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean equals(Object obj) {
+                    return indicesLookup.equals(obj);
+                }
+
+                @Override
+                public int hashCode() {
+                    return indicesLookup.hashCode();
+                }
+            };
         }
 
         private static void collectAliases(Map<String, List<IndexMetadata>> aliasToIndices, Map<String, IndexAbstraction> indicesLookup) {

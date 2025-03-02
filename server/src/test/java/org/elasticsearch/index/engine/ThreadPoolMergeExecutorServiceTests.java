@@ -165,12 +165,12 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
     public void testThreadPoolStatsWithBackloggedMergeTasks() throws Exception {
         int mergeExecutorThreadCount = randomIntBetween(1, 3);
         Settings settings = Settings.builder()
-                .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
-                .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
-                .build();
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            .build();
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-                    .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
+                .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
             assertNotNull(threadPoolMergeExecutorService);
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             int totalMergeTasksCount = randomIntBetween(1, 10);

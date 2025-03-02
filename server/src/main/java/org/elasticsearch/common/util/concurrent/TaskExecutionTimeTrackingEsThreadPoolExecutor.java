@@ -100,12 +100,15 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     public double pollUtilization() {
         final long currentTotalExecutionTimeNanos = totalExecutionTime.sum();
         final long currentPollTimeNanos = System.nanoTime();
+
         final long executionTimeSinceLastPollNanos = currentTotalExecutionTimeNanos - lastTotalExecutionTime;
         final long timeSinceLastPoll = currentPollTimeNanos - lastPollTime;
         final long maxExecutionTimeSinceLastPollNanos = timeSinceLastPoll * getMaximumPoolSize();
+        final double utilizationSinceLastPoll = (double) executionTimeSinceLastPollNanos / maxExecutionTimeSinceLastPollNanos;
+
         lastTotalExecutionTime = currentTotalExecutionTimeNanos;
         lastPollTime = currentPollTimeNanos;
-        return (double) executionTimeSinceLastPollNanos / maxExecutionTimeSinceLastPollNanos;
+        return utilizationSinceLastPoll;
     }
 
     @Override

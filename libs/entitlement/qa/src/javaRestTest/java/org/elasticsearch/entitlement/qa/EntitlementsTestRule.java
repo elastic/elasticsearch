@@ -34,6 +34,7 @@ class EntitlementsTestRule implements TestRule {
     // entitlements that test methods may use, see EntitledActions
     private static final PolicyBuilder ENTITLED_POLICY = (builder, tempDir) -> {
         builder.value("manage_threads");
+        builder.value("outbound_network");
         builder.value(
             Map.of(
                 "files",

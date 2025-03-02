@@ -18,8 +18,6 @@ import java.net.Proxy;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
@@ -73,12 +71,6 @@ class NetworkAccessCheckActions {
         try (Socket socket = new DummyImplementations.DummySocket()) {
             socket.connect(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
         }
-    }
-
-    static void urlOpenConnectionWithProxy() throws URISyntaxException, IOException {
-        var url = new URI("http://localhost").toURL();
-        var urlConnection = url.openConnection(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(0)));
-        assert urlConnection != null;
     }
 
     static void createLDAPCertStore() {

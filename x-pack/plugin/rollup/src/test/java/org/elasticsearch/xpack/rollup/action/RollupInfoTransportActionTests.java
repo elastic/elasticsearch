@@ -43,7 +43,7 @@ public class RollupInfoTransportActionTests extends ESTestCase {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         var usageAction = new RollupUsageTransportAction(transportService, null, threadPool, mock(ActionFilters.class));
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         RollupFeatureSetUsage rollupUsage = (RollupFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         rollupUsage.writeTo(out);

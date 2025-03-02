@@ -172,13 +172,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
                 }
                 results.add(
                     new ChunkedInferenceEmbedding(
-                        List.of(
-                            new SparseEmbeddingResults.Chunk(
-                                tokens,
-                                input.get(i),
-                                new ChunkedInference.TextOffset(0, input.get(i).length())
-                            )
-                        )
+                        List.of(new SparseEmbeddingResults.Chunk(tokens, new ChunkedInference.TextOffset(0, input.get(i).length())))
                     )
                 );
             }

@@ -89,7 +89,7 @@ public class ExchangeSourceOperator extends SourceOperator {
 
     @Override
     public String toString() {
-        return "ExchangeSourceOperator";
+        return "ExchangeSourceOperator[" + source.exchangeId() + "]";
     }
 
     @Override

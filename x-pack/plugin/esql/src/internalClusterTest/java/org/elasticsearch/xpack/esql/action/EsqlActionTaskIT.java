@@ -104,6 +104,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             for (TaskInfo task : foundTasks) {
                 DriverStatus status = (DriverStatus) task.status();
                 assertThat(status.sessionId(), not(emptyOrNullString()));
+                String exchangeId = status.sessionId().replace("[n]", "");
                 String taskDescription = status.taskDescription();
                 for (OperatorStatus o : status.activeOperators()) {
                     logger.info("status {}", o);
@@ -138,7 +139,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                         valuesSourceReaders++;
                         continue;
                     }
-                    if (o.operator().equals("ExchangeSourceOperator")) {
+                    if (o.operator().startsWith("ExchangeSourceOperator[" + exchangeId + "]")) {
                         assertThat(taskDescription, either(equalTo("node_reduce")).or(equalTo("final")));
                         ExchangeSourceOperator.Status oStatus = (ExchangeSourceOperator.Status) o.status();
                         assertThat(oStatus.pagesWaiting(), greaterThanOrEqualTo(0));
@@ -146,7 +147,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                         exchangeSources++;
                         continue;
                     }
-                    if (o.operator().equals("ExchangeSinkOperator")) {
+                    if (o.operator().startsWith("ExchangeSinkOperator[" + exchangeId + "]")) {
                         assertThat(taskDescription, either(equalTo("data")).or(equalTo("node_reduce")));
                         ExchangeSinkOperator.Status oStatus = (ExchangeSinkOperator.Status) o.status();
                         assertThat(oStatus.pagesReceived(), greaterThanOrEqualTo(0));

@@ -40,4 +40,9 @@ public interface ExchangeSink {
      * Whether the sink is blocked on adding more pages
      */
     IsBlockedResult waitForWriting();
+
+    /**
+     * Session ID for this exchange
+     */
+    String exchangeId();
 }

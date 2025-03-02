@@ -172,7 +172,7 @@ public class EsqlParser {
         @Override
         public Token nextToken() {
             Token token = delegate.nextToken();
-            if (token.getType() == EsqlBaseLexer.PARAM) {
+            if (token.getType() == EsqlBaseLexer.PARAM || token.getType() == EsqlBaseLexer.DOUBLE_PARAMS) {
                 checkAnonymousParam(token);
                 if (param > params.size()) {
                     throw new ParsingException(source(token), "Not enough actual parameters {}", params.size());
@@ -183,6 +183,14 @@ public class EsqlParser {
 
             if (token.getType() == EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM) {
                 if (isInteger(token.getText().substring(1))) {
+                    checkPositionalParam(token);
+                } else {
+                    checkNamedParam(token);
+                }
+            }
+
+            if (token.getType() == EsqlBaseLexer.NAMED_OR_POSITIONAL_DOUBLE_PARAMS) {
+                if (isInteger(token.getText().substring(2))) {
                     checkPositionalParam(token);
                 } else {
                     checkNamedParam(token);

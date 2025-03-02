@@ -33,6 +33,7 @@ import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -542,7 +543,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         List<List<Object>> actualTop = new ArrayList<>();
         try (
-            Driver driver = new Driver(
+            Driver driver = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
@@ -556,8 +557,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         randomPageSize()
                     )
                 ),
-                new PageConsumerOperator(page -> readInto(actualTop, page)),
-                () -> {}
+                new PageConsumerOperator(page -> readInto(actualTop, page))
             )
         ) {
             runDriver(driver);
@@ -632,7 +632,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         List<List<Object>> actualTop = new ArrayList<>();
         try (
-            Driver driver = new Driver(
+            Driver driver = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
@@ -646,8 +646,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         randomPageSize()
                     )
                 ),
-                new PageConsumerOperator(page -> readInto(actualTop, page)),
-                () -> {}
+                new PageConsumerOperator(page -> readInto(actualTop, page))
             )
         ) {
             runDriver(driver);
@@ -667,7 +666,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     ) {
         List<Tuple<Long, Long>> outputValues = new ArrayList<>();
         try (
-            Driver driver = new Driver(
+            Driver driver = TestDriverFactory.create(
                 driverContext,
                 new TupleBlockSourceOperator(driverContext.blockFactory(), inputValues, randomIntBetween(1, 1000)),
                 List.of(
@@ -688,8 +687,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         outputValues.add(tuple(block1.isNull(i) ? null : block1.getLong(i), block2.isNull(i) ? null : block2.getLong(i)));
                     }
                     page.releaseBlocks();
-                }),
-                () -> {}
+                })
             )
         ) {
             runDriver(driver);
@@ -937,7 +935,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<List<Object>> actualValues = new ArrayList<>();
         int topCount = randomIntBetween(1, values.size());
         try (
-            Driver driver = new Driver(
+            Driver driver = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(List.of(page).iterator()),
                 List.of(
@@ -951,8 +949,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         randomPageSize()
                     )
                 ),
-                new PageConsumerOperator(p -> readInto(actualValues, p)),
-                () -> {}
+                new PageConsumerOperator(p -> readInto(actualValues, p))
             )
         ) {
             runDriver(driver);
@@ -1111,7 +1108,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             DriverContext driverContext = driverContext();
             List<List<Object>> actual = new ArrayList<>();
             try (
-                Driver driver = new Driver(
+                Driver driver = TestDriverFactory.create(
                     driverContext,
                     new CannedSourceOperator(List.of(new Page(builder.build())).iterator()),
                     List.of(
@@ -1125,8 +1122,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                             randomPageSize()
                         )
                     ),
-                    new PageConsumerOperator(p -> readInto(actual, p)),
-                    () -> {}
+                    new PageConsumerOperator(p -> readInto(actual, p))
                 )
             ) {
                 runDriver(driver);
@@ -1238,7 +1234,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             List<List<Object>> actual = new ArrayList<>();
             DriverContext driverContext = driverContext();
             try (
-                Driver driver = new Driver(
+                Driver driver = TestDriverFactory.create(
                     driverContext,
                     new CannedSourceOperator(List.of(new Page(builder.build())).iterator()),
                     List.of(
@@ -1252,8 +1248,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                             randomPageSize()
                         )
                     ),
-                    new PageConsumerOperator(p -> readInto(actual, p)),
-                    () -> {}
+                    new PageConsumerOperator(p -> readInto(actual, p))
                 )
             ) {
                 runDriver(driver);
@@ -1326,7 +1321,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<List<Object>> actual = new ArrayList<>();
         DriverContext driverContext = driverContext();
         try (
-            Driver driver = new Driver(
+            Driver driver = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
@@ -1343,8 +1338,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         randomPageSize()
                     )
                 ),
-                new PageConsumerOperator(p -> readInto(actual, p)),
-                () -> {}
+                new PageConsumerOperator(p -> readInto(actual, p))
             )
         ) {
             runDriver(driver);
@@ -1366,7 +1360,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<List<Object>> actual = new ArrayList<>();
         DriverContext driverContext = driverContext();
         try (
-            Driver driver = new Driver(
+            Driver driver = TestDriverFactory.create(
                 driverContext,
                 new SequenceLongBlockSourceOperator(driverContext.blockFactory(), LongStream.range(0, docCount)),
                 List.of(
@@ -1388,8 +1382,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         p.releaseBlocks();
                         throw new RuntimeException("boo");
                     }
-                }),
-                () -> {}
+                })
             )
         ) {
             Exception e = expectThrows(RuntimeException.class, () -> runDriver(driver));

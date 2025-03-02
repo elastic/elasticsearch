@@ -47,7 +47,6 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     testDistribution = "DEFAULT"
     versions = [oldVersion, project.version]
     numberOfNodes = 3
-    systemProperty 'es.queryable_built_in_roles_enabled', 'true'
     systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
     //we don't want to hit real service from each test
     systemProperty 'ingest.geoip.downloader.endpoint.default', 'http://invalid.endpoint'

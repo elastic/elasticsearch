@@ -52,10 +52,13 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectResolverFactory;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -191,6 +194,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService;
+import org.elasticsearch.reservedstate.service.FileSettingsServiceProvider;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -446,7 +450,7 @@ class NodeConstruction {
             );
         }
 
-        if (initialEnvironment.dataFiles().length > 1) {
+        if (initialEnvironment.dataDirs().length > 1) {
             // NOTE: we use initialEnvironment here, but assertEquivalent below ensures the data paths do not change
             deprecationLogger.warn(
                 DeprecationCategory.SETTINGS,
@@ -467,10 +471,10 @@ class NodeConstruction {
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "using config [{}], data [{}], logs [{}], plugins [{}]",
-                initialEnvironment.configFile(),
-                Arrays.toString(initialEnvironment.dataFiles()),
-                initialEnvironment.logsFile(),
-                initialEnvironment.pluginsFile()
+                initialEnvironment.configDir(),
+                Arrays.toString(initialEnvironment.dataDirs()),
+                initialEnvironment.logsDir(),
+                initialEnvironment.pluginsDir()
             );
         }
 
@@ -487,7 +491,7 @@ class NodeConstruction {
          * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
          * values, no matter they ask for them from.
          */
-        environment = new Environment(settings, initialEnvironment.configFile());
+        environment = new Environment(settings, initialEnvironment.configDir());
         Environment.assertEquivalent(initialEnvironment, environment);
         modules.bindToInstance(Environment.class, environment);
 
@@ -697,6 +701,12 @@ class NodeConstruction {
             telemetryProvider.getTracer()
         );
 
+        // serverless deployments plug-in the multi-project resolver factory
+        ProjectResolver projectResolver = pluginsService.loadSingletonServiceProvider(
+            ProjectResolverFactory.class,
+            () -> ProjectResolverFactory.DEFAULT
+        ).create();
+        modules.bindToInstance(ProjectResolver.class, projectResolver);
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
@@ -712,7 +722,8 @@ class NodeConstruction {
             pluginsService.filterPlugins(IngestPlugin.class).toList(),
             client,
             IngestService.createGrokThreadWatchdog(environment, threadPool),
-            failureStoreMetrics
+            failureStoreMetrics,
+            projectResolver
         );
 
         SystemIndices systemIndices = createSystemIndices(settings);
@@ -760,6 +771,7 @@ class NodeConstruction {
             snapshotsInfoService,
             threadPool,
             systemIndices,
+            projectResolver,
             getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings()),
             telemetryProvider
         );
@@ -775,7 +787,8 @@ class NodeConstruction {
                 clusterService.getClusterSettings(),
                 client,
                 threadPool.relativeTimeInMillisSupplier(),
-                rerouteService
+                rerouteService,
+                projectResolver
             )::onNewInfo
         );
 
@@ -788,14 +801,16 @@ class NodeConstruction {
             TransportVersion.current(),
             systemIndices.getMappingsVersions()
         );
-        modules.add(loadPersistedClusterStateService(clusterService.getClusterSettings(), threadPool, compatibilityVersions));
+        modules.add(
+            loadPersistedClusterStateService(clusterService.getClusterSettings(), threadPool, compatibilityVersions, projectResolver)
+        );
 
         final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
 
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
         if (DiscoveryNode.isMasterNode(settings)) {
-            clusterService.addListener(new SystemIndexMappingUpdateService(systemIndices, client));
+            clusterService.addListener(new SystemIndexMappingUpdateService(systemIndices, client, projectResolver));
         }
 
         SourceFieldMetrics sourceFieldMetrics = new SourceFieldMetrics(
@@ -846,8 +861,8 @@ class NodeConstruction {
             .bigArrays(bigArrays)
             .scriptService(scriptService)
             .clusterService(clusterService)
+            .projectResolver(projectResolver)
             .client(client)
-            .featureService(featureService)
             .metaStateService(metaStateService)
             .valuesSourceRegistry(searchModule.getValuesSourceRegistry())
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
@@ -917,7 +932,8 @@ class NodeConstruction {
             systemIndices,
             dataStreamGlobalRetentionSettings,
             documentParsingProvider,
-            taskManager
+            taskManager,
+            projectResolver
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -956,6 +972,8 @@ class NodeConstruction {
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
         modules.bindToInstance(ResponseCollectorService.class, responseCollectorService);
 
+        var reservedStateHandlerProviders = pluginsService.loadServiceProviders(ReservedClusterStateHandlerProvider.class);
+
         ActionModule actionModule = new ActionModule(
             settings,
             clusterModule.getIndexNameExpressionResolver(),
@@ -972,7 +990,9 @@ class NodeConstruction {
             telemetryProvider,
             clusterService,
             rerouteService,
-            buildReservedStateHandlers(
+            buildReservedClusterStateHandlers(reservedStateHandlerProviders, settingsModule),
+            buildReservedProjectStateHandlers(
+                reservedStateHandlerProviders,
                 settingsModule,
                 clusterService,
                 indicesService,
@@ -982,7 +1002,8 @@ class NodeConstruction {
                 dataStreamGlobalRetentionSettings
             ),
             pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
-            incrementalBulkService
+            incrementalBulkService,
+            projectResolver
         );
         modules.add(actionModule);
 
@@ -1009,8 +1030,9 @@ class NodeConstruction {
         );
 
         var indexTemplateMetadataUpgraders = pluginsService.map(Plugin::getIndexTemplateMetadataUpgrader).toList();
-        List<Map<String, UnaryOperator<Metadata.Custom>>> customMetadataUpgraders = pluginsService.map(Plugin::getCustomMetadataUpgraders)
-            .toList();
+        List<Map<String, UnaryOperator<Metadata.ProjectCustom>>> customMetadataUpgraders = pluginsService.map(
+            Plugin::getProjectCustomMetadataUpgraders
+        ).toList();
         modules.bindToInstance(MetadataUpgrader.class, new MetadataUpgrader(indexTemplateMetadataUpgraders, customMetadataUpgraders));
 
         final IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
@@ -1064,16 +1086,14 @@ class NodeConstruction {
             indicesService
         );
 
-        actionModule.getReservedClusterStateService().installStateHandler(new ReservedRepositoryAction(repositoriesService));
-        actionModule.getReservedClusterStateService().installStateHandler(new ReservedPipelineAction());
+        actionModule.getReservedClusterStateService().installClusterStateHandler(new ReservedRepositoryAction(repositoriesService));
+        actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedPipelineAction());
 
         FileSettingsHealthIndicatorService fileSettingsHealthIndicatorService = new FileSettingsHealthIndicatorService(settings);
-        FileSettingsService fileSettingsService = new FileSettingsService(
-            clusterService,
-            actionModule.getReservedClusterStateService(),
-            environment,
-            fileSettingsHealthIndicatorService
-        );
+        FileSettingsService fileSettingsService = pluginsService.loadSingletonServiceProvider(
+            FileSettingsServiceProvider.class,
+            () -> FileSettingsService::new
+        ).construct(clusterService, actionModule.getReservedClusterStateService(), environment, fileSettingsHealthIndicatorService);
 
         RestoreService restoreService = new RestoreService(
             clusterService,
@@ -1147,7 +1167,6 @@ class NodeConstruction {
                 clusterService,
                 threadPool,
                 systemIndices,
-                featureService,
                 clusterModule.getIndexNameExpressionResolver(),
                 metadataUpdateSettingsService,
                 metadataCreateIndexService
@@ -1161,7 +1180,6 @@ class NodeConstruction {
                 discoveryModule.getCoordinator(),
                 clusterService,
                 transportService,
-                featureService,
                 threadPool,
                 telemetryProvider,
                 repositoriesService,
@@ -1333,7 +1351,6 @@ class NodeConstruction {
         Coordinator coordinator,
         ClusterService clusterService,
         TransportService transportService,
-        FeatureService featureService,
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         RepositoriesService repositoriesService,
@@ -1351,7 +1368,7 @@ class NodeConstruction {
         var serverHealthIndicatorServices = Stream.of(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
             new RepositoryIntegrityHealthIndicatorService(clusterService),
-            new DiskHealthIndicatorService(clusterService, featureService),
+            new DiskHealthIndicatorService(clusterService),
             new ShardsCapacityHealthIndicatorService(clusterService),
             fileSettingsHealthIndicatorService
         );
@@ -1369,7 +1386,7 @@ class NodeConstruction {
             healthService,
             telemetryProvider
         );
-        HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, featureService, settings);
+        HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
 
         List<HealthTracker<?>> healthTrackers = List.of(
             new DiskHealthTracker(nodeService, clusterService),
@@ -1540,7 +1557,8 @@ class NodeConstruction {
     private Module loadPersistedClusterStateService(
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
-        CompatibilityVersions compatibilityVersions
+        CompatibilityVersions compatibilityVersions,
+        ProjectResolver projectResolver
     ) {
         var persistedClusterStateServiceFactories = pluginsService.filterPlugins(ClusterCoordinationPlugin.class)
             .map(ClusterCoordinationPlugin::getPersistedClusterStateServiceFactory)
@@ -1555,14 +1573,31 @@ class NodeConstruction {
                     nodeEnvironment,
                     xContentRegistry,
                     clusterSettings,
-                    threadPool.relativeTimeInMillisSupplier()
+                    threadPool.relativeTimeInMillisSupplier(),
+                    projectResolver::supportsMultipleProjects
                 )
             );
 
         return b -> b.bind(PersistedClusterStateService.class).toInstance(service);
     }
 
-    private List<ReservedClusterStateHandler<?>> buildReservedStateHandlers(
+    private List<ReservedClusterStateHandler<ClusterState, ?>> buildReservedClusterStateHandlers(
+        List<? extends ReservedClusterStateHandlerProvider> handlers,
+        SettingsModule settingsModule
+    ) {
+        List<ReservedClusterStateHandler<ClusterState, ?>> reservedStateHandlers = new ArrayList<>();
+
+        // add all reserved state handlers from server
+        reservedStateHandlers.add(new ReservedClusterSettingsAction(settingsModule.getClusterSettings()));
+
+        // add all reserved state handlers from plugins
+        handlers.forEach(h -> reservedStateHandlers.addAll(h.clusterHandlers()));
+
+        return reservedStateHandlers;
+    }
+
+    private List<ReservedClusterStateHandler<ProjectMetadata, ?>> buildReservedProjectStateHandlers(
+        List<? extends ReservedClusterStateHandlerProvider> handlers,
         SettingsModule settingsModule,
         ClusterService clusterService,
         IndicesService indicesService,
@@ -1571,10 +1606,7 @@ class NodeConstruction {
         MetadataCreateIndexService metadataCreateIndexService,
         DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
-        List<ReservedClusterStateHandler<?>> reservedStateHandlers = new ArrayList<>();
-
-        // add all reserved state handlers from server
-        reservedStateHandlers.add(new ReservedClusterSettingsAction(settingsModule.getClusterSettings()));
+        List<ReservedClusterStateHandler<ProjectMetadata, ?>> reservedStateHandlers = new ArrayList<>();
 
         var templateService = new MetadataIndexTemplateService(
             clusterService,
@@ -1589,8 +1621,7 @@ class NodeConstruction {
         reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService, settingsModule.getIndexScopedSettings()));
 
         // add all reserved state handlers from plugins
-        pluginsService.loadServiceProviders(ReservedClusterStateHandlerProvider.class)
-            .forEach(h -> reservedStateHandlers.addAll(h.handlers()));
+        handlers.forEach(h -> reservedStateHandlers.addAll(h.projectHandlers()));
 
         return reservedStateHandlers;
     }
@@ -1622,7 +1653,7 @@ class NodeConstruction {
             pluginsService.filterPlugins(DiscoveryPlugin.class).toList(),
             pluginsService.filterPlugins(ClusterCoordinationPlugin.class).toList(),
             allocationService,
-            environment.configFile(),
+            environment.configDir(),
             gatewayMetaState,
             rerouteService,
             fsHealthService,
@@ -1644,7 +1675,6 @@ class NodeConstruction {
         ClusterService clusterService,
         ThreadPool threadPool,
         SystemIndices systemIndices,
-        FeatureService featureService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         MetadataUpdateSettingsService metadataUpdateSettingsService,
         MetadataCreateIndexService metadataCreateIndexService
@@ -1661,7 +1691,6 @@ class NodeConstruction {
         HealthNodeTaskExecutor healthNodeTaskExecutor = HealthNodeTaskExecutor.create(
             clusterService,
             persistentTasksService,
-            featureService,
             settingsModule.getSettings(),
             clusterService.getClusterSettings()
         );

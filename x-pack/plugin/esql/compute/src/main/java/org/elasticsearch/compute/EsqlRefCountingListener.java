@@ -34,7 +34,8 @@ public final class EsqlRefCountingListener implements Releasable {
     }
 
     public ActionListener<Void> acquire() {
-        return refs.acquireListener().delegateResponse((l, e) -> {
+        var listener = ActionListener.assertAtLeastOnce(refs.acquireListener());
+        return listener.delegateResponse((l, e) -> {
             failureCollector.unwrapAndCollect(e);
             l.onFailure(e);
         });

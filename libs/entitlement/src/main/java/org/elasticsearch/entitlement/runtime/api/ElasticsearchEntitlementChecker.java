@@ -9,12 +9,19 @@
 
 package org.elasticsearch.entitlement.runtime.api;
 
+import jdk.nio.Channels;
+
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.io.File;
+import java.io.FileDescriptor;
+import java.io.FileFilter;
+import java.io.FilenameFilter;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.lang.foreign.AddressLayout;
@@ -40,6 +47,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.net.SocketImplFactory;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
@@ -53,17 +61,43 @@ import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.Charset;
+import java.nio.file.AccessMode;
+import java.nio.file.CopyOption;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileStore;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitor;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchService;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.FileAttributeView;
+import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.spi.FileSystemProvider;
+import java.security.KeyStore;
+import java.security.Provider;
 import java.security.cert.CertStoreParameters;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.logging.FileHandler;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -84,6 +118,11 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         this.policyManager = policyManager;
     }
 
+    /// /////////////////
+    //
+    // Exit the JVM process
+    //
+
     @Override
     public void check$java_lang_Runtime$exit(Class<?> callerClass, Runtime runtime, int status) {
         policyManager.checkExitVM(callerClass);
@@ -99,6 +138,11 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         policyManager.checkExitVM(callerClass);
     }
 
+    /// /////////////////
+    //
+    // create class loaders
+    //
+
     @Override
     public void check$java_lang_ClassLoader$(Class<?> callerClass) {
         policyManager.checkCreateClassLoader(callerClass);
@@ -111,21 +155,6 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_ClassLoader$(Class<?> callerClass, String name, ClassLoader parent) {
-        policyManager.checkCreateClassLoader(callerClass);
-    }
-
-    @Override
-    public void check$java_security_SecureClassLoader$(Class<?> callerClass) {
-        policyManager.checkCreateClassLoader(callerClass);
-    }
-
-    @Override
-    public void check$java_security_SecureClassLoader$(Class<?> callerClass, ClassLoader parent) {
-        policyManager.checkCreateClassLoader(callerClass);
-    }
-
-    @Override
-    public void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent) {
         policyManager.checkCreateClassLoader(callerClass);
     }
 
@@ -161,6 +190,55 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_security_SecureClassLoader$(Class<?> callerClass) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_security_SecureClassLoader$(Class<?> callerClass, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    /// /////////////////
+    //
+    // "setFactory" methods
+    //
+
+    @Override
+    public void check$javax_net_ssl_HttpsURLConnection$setSSLSocketFactory(
+        Class<?> callerClass,
+        HttpsURLConnection connection,
+        SSLSocketFactory sf
+    ) {
+        policyManager.checkSetHttpsConnectionProperties(callerClass);
+    }
+
+    @Override
+    public void check$javax_net_ssl_HttpsURLConnection$$setDefaultSSLSocketFactory(Class<?> callerClass, SSLSocketFactory sf) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$javax_net_ssl_HttpsURLConnection$$setDefaultHostnameVerifier(Class<?> callerClass, HostnameVerifier hv) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$javax_net_ssl_SSLContext$$setDefault(Class<?> callerClass, SSLContext context) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    /// /////////////////
+    //
+    // Process creation
+    //
+
+    @Override
     public void check$java_lang_ProcessBuilder$start(Class<?> callerClass, ProcessBuilder processBuilder) {
         policyManager.checkStartProcess(callerClass);
     }
@@ -169,6 +247,31 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$java_lang_ProcessBuilder$$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders) {
         policyManager.checkStartProcess(callerClass);
     }
+
+    /// /////////////////
+    //
+    // System Properties and similar
+    //
+
+    @Override
+    public void check$java_lang_System$$clearProperty(Class<?> callerClass, String key) {
+        policyManager.checkWriteProperty(callerClass, key);
+    }
+
+    @Override
+    public void check$java_lang_System$$setProperties(Class<?> callerClass, Properties props) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_System$$setProperty(Class<?> callerClass, String key, String value) {
+        policyManager.checkWriteProperty(callerClass, key);
+    }
+
+    /// /////////////////
+    //
+    // JVM-wide state changes
+    //
 
     @Override
     public void check$java_lang_System$$setIn(Class<?> callerClass, InputStream in) {
@@ -221,27 +324,17 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_nio_charset_spi_CharsetProvider$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
     public void check$com_sun_tools_jdi_VirtualMachineManagerImpl$$virtualMachineManager(Class<?> callerClass) {
         policyManager.checkChangeJVMGlobalState(callerClass);
     }
 
     @Override
     public void check$java_lang_Thread$$setDefaultUncaughtExceptionHandler(Class<?> callerClass, Thread.UncaughtExceptionHandler ueh) {
-        policyManager.checkChangeJVMGlobalState(callerClass);
-    }
-
-    @Override
-    public void check$java_lang_System$$clearProperty(Class<?> callerClass, String key) {
-        policyManager.checkWriteProperty(callerClass, key);
-    }
-
-    @Override
-    public void check$java_lang_System$$setProperty(Class<?> callerClass, String key, String value) {
-        policyManager.checkWriteProperty(callerClass, key);
-    }
-
-    @Override
-    public void check$java_lang_System$$setProperties(Class<?> callerClass, Properties props) {
         policyManager.checkChangeJVMGlobalState(callerClass);
     }
 
@@ -360,29 +453,10 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         policyManager.checkChangeJVMGlobalState(callerClass);
     }
 
-    @Override
-    public void check$javax_net_ssl_HttpsURLConnection$setSSLSocketFactory(
-        Class<?> callerClass,
-        HttpsURLConnection connection,
-        SSLSocketFactory sf
-    ) {
-        policyManager.checkSetHttpsConnectionProperties(callerClass);
-    }
-
-    @Override
-    public void check$javax_net_ssl_HttpsURLConnection$$setDefaultSSLSocketFactory(Class<?> callerClass, SSLSocketFactory sf) {
-        policyManager.checkChangeJVMGlobalState(callerClass);
-    }
-
-    @Override
-    public void check$javax_net_ssl_HttpsURLConnection$$setDefaultHostnameVerifier(Class<?> callerClass, HostnameVerifier hv) {
-        policyManager.checkChangeJVMGlobalState(callerClass);
-    }
-
-    @Override
-    public void check$javax_net_ssl_SSLContext$$setDefault(Class<?> callerClass, SSLContext context) {
-        policyManager.checkChangeJVMGlobalState(callerClass);
-    }
+    /// /////////////////
+    //
+    // Network access
+    //
 
     @Override
     public void check$java_net_ProxySelector$$setDefault(Class<?> callerClass, ProxySelector ps) {
@@ -767,8 +841,23 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_nio_channels_spi_SelectorProvider$(Class<?> callerClass) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_channels_spi_AsynchronousChannelProvider$(Class<?> callerClass) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void checkSelectorProviderInheritedChannel(Class<?> callerClass, SelectorProvider that) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
     public void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename) {
-        // TODO: check filesystem entitlement READ
+        policyManager.checkFileRead(callerClass, Path.of(filename));
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
@@ -779,7 +868,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_System$$load(Class<?> callerClass, String filename) {
-        // TODO: check filesystem entitlement READ
+        policyManager.checkFileRead(callerClass, Path.of(filename));
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
@@ -863,7 +952,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, Arena arena) {
-        // TODO: check filesystem entitlement READ
+        policyManager.checkFileRead(callerClass, path);
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
@@ -873,22 +962,175 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         ModuleLayer.Controller that,
         Module target
     ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    /// /////////////////
+    //
+    // File access
+    //
+
+    // old io (ie File)
+
+    @Override
+    public void check$java_io_File$canExecute(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
     }
 
     @Override
-    public void check$java_util_Scanner$(Class<?> callerClass, File source) {
-        policyManager.checkFileRead(callerClass, source);
+    public void check$java_io_File$canRead(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
     }
 
     @Override
-    public void check$java_util_Scanner$(Class<?> callerClass, File source, String charsetName) {
-        policyManager.checkFileRead(callerClass, source);
+    public void check$java_io_File$canWrite(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
     }
 
     @Override
-    public void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset) {
-        policyManager.checkFileRead(callerClass, source);
+    public void check$java_io_File$createNewFile(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$$createTempFile(Class<?> callerClass, String prefix, String suffix, File directory) {
+        policyManager.checkFileWrite(callerClass, directory);
+    }
+
+    @Override
+    public void check$java_io_File$delete(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$deleteOnExit(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$exists(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$isDirectory(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$isFile(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$isHidden(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$lastModified(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$length(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$list(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$list(Class<?> callerClass, File file, FilenameFilter filter) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$listFiles(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$listFiles(Class<?> callerClass, File file, FileFilter filter) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$listFiles(Class<?> callerClass, File file, FilenameFilter filter) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$mkdir(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$mkdirs(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$renameTo(Class<?> callerClass, File file, File dest) {
+        policyManager.checkFileRead(callerClass, file);
+        policyManager.checkFileWrite(callerClass, dest);
+    }
+
+    @Override
+    public void check$java_io_File$setExecutable(Class<?> callerClass, File file, boolean executable) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setExecutable(Class<?> callerClass, File file, boolean executable, boolean ownerOnly) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setLastModified(Class<?> callerClass, File file, long time) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setReadable(Class<?> callerClass, File file, boolean readable) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setReadable(Class<?> callerClass, File file, boolean readable, boolean ownerOnly) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setReadOnly(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setWritable(Class<?> callerClass, File file, boolean writable) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setWritable(Class<?> callerClass, File file, boolean writable, boolean ownerOnly) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileInputStream$(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileInputStream$(Class<?> callerClass, FileDescriptor fd) {
+        policyManager.checkFileDescriptorRead(callerClass);
+    }
+
+    @Override
+    public void check$java_io_FileInputStream$(Class<?> callerClass, String name) {
+        policyManager.checkFileRead(callerClass, new File(name));
     }
 
     @Override
@@ -912,6 +1154,277 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_io_FileOutputStream$(Class<?> callerClass, FileDescriptor fd) {
+        policyManager.checkFileDescriptorWrite(callerClass);
+    }
+
+    @Override
+    public void check$java_io_FileReader$(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileReader$(Class<?> callerClass, File file, Charset charset) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileReader$(Class<?> callerClass, FileDescriptor fd) {
+        policyManager.checkFileDescriptorRead(callerClass);
+    }
+
+    @Override
+    public void check$java_io_FileReader$(Class<?> callerClass, String name) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileReader$(Class<?> callerClass, String name, Charset charset) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, File file, boolean append) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, File file, Charset charset) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, File file, Charset charset, boolean append) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, FileDescriptor fd) {
+        policyManager.checkFileDescriptorWrite(callerClass);
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, String name) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, String name, boolean append) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, String name, Charset charset) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, String name, Charset charset, boolean append) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_RandomAccessFile$(Class<?> callerClass, String name, String mode) {
+        if (mode.equals("r")) {
+            policyManager.checkFileRead(callerClass, new File(name));
+        } else {
+            policyManager.checkFileWrite(callerClass, new File(name));
+        }
+    }
+
+    @Override
+    public void check$java_io_RandomAccessFile$(Class<?> callerClass, File file, String mode) {
+        if (mode.equals("r")) {
+            policyManager.checkFileRead(callerClass, file);
+        } else {
+            policyManager.checkFileWrite(callerClass, file);
+        }
+    }
+
+    @Override
+    public void check$java_security_KeyStore$$getInstance(Class<?> callerClass, File file, char[] password) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_security_KeyStore$$getInstance(Class<?> callerClass, File file, KeyStore.LoadStoreParameter param) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_security_KeyStore$Builder$$newInstance(
+        Class<?> callerClass,
+        File file,
+        KeyStore.ProtectionParameter protection
+    ) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_security_KeyStore$Builder$$newInstance(
+        Class<?> callerClass,
+        String type,
+        Provider provider,
+        File file,
+        KeyStore.ProtectionParameter protection
+    ) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_util_Scanner$(Class<?> callerClass, File source) {
+        policyManager.checkFileRead(callerClass, source);
+    }
+
+    @Override
+    public void check$java_util_Scanner$(Class<?> callerClass, File source, String charsetName) {
+        policyManager.checkFileRead(callerClass, source);
+    }
+
+    @Override
+    public void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset) {
+        policyManager.checkFileRead(callerClass, source);
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, String name) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, String name, boolean verify) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, File file, boolean verify) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, File file, boolean verify, int mode) {
+        policyManager.checkFileWithZipMode(callerClass, file, mode);
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, File file, boolean verify, int mode, Runtime.Version version) {
+        policyManager.checkFileWithZipMode(callerClass, file, mode);
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, String name) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, String name, Charset charset) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, File file, int mode) {
+        policyManager.checkFileWithZipMode(callerClass, file, mode);
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, File file, Charset charset) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, File file, int mode, Charset charset) {
+        policyManager.checkFileWithZipMode(callerClass, file, mode);
+    }
+
+    // nio
+
+    @Override
+    public void check$java_nio_channels_FileChannel$(Class<?> callerClass) {
+        policyManager.checkChangeFilesHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_channels_FileChannel$$open(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    ) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$java_nio_channels_FileChannel$$open(Class<?> callerClass, Path path, OpenOption... options) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$java_nio_channels_AsynchronousFileChannel$(Class<?> callerClass) {
+        policyManager.checkChangeFilesHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_channels_AsynchronousFileChannel$$open(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        ExecutorService executor,
+        FileAttribute<?>... attrs
+    ) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$java_nio_channels_AsynchronousFileChannel$$open(Class<?> callerClass, Path path, OpenOption... options) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$jdk_nio_Channels$$readWriteSelectableChannel(
+        Class<?> callerClass,
+        FileDescriptor fd,
+        Channels.SelectableChannelCloser closer
+    ) {
+        policyManager.checkFileDescriptorWrite(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$getOwner(Class<?> callerClass, Path path, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
     public void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path) {
         policyManager.checkFileRead(callerClass, path);
     }
@@ -922,7 +1435,815 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_nio_file_Files$$newInputStream(Class<?> callerClass, Path path, OpenOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newOutputStream(Class<?> callerClass, Path path, OpenOption... options) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newByteChannel(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    ) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newByteChannel(Class<?> callerClass, Path path, OpenOption... options) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newDirectoryStream(Class<?> callerClass, Path dir) {
+        policyManager.checkFileRead(callerClass, dir);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newDirectoryStream(Class<?> callerClass, Path dir, String glob) {
+        policyManager.checkFileRead(callerClass, dir);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newDirectoryStream(Class<?> callerClass, Path dir, DirectoryStream.Filter<? super Path> filter) {
+        policyManager.checkFileRead(callerClass, dir);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createFile(Class<?> callerClass, Path path, FileAttribute<?>... attrs) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createDirectory(Class<?> callerClass, Path dir, FileAttribute<?>... attrs) {
+        policyManager.checkFileWrite(callerClass, dir);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createDirectories(Class<?> callerClass, Path dir, FileAttribute<?>... attrs) {
+        policyManager.checkFileWrite(callerClass, dir);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createTempFile(
+        Class<?> callerClass,
+        Path dir,
+        String prefix,
+        String suffix,
+        FileAttribute<?>... attrs
+    ) {
+        policyManager.checkFileWrite(callerClass, dir);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createTempFile(Class<?> callerClass, String prefix, String suffix, FileAttribute<?>... attrs) {
+        policyManager.checkCreateTempFile(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createTempDirectory(Class<?> callerClass, Path dir, String prefix, FileAttribute<?>... attrs) {
+        policyManager.checkFileWrite(callerClass, dir);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createTempDirectory(Class<?> callerClass, String prefix, FileAttribute<?>... attrs) {
+        policyManager.checkCreateTempFile(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createSymbolicLink(Class<?> callerClass, Path link, Path target, FileAttribute<?>... attrs) {
+        policyManager.checkFileRead(callerClass, target);
+        policyManager.checkFileWrite(callerClass, link);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$createLink(Class<?> callerClass, Path link, Path existing) {
+        policyManager.checkFileRead(callerClass, existing);
+        policyManager.checkFileWrite(callerClass, link);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$delete(Class<?> callerClass, Path path) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$deleteIfExists(Class<?> callerClass, Path path) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$copy(Class<?> callerClass, Path source, Path target, CopyOption... options) {
+        policyManager.checkFileRead(callerClass, source);
+        policyManager.checkFileWrite(callerClass, target);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$move(Class<?> callerClass, Path source, Path target, CopyOption... options) {
+        policyManager.checkFileWrite(callerClass, source);
+        policyManager.checkFileWrite(callerClass, target);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$readSymbolicLink(Class<?> callerClass, Path link) {
+        policyManager.checkFileRead(callerClass, link);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$getFileStore(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$isSameFile(Class<?> callerClass, Path path, Path path2) {
+        policyManager.checkFileRead(callerClass, path);
+        policyManager.checkFileRead(callerClass, path2);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$mismatch(Class<?> callerClass, Path path, Path path2) {
+        policyManager.checkFileRead(callerClass, path);
+        policyManager.checkFileRead(callerClass, path2);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$isHidden(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$getFileAttributeView(
+        Class<?> callerClass,
+        Path path,
+        Class<? extends FileAttributeView> type,
+        LinkOption... options
+    ) {
+        policyManager.checkGetFileAttributeView(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$readAttributes(
+        Class<?> callerClass,
+        Path path,
+        Class<? extends BasicFileAttributes> type,
+        LinkOption... options
+    ) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$setAttribute(
+        Class<?> callerClass,
+        Path path,
+        String attribute,
+        Object value,
+        LinkOption... options
+    ) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$getAttribute(Class<?> callerClass, Path path, String attribute, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$readAttributes(Class<?> callerClass, Path path, String attributes, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$getPosixFilePermissions(Class<?> callerClass, Path path, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$setPosixFilePermissions(Class<?> callerClass, Path path, Set<PosixFilePermission> perms) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$isSymbolicLink(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$isDirectory(Class<?> callerClass, Path path, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$isRegularFile(Class<?> callerClass, Path path, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$getLastModifiedTime(Class<?> callerClass, Path path, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$setLastModifiedTime(Class<?> callerClass, Path path, FileTime time) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$size(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$exists(Class<?> callerClass, Path path, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$notExists(Class<?> callerClass, Path path, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$isReadable(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$isWritable(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$isExecutable(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$walkFileTree(
+        Class<?> callerClass,
+        Path start,
+        Set<FileVisitOption> options,
+        int maxDepth,
+        FileVisitor<? super Path> visitor
+    ) {
+        policyManager.checkFileRead(callerClass, start);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$walkFileTree(Class<?> callerClass, Path start, FileVisitor<? super Path> visitor) {
+        policyManager.checkFileRead(callerClass, start);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newBufferedReader(Class<?> callerClass, Path path, Charset cs) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newBufferedReader(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newBufferedWriter(Class<?> callerClass, Path path, Charset cs, OpenOption... options) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$newBufferedWriter(Class<?> callerClass, Path path, OpenOption... options) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$copy(Class<?> callerClass, InputStream in, Path target, CopyOption... options) {
+        policyManager.checkFileWrite(callerClass, target);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$copy(Class<?> callerClass, Path source, OutputStream out) {
+        policyManager.checkFileRead(callerClass, source);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$readAllBytes(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$readString(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$readString(Class<?> callerClass, Path path, Charset cs) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$readAllLines(Class<?> callerClass, Path path, Charset cs) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$readAllLines(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$write(Class<?> callerClass, Path path, byte[] bytes, OpenOption... options) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$write(
+        Class<?> callerClass,
+        Path path,
+        Iterable<? extends CharSequence> lines,
+        Charset cs,
+        OpenOption... options
+    ) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$write(
+        Class<?> callerClass,
+        Path path,
+        Iterable<? extends CharSequence> lines,
+        OpenOption... options
+    ) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$writeString(Class<?> callerClass, Path path, CharSequence csq, OpenOption... options) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$writeString(
+        Class<?> callerClass,
+        Path path,
+        CharSequence csq,
+        Charset cs,
+        OpenOption... options
+    ) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$list(Class<?> callerClass, Path dir) {
+        policyManager.checkFileRead(callerClass, dir);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$walk(Class<?> callerClass, Path start, int maxDepth, FileVisitOption... options) {
+        policyManager.checkFileRead(callerClass, start);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$walk(Class<?> callerClass, Path start, FileVisitOption... options) {
+        policyManager.checkFileRead(callerClass, start);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$find(
+        Class<?> callerClass,
+        Path start,
+        int maxDepth,
+        BiPredicate<Path, BasicFileAttributes> matcher,
+        FileVisitOption... options
+    ) {
+        policyManager.checkFileRead(callerClass, start);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$lines(Class<?> callerClass, Path path, Charset cs) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$lines(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    // file system providers
+
+    @Override
+    public void check$java_nio_file_spi_FileSystemProvider$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, boolean append) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, int limit, int count) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, int limit, int count, boolean append) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, long limit, int count, boolean append) {
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_util_logging_FileHandler$close(Class<?> callerClass, FileHandler that) {
+        // Note that there's no IT test for this one, because there's no way to create
+        // a FileHandler. However, we have this check just in case someone does manage
+        // to get their hands on a FileHandler and uses close() to cause its lock file to be deleted.
+        policyManager.checkLoggingFileHandler(callerClass);
+    }
+
+    @Override
+    public void check$java_net_http_HttpRequest$BodyPublishers$$ofFile(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_net_http_HttpResponse$BodyHandlers$$ofFile(Class<?> callerClass, Path path) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_net_http_HttpResponse$BodyHandlers$$ofFile(Class<?> callerClass, Path path, OpenOption... options) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void check$java_net_http_HttpResponse$BodyHandlers$$ofFileDownload(
+        Class<?> callerClass,
+        Path directory,
+        OpenOption... openOptions
+    ) {
+        policyManager.checkFileWrite(callerClass, directory);
+    }
+
+    @Override
+    public void check$java_net_http_HttpResponse$BodySubscribers$$ofFile(Class<?> callerClass, Path directory) {
+        policyManager.checkFileWrite(callerClass, directory);
+    }
+
+    @Override
+    public void check$java_net_http_HttpResponse$BodySubscribers$$ofFile(Class<?> callerClass, Path directory, OpenOption... openOptions) {
+        policyManager.checkFileWrite(callerClass, directory);
+    }
+
+    @Override
+    public void checkNewFileSystem(Class<?> callerClass, FileSystemProvider that, URI uri, Map<String, ?> env) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void checkNewFileSystem(Class<?> callerClass, FileSystemProvider that, Path path, Map<String, ?> env) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
     public void checkNewInputStream(Class<?> callerClass, FileSystemProvider that, Path path, OpenOption... options) {
-        // TODO: policyManger.checkFileSystemRead(path);
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void checkNewOutputStream(Class<?> callerClass, FileSystemProvider that, Path path, OpenOption... options) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    private static boolean isOpenForWrite(Set<? extends OpenOption> options) {
+        return options.contains(StandardOpenOption.WRITE)
+            || options.contains(StandardOpenOption.APPEND)
+            || options.contains(StandardOpenOption.CREATE)
+            || options.contains(StandardOpenOption.CREATE_NEW)
+            || options.contains(StandardOpenOption.DELETE_ON_CLOSE);
+    }
+
+    private static boolean isOpenForWrite(OpenOption... options) {
+        return Arrays.stream(options)
+            .anyMatch(
+                o -> o.equals(StandardOpenOption.WRITE)
+                    || o.equals(StandardOpenOption.APPEND)
+                    || o.equals(StandardOpenOption.CREATE)
+                    || o.equals(StandardOpenOption.CREATE_NEW)
+                    || o.equals(StandardOpenOption.DELETE_ON_CLOSE)
+            );
+    }
+
+    @Override
+    public void checkNewFileChannel(
+        Class<?> callerClass,
+        FileSystemProvider that,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    ) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void checkNewAsynchronousFileChannel(
+        Class<?> callerClass,
+        FileSystemProvider that,
+        Path path,
+        Set<? extends OpenOption> options,
+        ExecutorService executor,
+        FileAttribute<?>... attrs
+    ) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void checkNewByteChannel(
+        Class<?> callerClass,
+        FileSystemProvider that,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    ) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void checkNewDirectoryStream(
+        Class<?> callerClass,
+        FileSystemProvider that,
+        Path dir,
+        DirectoryStream.Filter<? super Path> filter
+    ) {
+        policyManager.checkFileRead(callerClass, dir);
+    }
+
+    @Override
+    public void checkCreateDirectory(Class<?> callerClass, FileSystemProvider that, Path dir, FileAttribute<?>... attrs) {
+        policyManager.checkFileWrite(callerClass, dir);
+    }
+
+    @Override
+    public void checkCreateSymbolicLink(Class<?> callerClass, FileSystemProvider that, Path link, Path target, FileAttribute<?>... attrs) {
+        policyManager.checkFileWrite(callerClass, link);
+        policyManager.checkFileRead(callerClass, target);
+    }
+
+    @Override
+    public void checkCreateLink(Class<?> callerClass, FileSystemProvider that, Path link, Path existing) {
+        policyManager.checkFileWrite(callerClass, link);
+        policyManager.checkFileRead(callerClass, existing);
+    }
+
+    @Override
+    public void checkDelete(Class<?> callerClass, FileSystemProvider that, Path path) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void checkDeleteIfExists(Class<?> callerClass, FileSystemProvider that, Path path) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void checkReadSymbolicLink(Class<?> callerClass, FileSystemProvider that, Path link) {
+        policyManager.checkFileRead(callerClass, link);
+    }
+
+    @Override
+    public void checkCopy(Class<?> callerClass, FileSystemProvider that, Path source, Path target, CopyOption... options) {
+        policyManager.checkFileWrite(callerClass, target);
+        policyManager.checkFileRead(callerClass, source);
+    }
+
+    @Override
+    public void checkMove(Class<?> callerClass, FileSystemProvider that, Path source, Path target, CopyOption... options) {
+        policyManager.checkFileWrite(callerClass, target);
+        policyManager.checkFileWrite(callerClass, source);
+    }
+
+    @Override
+    public void checkIsSameFile(Class<?> callerClass, FileSystemProvider that, Path path, Path path2) {
+        policyManager.checkFileRead(callerClass, path);
+        policyManager.checkFileRead(callerClass, path2);
+    }
+
+    @Override
+    public void checkIsHidden(Class<?> callerClass, FileSystemProvider that, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void checkGetFileStore(Class<?> callerClass, FileSystemProvider that, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void checkCheckAccess(Class<?> callerClass, FileSystemProvider that, Path path, AccessMode... modes) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void checkGetFileAttributeView(Class<?> callerClass, FileSystemProvider that, Path path, Class<?> type, LinkOption... options) {
+        policyManager.checkGetFileAttributeView(callerClass);
+    }
+
+    @Override
+    public void checkReadAttributes(Class<?> callerClass, FileSystemProvider that, Path path, Class<?> type, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void checkReadAttributes(Class<?> callerClass, FileSystemProvider that, Path path, String attributes, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void checkReadAttributesIfExists(
+        Class<?> callerClass,
+        FileSystemProvider that,
+        Path path,
+        Class<?> type,
+        LinkOption... options
+    ) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void checkSetAttribute(
+        Class<?> callerClass,
+        FileSystemProvider that,
+        Path path,
+        String attribute,
+        Object value,
+        LinkOption... options
+    ) {
+        policyManager.checkFileWrite(callerClass, path);
+
+    }
+
+    @Override
+    public void checkExists(Class<?> callerClass, FileSystemProvider that, Path path, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    // Thread management
+
+    @Override
+    public void check$java_lang_Thread$start(Class<?> callerClass, Thread thread) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$setDaemon(Class<?> callerClass, Thread thread, boolean on) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ThreadGroup$setDaemon(Class<?> callerClass, ThreadGroup threadGroup, boolean daemon) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ForkJoinPool$setParallelism(Class<?> callerClass, ForkJoinPool forkJoinPool, int size) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$setName(Class<?> callerClass, Thread thread, String name) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$setPriority(Class<?> callerClass, Thread thread, int newPriority) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$setUncaughtExceptionHandler(
+        Class<?> callerClass,
+        Thread thread,
+        Thread.UncaughtExceptionHandler ueh
+    ) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ThreadGroup$setMaxPriority(Class<?> callerClass, ThreadGroup threadGroup, int pri) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void checkGetFileStoreAttributeView(Class<?> callerClass, FileStore that, Class<?> type) {
+        policyManager.checkWriteStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkGetAttribute(Class<?> callerClass, FileStore that, String attribute) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkGetBlockSize(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkGetTotalSpace(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkGetUnallocatedSpace(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkGetUsableSpace(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkIsReadOnly(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkName(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkType(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) {
+        boolean followLinks = true;
+        for (LinkOption option : options) {
+            if (option == LinkOption.NOFOLLOW_LINKS) {
+                followLinks = false;
+            }
+        }
+        if (followLinks) {
+            try {
+                policyManager.checkFileRead(callerClass, Files.readSymbolicLink(that));
+            } catch (IOException | UnsupportedOperationException e) {
+                // that is not a link, or unrelated IOException or unsupported
+            }
+        }
+        policyManager.checkFileRead(callerClass, that);
+    }
+
+    @Override
+    public void checkPathRegister(Class<?> callerClass, Path that, WatchService watcher, WatchEvent.Kind<?>... events) {
+        policyManager.checkFileRead(callerClass, that);
+    }
+
+    @Override
+    public void checkPathRegister(
+        Class<?> callerClass,
+        Path that,
+        WatchService watcher,
+        WatchEvent.Kind<?>[] events,
+        WatchEvent.Modifier... modifiers
+    ) {
+        policyManager.checkFileRead(callerClass, that);
     }
 }

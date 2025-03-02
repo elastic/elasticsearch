@@ -8,34 +8,51 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Make sure the failures on the data node come back as failures over the wire.
  */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), FailingFieldPlugin.class);
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(FailingFieldPlugin.class);
+        plugins.add(InternalExchangePlugin.class);
+        return plugins;
     }
 
-    /**
-     * Use a runtime field that fails when loading field values to fail the entire query.
-     */
-    public void testFailureLoadingFields() throws IOException {
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings settings = Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
+            .build();
+        logger.info("settings {}", settings);
+        return settings;
+    }
+
+    public Set<String> populateIndices() throws Exception {
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
         mapping.startObject("runtime");
         {
@@ -47,17 +64,62 @@ public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
             mapping.endObject();
         }
         mapping.endObject();
-        client().admin().indices().prepareCreate("fail").setSettings(indexSettings(1, 0)).setMapping(mapping.endObject()).get();
-
-        int docCount = 100;
-        List<IndexRequestBuilder> docs = new ArrayList<>(docCount);
-        for (int d = 0; d < docCount; d++) {
-            docs.add(client().prepareIndex("ok").setSource("foo", d));
+        client().admin().indices().prepareCreate("fail").setMapping(mapping.endObject()).get();
+        int okCount = between(1, 50);
+        Set<String> okIds = new HashSet<>();
+        List<IndexRequestBuilder> docs = new ArrayList<>(okCount);
+        for (int d = 0; d < okCount; d++) {
+            String id = "ok-" + d;
+            okIds.add(id);
+            docs.add(client().prepareIndex("ok").setId(id).setSource("foo", d));
         }
-        docs.add(client().prepareIndex("fail").setSource("foo", 0));
+        int failCount = between(1, 50);
+        for (int d = 0; d < failCount; d++) {
+            docs.add(client().prepareIndex("fail").setId("fail-" + d).setSource("foo", d));
+        }
         indexRandom(true, docs);
+        return okIds;
+    }
 
+    /**
+     * Use a runtime field that fails when loading field values to fail the entire query.
+     */
+    public void testFailureLoadingFields() throws Exception {
+        populateIndices();
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> run("FROM fail,ok | LIMIT 100").close());
         assertThat(e.getMessage(), equalTo("Accessing failing field"));
+    }
+
+    public void testPartialResults() throws Exception {
+        Set<String> okIds = populateIndices();
+        {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.query("FROM fail,ok | LIMIT 100");
+            request.allowPartialResults(true);
+            request.pragmas(randomPragmas());
+            try (EsqlQueryResponse resp = run(request)) {
+                assertTrue(resp.isPartial());
+                List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+                assertThat(rows.size(), lessThanOrEqualTo(okIds.size()));
+            }
+        }
+        {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.query("FROM fail,ok METADATA _id | KEEP _id, fail_me | LIMIT 100");
+            request.allowPartialResults(true);
+            request.pragmas(randomPragmas());
+            try (EsqlQueryResponse resp = run(request)) {
+                assertTrue(resp.isPartial());
+                List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+                assertThat(rows.size(), lessThanOrEqualTo(okIds.size()));
+                Set<String> actualIds = new HashSet<>();
+                for (List<Object> row : rows) {
+                    assertThat(row.size(), equalTo(2));
+                    String id = (String) row.getFirst();
+                    assertThat(id, in(okIds));
+                    assertTrue(actualIds.add(id));
+                }
+            }
+        }
     }
 }

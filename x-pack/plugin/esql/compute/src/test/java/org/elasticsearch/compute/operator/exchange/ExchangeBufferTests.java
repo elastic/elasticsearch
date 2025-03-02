@@ -66,6 +66,25 @@ public class ExchangeBufferTests extends ESTestCase {
         blockFactory.ensureAllBlocksAreReleased();
     }
 
+    public void testOutstandingPages() throws Exception {
+        ExchangeBuffer buffer = new ExchangeBuffer(randomIntBetween(1000, 10000));
+        var blockFactory = blockFactory();
+        Page p1 = randomPage(blockFactory);
+        Page p2 = randomPage(blockFactory);
+        buffer.addPage(p1);
+        buffer.addPage(p2);
+        buffer.finish(false);
+        buffer.addPage(randomPage(blockFactory));
+        assertThat(buffer.size(), equalTo(2));
+        assertSame(buffer.pollPage(), p1);
+        p1.releaseBlocks();
+        assertSame(buffer.pollPage(), p2);
+        p2.releaseBlocks();
+        assertNull(buffer.pollPage());
+        assertTrue(buffer.isFinished());
+        blockFactory.ensureAllBlocksAreReleased();
+    }
+
     private static MockBlockFactory blockFactory() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);

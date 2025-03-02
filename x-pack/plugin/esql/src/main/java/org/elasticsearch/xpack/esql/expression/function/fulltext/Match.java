@@ -254,7 +254,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
                     valueHint = { "none", "all" },
                     description = "Number of beginning characters left unchanged for fuzzy matching."
                 ) },
-            description = "Match additional options as <<esql-function-named-params,function named parameters>>."
+            description = "(Optional) Match additional options as <<esql-function-named-params,function named parameters>>."
                 + " See <<query-dsl-match-query,match query>> for more information.",
             optional = true
         ) Expression options

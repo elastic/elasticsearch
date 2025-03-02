@@ -1,6 +1,0 @@
-pr: 121428
-summary: Fix infer on and elasticsearch service endpoint created with a deployment
-  id
-area: Machine Learning
-type: bug
-issues: []

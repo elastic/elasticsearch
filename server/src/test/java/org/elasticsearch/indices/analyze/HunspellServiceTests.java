@@ -64,7 +64,7 @@ public class HunspellServiceTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             final Environment environment = new Environment(settings, getDataPath("/indices/analyze/no_aff_conf_dir"));
             new HunspellService(settings, environment, emptyMap()).getDictionary("en_US");
         });
@@ -78,7 +78,7 @@ public class HunspellServiceTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             final Environment environment = new Environment(settings, getDataPath("/indices/analyze/two_aff_conf_dir"));
             new HunspellService(settings, environment, emptyMap()).getDictionary("en_US");
         });

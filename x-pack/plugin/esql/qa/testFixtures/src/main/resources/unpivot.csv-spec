@@ -1,0 +1,55 @@
+rowUnpivot
+required_capability: unpivot
+ROW id=1, name1="foo", name2="bar", name3="baz" | UNPIVOT fieldName FOR fieldValue IN (name1, name2);
+
+id:integer | name3:keyword | fieldName:keyword | fieldValue:keyword
+1          | baz           | name1             | foo
+1          | baz           | name2             | bar
+;
+
+
+rowUnpivotInteger
+required_capability: unpivot
+ROW id=1, name1=1, name2=2, name3=3 | UNPIVOT fieldName FOR fieldValue IN (name1, name2);
+
+id:integer | name3:integer | fieldName:keyword | fieldValue:integer
+1          | 3             | name1             | 1
+1          | 3             | name2             | 2
+;
+
+
+rowUnpivotWildcard
+required_capability: unpivot
+ROW id=1, name1="foo", name2="bar", name3="baz" | UNPIVOT fieldName FOR fieldValue IN (name*);
+
+id:integer | fieldName:keyword | fieldValue:keyword
+1          | name1             | foo
+1          | name2             | bar
+1          | name3             | baz
+;
+
+
+rowUnpivotWildcardLimit
+required_capability: unpivot
+ROW id=1, name1="foo", name2="bar", name3="baz" | UNPIVOT fieldName FOR fieldValue IN (name*) | limit 2;
+
+id:integer | fieldName:keyword | fieldValue:keyword
+1          | name1             | foo
+1          | name2             | bar
+;
+
+
+simpleUnpivot
+required_capability: unpivot
+FROM employees
+| WHERE emp_no < 10003
+| SORT emp_no
+| UNPIVOT nameType FOR nameValue in (*name)
+| KEEP emp_no, nameType, nameValue;
+
+emp_no:integer | nameType:keyword | nameValue:keyword
+10001          | first_name       | Georgi
+10001          | last_name        | Facello
+10002          | first_name       | Bezalel
+10002          | last_name        | Simmel
+;

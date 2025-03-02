@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Unpivot;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
@@ -92,7 +93,6 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIn
 /**
  * Translates what we get back from Antlr into the data structures the rest of the planner steps will act on.  Generally speaking, things
  * which change the grammar will need to make changes here as well.
- *
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -425,6 +425,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         });
 
         return child -> new Keep(source(ctx), child, projections);
+    }
+
+    @Override
+    public PlanFactory visitUnpivotCommand(EsqlBaseParser.UnpivotCommandContext ctx) {
+        List<NamedExpression> target = visitQualifiedNamePatterns(ctx.target);
+        NamedExpression keyField = visitQualifiedNamePattern(ctx.valueColumn);
+        NamedExpression valueField = visitQualifiedNamePattern(ctx.keyColumn);
+        Source src = source(ctx);
+        return child -> new Unpivot(
+            src,
+            child,
+            target,
+            new UnresolvedAttribute(src, keyField.name()),
+            new UnresolvedAttribute(src, valueField.name())
+        );
     }
 
     @Override

@@ -231,7 +231,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
         @Override
         public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
-            Stream<String> result = pathLookup.settingResolver().apply(setting)
+            Stream<String> result = pathLookup.settingResolver()
+                .apply(setting)
                 .filter(s -> s.toLowerCase(Locale.ROOT).startsWith("https://") == false);
             return result.map(Path::of);
         }

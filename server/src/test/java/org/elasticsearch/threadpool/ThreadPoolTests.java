@@ -500,6 +500,7 @@ public class ThreadPoolTests extends ESTestCase {
             // write thread pool is tracked
             final String threadPoolName = ThreadPool.Names.WRITE;
             final ThreadPool.Info threadPoolInfo = threadPool.info(threadPoolName);
+            assert threadPool.executor(threadPoolName) instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor;
 
             final long beforePreviousCollectNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
@@ -549,65 +550,6 @@ public class ThreadPoolTests extends ESTestCase {
                 threadPoolName,
                 Measurement::getDouble,
                 matcher
-            );
-        } finally {
-            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
-        }
-    }
-
-    public void testInstantaneousUtilisationMetric() {
-        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        final BuiltInExecutorBuilders builtInExecutorBuilders = new DefaultBuiltInExecutorBuilders();
-
-        final ThreadPool threadPool = new ThreadPool(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
-            meterRegistry,
-            builtInExecutorBuilders
-        );
-        try {
-            // generic thread pool is not tracked
-            final String threadPoolName = ThreadPool.Names.GENERIC;
-            final ThreadPool.Info threadPoolInfo = threadPool.info(threadPoolName);
-
-            meterRegistry.getRecorder().collect();
-            assertLatestMetricValueMatches(
-                meterRegistry,
-                InstrumentType.DOUBLE_GAUGE,
-                ThreadPool.THREAD_POOL_METRIC_NAME_UTILISATION,
-                threadPoolName,
-                Measurement::getDouble,
-                equalTo(0.0d)
-            );
-
-            final CyclicBarrier barrier = new CyclicBarrier(2);
-            Future<?> future = threadPool.executor(threadPoolName).submit(() -> {
-                safeAwait(barrier);
-                safeAwait(barrier);
-            });
-            safeAwait(barrier);
-
-            meterRegistry.getRecorder().collect();
-            Matcher<Double> matcher = equalTo(1d / threadPoolInfo.getMax());
-            assertLatestMetricValueMatches(
-                meterRegistry,
-                InstrumentType.DOUBLE_GAUGE,
-                ThreadPool.THREAD_POOL_METRIC_NAME_UTILISATION,
-                threadPoolName,
-                Measurement::getDouble,
-                matcher
-            );
-
-            safeAwait(barrier);
-            safeGet(future);
-
-            meterRegistry.getRecorder().collect();
-            assertLatestMetricValueMatches(
-                meterRegistry,
-                InstrumentType.DOUBLE_GAUGE,
-                ThreadPool.THREAD_POOL_METRIC_NAME_UTILISATION,
-                threadPoolName,
-                Measurement::getDouble,
-                equalTo(0.0d)
             );
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);

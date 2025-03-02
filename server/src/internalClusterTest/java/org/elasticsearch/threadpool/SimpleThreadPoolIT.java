@@ -11,6 +11,7 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -161,7 +162,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         registeredMetrics.addAll(plugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_COUNTER));
 
         tps[0].forEach(stats -> {
-            final Map<String, MetricDefinition<?>> metricDefinitions = Map.of(
+            Map<String, MetricDefinition<?>> metricDefinitions = Map.of(
                 ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED,
                 new MetricDefinition<>(stats.completed(), TestTelemetryPlugin::getLongAsyncCounterMeasurement, Measurement::getLong),
                 ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE,
@@ -171,10 +172,21 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                 ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST,
                 new MetricDefinition<>((long) stats.largest(), TestTelemetryPlugin::getLongGaugeMeasurement, Measurement::getLong),
                 ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE,
-                new MetricDefinition<>(0L, TestTelemetryPlugin::getLongGaugeMeasurement, Measurement::getLong),
-                ThreadPool.THREAD_POOL_METRIC_NAME_UTILISATION,
-                new MetricDefinition<>(0.0d, TestTelemetryPlugin::getDoubleGaugeMeasurement, Measurement::getDouble)
-            ).entrySet().stream().collect(Collectors.toUnmodifiableMap(e -> stats.name() + e.getKey(), Map.Entry::getValue));
+                new MetricDefinition<>(0L, TestTelemetryPlugin::getLongGaugeMeasurement, Measurement::getLong)
+            );
+
+            // TaskExecutionTimeTrackingEsThreadPoolExecutor also publishes a utilisation metric
+            if (tp.executor(stats.name()) instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor) {
+                metricDefinitions = Maps.copyMapWithAddedEntry(
+                    metricDefinitions,
+                    ThreadPool.THREAD_POOL_METRIC_NAME_UTILISATION,
+                    new MetricDefinition<>(0.0d, TestTelemetryPlugin::getDoubleGaugeMeasurement, Measurement::getDouble)
+                );
+            }
+
+            metricDefinitions = metricDefinitions.entrySet()
+                .stream()
+                .collect(Collectors.toUnmodifiableMap(e -> stats.name() + e.getKey(), Map.Entry::getValue));
 
             logger.info(
                 "Measurements of `{}`: {}",

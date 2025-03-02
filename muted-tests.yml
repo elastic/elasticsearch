@@ -356,6 +356,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testFromStatsEvalWithPragma
   issue: https://github.com/elastic/elasticsearch/issues/123810
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testProjectRenameEval
+  issue: https://github.com/elastic/elasticsearch/issues/123811
 
 # Examples:
 #

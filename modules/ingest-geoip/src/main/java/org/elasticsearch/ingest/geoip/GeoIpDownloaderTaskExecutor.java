@@ -21,14 +21,12 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
@@ -52,7 +50,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 import static org.elasticsearch.ingest.geoip.GeoIpProcessor.Factory.downloadDatabaseOnPipelineCreation;
 import static org.elasticsearch.ingest.geoip.GeoIpProcessor.GEOIP_TYPE;
@@ -396,21 +393,22 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             GEOIP_DOWNLOADER,
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             ActionListener.runAfter(listener, () -> {
-                IndexAbstraction databasesAbstraction = clusterService.state()
-                    .metadata()
-                    .getProject()
-                    .getIndicesLookup()
-                    .get(DATABASES_INDEX);
-                if (databasesAbstraction != null) {
-                    // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
-                    Index databasesIndex = databasesAbstraction.getWriteIndex();
-                    client.admin().indices().prepareDelete(databasesIndex.getName()).execute(ActionListener.wrap(rr -> {}, e -> {
-                        Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
-                        if (t instanceof ResourceNotFoundException == false) {
-                            logger.warn("failed to remove " + databasesIndex, e);
-                        }
-                    }));
-                }
+                // TODO FOR TESTING ONLY!
+                // IndexAbstraction databasesAbstraction = clusterService.state()
+                // .metadata()
+                // .getProject()
+                // .getIndicesLookup()
+                // .get(DATABASES_INDEX);
+                // if (databasesAbstraction != null) {
+                // // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
+                // Index databasesIndex = databasesAbstraction.getWriteIndex();
+                // client.admin().indices().prepareDelete(databasesIndex.getName()).execute(ActionListener.wrap(rr -> {}, e -> {
+                // Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
+                // if (t instanceof ResourceNotFoundException == false) {
+                // logger.warn("failed to remove " + databasesIndex, e);
+                // }
+                // }));
+                // }
             })
         );
     }

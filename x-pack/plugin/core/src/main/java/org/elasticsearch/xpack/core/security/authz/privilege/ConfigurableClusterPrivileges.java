@@ -414,10 +414,10 @@ public final class ConfigurableClusterPrivileges {
             this.requestPredicateSupplier = (restrictedIndices) -> {
                 IndicesPermission.Builder indicesPermissionBuilder = new IndicesPermission.Builder(restrictedIndices);
                 for (ManageRolesIndexPermissionGroup indexPatternPrivilege : manageRolesIndexPermissionGroups) {
-                    Set<IndexPrivilege> splitBySelector = IndexPrivilege.resolveBySelectorAccess(
-                        Set.of(indexPatternPrivilege.privileges())
-                    );
-                    for (IndexPrivilege indexPrivilege : splitBySelector) {
+                    Set<IndexPrivilege> privileges = IndexPrivilege.resolveBySelectorAccess(Set.of(indexPatternPrivilege.privileges()));
+                    assert privileges.stream().allMatch(p -> p.getSelectorPredicate() != IndexComponentSelectorPredicate.FAILURES)
+                        : "not support for failures store access yet";
+                    for (IndexPrivilege indexPrivilege : privileges) {
                         indicesPermissionBuilder.addGroup(
                             indexPrivilege,
                             FieldPermissions.DEFAULT,

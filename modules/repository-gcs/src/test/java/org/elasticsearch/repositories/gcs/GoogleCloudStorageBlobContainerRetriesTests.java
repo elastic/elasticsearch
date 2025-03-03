@@ -110,7 +110,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final @Nullable Integer maxRetries,
         final @Nullable TimeValue readTimeout,
         final @Nullable Boolean disableChunkedEncoding,
-        final @Nullable ByteSizeValue bufferSize
+        final @Nullable ByteSizeValue bufferSize,
+        final @Nullable Integer maxBulkDeletes
     ) {
         final Settings.Builder clientSettings = Settings.builder();
         final String client = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
@@ -170,7 +171,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final int maxRetries = randomIntBetween(2, 10);
         final AtomicInteger countDown = new AtomicInteger(maxRetries);
 
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null, null);
 
         // SDK reads in 2 MB chunks so we use twice that to simulate 2 chunks
         final byte[] bytes = randomBytes(1 << 22);
@@ -199,7 +200,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final int maxRetries = randomIntBetween(2, 10);
         final CountDown countDown = new CountDown(maxRetries);
 
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null, null);
         final byte[] bytes = randomBlobContent();
         httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
             assertThat(exchange.getRequestURI().getQuery(), containsString("uploadType=multipart"));
@@ -241,7 +242,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     public void testWriteBlobWithReadTimeouts() {
         final byte[] bytes = randomByteArrayOfLength(randomIntBetween(10, 128));
         final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
-        final BlobContainer blobContainer = createBlobContainer(1, readTimeout, null, null);
+        final BlobContainer blobContainer = createBlobContainer(1, readTimeout, null, null, null);
 
         // HTTP server does not send a response
         httpServer.createContext("/upload/storage/v1/b/bucket/o", exchange -> {
@@ -294,7 +295,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         logger.debug("starting with resumable upload id [{}]", sessionUploadId.get());
 
         final TimeValue readTimeout = allowReadTimeout.get() ? TimeValue.timeValueSeconds(3) : null;
-        final BlobContainer blobContainer = createBlobContainer(nbErrors + 1, readTimeout, null, null);
+        final BlobContainer blobContainer = createBlobContainer(nbErrors + 1, readTimeout, null, null, null);
 
         httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
             final BytesReference requestBody = Streams.readFully(exchange.getRequestBody());
@@ -434,7 +435,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 return Integer.toString(totalDeletesSent++);
             }
         };
-        final BlobContainer blobContainer = createBlobContainer(1, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(1, null, null, null, null);
         httpServer.createContext("/batch/storage/v1", safeHandler(exchange -> {
             assert pendingDeletes.get() <= MAX_DELETES_PER_BATCH;
 

@@ -53,8 +53,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         // shutdown the thread pool
         testThreadPool.shutdown();
         MergeTask mergeTask = mock(MergeTask.class);
-        boolean mergeTaskSupportsIOThrottling = randomBoolean();
-        when(mergeTask.supportsIOThrottling()).thenReturn(mergeTaskSupportsIOThrottling);
+        when(mergeTask.supportsIOThrottling()).thenReturn(randomBoolean());
         assertFalse(threadPoolMergeExecutorService.submitMergeTask(mergeTask));
         verify(mergeTask).abortOnGoingMerge();
         verify(mergeTask, times(0)).runNowOrBacklog();
@@ -314,8 +313,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             for (int i = 0; i < mergeTaskCount; i++) {
                 new Thread(() -> {
                     MergeTask mergeTask = mock(MergeTask.class);
-                    boolean supportsIOThrottling = randomBoolean();
-                    when(mergeTask.supportsIOThrottling()).thenReturn(supportsIOThrottling);
+                    when(mergeTask.supportsIOThrottling()).thenReturn(randomBoolean());
                     long mergeSize = randomNonNegativeLong();
                     when(mergeTask.estimatedMergeSize()).thenReturn(mergeSize);
                     doAnswer(mock -> {
@@ -350,7 +348,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         }
     }
 
-    public void testBackloggedMergeTasksExecuteInSizeOrder() {
+    public void testMergeTasksExecuteInSizeOrder() {
         DeterministicTaskQueue mergeExecutorTaskQueue = new DeterministicTaskQueue();
         ThreadPool mergeExecutorThreadPool = mergeExecutorTaskQueue.getThreadPool();
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
@@ -369,8 +367,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         for (int i = 0; i < mergeTaskCount; i++) {
             MergeTask mergeTask = mock(MergeTask.class);
             when(mergeTask.isRunning()).thenReturn(false);
-            boolean supportsIOThrottling = randomBoolean();
-            when(mergeTask.supportsIOThrottling()).thenReturn(supportsIOThrottling);
+            when(mergeTask.supportsIOThrottling()).thenReturn(randomBoolean());
             // merge tasks of various sizes (0 might be a valid value)
             long mergeSize = randomLongBetween(0, 10);
             when(mergeTask.estimatedMergeSize()).thenReturn(mergeSize);

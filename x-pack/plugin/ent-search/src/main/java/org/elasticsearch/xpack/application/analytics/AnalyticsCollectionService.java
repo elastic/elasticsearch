@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -36,6 +37,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
  * @deprecated in 9.0
  */
 @Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class AnalyticsCollectionService {
 
     private static final Logger logger = LogManager.getLogger(AnalyticsCollectionService.class);

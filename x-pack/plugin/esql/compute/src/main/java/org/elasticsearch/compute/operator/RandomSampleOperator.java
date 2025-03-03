@@ -155,7 +155,6 @@ public class RandomSampleOperator implements Operator {
         return emit();
     }
 
-
     /**
      * notifies the operator that it won't be used anymore (i.e. none of the other methods called),
      * and its resources can be cleaned up
@@ -335,6 +334,7 @@ public class RandomSampleOperator implements Operator {
         int rowsEmitted,
         int batchesSampled
     ) implements Operator.Status {
+
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
             "random_sample",

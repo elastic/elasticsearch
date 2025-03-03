@@ -126,7 +126,6 @@ public class QueryRuleTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
         );
-        logger.info("Actual error message: " + e.getMessage());
         assertTrue(e.getMessage().contains("failed to parse field [criteria]"));
     }
 
@@ -158,7 +157,6 @@ public class QueryRuleTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
         );
-        logger.info("Actual error message for empty criteria: " + e.getMessage());
         assertTrue(
             "Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'",
             e.getMessage().contains("Failed to build [query_rule]")

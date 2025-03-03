@@ -258,6 +258,8 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     private static RestClient cleanupClient;
 
+    private static boolean multiProjectEnabled;
+
     public enum ProductFeature {
         XPACK,
         ILM,
@@ -396,6 +398,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                     }
                     if (moduleName.startsWith("serverless-")) {
                         serverless = true;
+                    }
+                    if (moduleName.contains("multi-project")) {
+                        multiProjectEnabled = true;
                     }
                 }
                 if (serverless) {
@@ -1269,6 +1274,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         // retrieves all indices with a type of store equals to "snapshot"
         final Request request = new Request("GET", "_cluster/state/metadata");
         request.addParameter("filter_path", "metadata.indices.*.settings.index.store.snapshot");
+        if (multiProjectEnabled) {
+            request.addParameter("multi_project", "true");
+        }
 
         final Response response = cleanupClient().performRequest(request);
         @SuppressWarnings("unchecked")
@@ -1838,7 +1846,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         } catch (ResponseException e) {
             if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
                 try {
-                    final Response clusterStateResponse = restClient.performRequest(new Request("GET", "/_cluster/state?pretty"));
+                    final Request clusterStateRequest = new Request("GET", "/_cluster/state?pretty");
+                    if (multiProjectEnabled) {
+                        clusterStateRequest.addParameter("multi_project", "true");
+                    }
+                    final Response clusterStateResponse = restClient.performRequest(clusterStateRequest);
                     fail(
                         "timed out waiting for green state for index ["
                             + index
@@ -2376,6 +2388,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static Map<String, Set<String>> getClusterStateFeatures(RestClient adminClient) throws IOException {
         final Request request = new Request("GET", "_cluster/state");
         request.addParameter("filter_path", "nodes_features");
+        if (multiProjectEnabled) {
+            request.addParameter("multi_project", "true");
+        }
 
         final Response response = adminClient.performRequest(request);
 

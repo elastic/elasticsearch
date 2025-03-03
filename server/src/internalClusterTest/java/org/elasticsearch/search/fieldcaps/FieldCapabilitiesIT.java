@@ -233,7 +233,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals(1, routeLength.size());
 
         assertTrue(routeLength.containsKey("double"));
-        assertEquals(new FieldCapabilitiesBuilder("route_length_miles", "double"), routeLength.get("double"));
+        assertEquals(new FieldCapabilitiesBuilder("route_length_miles", "double").build(), routeLength.get("double"));
     }
 
     public void testFieldAliasWithWildcard() {

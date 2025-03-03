@@ -14,9 +14,9 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 public class FieldCapabilitiesBuilder {
     private final String name;
@@ -77,27 +77,27 @@ public class FieldCapabilitiesBuilder {
     }
 
     public FieldCapabilitiesBuilder nonSearchableIndices(String... nonSearchableIndices) {
-        this.nonSearchableIndices = nonSearchableIndices;
+        this.nonSearchableIndices = Arrays.copyOf(nonSearchableIndices, nonAggregatableIndices.length);
         return this;
     }
 
     public FieldCapabilitiesBuilder nonAggregatableIndices(String... nonAggregatableIndices) {
-        this.nonAggregatableIndices = nonAggregatableIndices;
+        this.nonAggregatableIndices = Arrays.copyOf(nonAggregatableIndices, nonAggregatableIndices.length);
         return this;
     }
 
     public FieldCapabilitiesBuilder nonDimensionIndices(String... nonDimensionIndices) {
-        this.nonDimensionIndices = nonDimensionIndices;
+        this.nonDimensionIndices = Arrays.copyOf(nonDimensionIndices, nonDimensionIndices.length);
         return this;
     }
 
     public FieldCapabilitiesBuilder metricConflictsIndices(String... metricConflictsIndices) {
-        this.metricConflictsIndices = metricConflictsIndices;
+        this.metricConflictsIndices = Arrays.copyOf(metricConflictsIndices, metricConflictsIndices.length);
         return this;
     }
 
     public FieldCapabilitiesBuilder meta(Map<String, Set<String>> meta) {
-        this.meta = new HashMap<>(meta);
+        this.meta = new TreeMap<>(meta);
         return this;
     }
 

@@ -256,7 +256,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         }
 
         private void addBytesAndMaybePause(long count, IOControl ioControl) {
-            if (bytesInQueue.accumulateAndGet(count, Long::sum) >= settings.getMaxResponseSize().getBytes()) {
+            if (bytesInQueue.addAndGet(count) >= settings.getMaxResponseSize().getBytes()) {
                 pauseProducer(ioControl);
             }
         }

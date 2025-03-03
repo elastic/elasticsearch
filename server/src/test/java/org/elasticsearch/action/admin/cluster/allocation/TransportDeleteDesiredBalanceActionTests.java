@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -74,7 +73,6 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             mock(ClusterService.class),
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             mock(AllocationService.class),
             mock(ShardsAllocator.class)
         ).masterOperation(mock(Task.class), new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT), ClusterState.EMPTY_STATE, listener);
@@ -149,7 +147,6 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             clusterService,
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             allocationService,
             allocator
         );

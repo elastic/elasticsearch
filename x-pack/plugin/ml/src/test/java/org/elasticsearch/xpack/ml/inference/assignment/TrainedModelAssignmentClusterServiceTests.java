@@ -100,7 +100,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -215,8 +214,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         ClusterState mockState = mock(ClusterState.class);
         doReturn(mockState).when(mockNodesAddedEvent).state();
         Metadata mockMetadata = mock(Metadata.class);
-        doReturn(mockMetadata).when(mockState).getMetadata();
-        doReturn(null).when(mockState).custom(anyString());
+        doReturn(mockMetadata).when(mockState).metadata();
 
         doReturn(true).when(mockNodesAddedEvent).localNodeMaster();
         doReturn(true).when(mockNodesAddedEvent).nodesAdded();

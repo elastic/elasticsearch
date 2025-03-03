@@ -12,8 +12,9 @@ package org.elasticsearch.action.termvectors;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -43,6 +44,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -51,30 +53,36 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
             clusterService,
             transportService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             TermVectorsRequest::new,
             threadPool.executor(ThreadPool.Names.GET)
         );
         this.indicesService = indicesService;
-
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) {
+    protected ShardIterator shards(ProjectState project, InternalRequest request) {
         final var operationRouting = clusterService.operationRouting();
         if (request.request().doc() != null && request.request().routing() == null) {
             // artificial document without routing specified, ignore its "id" and use either random shard or according to preference
-            return operationRouting.searchShards(state, new String[] { request.concreteIndex() }, null, request.request().preference())
+            return operationRouting.searchShards(project, new String[] { request.concreteIndex() }, null, request.request().preference())
                 .getFirst();
         }
 
         return operationRouting.useOnlyPromotableShardsForStateless(
             operationRouting.getShards(
-                state,
+
+                project,
+
                 request.concreteIndex(),
+
                 request.request().id(),
+
                 request.request().routing(),
+
                 request.request().preference()
+
             )
         );
     }
@@ -85,7 +93,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     }
 
     @Override
-    protected void resolveRequest(ClusterState state, InternalRequest request) {
+    protected void resolveRequest(ProjectState state, InternalRequest request) {
         // update the routing (request#index here is possibly an alias or a parent)
         request.request().routing(state.metadata().resolveIndexRouting(request.request().routing(), request.request().index()));
     }

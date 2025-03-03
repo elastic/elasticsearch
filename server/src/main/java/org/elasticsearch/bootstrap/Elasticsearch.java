@@ -57,8 +57,11 @@ import java.io.InputStream;
 import java.io.PrintStream;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.Permission;
 import java.security.Security;
 import java.util.ArrayList;
@@ -96,6 +99,46 @@ class Elasticsearch {
         } catch (Throwable t) {
             bootstrap.exitWithUnknownException(t);
         }
+    }
+
+    public static String listFiles(Path path) throws IOException {
+        StringBuilder builder = new StringBuilder();
+        Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
+            private int depth = 0;
+
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                appendIndentation(builder, depth);
+                builder.append(dir.getFileName()).append("/\n");
+                depth++;
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                appendIndentation(builder, depth);
+                builder.append(file.getFileName());
+                Path realPath = file.toRealPath();
+                if (file.equals(realPath) == false) {
+                    builder.append(" (").append(realPath).append(")");
+                }
+                builder.append("\n");
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) {
+                depth--;
+                return FileVisitResult.CONTINUE;
+            }
+
+            private void appendIndentation(StringBuilder builder, int depth) {
+                for (int i = 0; i < depth; i++) {
+                    builder.append("    ");
+                }
+            }
+        });
+        return builder.toString();
     }
 
     @SuppressForbidden(reason = "grab stderr for communication with server-cli")
@@ -230,6 +273,8 @@ class Elasticsearch {
         var pluginsBundles = PluginsLoader.loadPluginsBundles(nodeEnv.pluginsDir());
 
         final PluginsLoader pluginsLoader;
+
+        LogManager.getLogger(Elasticsearch.class).info("File system: \n{}", listFiles(nodeEnv.configDir()));
 
         if (bootstrap.useEntitlements()) {
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");

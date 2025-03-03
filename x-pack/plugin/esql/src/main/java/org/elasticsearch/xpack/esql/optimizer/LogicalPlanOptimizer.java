@@ -142,11 +142,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceAggregateNestedExpressionWithEval(),
             new ReplaceRegexMatch(),
             new ReplaceTrivialTypeConversions(),
+            new ReplaceOrderByExpressionWithEval(),
+            new PropagateInlineEvals(),
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
-            new SubstituteSpatialSurrogates(),
-            new ReplaceOrderByExpressionWithEval(),
-            new PropagateInlineEvals()
+            new SubstituteSpatialSurrogates()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
     }

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -64,7 +62,9 @@ public class ComputeListenerTests extends ESTestCase {
         for (int i = 0; i < numProfiles; i++) {
             profiles.add(
                 new DriverProfile(
-                    RandomStrings.randomAsciiLettersOfLength(random(), 5),
+                    randomIdentifier(),
+                    randomIdentifier(),
+                    randomIdentifier(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
@@ -121,7 +121,7 @@ public class ComputeListenerTests extends ESTestCase {
         assertThat(onFailure.get(), equalTo(0));
     }
 
-    public void testCancelOnFailure() throws Exception {
+    public void testCancelOnFailure() {
         Queue<Exception> rootCauseExceptions = ConcurrentCollections.newQueue();
         IntStream.range(0, between(1, 100))
             .forEach(

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.injection.guice.Inject;
@@ -38,6 +39,7 @@ import java.util.Map;
 
 public class TransportGetLifecycleAction extends TransportMasterNodeAction<Request, Response> {
 
+    private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
@@ -46,6 +48,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -58,6 +61,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
             Response::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
@@ -68,8 +72,9 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
         if (cancellableTask.notifyIfCancelled(listener)) {
             return;
         }
+        var project = projectResolver.getProjectMetadata(state);
 
-        IndexLifecycleMetadata metadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata metadata = project.custom(IndexLifecycleMetadata.TYPE);
         if (metadata == null) {
             if (request.getPolicyNames().length == 0) {
                 listener.onResponse(new Response(List.of()));
@@ -107,7 +112,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                                     policyMetadata.getPolicy(),
                                     policyMetadata.getVersion(),
                                     policyMetadata.getModifiedDateString(),
-                                    LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, state, policyMetadata.getName())
+                                    LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, project, policyMetadata.getName())
                                 )
                             );
                         }
@@ -124,7 +129,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                             policyMetadata.getPolicy(),
                             policyMetadata.getVersion(),
                             policyMetadata.getModifiedDateString(),
-                            LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, state, policyMetadata.getName())
+                            LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, project, policyMetadata.getName())
                         )
                     );
                 }

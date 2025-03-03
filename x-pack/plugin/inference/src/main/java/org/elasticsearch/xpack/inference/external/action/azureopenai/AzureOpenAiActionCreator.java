@@ -43,7 +43,7 @@ public class AzureOpenAiActionCreator implements AzureOpenAiActionVisitor {
             serviceComponents.truncator(),
             serviceComponents.threadPool()
         );
-        var errorMessage = constructFailedToSendRequestMessage(overriddenModel.getUri(), "Azure OpenAI embeddings");
+        var errorMessage = constructFailedToSendRequestMessage("Azure OpenAI embeddings");
         return new SenderExecutableAction(sender, requestCreator, errorMessage);
     }
 
@@ -51,7 +51,7 @@ public class AzureOpenAiActionCreator implements AzureOpenAiActionVisitor {
     public ExecutableAction create(AzureOpenAiCompletionModel model, Map<String, Object> taskSettings) {
         var overriddenModel = AzureOpenAiCompletionModel.of(model, taskSettings);
         var requestCreator = new AzureOpenAiCompletionRequestManager(overriddenModel, serviceComponents.threadPool());
-        var errorMessage = constructFailedToSendRequestMessage(overriddenModel.getUri(), COMPLETION_ERROR_PREFIX);
+        var errorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
         return new SingleInputSenderExecutableAction(sender, requestCreator, errorMessage, COMPLETION_ERROR_PREFIX);
     }
 }

@@ -37,7 +37,7 @@ public class VoyageAIActionCreator implements VoyageAIActionVisitor {
     @Override
     public ExecutableAction create(VoyageAIEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
         var overriddenModel = VoyageAIEmbeddingsModel.of(model, taskSettings, inputType);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(overriddenModel.uri(), "VoyageAI embeddings");
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("VoyageAI embeddings");
         var requestCreator = VoyageAIEmbeddingsRequestManager.of(overriddenModel, serviceComponents.threadPool());
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }
@@ -45,7 +45,7 @@ public class VoyageAIActionCreator implements VoyageAIActionVisitor {
     @Override
     public ExecutableAction create(VoyageAIRerankModel model, Map<String, Object> taskSettings) {
         var overriddenModel = VoyageAIRerankModel.of(model, taskSettings);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(overriddenModel.uri(), "VoyageAI rerank");
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("VoyageAI rerank");
         var requestCreator = VoyageAIRerankRequestManager.of(overriddenModel, serviceComponents.threadPool());
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }

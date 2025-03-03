@@ -434,7 +434,7 @@ public class EnrichPolicyResolver {
     }
 
     protected Map<String, EnrichPolicy> availablePolicies() {
-        final EnrichMetadata metadata = clusterService.state().metadata().custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY);
+        final EnrichMetadata metadata = clusterService.state().metadata().getProject().custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY);
         return metadata.getPolicies();
     }
 

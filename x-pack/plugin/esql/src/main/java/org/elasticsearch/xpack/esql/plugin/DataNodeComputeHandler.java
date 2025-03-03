@@ -98,7 +98,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
-        QueryBuilder requestFilter = PlannerUtils.requestTimestampFilter(dataNodePlan);
+        QueryBuilder requestFilter = PlannerUtils.canMatchFilter(dataNodePlan);
         var listener = ActionListener.runAfter(outListener, exchangeSource.addEmptySink()::close);
         final long startTimeInNanos = System.nanoTime();
         lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodeResult -> {

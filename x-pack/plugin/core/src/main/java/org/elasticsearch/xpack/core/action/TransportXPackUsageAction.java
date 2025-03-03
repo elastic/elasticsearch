@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.injection.guice.Inject;
@@ -45,7 +44,6 @@ public class TransportXPackUsageAction extends TransportLocalClusterStateAction<
         TransportService transportService,
         ClusterService clusterService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         NodeClient client
     ) {
         super(

@@ -623,6 +623,11 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                     assertThat(statusResponseString, ((List<Object>) statusResponseMap.get("errors")).size(), equalTo(expectedErrorCount));
                 }
             }, 60, TimeUnit.SECONDS);
+
+            // Verify it's possible to reindex again after a successful reindex
+            reindexResponse = upgradeUserClient.performRequest(reindexRequest);
+            assertOK(reindexResponse);
+
             Request cancelRequest = new Request("POST", "_migration/reindex/" + dataStreamName + "/_cancel");
             Response cancelResponse = upgradeUserClient.performRequest(cancelRequest);
             assertOK(cancelResponse);

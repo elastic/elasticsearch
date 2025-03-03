@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Tuple;
@@ -48,8 +47,7 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(XPackUsageFeatureAction.INDEX_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters);
     }
@@ -62,11 +60,11 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
         Metadata metadata = state.metadata();
-        IndexLifecycleMetadata lifecycleMetadata = metadata.custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata lifecycleMetadata = metadata.getProject().custom(IndexLifecycleMetadata.TYPE);
         final IndexLifecycleFeatureSetUsage usage;
         if (lifecycleMetadata != null) {
             Map<String, Integer> policyUsage = new HashMap<>();
-            metadata.indices().values().forEach(value -> {
+            metadata.getProject().indices().values().forEach(value -> {
                 String policyName = value.getLifecyclePolicyName();
                 Integer indicesManaged = policyUsage.get(policyName);
                 if (indicesManaged == null) {

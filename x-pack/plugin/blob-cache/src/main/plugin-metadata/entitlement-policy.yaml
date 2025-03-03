@@ -1,5 +1,5 @@
 org.elasticsearch.blobcache:
   - files:
-    - relative_path: "shared_snapshot_cache"
-      relative_to: "data"
-      mode: "read_write"
+      - relative_path: ""
+        relative_to: data
+        mode: read_write

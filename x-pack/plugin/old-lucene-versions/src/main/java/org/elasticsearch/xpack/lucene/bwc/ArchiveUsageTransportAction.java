@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
@@ -36,7 +35,6 @@ public class ArchiveUsageTransportAction extends XPackUsageFeatureTransportActio
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         XPackLicenseState licenseState
     ) {
         super(XPackUsageFeatureAction.ARCHIVE.name(), transportService, clusterService, threadPool, actionFilters);
@@ -51,7 +49,7 @@ public class ArchiveUsageTransportAction extends XPackUsageFeatureTransportActio
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
         int numArchiveIndices = 0;
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.getCreationVersion().isLegacyIndexVersion()) {
                 numArchiveIndices++;
             }

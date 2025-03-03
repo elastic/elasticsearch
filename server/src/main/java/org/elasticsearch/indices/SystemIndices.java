@@ -24,10 +24,10 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -733,7 +733,8 @@ public class SystemIndices {
      * <p>This is an internal class that closely follows the model of {@link SystemIndexPlugin}. See that class’s documents for high-level
      * details about what constitutes a system feature.
      *
-     * <p>This class has a static {@link #cleanUpFeature(Collection, Collection, String, ClusterService, Client, ActionListener)}  method
+     * <p>This class has a static
+     * {@link #cleanUpFeature(Collection, Collection, String, ClusterService, ProjectResolver, Client, ActionListener)} method
      * that is the default implementation for resetting feature state.
      */
     public static class Feature {
@@ -742,7 +743,7 @@ public class SystemIndices {
         private final Collection<SystemIndexDescriptor> indexDescriptors;
         private final Collection<SystemDataStreamDescriptor> dataStreamDescriptors;
         private final Collection<AssociatedIndexDescriptor> associatedIndexDescriptors;
-        private final TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction;
+        private final CleanupFunction cleanUpFunction;
         private final MigrationPreparationHandler preMigrationFunction;
         private final MigrationCompletionHandler postMigrationFunction;
 
@@ -763,7 +764,7 @@ public class SystemIndices {
             Collection<SystemIndexDescriptor> indexDescriptors,
             Collection<SystemDataStreamDescriptor> dataStreamDescriptors,
             Collection<AssociatedIndexDescriptor> associatedIndexDescriptors,
-            TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction,
+            CleanupFunction cleanUpFunction,
             MigrationPreparationHandler preMigrationFunction,
             MigrationCompletionHandler postMigrationFunction
         ) {
@@ -790,11 +791,12 @@ public class SystemIndices {
                 indexDescriptors,
                 Collections.emptyList(),
                 Collections.emptyList(),
-                (clusterService, client, listener) -> cleanUpFeature(
+                (clusterService, projectResolver, client, listener) -> cleanUpFeature(
                     indexDescriptors,
                     Collections.emptyList(),
                     name,
                     clusterService,
+                    projectResolver,
                     client,
                     listener
                 ),
@@ -822,11 +824,12 @@ public class SystemIndices {
                 indexDescriptors,
                 dataStreamDescriptors,
                 Collections.emptyList(),
-                (clusterService, client, listener) -> cleanUpFeature(
+                (clusterService, projectResolver, client, listener) -> cleanUpFeature(
                     indexDescriptors,
                     Collections.emptyList(),
                     name,
                     clusterService,
+                    projectResolver,
                     client,
                     listener
                 ),
@@ -870,7 +873,7 @@ public class SystemIndices {
             return associatedIndexDescriptors;
         }
 
-        public TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> getCleanUpFunction() {
+        public CleanupFunction getCleanUpFunction() {
             return cleanUpFunction;
         }
 
@@ -909,10 +912,12 @@ public class SystemIndices {
 
         /**
          * Clean up the state of a feature
+         *
          * @param indexDescriptors List of descriptors of a feature's system indices
          * @param associatedIndexDescriptors List of descriptors of a feature's associated indices
          * @param name Name of the feature, used in logging
          * @param clusterService A clusterService, for retrieving cluster metadata
+         * @param projectResolver The project resolver
          * @param client A client, for issuing delete requests
          * @param listener A listener to return success or failure of cleanup
          */
@@ -921,10 +926,11 @@ public class SystemIndices {
             Collection<? extends IndexPatternMatcher> associatedIndexDescriptors,
             String name,
             ClusterService clusterService,
+            ProjectResolver projectResolver,
             Client client,
             final ActionListener<ResetFeatureStateStatus> listener
         ) {
-            Metadata metadata = clusterService.state().getMetadata();
+            final ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
 
             final List<Exception> exceptions = new ArrayList<>();
             final CheckedConsumer<ResetFeatureStateStatus, Exception> handleResponse = resetFeatureStateStatus -> {
@@ -951,7 +957,7 @@ public class SystemIndices {
 
                 // Send cleanup for the associated indices, they don't need special origin since they are not protected
                 String[] associatedIndices = associatedIndexDescriptors.stream()
-                    .flatMap(descriptor -> descriptor.getMatchingIndices(metadata).stream())
+                    .flatMap(descriptor -> descriptor.getMatchingIndices(project).stream())
                     .toArray(String[]::new);
                 if (associatedIndices.length > 0) {
                     cleanUpFeatureForIndices(name, client, associatedIndices, listeners.acquire(handleResponse));
@@ -959,7 +965,7 @@ public class SystemIndices {
 
                 // One descriptor at a time, create an originating client and clean up the feature
                 for (final var indexDescriptor : indexDescriptors) {
-                    List<String> matchingIndices = indexDescriptor.getMatchingIndices(metadata);
+                    List<String> matchingIndices = indexDescriptor.getMatchingIndices(project);
                     if (matchingIndices.isEmpty() == false) {
                         final Client clientWithOrigin = (indexDescriptor.getOrigin() == null)
                             ? client
@@ -1015,6 +1021,15 @@ public class SystemIndices {
                 ClusterService clusterService,
                 Client client,
                 ActionListener<Boolean> listener
+            );
+        }
+
+        public interface CleanupFunction {
+            void apply(
+                ClusterService clusterService,
+                ProjectResolver projectResolver,
+                Client client,
+                ActionListener<ResetFeatureStateStatus> listener
             );
         }
     }

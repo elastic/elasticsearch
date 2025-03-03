@@ -321,8 +321,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 return BlockLoader.CONSTANT_NULLS;
             }
             if (hasDocValues()) {
-                double scalingFactorInverse = 1d / scalingFactor;
-                return new BlockDocValuesReader.DoublesBlockLoader(name(), l -> l * scalingFactorInverse);
+                return new BlockDocValuesReader.DoublesBlockLoader(name(), l -> l / scalingFactor);
             }
             if (isSyntheticSource) {
                 return new FallbackSyntheticSourceBlockLoader(fallbackSyntheticSourceBlockLoaderReader(), name()) {

@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -178,7 +177,6 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             clusterService,
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             TestEnvironment.newEnvironment(settings),
             client,
             licenseState,

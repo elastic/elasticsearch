@@ -148,6 +148,10 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
         var authorizedStreamingTaskTypes = EnumSet.of(TaskType.CHAT_COMPLETION);
         authorizedStreamingTaskTypes.retainAll(authorizedContent.get().taskTypesAndModels.getAuthorizedTaskTypes());
 
+        if (authorizedStreamingTaskTypes.isEmpty() == false) {
+            authorizedStreamingTaskTypes.add(TaskType.ANY);
+        }
+
         return authorizedStreamingTaskTypes;
     }
 

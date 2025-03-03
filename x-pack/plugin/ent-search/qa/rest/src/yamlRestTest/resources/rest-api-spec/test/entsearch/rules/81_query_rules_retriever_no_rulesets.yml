@@ -1,0 +1,35 @@
+setup:
+  - do:
+      bulk:
+        refresh: true
+        index: test-index1
+        body:
+          - index:
+              _id: foo
+          - { "text": "foo - pinned doc for foo" }
+
+---
+"query rules retriever when the .query-rules system index is missing":
+  - skip:
+      features: [ headers ]
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                abc
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+          explain: true
+      catch: "missing"

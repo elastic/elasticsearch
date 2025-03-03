@@ -1,5 +1,9 @@
 org.elasticsearch.security:
   - set_https_connection_properties # for CommandLineHttpClient
+  - files:
+      - relative_path: ""
+        relative_to: config
+        mode: read
 io.netty.transport:
   - manage_threads
   - inbound_network
@@ -13,6 +17,8 @@ io.netty.common:
       mode: "read"
     - path: "/usr/lib/os-release"
       mode: "read"
+    - path: "/proc/sys/net/core/somaxconn"
+      mode: read
 org.opensaml.xmlsec.impl:
   - write_system_properties:
       properties:
@@ -26,5 +32,11 @@ org.opensaml.saml.impl:
       relative_to: config
       mode: read
     - relative_path: saml-metadata.xml
+      relative_to: config
+      mode: read
+    - relative_path: metadata.xml
+      relative_to: config
+      mode: read
+    - relative_path: "saml/"
       relative_to: config
       mode: read

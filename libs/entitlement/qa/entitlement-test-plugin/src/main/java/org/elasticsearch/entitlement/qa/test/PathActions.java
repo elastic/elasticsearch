@@ -16,6 +16,7 @@ import java.nio.file.WatchEvent;
 
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
+@SuppressWarnings({ "unused" /* called via reflection */, "rawtypes" })
 class PathActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)
@@ -28,7 +29,6 @@ class PathActions {
         FileCheckActions.readFile().toRealPath(LinkOption.NOFOLLOW_LINKS);
     }
 
-    @SuppressWarnings("rawtypes")
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkRegister() throws IOException {
         try (var watchService = FileSystems.getDefault().newWatchService()) {
@@ -38,7 +38,6 @@ class PathActions {
         }
     }
 
-    @SuppressWarnings("rawtypes")
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkRegisterWithModifiers() throws IOException {
         try (var watchService = FileSystems.getDefault().newWatchService()) {

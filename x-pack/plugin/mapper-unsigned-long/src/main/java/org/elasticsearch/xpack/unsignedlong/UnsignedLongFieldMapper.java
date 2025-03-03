@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -207,7 +208,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 meta.getValue(),
                 dimension.getValue(),
                 metric.getValue(),
-                indexMode
+                indexMode,
+                context.isSourceSynthetic()
             );
             return new UnsignedLongFieldMapper(leafName(), fieldType, builderParams(this, context), context.isSourceSynthetic(), this);
         }
@@ -221,6 +223,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         private final boolean isDimension;
         private final MetricType metricType;
         private final IndexMode indexMode;
+        private final boolean isSyntheticSource;
 
         public UnsignedLongFieldType(
             String name,
@@ -231,17 +234,19 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             Map<String, String> meta,
             boolean isDimension,
             MetricType metricType,
-            IndexMode indexMode
+            IndexMode indexMode,
+            boolean isSyntheticSource
         ) {
             super(name, indexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.nullValueFormatted = nullValueFormatted;
             this.isDimension = isDimension;
             this.metricType = metricType;
             this.indexMode = indexMode;
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         public UnsignedLongFieldType(String name) {
-            this(name, true, false, true, null, Collections.emptyMap(), false, null, null);
+            this(name, true, false, true, null, Collections.emptyMap(), false, null, null, false);
         }
 
         @Override
@@ -327,11 +332,24 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return new BlockDocValuesReader.LongsBlockLoader(name());
             }
+            if (isSyntheticSource) {
+                return new FallbackSyntheticSourceBlockLoader(fallbackSyntheticSourceBlockLoaderReader(), name()) {
+                    @Override
+                    public Builder builder(BlockFactory factory, int expectedCount) {
+                        return factory.longs(expectedCount);
+                    }
+                };
+            }
+
             ValueFetcher valueFetcher = new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {
-                        return nullValueFormatted;
+                        // `nullValueFormatted` is an unsigned value formatted for human use
+                        // but block loaders operate with encoded signed 64 bit values
+                        // because this is the format doc_values use.
+                        // So we need to perform this conversion.
+                        return unsignedToSortableSignedLong(parseUnsignedLong(nullValueFormatted));
                     }
                     return unsignedToSortableSignedLong(parseUnsignedLong(value));
                 }
@@ -340,6 +358,64 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.LongsBlockLoader(valueFetcher, lookup);
+        }
+
+        private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
+            var nullValueEncoded = nullValueFormatted != null
+                ? (Number) unsignedToSortableSignedLong(parseUnsignedLong(nullValueFormatted))
+                : null;
+            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<>(nullValueFormatted) {
+                @Override
+                public void convertValue(Object value, List<Number> accumulator) {
+                    if (value.equals("")) {
+                        if (nullValueEncoded != null) {
+                            accumulator.add(nullValueEncoded);
+                        }
+                    }
+
+                    try {
+                        // Convert to doc_values format
+                        var converted = unsignedToSortableSignedLong(parseUnsignedLong(value));
+                        accumulator.add(converted);
+                    } catch (Exception e) {
+                        // Malformed value, skip it
+                    }
+                }
+
+                @Override
+                protected void parseNonNullValue(XContentParser parser, List<Number> accumulator) throws IOException {
+                    // Aligned with implementation of `parseCreateField(XContentParser)`
+                    if (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0) {
+                        if (nullValueEncoded != null) {
+                            accumulator.add(nullValueEncoded);
+                        }
+                    }
+
+                    try {
+                        Long rawValue;
+                        if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                            rawValue = parseUnsignedLong(parser.numberValue());
+                        } else {
+                            rawValue = parseUnsignedLong(parser.text());
+                        }
+
+                        // Convert to doc_values format
+                        var converted = unsignedToSortableSignedLong(rawValue);
+                        accumulator.add(converted);
+                    } catch (Exception e) {
+                        // Malformed value, skip it
+                    }
+                }
+
+                @Override
+                public void writeToBlock(List<Number> values, BlockLoader.Builder blockBuilder) {
+                    var longBuilder = (BlockLoader.LongBuilder) blockBuilder;
+
+                    for (var value : values) {
+                        longBuilder.appendLong(value.longValue());
+                    }
+                }
+            };
         }
 
         @Override

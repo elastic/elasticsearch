@@ -104,6 +104,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -870,7 +872,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final SetOnce<Index> firstIndex = new SetOnce<>();
         continueOrDie(createRepoAndIndex(repoName, index, 1), createIndexResponse -> {
-            firstIndex.set(masterNode.clusterService.state().metadata().index(index).getIndex());
+            firstIndex.set(masterNode.clusterService.state().metadata().getProject().index(index).getIndex());
             // create a few more indices to make it more likely that the subsequent index delete operation happens before snapshot
             // finalization
             final GroupedActionListener<CreateIndexResponse> listener = new GroupedActionListener<>(indices, createIndicesListener);
@@ -1183,6 +1185,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 lessThanOrEqualTo(
                     ((Map<?, ?>) masterNode.clusterService.state()
                         .metadata()
+                        .getProject()
                         .index(restoredIndex)
                         .mapping()
                         .sourceAsMap()
@@ -2158,7 +2161,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     null,
                     emptySet()
                 );
-                final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+                IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
                 bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
                 repositoriesService = new RepositoriesService(
                     settings,
@@ -2239,6 +2242,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .bigArrays(bigArrays)
                     .scriptService(scriptService)
                     .clusterService(clusterService)
+                    .projectResolver(DefaultProjectResolver.INSTANCE)
                     .client(client)
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
                     .mapperMetrics(MapperMetrics.NOOP)
@@ -2345,7 +2349,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             shardStateAction,
                             actionFilters,
                             new IndexingPressure(settings),
-                            EmptySystemIndices.INSTANCE
+                            EmptySystemIndices.INSTANCE,
+                            TestProjectResolvers.DEFAULT_PROJECT_ONLY
                         )
                     ),
                     RetentionLeaseSyncer.EMPTY,
@@ -2374,7 +2379,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         threadPool,
                         metadataCreateIndexService,
                         actionFilters,
-                        EmptySystemIndices.INSTANCE
+                        EmptySystemIndices.INSTANCE,
+                        DefaultProjectResolver.INSTANCE
                     )
                 );
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
@@ -2395,13 +2401,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             Collections.emptyList(),
                             client,
                             null,
-                            FailureStoreMetrics.NOOP
+                            FailureStoreMetrics.NOOP,
+                            TestProjectResolvers.singleProjectOnly()
                         ),
                         client,
                         actionFilters,
                         indexNameExpressionResolver,
                         new IndexingPressure(settings),
                         EmptySystemIndices.INSTANCE,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                         FailureStoreMetrics.NOOP,
                         DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings())
                     )
@@ -2418,6 +2426,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     actionFilters,
                     indexingMemoryLimits,
                     EmptySystemIndices.INSTANCE,
+                    TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                     DocumentParsingProvider.EMPTY_INSTANCE
                 );
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
@@ -2451,7 +2460,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters,
                         indexNameExpressionResolver,
                         new RequestValidators<>(Collections.emptyList()),
-                        EmptySystemIndices.INSTANCE
+                        EmptySystemIndices.INSTANCE,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
                     )
                 );
                 actions.put(
@@ -2462,6 +2472,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         threadPool,
                         metadataMappingService,
                         actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                         EmptySystemIndices.INSTANCE
                     )
                 );
@@ -2479,6 +2490,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         searchPhaseController,
                         clusterService,
                         actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                         indexNameExpressionResolver,
                         namedWriteableRegistry,
                         EmptySystemIndices.INSTANCE.getExecutorSelector(),
@@ -2499,6 +2511,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         threadPool,
                         new MetadataDeleteIndexService(settings, clusterService, allocationService),
                         actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                         indexNameExpressionResolver,
                         new DestructiveOperations(settings, clusterSettings)
                     )
@@ -2521,7 +2534,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
                 actions.put(
                     TransportClusterRerouteAction.TYPE,
-                    new TransportClusterRerouteAction(transportService, clusterService, threadPool, allocationService, actionFilters)
+                    new TransportClusterRerouteAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        allocationService,
+                        actionFilters,
+                        TestProjectResolvers.singleProjectOnly()
+                    )
                 );
                 actions.put(
                     ClusterStateAction.INSTANCE,
@@ -2530,7 +2550,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         clusterService,
                         threadPool,
                         actionFilters,
-                        indexNameExpressionResolver
+                        indexNameExpressionResolver,
+                        DefaultProjectResolver.INSTANCE
                     )
                 );
                 actions.put(

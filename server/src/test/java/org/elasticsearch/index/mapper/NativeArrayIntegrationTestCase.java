@@ -141,7 +141,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 } else {
                     var copyExpectedStoredFields = new String[expectedStoredFields.length + 1];
                     System.arraycopy(expectedStoredFields, 0, copyExpectedStoredFields, 0, expectedStoredFields.length);
-                    copyExpectedStoredFields[copyExpectedStoredFields.length - 1] = "_ignored_source";
+                    copyExpectedStoredFields[copyExpectedStoredFields.length - 1] = "_recovery_source";
                     assertThat(storedFieldNames, containsInAnyOrder(copyExpectedStoredFields));
                 }
             }

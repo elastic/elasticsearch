@@ -33,6 +33,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibra
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
@@ -63,11 +64,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.entitlement.runtime.policy.Platform.LINUX;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.DATA;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Platform.LINUX;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -143,8 +144,7 @@ public class EntitlementInitialization {
             bootstrapArgs.dataDirs(),
             bootstrapArgs.sharedRepoDirs(),
             bootstrapArgs.tempDir(),
-            bootstrapArgs.settingResolver(),
-            bootstrapArgs.settingGlobResolver()
+            bootstrapArgs.settingResolver()
         );
 
         List<Scope> serverScopes = new ArrayList<>();
@@ -152,6 +152,7 @@ public class EntitlementInitialization {
         Collections.addAll(
             serverModuleFileDatas,
             // Base ES directories
+            FileData.ofPath(bootstrapArgs.pluginsDir(), READ),
             FileData.ofPath(bootstrapArgs.configDir(), READ),
             FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
             FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
@@ -178,6 +179,7 @@ public class EntitlementInitialization {
         if (bootstrapArgs.pidFile() != null) {
             serverModuleFileDatas.add(FileData.ofPath(bootstrapArgs.pidFile(), READ_WRITE));
         }
+
         Collections.addAll(
             serverScopes,
             new Scope(
@@ -186,6 +188,7 @@ public class EntitlementInitialization {
                     new CreateClassLoaderEntitlement(),
                     new FilesEntitlement(
                         List.of(
+                            // TODO: what in es.base is accessing shared repo?
                             FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
                             FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)
                         )
@@ -239,7 +242,14 @@ public class EntitlementInitialization {
         if (trustStorePath != null) {
             Collections.addAll(
                 serverScopes,
-                new Scope("org.bouncycastle.fips.tls", List.of(new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ))))),
+                new Scope(
+                    "org.bouncycastle.fips.tls",
+                    List.of(
+                        new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ))),
+                        new OutboundNetworkEntitlement(),
+                        new ManageThreadsEntitlement()
+                    )
+                ),
                 new Scope(
                     "org.bouncycastle.fips.core",
                     // read to lib dir is required for checksum validation
@@ -255,6 +265,8 @@ public class EntitlementInitialization {
         List<Entitlement> agentEntitlements = List.of(
             new CreateClassLoaderEntitlement(),
             new ManageThreadsEntitlement(),
+            new SetHttpsConnectionPropertiesEntitlement(),
+            new OutboundNetworkEntitlement(),
             new FilesEntitlement(
                 List.of(
                     FileData.ofPath(Path.of("/co/elastic/apm/agent/"), READ),

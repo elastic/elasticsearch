@@ -72,7 +72,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         project.getPlugins().apply(JvmToolchainsPlugin.class);
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
         var buildParams = loadBuildParams(project).get();
-        Boolean isCi = buildParams.isCi();
+        Boolean isCi = buildParams.getCi();
         buildParams.getBwcVersions().forPreviousUnreleased((BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
             configureBwcProject(
                 project.project(unreleasedVersion.gradleProjectPath()),
@@ -340,8 +340,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             } else {
                 c.getOutputs().files(expectedOutputFile);
             }
-            c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.isCi() == false);
-            c.getArgs().add(projectPath.replace('/', ':') + ":" + assembleTaskName);
+c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.getCi() == false);
+c.getArgs().add(projectPath.replace('/', ':') + ":" + assembleTaskName);
             if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
                 c.getArgs().add("--build-cache");
             }

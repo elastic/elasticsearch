@@ -30,6 +30,13 @@ The `LOOKUP JOIN` command adds new columns to a table, with data from {{es}} ind
 :alt: esql lookup join
 :::
 
+$$$esql-source-index$$$
+
+Source index
+:   An index which stores enrich data that the `LOOKUP` command can add to input tables. You can create and manage these indices just like a regular {{es}} index. You can use multiple source indices in an enrich policy. You also can use the same source index in multiple enrich policies.
+
+## Example
+
 In the case where there are multiple matches on the index `LOOKUP JOIN` the output rows is the combination of each match from the left with each match on the right. 
 
 Image you have the two tables:
@@ -76,12 +83,6 @@ FROM Left
 
 ::::
 
-$$$esql-source-index$$$
-
-Source index
-:   An index which stores enrich data that the `LOOKUP` command can add to input tables. You can create and manage these indices just like a regular {{es}} index. You can use multiple source indices in an enrich policy. You also can use the same source index in multiple enrich policies.
-
-
 ## Prerequisites [esql-enrich-prereqs]
 
 To use `LOOKUP JOIN`, you must have:
@@ -90,7 +91,7 @@ To use `LOOKUP JOIN`, you must have:
 
 ## Limitations
 
-The following is a list of current limitations with `LOOKUP JOIN`
+The following are the current limitations with `LOOKUP JOIN`
 
 * `LOOKUP JOIN` will be sucessfull if both left and right type of the join are both `KEYWORD` types or if the left type is of `TEXT` and the right type is `KEYWORD`.
 * Indices in [lookup](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) mode are always single-sharded.
@@ -101,4 +102,3 @@ The following is a list of current limitations with `LOOKUP JOIN`
   * This limit is per page of data which is about about 10,000 rows.
   * Matching many rows per incoming row will count against this limit.
   * This limit is approximately the same as for [`ENRICH`](/reference/query-languages/esql/esql-commands.md#esql-enrich).
-

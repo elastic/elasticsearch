@@ -9,6 +9,7 @@ io.netty.common:
     - path: "/proc/sys/net/core/somaxconn"
       mode: read
 com.azure.identity:
+  - outbound_network
   - files:
     - relative_path: "storage-azure/" #/config/storage-azure/azure-federated-token
       relative_to: config

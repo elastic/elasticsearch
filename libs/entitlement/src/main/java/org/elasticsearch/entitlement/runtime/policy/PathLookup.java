@@ -17,7 +17,7 @@ public record PathLookup(
     Path homeDir,
     Path configDir,
     Path[] dataDirs,
+    Path[] sharedRepoDirs,
     Path tempDir,
-    Function<String, String> settingResolver,
-    Function<String, Stream<String>> settingGlobResolver
+    Function<String, Stream<String>> settingResolver
 ) {}

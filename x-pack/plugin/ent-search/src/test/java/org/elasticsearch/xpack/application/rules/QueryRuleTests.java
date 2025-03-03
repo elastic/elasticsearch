@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.LT
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.PREFIX;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.SUFFIX;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.containsString;
 
 public class QueryRuleTests extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
@@ -83,7 +84,11 @@ public class QueryRuleTests extends ESTestCase {
                 "ids": ["id1"]
               }
             }""");
-        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        assertThat(e.getMessage(), containsString("Failed to build [query_rule]"));
     }
 
     public void testNumericValidationWithMixedValues() throws IOException {
@@ -98,7 +103,11 @@ public class QueryRuleTests extends ESTestCase {
                 "ids": ["id1"]
               }
             }""");
-        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        assertThat(e.getMessage(), containsString("Failed to build [query_rule]"));
     }
 
     public void testNumericValidationWithEmptyValues() throws IOException {
@@ -113,7 +122,12 @@ public class QueryRuleTests extends ESTestCase {
                 "ids": ["id1"]
               }
             }""");
-        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        logger.info("Actual error message: " + e.getMessage());
+        assertTrue(e.getMessage().contains("failed to parse field [criteria]"));
     }
 
     public void testToXContent() throws IOException {
@@ -140,7 +154,15 @@ public class QueryRuleTests extends ESTestCase {
               "criteria": [],
               "actions": {}
             }""");
-        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        logger.info("Actual error message for empty criteria: " + e.getMessage());
+        assertTrue(
+            "Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'",
+            e.getMessage().contains("Failed to build [query_rule]")
+        );
     }
 
     public void testToXContentValidPinnedRulesWithIds() throws IOException {

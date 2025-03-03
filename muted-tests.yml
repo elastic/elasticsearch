@@ -261,6 +261,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test151MachineDependentHeapWithSizeOverride
   issue: https://github.com/elastic/elasticsearch/issues/123437
+- class: org.elasticsearch.index.mapper.ShapeGeometryFieldMapperTests
+  method: testCartesianBoundsBlockLoader
+  issue: https://github.com/elastic/elasticsearch/issues/122661
 
 # Examples:
 #

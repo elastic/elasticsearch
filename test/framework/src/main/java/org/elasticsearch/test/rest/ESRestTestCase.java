@@ -9,8 +9,6 @@
 
 package org.elasticsearch.test.rest;
 
-import io.netty.handler.codec.http.HttpMethod;
-
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -146,6 +144,8 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.notNullValue;
+
+import io.netty.handler.codec.http.HttpMethod;
 
 /**
  * Superclass for tests that interact with an external test cluster using Elasticsearch's {@link RestClient}.
@@ -427,14 +427,12 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert semanticNodeVersions.isEmpty() == false || serverless;
 
             if (multiProjectPluginVariant != null) {
-                final var response = entityAsMap(
-                    adminClient.performRequest(
-                        new Request(
-                            "GET",
-                            "/_cluster/settings?include_defaults&filter_path=*." + multiProjectPluginVariant + ".multi_project.enabled"
-                        )
-                    )
+                final Request settingRequest = new Request(
+                    "GET",
+                    "/_cluster/settings?include_defaults&filter_path=*." + multiProjectPluginVariant + ".multi_project.enabled"
                 );
+                settingRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+                final var response = entityAsMap(adminClient.performRequest(settingRequest));
                 multiProjectEnabled = Boolean.parseBoolean(
                     ObjectPath.evaluate(response, "defaults." + multiProjectPluginVariant + ".multi_project.enabled")
                 );
@@ -1291,9 +1289,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         // retrieves all indices with a type of store equals to "snapshot"
         final Request request = new Request("GET", "_cluster/state/metadata");
         request.addParameter("filter_path", "metadata.indices.*.settings.index.store.snapshot");
-        if (multiProjectEnabled) {
-            request.addParameter("multi_project", "true");
-        }
 
         final Response response = cleanupClient().performRequest(request);
         @SuppressWarnings("unchecked")

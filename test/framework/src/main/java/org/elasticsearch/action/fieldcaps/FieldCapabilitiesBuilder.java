@@ -72,32 +72,36 @@ public class FieldCapabilitiesBuilder {
     }
 
     public FieldCapabilitiesBuilder indices(String... indices) {
-        this.indices = Arrays.copyOf(indices, indices.length);
+        this.indices = copyStringArray(indices);
         return this;
     }
 
     public FieldCapabilitiesBuilder nonSearchableIndices(String... nonSearchableIndices) {
-        this.nonSearchableIndices = Arrays.copyOf(nonSearchableIndices, nonAggregatableIndices.length);
+        this.nonSearchableIndices = copyStringArray(nonSearchableIndices);
         return this;
     }
 
     public FieldCapabilitiesBuilder nonAggregatableIndices(String... nonAggregatableIndices) {
-        this.nonAggregatableIndices = Arrays.copyOf(nonAggregatableIndices, nonAggregatableIndices.length);
+        this.nonAggregatableIndices = copyStringArray(nonAggregatableIndices);
         return this;
     }
 
     public FieldCapabilitiesBuilder nonDimensionIndices(String... nonDimensionIndices) {
-        this.nonDimensionIndices = Arrays.copyOf(nonDimensionIndices, nonDimensionIndices.length);
+        this.nonDimensionIndices = copyStringArray(nonDimensionIndices);
         return this;
     }
 
     public FieldCapabilitiesBuilder metricConflictsIndices(String... metricConflictsIndices) {
-        this.metricConflictsIndices = Arrays.copyOf(metricConflictsIndices, metricConflictsIndices.length);
+        this.metricConflictsIndices = copyStringArray(metricConflictsIndices);
         return this;
     }
 
+    private static String[] copyStringArray(@Nullable String[] strings) {
+        return strings != null ? Arrays.copyOf(strings, strings.length) : null;
+    }
+
     public FieldCapabilitiesBuilder meta(Map<String, Set<String>> meta) {
-        this.meta = new TreeMap<>(meta);
+        this.meta = meta != null ? new TreeMap<>(meta) : null;
         return this;
     }
 

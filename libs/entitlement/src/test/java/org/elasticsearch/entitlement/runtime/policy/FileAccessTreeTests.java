@@ -135,7 +135,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testReadWithRelativePath() {
-        for (var dir : List.of("config", "home")) {
+        for (var dir : List.of("home")) {
             var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read", "relative_to", dir)), List.of());
             assertThat(tree.canRead(path("foo")), is(false));
 
@@ -152,7 +152,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testWriteWithRelativePath() {
-        for (var dir : List.of("config", "home")) {
+        for (var dir : List.of("home")) {
             var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read_write", "relative_to", dir)), List.of());
             assertThat(tree.canWrite(path("/" + dir + "/foo")), is(true));
             assertThat(tree.canWrite(path("/" + dir + "/foo/subdir")), is(true));
@@ -261,6 +261,12 @@ public class FileAccessTreeTests extends ESTestCase {
         var tree = FileAccessTree.of("test-component", "test-module", FilesEntitlement.EMPTY, TEST_PATH_LOOKUP, List.of());
         assertThat(tree.canRead(TEST_PATH_LOOKUP.tempDir()), is(true));
         assertThat(tree.canWrite(TEST_PATH_LOOKUP.tempDir()), is(true));
+    }
+
+    public void testConfigDirAccess() {
+        var tree = FileAccessTree.of("test-component", "test-module", FilesEntitlement.EMPTY, TEST_PATH_LOOKUP, List.of());
+        assertThat(tree.canRead(TEST_PATH_LOOKUP.configDir()), is(true));
+        assertThat(tree.canWrite(TEST_PATH_LOOKUP.configDir()), is(false));
     }
 
     public void testBasicExclusiveAccess() {

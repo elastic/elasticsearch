@@ -289,6 +289,12 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canWrite(TEST_PATH_LOOKUP.tempDir()), is(true));
     }
 
+    public void testConfigDirAccess() {
+        var tree = FileAccessTree.of("test-component", "test-module", FilesEntitlement.EMPTY, TEST_PATH_LOOKUP, List.of());
+        assertThat(tree.canRead(TEST_PATH_LOOKUP.configDir()), is(true));
+        assertThat(tree.canWrite(TEST_PATH_LOOKUP.configDir()), is(false));
+    }
+
     public void testBasicExclusiveAccess() {
         var tree = accessTree(entitlement("foo", "read"), exclusivePaths("test-component", "test-module", "foo"));
         assertThat(tree.canRead(path("foo")), is(true));

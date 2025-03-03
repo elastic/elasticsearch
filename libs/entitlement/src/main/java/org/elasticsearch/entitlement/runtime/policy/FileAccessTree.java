@@ -138,8 +138,9 @@ public final class FileAccessTree {
             });
         }
 
-        // everything has access to the temp dir and the jdk
+        // everything has access to the temp dir, config dir and the jdk
         addPathAndMaybeLink.accept(pathLookup.tempDir(), Mode.READ_WRITE);
+        addPathAndMaybeLink.accept(pathLookup.configDir(), Mode.READ);
 
         // TODO: watcher uses javax.activation which looks for known mime types configuration, should this be global or explicit in watcher?
         Path jdk = Paths.get(System.getProperty("java.home"));

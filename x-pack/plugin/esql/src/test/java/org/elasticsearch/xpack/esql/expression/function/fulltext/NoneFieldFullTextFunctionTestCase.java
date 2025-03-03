@@ -26,7 +26,7 @@ public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFunction
         this.testCase = testCaseSupplier.get();
     }
 
-    public final void testFold() {
+    public void testFold() {
         Expression expression = buildLiteralExpression(testCase);
         assertFalse("expected resolved", expression.typeResolved().unresolved());
     }

@@ -82,4 +82,14 @@ public class QueryStringTests extends NoneFieldFullTextFunctionTestCase {
         }
         return qstr;
     }
+
+    @Override
+    public void testFold() {
+        // Query string cannot be folded.
+    }
+
+    @Override
+    public void testSerializationOfSimple() {
+        // Intentionally not tested here.
+    }
 }

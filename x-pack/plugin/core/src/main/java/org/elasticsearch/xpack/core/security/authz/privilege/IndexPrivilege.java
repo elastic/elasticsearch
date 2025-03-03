@@ -48,6 +48,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -377,7 +378,7 @@ public final class IndexPrivilege extends Privilege {
             actions
         );
         assertNamesMatch(name, combined);
-        return Set.copyOf(combined);
+        return Collections.unmodifiableSet(combined);
     }
 
     private static Set<IndexPrivilege> combineIndexPrivileges(
@@ -397,12 +398,13 @@ public final class IndexPrivilege extends Privilege {
             return Set.of(union(allSelectorAccessPrivileges, actions, IndexComponentSelectorPredicate.ALL));
         }
 
-        final Set<IndexPrivilege> combined = new HashSet<>();
-        if (false == failuresSelectorAccessPrivileges.isEmpty()) {
-            combined.add(union(failuresSelectorAccessPrivileges, Set.of(), IndexComponentSelectorPredicate.FAILURES));
-        }
+        // linked hash set to preserve order across selectors
+        final Set<IndexPrivilege> combined = new LinkedHashSet<>();
         if (false == dataSelectorAccessPrivileges.isEmpty() || false == actions.isEmpty()) {
             combined.add(union(dataSelectorAccessPrivileges, actions, IndexComponentSelectorPredicate.DATA));
+        }
+        if (false == failuresSelectorAccessPrivileges.isEmpty()) {
+            combined.add(union(failuresSelectorAccessPrivileges, Set.of(), IndexComponentSelectorPredicate.FAILURES));
         }
         return combined;
     }

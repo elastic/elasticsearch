@@ -260,6 +260,8 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     private static RestClient cleanupClient;
 
+    private static boolean multiProjectEnabled;
+
     public enum ProductFeature {
         XPACK,
         ILM,
@@ -370,6 +372,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
             Set<String> versions = new HashSet<>();
             boolean serverless = false;
+            String multiProjectPluginVariant = null;
 
             for (Map<?, ?> nodeInfo : getNodesInfo(adminClient).values()) {
                 var nodeVersion = nodeInfo.get("version").toString();
@@ -399,6 +402,11 @@ public abstract class ESRestTestCase extends ESTestCase {
                     if (moduleName.startsWith("serverless-")) {
                         serverless = true;
                     }
+                    if (moduleName.contains("test-multi-project")) {
+                        multiProjectPluginVariant = "test";
+                    } else if (moduleName.contains("serverless-multi-project")) {
+                        multiProjectPluginVariant = "serverless";
+                    }
                 }
                 if (serverless) {
                     availableFeatures.removeAll(
@@ -419,6 +427,18 @@ public abstract class ESRestTestCase extends ESTestCase {
                 .flatMap(Optional::stream)
                 .collect(Collectors.toSet());
             assert semanticNodeVersions.isEmpty() == false || serverless;
+
+            if (multiProjectPluginVariant != null) {
+                final Request settingRequest = new Request(
+                    "GET",
+                    "/_cluster/settings?include_defaults&filter_path=*." + multiProjectPluginVariant + ".multi_project.enabled"
+                );
+                settingRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+                final var response = entityAsMap(adminClient.performRequest(settingRequest));
+                multiProjectEnabled = Boolean.parseBoolean(
+                    ObjectPath.evaluate(response, "defaults." + multiProjectPluginVariant + ".multi_project.enabled")
+                );
+            }
 
             testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
         }
@@ -2380,6 +2400,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static Map<String, Set<String>> getClusterStateFeatures(RestClient adminClient) throws IOException {
         final Request request = new Request("GET", "_cluster/state");
         request.addParameter("filter_path", "nodes_features");
+        if (multiProjectEnabled) {
+            request.addParameter("multi_project", "true");
+        }
 
         final Response response = adminClient.performRequest(request);
 

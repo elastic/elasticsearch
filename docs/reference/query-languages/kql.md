@@ -102,7 +102,7 @@ To search for documents matching a pattern, use the wildcard syntax. For example
 http.response.status_code: 4*
 ```
 
-By default, leading wildcards are not allowed for performance reasons. You can modify this with the [`query:allowLeadingWildcards`](kibana://docs/reference/advanced-settings.md#query-allowleadingwildcards) advanced setting.
+By default, leading wildcards are not allowed for performance reasons. You can modify this with the [`query:allowLeadingWildcards`](kibana://reference/advanced-settings.md#query-allowleadingwildcards) advanced setting.
 
 ::::{note}
 Only `*` is currently supported. This matches zero or more characters.

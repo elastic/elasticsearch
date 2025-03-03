@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
@@ -60,6 +61,8 @@ public class PolicyManager {
     static final String UNKNOWN_COMPONENT_NAME = "(unknown)";
     static final String SERVER_COMPONENT_NAME = "(server)";
     static final String APM_AGENT_COMPONENT_NAME = "(APM agent)";
+
+    static final Class<?> DEFAULT_FILESYSTEM_CLASS = PathUtils.getDefaultFileSystem().getClass();
 
     /**
      * @param componentName the plugin name; or else one of the special component names
@@ -305,7 +308,26 @@ public class PolicyManager {
         checkFileRead(callerClass, file.toPath());
     }
 
+    private static boolean isPathOnDefaultFilesystem(Path path) {
+        var pathFileSystemClass = path.getFileSystem().getClass();
+        if (path.getFileSystem().getClass() != DEFAULT_FILESYSTEM_CLASS) {
+            logger.trace(
+                () -> Strings.format(
+                    "File entitlement trivially allowed: path [%s] is for a different FileSystem class [%s], default is [%s]",
+                    path.toString(),
+                    pathFileSystemClass.getName(),
+                    DEFAULT_FILESYSTEM_CLASS.getName()
+                )
+            );
+            return false;
+        }
+        return true;
+    }
+
     public void checkFileRead(Class<?> callerClass, Path path) {
+        if (isPathOnDefaultFilesystem(path) == false) {
+            return;
+        }
         var requestingClass = requestingClass(callerClass);
         if (isTriviallyAllowed(requestingClass)) {
             return;
@@ -332,6 +354,9 @@ public class PolicyManager {
     }
 
     public void checkFileWrite(Class<?> callerClass, Path path) {
+        if (isPathOnDefaultFilesystem(path) == false) {
+            return;
+        }
         var requestingClass = requestingClass(callerClass);
         if (isTriviallyAllowed(requestingClass)) {
             return;

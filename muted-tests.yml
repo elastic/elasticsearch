@@ -456,3 +456,12 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
   issue: https://github.com/elastic/elasticsearch/issues/120814
+- class: org.elasticsearch.gradle.internal.InternalBwcGitPluginFuncTest
+  method: current repository can be cloned
+  issue: https://github.com/elastic/elasticsearch/issues/123297
+- class: org.elasticsearch.gradle.internal.InternalBwcGitPluginFuncTest
+  method: can resolve checkout folder as project artifact
+  issue: https://github.com/elastic/elasticsearch/issues/119948
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/rest-api/common-options/line_125}
+  issue: https://github.com/elastic/elasticsearch/issues/121338

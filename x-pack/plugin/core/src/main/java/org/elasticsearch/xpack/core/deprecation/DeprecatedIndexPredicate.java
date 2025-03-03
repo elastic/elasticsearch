@@ -59,7 +59,7 @@ public class DeprecatedIndexPredicate {
     }
 
     private static boolean isNotSystem(IndexMetadata indexMetadata) {
-        return indexMetadata.isSystem();
+        return indexMetadata.isSystem() == false;
     }
 
     private static boolean isNotSearchableSnapshot(IndexMetadata indexMetadata) {

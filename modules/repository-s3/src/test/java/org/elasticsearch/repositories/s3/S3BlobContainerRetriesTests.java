@@ -1105,14 +1105,14 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 fail("expected only deletions");
             }
         });
-        try {
-            var maxNoOfDeletions = 2 * S3BlobStore.MAX_DELETE_EXCEPTIONS;
-            var blobs = randomList(1, maxNoOfDeletions * maxBulkDeleteSize, ESTestCase::randomIdentifier);
-            blobContainer.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobs.iterator());
-            fail("deletion should not succeed");
-        } catch (IOException e) {
-            assertThat(e.getCause().getSuppressed().length, lessThan(S3BlobStore.MAX_DELETE_EXCEPTIONS));
-        }
+        var maxNoOfDeletions = 2 * S3BlobStore.MAX_DELETE_EXCEPTIONS;
+        var blobs = randomList(1, maxNoOfDeletions * maxBulkDeleteSize, ESTestCase::randomIdentifier);
+        var exception = expectThrows(
+            IOException.class,
+            "deletion should not succeed",
+            () -> blobContainer.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobs.iterator())
+        );
+        assertThat(exception.getCause().getSuppressed().length, lessThan(S3BlobStore.MAX_DELETE_EXCEPTIONS));
     }
 
     @Override

@@ -150,4 +150,8 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
 
     }
 
+    public GetSnapshotsRequestBuilder setState(String state) {
+        request.state(state);
+        return this;
+    }
 }

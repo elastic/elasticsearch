@@ -256,11 +256,13 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             List<MergeTask> backloggedMergeTasksList = new ArrayList<>();
             for (int i = 0; i < totalMergeTasksCount; i++) {
                 MergeTask mergeTask = mock(MergeTask.class);
-                boolean supportsIOThrottling = randomBoolean();
-                when(mergeTask.supportsIOThrottling()).thenReturn(supportsIOThrottling);
+                when(mergeTask.supportsIOThrottling()).thenReturn(randomBoolean());
                 boolean runNowOrBacklog = randomBoolean();
-                when(mergeTask.runNowOrBacklog()).thenReturn(runNowOrBacklog);
-                if (runNowOrBacklog == false) {
+                if (runNowOrBacklog) {
+                    when(mergeTask.runNowOrBacklog()).thenReturn(true);
+                } else {
+                    // first backlog, then run
+                    when(mergeTask.runNowOrBacklog()).thenReturn(false, true);
                     backloggedMergeTasksList.add(mergeTask);
                 }
                 threadPoolMergeExecutorService.submitMergeTask(mergeTask);
@@ -276,10 +278,10 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     assertThat(threadPoolExecutor.getActiveCount(), is(backloggedMergeTasksList.size()));
                     assertThat(threadPoolExecutor.getQueue().size(), is(0));
                 }
+                assertThat(threadPoolMergeExecutorService.getQueuedMergeTasks().size(), is(0));
             });
-            // re-enqueue backlogged merge tasks, and make them "runnable" now
+            // re-enqueue backlogged merge tasks
             for (MergeTask backloggedMergeTask : backloggedMergeTasksList) {
-                when(backloggedMergeTask.runNowOrBacklog()).thenReturn(true);
                 threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(backloggedMergeTask);
             }
             assertBusy(() -> {

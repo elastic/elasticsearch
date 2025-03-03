@@ -187,6 +187,7 @@ public class TransportVersions {
     public static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_90 = def(9_000_0_06);
     public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_90 = def(9_000_0_07);
     public static final TransportVersion RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE_90 = def(9_000_0_08);
+    public static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH_90 = def(9_000_0_09);
 
     /*
      * STOP! READ THIS FIRST! No, really,

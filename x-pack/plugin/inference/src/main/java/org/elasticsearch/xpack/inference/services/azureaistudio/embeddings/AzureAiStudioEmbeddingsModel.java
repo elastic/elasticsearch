@@ -29,7 +29,11 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 
 public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
 
-    public static AzureAiStudioEmbeddingsModel of(AzureAiStudioEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
+    public static AzureAiStudioEmbeddingsModel of(
+        AzureAiStudioEmbeddingsModel model,
+        Map<String, Object> taskSettings,
+        InputType inputType
+    ) {
         var requestTaskSettings = AzureAiStudioEmbeddingsRequestTaskSettings.fromMap(taskSettings);
         var taskSettingToUse = AzureAiStudioEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings, inputType);
 

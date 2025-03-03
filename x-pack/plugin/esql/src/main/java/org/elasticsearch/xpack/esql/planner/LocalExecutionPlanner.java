@@ -175,7 +175,7 @@ public class LocalExecutionPlanner {
     /**
      * turn the given plan into a list of drivers to execute
      */
-    public LocalExecutionPlan plan(String taskDescription, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
+    public LocalExecutionPlan plan(String description, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
@@ -197,9 +197,9 @@ public class LocalExecutionPlanner {
         context.addDriverFactory(
             new DriverFactory(
                 new DriverSupplier(
-                    taskDescription,
-                    Node.NODE_NAME_SETTING.get(settings),
+                    description,
                     ClusterName.CLUSTER_NAME_SETTING.get(settings).value(),
+                    Node.NODE_NAME_SETTING.get(settings),
                     context.bigArrays,
                     context.blockFactory,
                     physicalOperation,
@@ -871,7 +871,7 @@ public class LocalExecutionPlanner {
     }
 
     record DriverSupplier(
-        String taskDescription,
+        String description,
         String clusterName,
         String nodeName,
         BigArrays bigArrays,
@@ -900,7 +900,7 @@ public class LocalExecutionPlanner {
                 success = true;
                 return new Driver(
                     sessionId,
-                    taskDescription,
+                    description,
                     clusterName,
                     nodeName,
                     System.currentTimeMillis(),

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -85,9 +86,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class ShardBulkInferenceActionFilterTests extends ESTestCase {
@@ -509,8 +512,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             .build();
         when(indexMetadata.getSettings()).thenReturn(settings);
 
+        ProjectMetadata project = spy(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).build());
+        when(project.index(anyString())).thenReturn(indexMetadata);
+
         Metadata metadata = mock(Metadata.class);
-        when(metadata.index(any(String.class))).thenReturn(indexMetadata);
+        when(metadata.getProject()).thenReturn(project);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
         ClusterService clusterService = mock(ClusterService.class);

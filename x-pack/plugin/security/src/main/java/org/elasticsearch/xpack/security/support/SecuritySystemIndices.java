@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.VersionId;
@@ -89,16 +90,29 @@ public class SecuritySystemIndices {
         return List.of(mainDescriptor, tokenDescriptor, profileDescriptor);
     }
 
-    public void init(Client client, FeatureService featureService, ClusterService clusterService) {
+    public void init(Client client, FeatureService featureService, ClusterService clusterService, ProjectResolver projectResolver) {
         if (this.initialized.compareAndSet(false, true) == false) {
             throw new IllegalStateException("Already initialized");
         }
-        this.mainIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, featureService, mainDescriptor);
-        this.tokenIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, featureService, tokenDescriptor);
+        this.mainIndexManager = SecurityIndexManager.buildSecurityIndexManager(
+            client,
+            clusterService,
+            featureService,
+            projectResolver,
+            mainDescriptor
+        );
+        this.tokenIndexManager = SecurityIndexManager.buildSecurityIndexManager(
+            client,
+            clusterService,
+            featureService,
+            projectResolver,
+            tokenDescriptor
+        );
         this.profileIndexManager = SecurityIndexManager.buildSecurityIndexManager(
             client,
             clusterService,
             featureService,
+            projectResolver,
             profileDescriptor
         );
     }

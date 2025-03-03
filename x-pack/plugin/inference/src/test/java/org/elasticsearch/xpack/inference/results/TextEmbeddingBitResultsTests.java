@@ -105,6 +105,17 @@ public class TextEmbeddingBitResultsTests extends AbstractWireSerializingTestCas
         );
     }
 
+    public void testGetFirstEmbeddingSize() {
+        var firstEmbeddingSize = new TextEmbeddingBitResults(
+            List.of(
+                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 23, (byte) 24 }),
+                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 25, (byte) 26 })
+            )
+        ).getFirstEmbeddingSize();
+
+        assertThat(firstEmbeddingSize, is(16));
+    }
+
     @Override
     protected Writeable.Reader<TextEmbeddingBitResults> instanceReader() {
         return TextEmbeddingBitResults::new;

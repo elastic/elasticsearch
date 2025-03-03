@@ -94,7 +94,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             id,
             type,
             action,
-            "id=" + taskInProgress.getId(),
+            "Reindexing data stream " + taskInProgress.getParams().getSourceDataStream(),
             parentTaskId,
             headers
         );
@@ -117,7 +117,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = response.getDataStreams();
             if (dataStreamInfos.size() == 1) {
                 DataStream dataStream = dataStreamInfos.getFirst().getDataStream();
-                if (getReindexRequiredPredicate(clusterService.state().metadata(), false).test(dataStream.getWriteIndex())) {
+                if (getReindexRequiredPredicate(clusterService.state().metadata().getProject(), false).test(dataStream.getWriteIndex())) {
                     RolloverRequest rolloverRequest = new RolloverRequest(sourceDataStream, null);
                     rolloverRequest.setParentTask(taskId);
                     client.execute(
@@ -164,7 +164,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     ) {
         List<Index> indices = dataStream.getIndices();
         List<Index> indicesToBeReindexed = indices.stream()
-            .filter(getReindexRequiredPredicate(clusterService.state().metadata(), false))
+            .filter(getReindexRequiredPredicate(clusterService.state().metadata().getProject(), false))
             .toList();
         final ReindexDataStreamPersistentTaskState updatedState;
         if (params.totalIndices() != totalIndicesInDataStream
@@ -297,10 +297,8 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         ReindexDataStreamTask reindexDataStreamTask,
         @Nullable ReindexDataStreamPersistentTaskState state
     ) {
-        PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
-            .getMetadata()
-            .custom(PersistentTasksCustomMetadata.TYPE);
-        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = persistentTasksCustomMetadata.getTask(
+        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = PersistentTasksCustomMetadata.getTaskWithId(
+            clusterService.state(),
             reindexDataStreamTask.getPersistentTaskId()
         );
         if (persistentTask == null) {

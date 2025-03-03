@@ -88,15 +88,7 @@ public class QueryRuleTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
         );
-<<<<<<< HEAD
-        logger.info("Actual error message for invalid values: " + e.getMessage());
-        assertTrue(
-            "Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'",
-            e.getMessage().contains("Failed to build [query_rule]")
-        );
-=======
         assertThat(e.getMessage(), containsString("Failed to build [query_rule]"));
->>>>>>> 764e2db2270 (Worked on Mike's followup comments)
     }
 
     public void testNumericValidationWithMixedValues() throws IOException {
@@ -115,15 +107,7 @@ public class QueryRuleTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
         );
-<<<<<<< HEAD
-        logger.info("Actual error message for mixed values: " + e.getMessage());
-        assertTrue(
-            "Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'",
-            e.getMessage().contains("Failed to build [query_rule]")
-        );
-=======
         assertThat(e.getMessage(), containsString("Failed to build [query_rule]"));
->>>>>>> 764e2db2270 (Worked on Mike's followup comments)
     }
 
     public void testNumericValidationWithEmptyValues() throws IOException {

@@ -3,18 +3,22 @@ ALL-UNNAMED:
   - outbound_network
   - create_class_loader # needed for Painless to generate runtime classes
   - files:
-      - relative_path_setting: "reindex.ssl.certificate"
+      # TODO: review and possibly remove this general permission
+      - relative_path: ""
         relative_to: config
         mode: read
-      - relative_path_setting: "reindex.ssl.key"
-        relative_to: config
+      - path_setting: "reindex.ssl.certificate"
+        basedir_if_relative: config
         mode: read
-      - relative_path_setting: "reindex.ssl.keystore.path"
-        relative_to: config
+      - path_setting: "reindex.ssl.key"
+        basedir_if_relative: config
         mode: read
-      - relative_path_setting: "reindex.ssl.certificate_authorities"
-        relative_to: config
+      - path_setting: "reindex.ssl.keystore.path"
+        basedir_if_relative: config
         mode: read
-      - relative_path_setting: "reindex.ssl.truststore.path"
-        relative_to: config
+      - path_setting: "reindex.ssl.certificate_authorities"
+        basedir_if_relative: config
+        mode: read
+      - path_setting: "reindex.ssl.truststore.path"
+        basedir_if_relative: config
         mode: read

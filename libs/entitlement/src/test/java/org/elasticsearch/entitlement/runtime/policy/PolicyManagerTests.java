@@ -429,10 +429,7 @@ public class PolicyManagerTests extends ESTestCase {
                                 "test",
                                 List.of(
                                     new FilesEntitlement(
-                                        List.of(
-                                            FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ)
-                                                .withExclusive(true)
-                                        )
+                                        List.of(FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ).withExclusive(true))
                                     )
                                 )
                             )
@@ -446,10 +443,7 @@ public class PolicyManagerTests extends ESTestCase {
                                 "test",
                                 List.of(
                                     new FilesEntitlement(
-                                        List.of(
-                                            FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ)
-                                                .withExclusive(true)
-                                        )
+                                        List.of(FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ).withExclusive(true))
                                     )
                                 )
                             )
@@ -477,8 +471,7 @@ public class PolicyManagerTests extends ESTestCase {
                             List.of(
                                 new FilesEntitlement(
                                     List.of(
-                                        FilesEntitlement.FileData.ofPath(testPath2, FilesEntitlement.Mode.READ)
-                                            .withExclusive(true),
+                                        FilesEntitlement.FileData.ofPath(testPath2, FilesEntitlement.Mode.READ).withExclusive(true),
                                         FilesEntitlement.FileData.ofPath(baseTestPath, FilesEntitlement.Mode.READ)
                                     )
                                 )
@@ -496,10 +489,7 @@ public class PolicyManagerTests extends ESTestCase {
                                 "test",
                                 List.of(
                                     new FilesEntitlement(
-                                        List.of(
-                                            FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ)
-                                                .withExclusive(true)
-                                        )
+                                        List.of(FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ).withExclusive(true))
                                     )
                                 )
                             )
@@ -514,8 +504,12 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            Strings.format("duplicate/overlapping exclusive paths found in files entitlements: "
-                + "[[plugin1] [test] [%s]] and [[(server)] [test] [%s]]", testPath1, testPath2),
+            Strings.format(
+                "duplicate/overlapping exclusive paths found in files entitlements: "
+                    + "[[plugin1] [test] [%s]] and [[(server)] [test] [%s]]",
+                testPath1,
+                testPath2
+            ),
             iae.getMessage()
         );
     }

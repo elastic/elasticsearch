@@ -10,12 +10,17 @@ package org.elasticsearch.repositories.gcs;
 
 import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
+import io.opencensus.common.Scope;
+import io.opencensus.trace.Span;
+import io.opencensus.trace.Tracing;
+import io.opencensus.trace.export.SpanData;
+import io.opencensus.trace.export.SpanExporter;
+import io.opencensus.trace.samplers.Samplers;
 
 import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
-import com.google.cloud.storage.StorageRetryStrategy;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
@@ -24,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -47,6 +53,7 @@ import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTes
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
+import org.junit.Before;
 import org.threeten.bp.Duration;
 
 import java.io.IOException;
@@ -54,6 +61,7 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
@@ -89,10 +97,21 @@ import static org.hamcrest.Matchers.notNullValue;
 @SuppressForbidden(reason = "use a http server")
 public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase {
 
+    private String endpointUrlOverride;
+
     private String httpServerUrl() {
         assertThat(httpServer, notNullValue());
         InetSocketAddress address = httpServer.getAddress();
         return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+    }
+
+    private String getEndpointUrl() {
+        return endpointUrlOverride != null ? endpointUrlOverride : httpServerUrl();
+    }
+
+    @Before
+    public void clearEndpointOverride() {
+        endpointUrlOverride = null;
     }
 
     @Override
@@ -119,7 +138,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     ) {
         final Settings.Builder clientSettings = Settings.builder();
         final String client = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        clientSettings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(client).getKey(), httpServerUrl());
+        clientSettings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(client).getKey(), getEndpointUrl());
         clientSettings.put(TOKEN_URI_SETTING.getConcreteSettingForNamespace(client).getKey(), httpServerUrl() + "/token");
         if (readTimeout != null) {
             clientSettings.put(READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(client).getKey(), readTimeout);
@@ -149,7 +168,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     retrySettingsBuilder.setMaxAttempts(maxRetries + 1);
                 }
                 return options.toBuilder()
-                    .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
+                    .setStorageRetryStrategy(getRetryStrategy())
                     .setHost(options.getHost())
                     .setCredentials(options.getCredentials())
                     .setRetrySettings(retrySettingsBuilder.build())
@@ -170,6 +189,54 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         );
 
         return new GoogleCloudStorageBlobContainer(randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo"), blobStore);
+    }
+
+    public void testShouldRetryOnNetworkOutage() {
+        final AtomicInteger retryCounter = new AtomicInteger(0);
+        Tracing.getExportComponent().getSpanExporter().registerHandler("retry-monitor", new SpanExporter.Handler() {
+            @Override
+            public void export(Collection<SpanData> collection) {
+                final int count = (int) collection.stream()
+                    .filter(spanData -> spanData.getName().equals("Sent.com.google.api.client.http.HttpRequest.execute"))
+                    .filter(
+                        spanData -> spanData.getAttributes()
+                            .getAttributeMap()
+                            .get("http.path")
+                            .match("/storage/v1/b/bucket/o"::equals, null, null, null, null)
+                    )
+                    .count();
+                retryCounter.addAndGet(count);
+            }
+        });
+
+        final int maxRetries = randomIntBetween(3, 5);
+        try {
+            // We can't connect to the server here
+            if (randomBoolean()) {
+                logger.info("Failing due to connection refused");
+                endpointUrlOverride = "http://127.0.0.1:"
+                    + randomValueOtherThan(httpServer.getAddress().getPort(), () -> randomIntBetween(49152, 65535));
+            } else {
+                logger.info("Failing due to unknown domain");
+                // https://www.rfc-editor.org/rfc/rfc2606.html#page-2
+                endpointUrlOverride = "http://unresolvable.invalid";
+            }
+
+            BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
+
+            final Span span = Tracing.getTracer().spanBuilder("retry-on-outage").setSampler(Samplers.alwaysSample()).startSpan();
+            try (Scope ignored = Tracing.getTracer().withSpan(span)) {
+                blobContainer.listBlobs(OperationPurpose.INDICES);
+                fail("Should have thrown an exception");
+            } catch (Exception e) {
+                // This is expected
+            } finally {
+                span.end();
+            }
+        } finally {
+            Tracing.getExportComponent().shutdown();
+        }
+        assertEquals(maxRetries + 1, retryCounter.get());
     }
 
     public void testReadLargeBlobWithRetries() throws Exception {

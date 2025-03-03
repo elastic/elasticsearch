@@ -55,6 +55,8 @@ dependencies {
 
   testImplementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   testImplementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  testImplementation 'io.opencensus:opencensus-impl-core:0.31.1'
+  testImplementation 'io.opencensus:opencensus-impl-lite:0.31.1'
 
   testImplementation project(':test:fixtures:gcs-fixture')
   yamlRestTestImplementation project(':test:fixtures:gcs-fixture')

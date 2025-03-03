@@ -207,7 +207,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             }
         }
 
-        // Kick off our callback "loop" - finishIndexAndLoop calls back into prepareNextIndex
+        // Kick off our callback "loop" - finishIndexAndLoop calls back into startFeatureMigration
         logger.debug("cleaning up previous migration, task state: [{}]", taskState == null ? "null" : Strings.toString(taskState));
         clearResults(clusterService, ActionListener.wrap(state -> startFeatureMigration(stateFeatureName), this::markAsFailed));
     }

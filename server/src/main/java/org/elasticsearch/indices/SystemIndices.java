@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -139,24 +138,7 @@ public class SystemIndices {
      */
     private static final Map<String, Feature> SERVER_SYSTEM_FEATURE_DESCRIPTORS = Stream.of(
         new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR)),
-        new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYMS_DESCRIPTOR)),
-        new Feature(
-            "sds-1",
-            "Manages system data stream",
-            Collections.emptyList(),
-            Collections.singletonList(
-                new SystemDataStreamDescriptor(
-                    ".sds-1",
-                    "Test System Data Stream",
-                    SystemDataStreamDescriptor.Type.INTERNAL,
-                    ComposableIndexTemplate.builder().build(),
-                    Collections.emptyMap(),
-                    List.of("es"),
-                    "sds",
-                    ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
-                )
-            )
-        )
+        new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYMS_DESCRIPTOR))
     ).collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
 
     public static final Map<String, SystemIndexDescriptor.MappingsVersion> SERVER_SYSTEM_MAPPINGS_VERSIONS =

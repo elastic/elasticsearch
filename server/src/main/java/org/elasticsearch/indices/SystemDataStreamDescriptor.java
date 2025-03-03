@@ -67,6 +67,7 @@ public class SystemDataStreamDescriptor implements SystemResourceDescriptor {
      *                           {@link ComposableIndexTemplate}
      * @param allowedElasticProductOrigins a list of product origin values that are allowed to access this data stream if the
      *                                     type is {@link Type#EXTERNAL}. Must not be {@code null}
+     * @param origin specifies the origin to use when creating or updating the data stream
      * @param executorNames thread pools that should be used for operations on the system data stream
      */
     public SystemDataStreamDescriptor(

@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import java.util.List;
 
 /**
- * An IndexMatcher given a @link Metadata} object, can return a list of index names matching that pattern.
+ * An IndexMatcher given a {@link Metadata} object, can return a list of index names matching that pattern.
  */
 public interface IndexMatcher {
     /**

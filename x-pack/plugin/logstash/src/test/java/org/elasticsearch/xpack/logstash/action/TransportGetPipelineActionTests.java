@@ -17,7 +17,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -26,6 +25,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -104,23 +104,7 @@ public class TransportGetPipelineActionTests extends ESTestCase {
      * Test that the explicit and wildcard IDs are requested.
      */
     public void testGetPipelinesByExplicitAndWildcardIds() {
-        SearchResponse searchResponse = new SearchResponse(
-            prepareSearchHits(),
-            null,
-            null,
-            false,
-            null,
-            null,
-            1,
-            null,
-            1,
-            1,
-            0,
-            100,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY,
-            null
-        );
+        SearchResponse searchResponse = SearchResponseUtils.successfulResponse(prepareSearchHits());
         try {
 
             SearchResponse mockResponse = mock(SearchResponse.class);

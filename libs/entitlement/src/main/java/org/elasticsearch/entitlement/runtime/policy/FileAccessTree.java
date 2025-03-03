@@ -154,6 +154,11 @@ public final class FileAccessTree {
         this.writePaths = pruneSortedPaths(writePaths).toArray(new String[0]);
     }
 
+    public String toDebugString() {
+        return Strings.format("FileAccessTree[readPaths: [%s], writePaths: [%s], exclusivePaths: [%s]]",
+            String.join(",", readPaths), String.join(",", writePaths), String.join(",", exclusivePaths));
+    }
+
     private static List<String> pruneSortedPaths(List<String> paths) {
         List<String> prunedReadPaths = new ArrayList<>();
         if (paths.isEmpty() == false) {

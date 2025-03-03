@@ -1,0 +1,5 @@
+pr: 123879
+summary: Add a random sample command
+area: ES|QL
+type: feature
+issues: []

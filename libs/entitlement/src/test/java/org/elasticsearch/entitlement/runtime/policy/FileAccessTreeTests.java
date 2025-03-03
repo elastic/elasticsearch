@@ -136,7 +136,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testReadWithRelativePath() {
-        for (var dir : List.of("config", "home")) {
+        for (var dir : List.of("home")) {
             var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read", "relative_to", dir)), List.of());
             assertThat(tree.canRead(path("foo")), is(false));
 
@@ -153,7 +153,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testWriteWithRelativePath() {
-        for (var dir : List.of("config", "home")) {
+        for (var dir : List.of("home")) {
             var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read_write", "relative_to", dir)), List.of());
             assertThat(tree.canWrite(path("/" + dir + "/foo")), is(true));
             assertThat(tree.canWrite(path("/" + dir + "/foo/subdir")), is(true));

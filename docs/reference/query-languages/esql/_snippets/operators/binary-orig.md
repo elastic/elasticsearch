@@ -15,7 +15,7 @@
 Check if two fields are equal. If either field is [multivalued](/reference/query-languages/esql/esql-multivalued-fields.md) then the result is `null`.
 
 ::::{note}
-This is pushed to the underlying search index if one side of the comparison is constant and the other side is a field in the index that has both an [`index`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-index.md) and [`doc_values`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/doc-values.md).
+This is pushed to the underlying search index if one side of the comparison is constant and the other side is a field in the index that has both an [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md) and [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md).
 ::::
 
 
@@ -60,7 +60,7 @@ This is pushed to the underlying search index if one side of the comparison is c
 Check if two fields are unequal. If either field is [multivalued](/reference/query-languages/esql/esql-multivalued-fields.md) then the result is `null`.
 
 ::::{note}
-This is pushed to the underlying search index if one side of the comparison is constant and the other side is a field in the index that has both an [`index`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-index.md) and [`doc_values`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/doc-values.md).
+This is pushed to the underlying search index if one side of the comparison is constant and the other side is a field in the index that has both an [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md) and [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md).
 ::::
 
 
@@ -105,7 +105,7 @@ This is pushed to the underlying search index if one side of the comparison is c
 Check if one field is less than another. If either field is [multivalued](/reference/query-languages/esql/esql-multivalued-fields.md) then the result is `null`.
 
 ::::{note}
-This is pushed to the underlying search index if one side of the comparison is constant and the other side is a field in the index that has both an [`index`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-index.md) and [`doc_values`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/doc-values.md).
+This is pushed to the underlying search index if one side of the comparison is constant and the other side is a field in the index that has both an [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md) and [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md).
 ::::
 
 
@@ -145,7 +145,7 @@ This is pushed to the underlying search index if one side of the comparison is c
 Check if one field is less than or equal to another. If either field is [multivalued](/reference/query-languages/esql/esql-multivalued-fields.md) then the result is `null`.
 
 ::::{note}
-This is pushed to the underlying search index if one side of the comparison is constant and the other side is a field in the index that has both an [`index`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-index.md) and [`doc_values`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/doc-values.md).
+This is pushed to the underlying search index if one side of the comparison is constant and the other side is a field in the index that has both an [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md) and [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md).
 ::::
 
 
@@ -185,7 +185,7 @@ This is pushed to the underlying search index if one side of the comparison is c
 Check if one field is greater than another. If either field is [multivalued](/reference/query-languages/esql/esql-multivalued-fields.md) then the result is `null`.
 
 ::::{note}
-This is pushed to the underlying search index if one side of the comparison is constant and the other side is a field in the index that has both an [`index`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-index.md) and [`doc_values`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/doc-values.md).
+This is pushed to the underlying search index if one side of the comparison is constant and the other side is a field in the index that has both an [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md) and [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md).
 ::::
 
 
@@ -225,7 +225,7 @@ This is pushed to the underlying search index if one side of the comparison is c
 Check if one field is greater than or equal to another. If either field is [multivalued](/reference/query-languages/esql/esql-multivalued-fields.md) then the result is `null`.
 
 ::::{note}
-This is pushed to the underlying search index if one side of the comparison is constant and the other side is a field in the index that has both an [`index`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-index.md) and [`doc_values`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/doc-values.md).
+This is pushed to the underlying search index if one side of the comparison is constant and the other side is a field in the index that has both an [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md) and [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md).
 ::::
 
 

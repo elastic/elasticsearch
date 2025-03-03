@@ -46,7 +46,7 @@ The relative order of values in a multivalued field is undefined. They’ll freq
 
 ## Duplicate values [esql-multivalued-fields-dups]
 
-Some field types, like [`keyword`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/keyword.md#keyword-field-type) remove duplicate values on write:
+Some field types, like [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md#keyword-field-type) remove duplicate values on write:
 
 $$$esql-multivalued-fields-kwdups$$$
 

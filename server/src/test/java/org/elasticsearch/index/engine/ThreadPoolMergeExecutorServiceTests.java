@@ -61,31 +61,35 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         assertTrue(threadPoolMergeExecutorService.allDone());
     }
 
+    public void testIOThrottledMergeTasks() {
+
+    }
+
     public void testIORateAdjustedForSubmittedTasksWhenExecutionRateIsSpeedy() {
         // the executor runs merge tasks at a faster rate than the rate that merge tasks are submitted
         int submittedVsExecutedRateOutOf1000 = randomIntBetween(0, 250);
-        testIORateAdjustedForNewlySubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(0, 5));
+        testIORateAdjustedForSubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(0, 5));
         // executor starts running merges only after a considerable amount of merge tasks have already been submitted
-        testIORateAdjustedForNewlySubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(5, 50));
+        testIORateAdjustedForSubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(5, 50));
     }
 
     public void testIORateAdjustedForSubmittedTasksWhenExecutionRateIsSluggish() {
         // the executor runs merge tasks at a faster rate than the rate that merge tasks are submitted
         int submittedVsExecutedRateOutOf1000 = randomIntBetween(750, 1000);
-        testIORateAdjustedForNewlySubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(0, 5));
+        testIORateAdjustedForSubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(0, 5));
         // executor starts running merges only after a considerable amount of merge tasks have already been submitted
-        testIORateAdjustedForNewlySubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(5, 50));
+        testIORateAdjustedForSubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(5, 50));
     }
 
     public void testIORateAdjustedForSubmittedTasksWhenExecutionRateIsOnPar() {
         // the executor runs merge tasks at a faster rate than the rate that merge tasks are submitted
         int submittedVsExecutedRateOutOf1000 = randomIntBetween(250, 750);
-        testIORateAdjustedForNewlySubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(0, 5));
+        testIORateAdjustedForSubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(0, 5));
         // executor starts running merges only after a considerable amount of merge tasks have already been submitted
-        testIORateAdjustedForNewlySubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(5, 50));
+        testIORateAdjustedForSubmittedTasks(randomIntBetween(50, 1000), submittedVsExecutedRateOutOf1000, randomIntBetween(5, 50));
     }
 
-    private void testIORateAdjustedForNewlySubmittedTasks(
+    private void testIORateAdjustedForSubmittedTasks(
         int totalTasksToSubmit,
         int submittedVsExecutedRateOutOf1000,
         int initialTasksToSubmit

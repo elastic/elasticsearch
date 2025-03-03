@@ -57,7 +57,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             equalTo(0)
         );
         refresh(indexName);
-        forceMerge();
+        forceMerge(false);
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "fs");
@@ -125,7 +125,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             equalTo(0)
         );
         refresh(indexName);
-        forceMerge();
+        forceMerge(false);
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "fs");

@@ -1,2 +1,2 @@
-* [`LIKE`](../../esql-functions-operators.md#like)
-* [`RLIKE`](../../esql-functions-operators.md#rlike)
+* [`LIKE`](../../esql-functions-operators.md#esql-like)
+* [`RLIKE`](../../esql-functions-operators.md#esql-rlike)

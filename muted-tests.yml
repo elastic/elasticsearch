@@ -459,3 +459,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.InternalBwcGitPluginFuncTest
   method: current repository can be cloned
   issue: https://github.com/elastic/elasticsearch/issues/123297
+- class: org.elasticsearch.gradle.internal.InternalBwcGitPluginFuncTest
+  method: can resolve checkout folder as project artifact
+  issue: https://github.com/elastic/elasticsearch/issues/119948

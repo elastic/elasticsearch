@@ -456,3 +456,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
   issue: https://github.com/elastic/elasticsearch/issues/120814
+- class: org.elasticsearch.gradle.internal.InternalBwcGitPluginFuncTest
+  method: current repository can be cloned
+  issue: https://github.com/elastic/elasticsearch/issues/123297

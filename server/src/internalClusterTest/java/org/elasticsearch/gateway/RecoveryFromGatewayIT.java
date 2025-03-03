@@ -141,7 +141,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
         final Map<String, long[]> result = new HashMap<>();
         final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        for (IndexMetadata indexMetadata : state.metadata().indices().values()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject().indices().values()) {
             final String index = indexMetadata.getIndex().getName();
             final long[] previous = previousTerms.get(index);
             final long[] current = IntStream.range(0, indexMetadata.getNumberOfShards()).mapToLong(indexMetadata::primaryTerm).toArray();
@@ -432,9 +432,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
 
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        assertThat(state.metadata().templates().get("template_1").patterns(), equalTo(Collections.singletonList("te*")));
-        assertThat(state.metadata().index("test").getAliases().get("test_alias"), notNullValue());
-        assertThat(state.metadata().index("test").getAliases().get("test_alias").filter(), notNullValue());
+        assertThat(state.metadata().getProject().templates().get("template_1").patterns(), equalTo(Collections.singletonList("te*")));
+        assertThat(state.metadata().getProject().index("test").getAliases().get("test_alias"), notNullValue());
+        assertThat(state.metadata().getProject().index("test").getAliases().get("test_alias").filter(), notNullValue());
     }
 
     public void testReuseInFileBasedPeerRecovery() throws Exception {
@@ -579,7 +579,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         final String nodeName = internalCluster().startNode();
         createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build());
         final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
-            indicesAdmin().prepareGetSettings("test").get().getIndexToSettings().get("test")
+            indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get().getIndexToSettings().get("test")
         );
         final Index index = resolveIndex("test");
         final ShardId shardId = new ShardId(index, 0);

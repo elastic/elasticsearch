@@ -33,6 +33,8 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -65,11 +67,21 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     // fake the registry here, as command-line tools are not loading plugins, and ensure that it preserves the parsed XContent
     public static final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables()) {
 
+        @Override
+        public boolean hasParser(Class<?> categoryClass, String name, RestApiVersion apiVersion) {
+            return Metadata.ClusterCustom.class.isAssignableFrom(categoryClass)
+                || Metadata.ProjectCustom.class.isAssignableFrom(categoryClass)
+                || Condition.class.isAssignableFrom(categoryClass);
+        }
+
         @SuppressWarnings("unchecked")
         @Override
         public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
-            // Currently, two unknown top-level objects are present
-            if (Metadata.Custom.class.isAssignableFrom(categoryClass)) {
+            // Currently, three unknown top-level objects are present
+            if (Metadata.ClusterCustom.class.isAssignableFrom(categoryClass)) {
+                return (T) new UnknownClusterCustom(name, parser.mapOrdered());
+            }
+            if (Metadata.ProjectCustom.class.isAssignableFrom(categoryClass)) {
                 if (DataStreamMetadata.TYPE.equals(name)
                     || ComposableIndexTemplateMetadata.TYPE.equals(name)
                     || ComponentTemplateMetadata.TYPE.equals(name)) {
@@ -79,7 +91,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
                     // TODO: Try to parse other named objects (e.g. stored scripts, ingest pipelines) that are part of core es as well?
                     // Note that supporting PersistentTasksCustomMetadata is trickier, because PersistentTaskParams is a named object too.
                 } else {
-                    return (T) new UnknownMetadataCustom(name, parser.mapOrdered());
+                    return (T) new UnknownProjectCustom(name, parser.mapOrdered());
                 }
             }
             if (Condition.class.isAssignableFrom(categoryClass)) {
@@ -112,13 +124,21 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
 
         String nodeId = nodeMetadata.nodeId();
-        return new PersistedClusterStateService(
+
+        @FixForMultiProject(
+            description = "It's almost certain that we don't support the node related commands in serverless. "
+                + "This annotation can simply be removed once it is confirmed."
+        )
+        final var supportMultipleProjects = false;
+        final var persistedClusterStateService = new PersistedClusterStateService(
             dataPaths,
             nodeId,
             namedXContentRegistry,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            () -> 0L
+            () -> 0L,
+            () -> supportMultipleProjects
         );
+        return persistedClusterStateService;
     }
 
     public static ClusterState clusterState(Environment environment, PersistedClusterStateService.OnDiskState onDiskState) {
@@ -202,7 +222,15 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         return parser;
     }
 
-    public record UnknownMetadataCustom(String name, Map<String, Object> contents) implements Metadata.Custom {
+    public abstract static class AbstractUnknownCustom<T> implements Metadata.MetadataCustom<T> {
+
+        private final String name;
+        private final Map<String, Object> contents;
+
+        public AbstractUnknownCustom(String name, Map<String, Object> contents) {
+            this.name = name;
+            this.contents = contents;
+        }
 
         @Override
         public EnumSet<Metadata.XContentContext> context() {
@@ -210,7 +238,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
 
         @Override
-        public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+        public Diff<T> diff(T previousState) {
             assert false;
             throw new UnsupportedOperationException();
         }
@@ -235,6 +263,18 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
             return Iterators.single(((builder, params) -> builder.mapContents(contents)));
+        }
+    }
+
+    public static class UnknownClusterCustom extends AbstractUnknownCustom<Metadata.ClusterCustom> implements Metadata.ClusterCustom {
+        public UnknownClusterCustom(String name, Map<String, Object> contents) {
+            super(name, contents);
+        }
+    }
+
+    public static class UnknownProjectCustom extends AbstractUnknownCustom<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
+        public UnknownProjectCustom(String name, Map<String, Object> contents) {
+            super(name, contents);
         }
     }
 

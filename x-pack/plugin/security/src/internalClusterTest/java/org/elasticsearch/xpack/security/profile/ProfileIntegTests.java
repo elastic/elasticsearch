@@ -99,13 +99,28 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ProfileIntegTests extends AbstractProfileIntegTestCase {
 
+    protected static final String ANONYMOUS_ROLE = "anonymous_role";
+
+    @Override
+    protected String configRoles() {
+        return super.configRoles()
+            + "\n"
+            + ANONYMOUS_ROLE
+            + ":\n"
+            + "  cluster:\n"
+            + "    - 'manage_own_api_key'\n"
+            + "    - 'manage_token'\n"
+            + "    - 'manage_service_account'\n"
+            + "    - 'monitor'\n";
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         // This setting tests that the setting is registered
         builder.put("xpack.security.authc.domains.my_domain.realms", "file");
         // enable anonymous
-        builder.putList(AnonymousUser.ROLES_SETTING.getKey(), RAC_ROLE);
+        builder.putList(AnonymousUser.ROLES_SETTING.getKey(), ANONYMOUS_ROLE);
         return builder.build();
     }
 

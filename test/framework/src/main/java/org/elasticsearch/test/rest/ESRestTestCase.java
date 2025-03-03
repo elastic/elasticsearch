@@ -1858,8 +1858,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         } catch (ResponseException e) {
             if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
                 try {
-                    final Request clusterStateRequest = new Request("GET", "/_cluster/state?pretty");
-                    final Response clusterStateResponse = restClient.performRequest(clusterStateRequest);
+                    final Response clusterStateResponse = restClient.performRequest(new Request("GET", "/_cluster/state?pretty"));
                     fail(
                         "timed out waiting for green state for index ["
                             + index

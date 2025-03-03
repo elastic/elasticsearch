@@ -428,24 +428,11 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
             .stream()
             .filter(pipelineStat -> pipelineIds.contains(pipelineStat.pipelineId()))
             .collect(Collectors.toList());
-        CounterMetric ingestCount = new CounterMetric();
-        CounterMetric ingestTimeInMillis = new CounterMetric();
-        CounterMetric ingestCurrent = new CounterMetric();
-        CounterMetric ingestFailedCount = new CounterMetric();
+        IngestStatsAccumulator accumulator = new IngestStatsAccumulator();
 
-        filteredPipelineStats.forEach(pipelineStat -> {
-            IngestStats.Stats stats = pipelineStat.stats();
-            ingestCount.inc(stats.ingestCount());
-            ingestTimeInMillis.inc(stats.ingestTimeInMillis());
-            ingestCurrent.inc(stats.ingestCurrent());
-            ingestFailedCount.inc(stats.ingestFailedCount());
-        });
+        filteredPipelineStats.forEach(pipelineStat -> accumulator.inc(pipelineStat.stats()));
 
-        return new IngestStats(
-            new IngestStats.Stats(ingestCount.count(), ingestTimeInMillis.count(), ingestCurrent.count(), ingestFailedCount.count()),
-            filteredPipelineStats,
-            filteredProcessorStats
-        );
+        return new IngestStats(accumulator.build(), filteredPipelineStats, filteredProcessorStats);
     }
 
     private static IngestStats mergeStats(List<IngestStats> ingestStatsList) {
@@ -515,7 +502,14 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         }
 
         IngestStats.Stats build() {
-            return new IngestStats.Stats(ingestCount.count(), ingestTimeInMillis.count(), ingestCurrent.count(), ingestFailedCount.count());
+            long ingestCount = this.ingestCount.count();
+            long ingestTimeInMillis = this.ingestTimeInMillis.count();
+            long ingestCurrent = this.ingestCurrent.count();
+            long ingestFailedCount = this.ingestFailedCount.count();
+            if (ingestCount == 0 && ingestTimeInMillis == 0 && ingestCurrent == 0 && ingestFailedCount == 0) {
+                return IngestStats.Stats.IDENTITY;
+            }
+            return new IngestStats.Stats(ingestCount, ingestTimeInMillis, ingestCurrent, ingestFailedCount);
         }
     }
 
@@ -535,7 +529,12 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         }
 
         IngestStats.ByteStats buildByteStats() {
-            return new IngestStats.ByteStats(ingestBytesConsumed.count(), ingestBytesProduced.count());
+            long ingestBytesConsumed = this.ingestBytesConsumed.count();
+            long ingestBytesProduced = this.ingestBytesProduced.count();
+            if (ingestBytesConsumed == 0 && ingestBytesProduced == 0) {
+                return IngestStats.ByteStats.IDENTITY;
+            }
+            return new IngestStats.ByteStats(ingestBytesConsumed, ingestBytesProduced);
         }
 
     }

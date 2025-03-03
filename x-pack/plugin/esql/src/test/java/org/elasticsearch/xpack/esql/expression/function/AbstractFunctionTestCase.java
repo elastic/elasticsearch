@@ -858,7 +858,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     @AfterClass
     public static void renderSignature() throws IOException {
-        if (System.getProperty("generateDocs") == null) {
+        // Temporarily turn off docs generation during docs freeze
+        // TODO: Only turn this back on once this generates the correct MD files
+        if (System.getProperty("generateDocs") == null || true) {
             return;
         }
         String name = functionName();
@@ -933,7 +935,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected static void renderDocs(String name) throws IOException {
-        if (System.getProperty("generateDocs") == null) {
+        // Temporarily turn off docs generation during docs freeze
+        // TODO: Only turn this back on once this generates the correct MD files
+        if (System.getProperty("generateDocs") == null || true) {
             return;
         }
         if (binaryOperator(name) != null || unaryOperator(name) != null || searchOperator(name) != null || likeOrInOperator(name)) {

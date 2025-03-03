@@ -323,12 +323,13 @@ In the current version there is no impact. In a future version, users of the `el
 [[breaking_90_anomaly_detection_results]]
 === Anomaly detection results migration
 
-The {anomaly-detect} result indices `.ml-anomalies-*` created in {es} 7.x must be either reindexed, marked read-only, or deleted before upgrading to 9.x. 
+The {anomaly-detect} result indices `.ml-anomalies-*` created in {es} 7.x must be either reindexed, marked read-only, or deleted before upgrading to 9.x.
 
 **Reindexing**: While anomaly detection results are being reindexed, jobs continue to run and process new data.
 However, you cannot completely delete an {anomaly-job} that stores results in this index until the reindexing is complete.
 
 **Marking indices as read-only**: This is useful for large indexes that contain the results of only one or a few {anomaly-jobs}.
+You need to update or delete all obsolete model snapshots before using this option.
 If you delete these jobs later, you will not be able to create a new job with the same name.
 
 **Deleting**: Delete jobs that are no longer needed in the {ml-app} in {kib}.
@@ -598,6 +599,8 @@ Making an index with a large amount of historical results read-only allows for a
 However, it has the limitation that even after deleting an {anomaly-job}, the historical results associated with this job are not completely deleted.
 Therefore, the system will prevent you from creating a new job with the same name.
 
+Be sure to resolve any obsolete model snapshot warnings before marking the index read-only.
+
 To set the index as read-only, add the `write` block to the index:
 
 [source,console]
@@ -620,12 +623,12 @@ To list all jobs that stored results in an index, use the terms aggregation:
 ------------------------------------------------------------
 GET .ml-anomalies-custom-example/_search
 {
-  "size": 0, 
+  "size": 0,
   "aggs": {
     "job_ids": {
       "terms": {
-        "field": "job_id", 
-        "size": 100 
+        "field": "job_id",
+        "size": 100
       }
     }
   }

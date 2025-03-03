@@ -23,6 +23,8 @@ import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.DriverFactory;
+import org.elasticsearch.compute.operator.DriverParallelism;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.LimitOperator;
@@ -175,9 +177,8 @@ public class LocalExecutionPlanner {
     /**
      * turn the given plan into a list of drivers to execute
      */
-    public LocalExecutionPlan plan(String taskDescription, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
+    public DriverFactory plan(String taskDescription, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
         var context = new LocalExecutionPlannerContext(
-            new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
             configuration.pragmas(),
             bigArrays,
@@ -194,23 +195,20 @@ public class LocalExecutionPlanner {
         PhysicalOperation physicalOperation = plan(localPhysicalPlan, context);
 
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
-        context.addDriverFactory(
-            new DriverFactory(
-                new DriverSupplier(
-                    taskDescription,
-                    ClusterName.CLUSTER_NAME_SETTING.get(settings).value(),
-                    Node.NODE_NAME_SETTING.get(settings),
-                    context.bigArrays,
-                    context.blockFactory,
-                    physicalOperation,
-                    statusInterval,
-                    settings
-                ),
-                context.driverParallelism().get()
-            )
+        return new DriverFactory(
+            sessionId,
+            new DriverSupplier(
+                taskDescription,
+                ClusterName.CLUSTER_NAME_SETTING.get(settings).value(),
+                Node.NODE_NAME_SETTING.get(settings),
+                context.bigArrays,
+                context.blockFactory,
+                physicalOperation,
+                statusInterval,
+                settings
+            ),
+            context.driverParallelism().get()
         );
-
-        return new LocalExecutionPlan(context.driverFactories);
     }
 
     private PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlannerContext context) {
@@ -816,31 +814,10 @@ public class LocalExecutionPlanner {
     }
 
     /**
-     * The count and type of driver parallelism.
-     */
-    record DriverParallelism(Type type, int instanceCount) {
-
-        DriverParallelism {
-            if (instanceCount <= 0) {
-                throw new IllegalArgumentException("instance count must be greater than zero; got: " + instanceCount);
-            }
-        }
-
-        static final DriverParallelism SINGLE = new DriverParallelism(Type.SINGLETON, 1);
-
-        enum Type {
-            SINGLETON,
-            DATA_PARALLELISM,
-            TASK_LEVEL_PARALLELISM
-        }
-    }
-
-    /**
      * Context object used while generating a local plan. Currently only collects the driver factories as well as
      * maintains information how many driver instances should be created for a given driver.
      */
     public record LocalExecutionPlannerContext(
-        List<DriverFactory> driverFactories,
         Holder<DriverParallelism> driverParallelism,
         QueryPragmas queryPragmas,
         BigArrays bigArrays,
@@ -848,9 +825,6 @@ public class LocalExecutionPlanner {
         FoldContext foldCtx,
         Settings settings
     ) {
-        void addDriverFactory(DriverFactory driverFactory) {
-            driverFactories.add(driverFactory);
-        }
 
         void driverParallelism(DriverParallelism parallelism) {
             driverParallelism.set(parallelism);
@@ -879,9 +853,9 @@ public class LocalExecutionPlanner {
         PhysicalOperation physicalOperation,
         TimeValue statusInterval,
         Settings settings
-    ) implements Function<String, Driver>, Describable {
+    ) implements DriverFactory.DriverSupplier {
         @Override
-        public Driver apply(String sessionId) {
+        public Driver create(String sessionId) {
             SourceOperator source = null;
             List<Operator> operators = new ArrayList<>();
             SinkOperator sink = null;
@@ -923,53 +897,6 @@ public class LocalExecutionPlanner {
         @Override
         public String describe() {
             return physicalOperation.describe();
-        }
-    }
-
-    record DriverFactory(DriverSupplier driverSupplier, DriverParallelism driverParallelism) implements Describable {
-        @Override
-        public String describe() {
-            return "DriverFactory(instances = "
-                + driverParallelism.instanceCount()
-                + ", type = "
-                + driverParallelism.type()
-                + ")\n"
-                + driverSupplier.describe();
-        }
-    }
-
-    /**
-     * Plan representation that is geared towards execution on a single node
-     */
-    public static class LocalExecutionPlan implements Describable {
-        final List<DriverFactory> driverFactories;
-
-        LocalExecutionPlan(List<DriverFactory> driverFactories) {
-            this.driverFactories = driverFactories;
-        }
-
-        public List<Driver> createDrivers(String sessionId) {
-            List<Driver> drivers = new ArrayList<>();
-            boolean success = false;
-            try {
-                for (DriverFactory df : driverFactories) {
-                    for (int i = 0; i < df.driverParallelism.instanceCount; i++) {
-                        logger.trace("building {} {}", i, df);
-                        drivers.add(df.driverSupplier.apply(sessionId));
-                    }
-                }
-                success = true;
-                return drivers;
-            } finally {
-                if (success == false) {
-                    Releasables.close(Releasables.wrap(drivers));
-                }
-            }
-        }
-
-        @Override
-        public String describe() {
-            return driverFactories.stream().map(DriverFactory::describe).collect(joining("\n"));
         }
     }
 }

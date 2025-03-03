@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverFactory;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -356,7 +356,7 @@ public class ComputeService {
                 new EsPhysicalOperationProviders.DefaultShardContext(i, searchExecutionContext, searchContext.request().getAliasFilter())
             );
         }
-        final List<Driver> drivers;
+        final DriverFactory driverFactory;
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
@@ -373,39 +373,22 @@ public class ComputeService {
                 new EsPhysicalOperationProviders(context.foldCtx(), contexts, searchService.getIndicesService().getAnalysis()),
                 contexts
             );
-
             LOGGER.debug("Received physical plan:\n{}", plan);
-
             plan = PlannerUtils.localPlan(context.searchExecutionContexts(), context.configuration(), context.foldCtx(), plan);
-            // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
-            // it's doing this in the planning of EsQueryExec (the source of the data)
-            // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.taskDescription(), context.foldCtx(), plan);
+            driverFactory = planner.plan(context.taskDescription(), context.foldCtx(), plan);
             if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
+                LOGGER.debug("driver factory:\n{}", driverFactory.describe());
             }
-            drivers = localExecutionPlan.createDrivers(context.sessionId());
-            if (drivers.isEmpty()) {
-                throw new IllegalStateException("no drivers created");
-            }
-            LOGGER.debug("using {} drivers", drivers.size());
         } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
-        ActionListener<Void> listenerCollectingStatus = listener.map(ignored -> {
-            if (context.configuration().profile()) {
-                return drivers.stream().map(Driver::profile).toList();
-            } else {
-                return List.of();
-            }
-        });
-        listenerCollectingStatus = ActionListener.releaseAfter(listenerCollectingStatus, () -> Releasables.close(drivers));
         driverRunner.executeDrivers(
             task,
-            drivers,
+            List.of(driverFactory),
+            context.configuration().profile(),
             transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
-            listenerCollectingStatus
+            listener
         );
     }
 

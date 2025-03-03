@@ -42,10 +42,7 @@ public class CohereActionCreator implements CohereActionVisitor {
     @Override
     public ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
         var overriddenModel = CohereEmbeddingsModel.of(model, taskSettings, inputType);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-            overriddenModel.getServiceSettings().getCommonSettings().uri(),
-            "Cohere embeddings"
-        );
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Cohere embeddings");
         // TODO - Batching pass the batching class on to the CohereEmbeddingsRequestManager
         var requestCreator = CohereEmbeddingsRequestManager.of(overriddenModel, serviceComponents.threadPool());
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
@@ -55,10 +52,7 @@ public class CohereActionCreator implements CohereActionVisitor {
     public ExecutableAction create(CohereRerankModel model, Map<String, Object> taskSettings) {
         var overriddenModel = CohereRerankModel.of(model, taskSettings);
         var requestCreator = CohereRerankRequestManager.of(overriddenModel, serviceComponents.threadPool());
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-            overriddenModel.getServiceSettings().uri(),
-            "Cohere rerank"
-        );
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Cohere rerank");
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }
 
@@ -66,10 +60,7 @@ public class CohereActionCreator implements CohereActionVisitor {
     public ExecutableAction create(CohereCompletionModel model, Map<String, Object> taskSettings) {
         // no overridden model as task settings are always empty for cohere completion model
         var requestManager = CohereCompletionRequestManager.of(model, serviceComponents.threadPool());
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-            model.getServiceSettings().uri(),
-            COMPLETION_ERROR_PREFIX
-        );
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
         return new SingleInputSenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage, COMPLETION_ERROR_PREFIX);
     }
 }

@@ -64,6 +64,7 @@ processingCommand
     | {this.isDevVersion()}? forkCommand
     | {this.isDevVersion()}? rerankCommand
     | {this.isDevVersion()}? rrfCommand
+    | {this.isDevVersion()}? randomSampleCommand
     ;
 
 whereCommand
@@ -300,4 +301,8 @@ rerankCommand
 
 completionCommand
     : DEV_COMPLETION prompt=primaryExpression WITH inferenceId=identifierOrParameter (AS targetField=qualifiedName)?
+    ;
+
+randomSampleCommand
+    : DEV_RANDOM_SAMPLE probability=DECIMAL_LITERAL seed=INTEGER_LITERAL?
     ;

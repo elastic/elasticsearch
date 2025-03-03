@@ -401,6 +401,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#randomSampleCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRandomSampleCommand(EsqlBaseParser.RandomSampleCommandContext ctx);
+  /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree

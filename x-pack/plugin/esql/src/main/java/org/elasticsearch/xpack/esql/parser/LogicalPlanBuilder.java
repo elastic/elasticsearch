@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.RandomSample;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
@@ -94,6 +95,7 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToDouble;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
 /**
@@ -693,9 +695,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Attribute forkAttr = new UnresolvedAttribute(source, Fork.FORK_FIELD);
             Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
             Attribute indexAttr = new UnresolvedAttribute(source, MetadataAttribute.INDEX);
-            List<NamedExpression> aggregates = List.of(
-                new Alias(source, MetadataAttribute.SCORE, new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN)))
-            );
+            List<NamedExpression> aggregates = List.of(new Alias(
+                source,
+                MetadataAttribute.SCORE,
+                new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN))
+            ));
             List<Attribute> groupings = List.of(idAttr, indexAttr);
 
             LogicalPlan dedup = new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);
@@ -767,5 +771,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             "Query parameter [{}] is not a string and cannot be used as inference id",
             ctx.parameter().getText()
         );
+    }
+
+    public PlanFactory visitRandomSampleCommand(EsqlBaseParser.RandomSampleCommandContext ctx) {
+        Source source = source(ctx);
+        var p = stringToDouble(ctx.DECIMAL_LITERAL().getText());
+        var probability = new Literal(source, p, DataType.DOUBLE);
+        var s = ctx.INTEGER_LITERAL() != null ? stringToInt(ctx.INTEGER_LITERAL().getText()) : null;
+        var seed = s != null ? new Literal(source, s, DataType.INTEGER) : null;
+        return plan -> new RandomSample(source, probability, seed, plan);
     }
 }

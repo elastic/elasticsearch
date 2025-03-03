@@ -34,6 +34,7 @@ import java.io.File;
 import java.lang.StackWalker.StackFrame;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
+import java.lang.module.ResolvedModule;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -123,20 +124,10 @@ public class PolicyManager {
 
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
 
-    private static final Set<Module> systemModules = findSystemModules();
+    private static final Set<ModuleReference> systemModules = findSystemModules();
 
-    private static Set<Module> findSystemModules() {
-        var systemModulesDescriptors = ModuleFinder.ofSystem()
-            .findAll()
-            .stream()
-            .map(ModuleReference::descriptor)
-            .collect(Collectors.toUnmodifiableSet());
-        return Stream.concat(
-            // entitlements is a "system" module, we can do anything from it
-            Stream.of(PolicyManager.class.getModule()),
-            // anything in the boot layer is also part of the system
-            ModuleLayer.boot().modules().stream().filter(m -> systemModulesDescriptors.contains(m.getDescriptor()))
-        ).collect(Collectors.toUnmodifiableSet());
+    private static Set<ModuleReference> findSystemModules() {
+        return ModuleFinder.ofSystem().findAll().stream().collect(Collectors.toUnmodifiableSet());
     }
 
     /**
@@ -615,12 +606,29 @@ public class PolicyManager {
             logger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
             return true;
         }
-        if (systemModules.contains(requestingClass.getModule())) {
+        if (isSystemModule(requestingClass.getModule())) {
             logger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
             return true;
         }
         logger.trace("Entitlement not trivially allowed");
         return false;
+    }
+
+    /**
+     * Determines if the given {@link Module} is a system module. That is, a module that is included as part of the Java runtime.
+     */
+    private static boolean isSystemModule(Module module) {
+        if (module.getLayer() == null) {
+            // This is an unnamed module, so not a system module
+            return false;
+        }
+
+        ModuleReference moduleReference = module.getLayer()
+            .configuration()
+            .findModule(module.getName())
+            .map(ResolvedModule::reference)
+            .orElse(null);
+        return module == PolicyManager.class.getModule() || (moduleReference != null && systemModules.contains(moduleReference));
     }
 
     @Override

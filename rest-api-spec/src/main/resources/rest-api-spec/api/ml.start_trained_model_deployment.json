@@ -75,6 +75,10 @@
         "options": ["starting", "started", "fully_allocated"],
         "default": "started"
       }
+    },
+    "body":{
+      "description": "The settings for the trained model deployment",
+      "required": false
     }
   }
 }

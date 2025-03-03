@@ -36,6 +36,7 @@ import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilderTests;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -991,6 +992,40 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits"));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits").sort("_score"));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits").sort(SortBuilders.fieldSort("field")));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms").subAggregation(new TopHitsAggregationBuilder("tophits")));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits").subAggregation(new TermsAggregationBuilder("terms")));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(
+                new TopHitsAggregationBuilder("terms").sort(
+                    SortBuilders.scriptSort(new Script("id"), ScriptSortBuilder.ScriptSortType.NUMBER)
+                )
+            );
             assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {

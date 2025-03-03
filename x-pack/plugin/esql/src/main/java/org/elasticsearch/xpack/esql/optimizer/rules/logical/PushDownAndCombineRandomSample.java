@@ -45,9 +45,9 @@ public class PushDownAndCombineRandomSample extends OptimizerRules.Parameterized
             || child instanceof Insist
             || child instanceof Project
             || child instanceof RegexExtract) {
-            var unaryChild = (UnaryPlan) child;
-            plan = unaryChild.replaceChild(randomSample.replaceChild(unaryChild.child()));
-        }
+                var unaryChild = (UnaryPlan) child;
+                plan = unaryChild.replaceChild(randomSample.replaceChild(unaryChild.child()));
+            }
         return plan;
     }
 }

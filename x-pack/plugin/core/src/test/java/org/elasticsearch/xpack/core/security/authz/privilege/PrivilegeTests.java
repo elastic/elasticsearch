@@ -205,7 +205,7 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testIndexAction() throws Exception {
         Set<String> actionName = Sets.newHashSet("indices:admin/mapping/delete");
-        IndexPrivilege index = IndexPrivilege.getWithSingleSelectorAccess(actionName);
+        IndexPrivilege index = IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(actionName);
         assertThat(index, notNullValue());
         assertThat(index.predicate().test("indices:admin/mapping/delete"), is(true));
         assertThat(index.predicate().test("indices:admin/mapping/dele"), is(false));

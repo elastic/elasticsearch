@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
@@ -1508,8 +1509,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertHasRemoteIndexGroupsForClusters(
             role.remoteIndices(),
             Set.of("remote-1"),
-            indexGroup(IndexPrivilege.getWithSingleSelectorAccess(Set.of("read")), false, "index-1"),
-            indexGroup(IndexPrivilege.getWithSingleSelectorAccess(Set.of("none")), false, "index-1")
+            indexGroup(IndexPrivilege.get("read"), false, "index-1"),
+            indexGroup(IndexPrivilege.get("none"), false, "index-1")
         );
     }
 
@@ -1681,7 +1682,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
         for (var role : roles) {
             assertHasIndexGroups(
                 role.indices(),
-                indexGroup(IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "write")), allowRestrictedIndices, indexPattern),
+                indexGroup(
+                    IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(Set.of("read", "write")),
+                    allowRestrictedIndices,
+                    indexPattern
+                ),
                 indexGroup(IndexPrivilege.READ, allowRestrictedIndices, otherIndexPattern),
                 indexGroup(IndexPrivilege.READ_FAILURE_STORE, allowRestrictedIndices, otherIndexPattern)
             );
@@ -1787,7 +1792,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             assertHasIndexGroups(
                 role.indices(),
                 indexGroup(
-                    IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "read_failure_store", "all")),
+                    IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(Set.of("read", "read_failure_store", "all")),
                     allowRestrictedIndices,
                     indexPattern
                 )
@@ -1845,7 +1850,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             assertHasIndexGroups(
                 role.indices(),
                 indexGroup(
-                    IndexPrivilege.getWithSingleSelectorAccess(Set.of("read_failure_store")),
+                    IndexPrivilege.get("read_failure_store"),
                     allowRestrictedIndices,
                     null,
                     new FieldPermissionsDefinition(
@@ -1857,7 +1862,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     indexPattern
                 ),
                 indexGroup(
-                    IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "view_index_metadata")),
+                    IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(Set.of("read", "view_index_metadata")),
                     allowRestrictedIndices,
                     null,
                     new FieldPermissionsDefinition(
@@ -1900,7 +1905,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertHasIndexGroups(
             role.indices(),
             indexGroup(
-                IndexPrivilege.getWithSingleSelectorAccess(Set.of("read_failure_store")),
+                IndexPrivilege.get("read_failure_store"),
                 allowRestrictedIndices,
                 "{\"match\":{\"field\":\"a\"}}",
                 new FieldPermissionsDefinition(
@@ -1909,7 +1914,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 indexPattern
             ),
             indexGroup(
-                IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "view_index_metadata")),
+                IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(Set.of("read", "view_index_metadata")),
                 allowRestrictedIndices,
                 "{\"match\":{\"field\":\"a\"}}",
                 new FieldPermissionsDefinition(
@@ -1943,7 +1948,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         final Role role = buildRole(roleDescriptorWithIndicesPrivileges("r1", indicesPrivileges));
         final IndicesPermission actual = role.indices();
-        assertHasIndexGroups(actual, indexGroup(IndexPrivilege.getWithSingleSelectorAccess(usedPrivileges), false, indexPattern));
+        assertHasIndexGroups(
+            actual,
+            indexGroup(IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(usedPrivileges), false, indexPattern)
+        );
     }
 
     public void testCustomRolesProviderFailures() throws Exception {

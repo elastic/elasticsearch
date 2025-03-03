@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -1290,7 +1291,7 @@ public class RBACEngineTests extends ESTestCase {
             {"term":{"public":true}}""");
         final Role role = Role.builder(RESTRICTED_INDICES, "test", "role")
             .cluster(Sets.newHashSet("monitor", "manage_watcher"), Collections.singleton(manageApplicationPrivileges))
-            .add(IndexPrivilege.getWithSingleSelectorAccess(Sets.newHashSet("read", "write")), "index-1")
+            .add(IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(Sets.newHashSet("read", "write")), "index-1")
             .add(IndexPrivilege.ALL, "index-2", "index-3")
             .add(
                 new FieldPermissions(new FieldPermissionsDefinition(new String[] { "public.*" }, new String[0])),

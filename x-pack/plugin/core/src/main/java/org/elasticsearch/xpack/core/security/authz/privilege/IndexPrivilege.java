@@ -275,22 +275,6 @@ public final class IndexPrivilege extends Privilege {
     }
 
     /**
-     * Delegates to {@link #resolveBySelectorAccess(Set)} but throws if the result is not a singleton, i.e., covers more than one selector.
-     * Use this method if you know that the input name set corresponds to privileges covering the same selector, for instance if you have a
-     * single input name, or multiple names that all grant access to one selector e.g., {@link IndexComponentSelector#DATA}.
-     * @throws IllegalArgumentException if privileges and actions for input names cover access to more than one selector
-     */
-    public static IndexPrivilege getWithSingleSelectorAccess(Set<String> names) {
-        final Set<IndexPrivilege> splitBySelector = resolveBySelectorAccess(names);
-        if (splitBySelector.size() != 1) {
-            throw new IllegalArgumentException(
-                "index privilege patterns " + names + " did not map to a single selector " + splitBySelector
-            );
-        }
-        return splitBySelector.iterator().next();
-    }
-
-    /**
      * Returns a {@link IndexPrivilege} that corresponds to the given raw action pattern or privilege name.
      */
     public static IndexPrivilege get(String actionOrPrivilege) {

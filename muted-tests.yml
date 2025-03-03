@@ -462,3 +462,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.InternalBwcGitPluginFuncTest
   method: can resolve checkout folder as project artifact
   issue: https://github.com/elastic/elasticsearch/issues/119948
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/rest-api/common-options/line_125}
+  issue: https://github.com/elastic/elasticsearch/issues/121338

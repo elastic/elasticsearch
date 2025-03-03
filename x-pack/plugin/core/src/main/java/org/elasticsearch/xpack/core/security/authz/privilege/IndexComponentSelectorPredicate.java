@@ -16,7 +16,7 @@ import java.util.function.Predicate;
 /**
  * A predicate to capture role access by {@link IndexComponentSelector}.
  * This is assigned to each {@link org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.Group} during role building.
- * See also {@link org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege#splitBySelectorAccess(Set)}.
+ * See also {@link org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege#resolveBySelectorAccess(Set)}.
  */
 public record IndexComponentSelectorPredicate(Set<String> names, Predicate<IndexComponentSelector> predicate)
     implements

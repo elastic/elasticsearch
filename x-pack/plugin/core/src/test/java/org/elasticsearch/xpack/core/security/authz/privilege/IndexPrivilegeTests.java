@@ -70,96 +70,82 @@ public class IndexPrivilegeTests extends ESTestCase {
         assertThat(findPrivilegesThatGrant(RefreshAction.NAME), equalTo(List.of("maintenance", "manage", "all")));
     }
 
-    public void testGetWithSingleSelectorAccess() {
+    public void testGet() {
         {
-            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("all"));
+            IndexPrivilege actual = IndexPrivilege.get("all");
             assertThat(actual, equalTo(IndexPrivilege.ALL));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.ALL));
         }
         {
-            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("read"));
+            IndexPrivilege actual = IndexPrivilege.get("read");
             assertThat(actual, equalTo(IndexPrivilege.READ));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
         }
         {
-            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("none"));
+            IndexPrivilege actual = IndexPrivilege.get("none");
             assertThat(actual, equalTo(IndexPrivilege.NONE));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
         }
         {
-            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of());
+            IndexPrivilege actual = resolvePrivilegeAndAssertSingleton(Set.of());
             assertThat(actual, equalTo(IndexPrivilege.NONE));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
         }
         {
-            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("indices:data/read/search"));
-            assertThat(actual.getSingleName(), equalTo("indices:data/read/search"));
+            IndexPrivilege actual = IndexPrivilege.get("indices:data/read/search");
+            assertThat(actual.name, containsInAnyOrder("indices:data/read/search"));
             assertThat(actual.predicate.test("indices:data/read/search"), is(true));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
         }
         {
-            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("all", "read", "indices:data/read/search"));
+            IndexPrivilege actual = resolvePrivilegeAndAssertSingleton(Set.of("all", "read", "indices:data/read/search"));
             assertThat(actual.name, equalTo(Set.of("all", "read", "indices:data/read/search")));
             assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.ALL));
         }
     }
 
-    public void testGetWithSingleSelectorAccessFailuresSelector() {
+    public void testResolveSameSelectorPrivileges() {
         assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         {
-            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("read_failure_store"));
+            IndexPrivilege actual = resolvePrivilegeAndAssertSingleton(Set.of("read_failure_store"));
             assertThat(actual, equalTo(IndexPrivilege.READ_FAILURE_STORE));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.FAILURES));
         }
         {
-            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("all", "read_failure_store"));
+            IndexPrivilege actual = resolvePrivilegeAndAssertSingleton(Set.of("all", "read_failure_store"));
             assertThat(actual.name(), equalTo(Set.of("all", "read_failure_store")));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.ALL));
             assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
         }
         {
-            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(
-                Set.of("all", "indices:data/read/search", "read_failure_store")
-            );
+            IndexPrivilege actual = resolvePrivilegeAndAssertSingleton(Set.of("all", "indices:data/read/search", "read_failure_store"));
             assertThat(actual.name(), equalTo(Set.of("all", "indices:data/read/search", "read_failure_store")));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.ALL));
             assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
         }
         {
-            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("all", "read", "read_failure_store"));
+            IndexPrivilege actual = resolvePrivilegeAndAssertSingleton(Set.of("all", "read", "read_failure_store"));
             assertThat(actual.name(), equalTo(Set.of("all", "read", "read_failure_store")));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.ALL));
             assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
         }
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "read_failure_store"))
-        );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> IndexPrivilege.getWithSingleSelectorAccess(Set.of("indices:data/read/search", "read_failure_store"))
-        );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> IndexPrivilege.getWithSingleSelectorAccess(Set.of("none", "read_failure_store"))
-        );
     }
 
-    public void testSplitBySelectorAccess() {
+    public void testResolveBySelectorAccess() {
         assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         {
-            Set<IndexPrivilege> actual = IndexPrivilege.splitBySelectorAccess(Set.of("read_failure_store"));
+            Set<IndexPrivilege> actual = IndexPrivilege.resolveBySelectorAccess(Set.of("read_failure_store"));
             assertThat(actual, containsInAnyOrder(IndexPrivilege.READ_FAILURE_STORE));
             assertThat(actual.iterator().next().getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.FAILURES));
         }
         {
-            Set<IndexPrivilege> actual = IndexPrivilege.splitBySelectorAccess(Set.of("read_failure_store", "READ_FAILURE_STORE"));
+            Set<IndexPrivilege> actual = IndexPrivilege.resolveBySelectorAccess(Set.of("read_failure_store", "READ_FAILURE_STORE"));
             assertThat(actual, containsInAnyOrder(IndexPrivilege.READ_FAILURE_STORE));
             assertThat(actual.iterator().next().getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.FAILURES));
         }
         {
-            Set<IndexPrivilege> actual = IndexPrivilege.splitBySelectorAccess(Set.of("read_failure_store", "read", "READ_FAILURE_STORE"));
+            Set<IndexPrivilege> actual = IndexPrivilege.resolveBySelectorAccess(Set.of("read_failure_store", "read", "READ_FAILURE_STORE"));
             assertThat(actual, containsInAnyOrder(IndexPrivilege.READ_FAILURE_STORE, IndexPrivilege.READ));
             List<IndexComponentSelectorPredicate> actualPredicates = actual.stream().map(IndexPrivilege::getSelectorPredicate).toList();
             assertThat(
@@ -168,12 +154,14 @@ public class IndexPrivilegeTests extends ESTestCase {
             );
         }
         {
-            Set<IndexPrivilege> actual = IndexPrivilege.splitBySelectorAccess(Set.of("read_failure_store", "read", "view_index_metadata"));
+            Set<IndexPrivilege> actual = IndexPrivilege.resolveBySelectorAccess(
+                Set.of("read_failure_store", "read", "view_index_metadata")
+            );
             assertThat(
                 actual,
                 containsInAnyOrder(
                     IndexPrivilege.READ_FAILURE_STORE,
-                    IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "view_index_metadata"))
+                    resolvePrivilegeAndAssertSingleton(Set.of("read", "view_index_metadata"))
                 )
             );
             List<IndexComponentSelectorPredicate> actualPredicates = actual.stream().map(IndexPrivilege::getSelectorPredicate).toList();
@@ -183,14 +171,14 @@ public class IndexPrivilegeTests extends ESTestCase {
             );
         }
         {
-            Set<IndexPrivilege> actual = IndexPrivilege.splitBySelectorAccess(
+            Set<IndexPrivilege> actual = IndexPrivilege.resolveBySelectorAccess(
                 Set.of("read_failure_store", "read", "indices:data/read/search", "view_index_metadata")
             );
             assertThat(
                 actual,
                 containsInAnyOrder(
                     IndexPrivilege.READ_FAILURE_STORE,
-                    IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "indices:data/read/search", "view_index_metadata"))
+                    resolvePrivilegeAndAssertSingleton(Set.of("read", "indices:data/read/search", "view_index_metadata"))
                 )
             );
             List<IndexComponentSelectorPredicate> actualPredicates = actual.stream().map(IndexPrivilege::getSelectorPredicate).toList();
@@ -200,13 +188,13 @@ public class IndexPrivilegeTests extends ESTestCase {
             );
         }
         {
-            Set<IndexPrivilege> actual = IndexPrivilege.splitBySelectorAccess(
+            Set<IndexPrivilege> actual = IndexPrivilege.resolveBySelectorAccess(
                 Set.of("read_failure_store", "all", "read", "indices:data/read/search", "view_index_metadata")
             );
             assertThat(
                 actual,
                 containsInAnyOrder(
-                    IndexPrivilege.getWithSingleSelectorAccess(
+                    resolvePrivilegeAndAssertSingleton(
                         Set.of("read_failure_store", "all", "read", "indices:data/read/search", "view_index_metadata")
                     )
                 )
@@ -231,39 +219,39 @@ public class IndexPrivilegeTests extends ESTestCase {
     public void testRelationshipBetweenPrivileges() {
         assertThat(
             Automatons.subsetOf(
-                IndexPrivilege.getWithSingleSelectorAccess(Set.of("view_index_metadata")).automaton,
-                IndexPrivilege.getWithSingleSelectorAccess(Set.of("manage")).automaton
+                resolvePrivilegeAndAssertSingleton(Set.of("view_index_metadata")).automaton,
+                resolvePrivilegeAndAssertSingleton(Set.of("manage")).automaton
             ),
             is(true)
         );
 
         assertThat(
             Automatons.subsetOf(
-                IndexPrivilege.getWithSingleSelectorAccess(Set.of("monitor")).automaton,
-                IndexPrivilege.getWithSingleSelectorAccess(Set.of("manage")).automaton
+                resolvePrivilegeAndAssertSingleton(Set.of("monitor")).automaton,
+                resolvePrivilegeAndAssertSingleton(Set.of("manage")).automaton
             ),
             is(true)
         );
 
         assertThat(
             Automatons.subsetOf(
-                IndexPrivilege.getWithSingleSelectorAccess(Set.of("create", "create_doc", "index", "delete")).automaton,
-                IndexPrivilege.getWithSingleSelectorAccess(Set.of("write")).automaton
+                resolvePrivilegeAndAssertSingleton(Set.of("create", "create_doc", "index", "delete")).automaton,
+                resolvePrivilegeAndAssertSingleton(Set.of("write")).automaton
             ),
             is(true)
         );
 
         assertThat(
             Automatons.subsetOf(
-                IndexPrivilege.getWithSingleSelectorAccess(Set.of("create_index", "delete_index")).automaton,
-                IndexPrivilege.getWithSingleSelectorAccess(Set.of("manage")).automaton
+                resolvePrivilegeAndAssertSingleton(Set.of("create_index", "delete_index")).automaton,
+                resolvePrivilegeAndAssertSingleton(Set.of("manage")).automaton
             ),
             is(true)
         );
     }
 
     public void testCrossClusterReplicationPrivileges() {
-        final IndexPrivilege crossClusterReplication = IndexPrivilege.getWithSingleSelectorAccess(Set.of("cross_cluster_replication"));
+        final IndexPrivilege crossClusterReplication = resolvePrivilegeAndAssertSingleton(Set.of("cross_cluster_replication"));
         List.of(
             "indices:data/read/xpack/ccr/shard_changes",
             "indices:monitor/stats",
@@ -274,12 +262,12 @@ public class IndexPrivilegeTests extends ESTestCase {
         assertThat(
             Automatons.subsetOf(
                 crossClusterReplication.automaton,
-                IndexPrivilege.getWithSingleSelectorAccess(Set.of("manage", "read", "monitor")).automaton
+                resolvePrivilegeAndAssertSingleton(Set.of("manage", "read", "monitor")).automaton
             ),
             is(true)
         );
 
-        final IndexPrivilege crossClusterReplicationInternal = IndexPrivilege.getWithSingleSelectorAccess(
+        final IndexPrivilege crossClusterReplicationInternal = resolvePrivilegeAndAssertSingleton(
             Set.of("cross_cluster_replication_internal")
         );
         List.of(
@@ -294,19 +282,19 @@ public class IndexPrivilegeTests extends ESTestCase {
             );
 
         assertThat(
-            Automatons.subsetOf(
-                crossClusterReplicationInternal.automaton,
-                IndexPrivilege.getWithSingleSelectorAccess(Set.of("manage")).automaton
-            ),
+            Automatons.subsetOf(crossClusterReplicationInternal.automaton, resolvePrivilegeAndAssertSingleton(Set.of("manage")).automaton),
             is(false)
         );
         assertThat(
-            Automatons.subsetOf(
-                crossClusterReplicationInternal.automaton,
-                IndexPrivilege.getWithSingleSelectorAccess(Set.of("all")).automaton
-            ),
+            Automatons.subsetOf(crossClusterReplicationInternal.automaton, resolvePrivilegeAndAssertSingleton(Set.of("all")).automaton),
             is(true)
         );
+    }
+
+    public static IndexPrivilege resolvePrivilegeAndAssertSingleton(Set<String> names) {
+        final Set<IndexPrivilege> splitBySelector = IndexPrivilege.resolveBySelectorAccess(names);
+        assertThat("expected singleton privilege set but got " + splitBySelector, splitBySelector.size(), equalTo(1));
+        return splitBySelector.iterator().next();
     }
 
 }

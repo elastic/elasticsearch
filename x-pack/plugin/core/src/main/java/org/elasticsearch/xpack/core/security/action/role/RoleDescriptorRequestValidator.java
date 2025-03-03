@@ -49,7 +49,7 @@ public class RoleDescriptorRequestValidator {
         if (roleDescriptor.getIndicesPrivileges() != null) {
             for (RoleDescriptor.IndicesPrivileges idp : roleDescriptor.getIndicesPrivileges()) {
                 try {
-                    IndexPrivilege.splitBySelectorAccess(Set.of(idp.getPrivileges()));
+                    IndexPrivilege.resolveBySelectorAccess(Set.of(idp.getPrivileges()));
                 } catch (IllegalArgumentException ile) {
                     validationException = addValidationError(ile.getMessage(), validationException);
                 }
@@ -61,7 +61,7 @@ public class RoleDescriptorRequestValidator {
                 validationException = addValidationError("remote index cluster alias cannot be an empty string", validationException);
             }
             try {
-                var privileges = IndexPrivilege.splitBySelectorAccess(Set.of(ridp.indicesPrivileges().getPrivileges()));
+                Set<IndexPrivilege> privileges = IndexPrivilege.resolveBySelectorAccess(Set.of(ridp.indicesPrivileges().getPrivileges()));
                 if (privileges.stream().anyMatch(p -> p.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES)) {
                     validationException = addValidationError(
                         "remote index privileges cannot contain privileges that grant access to the failure store",

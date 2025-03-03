@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -302,7 +301,7 @@ public final class IndicesPermission {
                     }
                 }
                 for (String privilege : checkForPrivileges) {
-                    IndexPrivilege indexPrivilege = IndexPrivilege.getWithSingleSelectorAccess(Collections.singleton(privilege));
+                    IndexPrivilege indexPrivilege = IndexPrivilege.get(privilege);
                     if (allowedIndexPrivilegesAutomaton != null
                         && Automatons.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomaton)) {
                         if (resourcePrivilegesMapBuilder != null) {

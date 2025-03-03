@@ -194,7 +194,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
         for (Map.Entry<String, Set<String>> privilegesByAlias : privilegesByAliasMap.entrySet()) {
             final String aliasName = privilegesByAlias.getKey();
             final Set<String> aliasPrivilegeNames = privilegesByAlias.getValue();
-            final Set<IndexPrivilege> aliasPrivileges = IndexPrivilege.splitBySelectorAccess(aliasPrivilegeNames);
+            final Set<IndexPrivilege> aliasPrivileges = IndexPrivilege.resolveBySelectorAccess(aliasPrivilegeNames);
             final SortedSet<String> inferiorIndexNames = new TreeSet<>();
             for (var aliasPrivilege : aliasPrivileges) {
                 // TODO implement failures handling in a follow-up
@@ -210,7 +210,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                         // compute privilege set once per index no matter how many times it is pointed to
                         final Set<IndexPrivilege> indexPrivilegeSet = indexPrivilegeMap.computeIfAbsent(
                             index.getName(),
-                            i -> IndexPrivilege.splitBySelectorAccess(indexPrivileges)
+                            i -> IndexPrivilege.resolveBySelectorAccess(indexPrivileges)
                         );
                         for (var indexPrivilege : indexPrivilegeSet) {
                             // TODO implement failures handling in a follow-up

@@ -1616,7 +1616,7 @@ public class RBACEngineTests extends ESTestCase {
         final int numGroups = randomIntBetween(2, 5);
         int extraGroups = 0;
         for (int i = 0; i < numGroups; i++) {
-            Set<IndexPrivilege> splitBySelector = IndexPrivilege.splitBySelectorAccess(
+            Set<IndexPrivilege> splitBySelector = IndexPrivilege.resolveBySelectorAccess(
                 Set.copyOf(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
             );
             // If we end up with failure and data access, we will split and end up with extra groups. Need to account for this for the

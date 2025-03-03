@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivileg
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesResponseTranslator;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
@@ -43,7 +42,7 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestGetBuiltinPrivilegesAction.class);
     // TODO remove this once we can update docs tests again
-    private static final Set<String> FAILURE_STORE_PRIVILEGES_TO_EXCLUDE = Set.of(IndexPrivilege.READ_FAILURE_STORE.getSingleName());
+    private static final Set<String> FAILURE_STORE_PRIVILEGES_TO_EXCLUDE = Set.of("read_failure_store");
     private final GetBuiltinPrivilegesResponseTranslator responseTranslator;
 
     public RestGetBuiltinPrivilegesAction(

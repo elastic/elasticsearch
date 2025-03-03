@@ -176,7 +176,7 @@ public class SimpleRoleTests extends ESTestCase {
                 Set.of(randomAlphaOfLength(8)),
                 new FieldPermissions(new FieldPermissionsDefinition(new String[] { randomAlphaOfLength(5) }, null)),
                 null,
-                IndexPrivilege.splitBySelectorAccess(Set.of(randomFrom(IndexPrivilege.names()))),
+                IndexPrivilege.resolveBySelectorAccess(Set.of(randomFrom(IndexPrivilege.names()))),
                 randomBoolean(),
                 randomAlphaOfLength(9)
             )

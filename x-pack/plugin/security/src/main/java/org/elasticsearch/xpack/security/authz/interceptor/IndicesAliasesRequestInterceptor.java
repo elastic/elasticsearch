@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
@@ -99,7 +98,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                     list.addAll(toMerge);
                     return list;
                 }));
-            final SubscribableListener<Void> listener = new ListenableFuture<>();
+            final SubscribableListener<Void> listener = new SubscribableListener<>();
             authorizationEngine.validateIndexPermissionsAreSubset(
                 requestInfo,
                 authorizationInfo,
@@ -126,7 +125,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
             );
             return listener;
         } else {
-            return ListenableFuture.newSucceeded(null);
+            return SubscribableListener.newSucceeded(null);
         }
     }
 }

@@ -486,13 +486,13 @@ public class AuthorizationService {
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(() -> {
                 if (request instanceof SearchRequest searchRequest && searchRequest.pointInTimeBuilder() != null) {
                     var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
-                    return ListenableFuture.newSucceeded(resolvedIndices);
+                    return SubscribableListener.newSucceeded(resolvedIndices);
                 }
                 final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
                 if (resolvedIndices != null) {
-                    return ListenableFuture.newSucceeded(resolvedIndices);
+                    return SubscribableListener.newSucceeded(resolvedIndices);
                 } else {
-                    final SubscribableListener<ResolvedIndices> resolvedIndicesListener = new SubscribableListener<ResolvedIndices>();
+                    final SubscribableListener<ResolvedIndices> resolvedIndicesListener = new SubscribableListener<>();
                     authzEngine.loadAuthorizedIndices(
                         requestInfo,
                         authzInfo,
@@ -637,27 +637,19 @@ public class AuthorizationService {
             final Iterator<RequestInterceptor> requestInterceptorIterator = requestInterceptors.iterator();
             while (requestInterceptorIterator.hasNext()) {
                 var res = requestInterceptorIterator.next().intercept(requestInfo, authorizationEngine, authorizationInfo);
-                if (res.isDone() == false) {
+                if (res.isSuccess() == false) {
                     res.addListener(new DelegatingActionListener<>(listener) {
                         @Override
                         public void onResponse(Void unused) {
                             if (requestInterceptorIterator.hasNext()) {
-                                var nestedRest = requestInterceptorIterator.next()
-                                    .intercept(requestInfo, authorizationEngine, authorizationInfo);
-                                if (nestedRest.isDone() == false) {
-                                    nestedRest.addListener(this);
-                                }
+                                requestInterceptorIterator.next()
+                                    .intercept(requestInfo, authorizationEngine, authorizationInfo)
+                                    .addListener(this);
                             } else {
-                                listener.onResponse(null);
+                                delegate.onResponse(null);
                             }
                         }
                     });
-                    return;
-                }
-                try {
-                    res.rawResult();
-                } catch (Exception e) {
-                    listener.onFailure(e);
                     return;
                 }
             }
@@ -887,7 +879,7 @@ public class AuthorizationService {
                 authzEngine.authorizeIndexAction(
                     bulkItemInfo,
                     authzInfo,
-                    () -> ListenableFuture.newSucceeded(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
+                    () -> SubscribableListener.newSucceeded(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
                     projectMetadata
                 )
                     .addListener(

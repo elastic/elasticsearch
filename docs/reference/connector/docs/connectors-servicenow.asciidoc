@@ -147,7 +147,8 @@ For services other than these defaults, the connector iterates over access contr
 [IMPORTANT]
 ====
 The ServiceNow connector applies access control at the service (table) level.
-All documents within a given table inherit the table’s access control settings.
+This means documents within a given ServiceNow table share the same access control settings.
+Users with permission to a table can access all documents from that table in Elasticsearch.
 ====
 
 [NOTE]
@@ -388,7 +389,8 @@ For services other than these defaults, the connector iterates over access contr
 [IMPORTANT]
 ====
 The ServiceNow connector applies access control at the service (table) level.
-All documents within a given table inherit the table’s access control settings.
+This means documents within a given ServiceNow table share the same access control settings.
+Users with permission to a table can access all documents from that table in Elasticsearch.
 ====
 
 [NOTE]

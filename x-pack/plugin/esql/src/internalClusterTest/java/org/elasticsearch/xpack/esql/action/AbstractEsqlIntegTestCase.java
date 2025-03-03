@@ -17,8 +17,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -59,6 +62,22 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     }
 
     public void ensureBlocksReleased() {
+        for (String node : internalCluster().getNodeNames()) {
+            BlockFactoryProvider blockFactoryProvider = internalCluster().getInstance(BlockFactoryProvider.class, node);
+            try {
+                if (blockFactoryProvider.blockFactory() instanceof MockBlockFactory mockBlockFactory) {
+                    assertBusy(() -> {
+                        try {
+                            mockBlockFactory.ensureAllBlocksAreReleased();
+                        } catch (Exception e) {
+                            throw new AssertionError(e);
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("failed to check mock factory", e);
+            }
+        }
         for (String node : internalCluster().getNodeNames()) {
             CircuitBreakerService breakerService = internalCluster().getInstance(CircuitBreakerService.class, node);
             CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
@@ -232,5 +251,19 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             items.add(item);
         }
         assertThat(getValuesList(actualValues), containsInAnyOrder(items.toArray()));
+    }
+
+    /**
+    * v1: value to send to runQuery (can be null; null means use default value)
+    * v2: whether to expect CCS Metadata in the response (cannot be null)
+    * @return
+    */
+    public static Tuple<Boolean, Boolean> randomIncludeCCSMetadata() {
+        return switch (randomIntBetween(1, 3)) {
+            case 1 -> new Tuple<>(Boolean.TRUE, Boolean.TRUE);
+            case 2 -> new Tuple<>(Boolean.FALSE, Boolean.FALSE);
+            case 3 -> new Tuple<>(null, Boolean.FALSE);
+            default -> throw new AssertionError("should not get here");
+        };
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -15,16 +16,16 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 
-public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceModel {
+public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceExecutableActionModel {
 
     private final URI uri;
 
@@ -54,12 +55,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         ElasticInferenceServiceSparseEmbeddingsServiceSettings serviceSettings
     ) {
         super(model, serviceSettings);
-
-        try {
-            this.uri = createUri();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
+        this.uri = createUri();
     }
 
     ElasticInferenceServiceSparseEmbeddingsModel(
@@ -77,12 +73,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
             serviceSettings,
             elasticInferenceServiceComponents
         );
-
-        try {
-            this.uri = createUri();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
+        this.uri = createUri();
     }
 
     @Override
@@ -99,15 +90,21 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         return uri;
     }
 
-    private URI createUri() throws URISyntaxException {
-        String modelId = getServiceSettings().modelId();
-        String modelIdUriPath;
-
-        switch (modelId) {
-            case ElserModels.ELSER_V2_MODEL -> modelIdUriPath = "ELSERv2";
-            default -> throw new IllegalArgumentException("Unsupported model for EIS [" + modelId + "]");
+    private URI createUri() throws ElasticsearchStatusException {
+        try {
+            // TODO, consider transforming the base URL into a URI for better error handling.
+            return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/embed/text/sparse");
+        } catch (URISyntaxException e) {
+            throw new ElasticsearchStatusException(
+                "Failed to create URI for service ["
+                    + this.getConfigurations().getService()
+                    + "] with taskType ["
+                    + this.getTaskType()
+                    + "]: "
+                    + e.getMessage(),
+                RestStatus.BAD_REQUEST,
+                e
+            );
         }
-
-        return new URI(elasticInferenceServiceComponents().eisGatewayUrl() + "/sparse-text-embedding/" + modelIdUriPath);
     }
 }

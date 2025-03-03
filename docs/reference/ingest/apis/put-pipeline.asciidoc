@@ -4,6 +4,12 @@
 <titleabbrev>Create or update pipeline</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ingest[Ingest APIs].
+--
+
 Creates or updates an <<ingest,ingest pipeline>>. Changes made using this API
 take effect immediately.
 

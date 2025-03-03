@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,6 +36,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Response;
@@ -106,6 +109,15 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
+        if (TransformMetadata.upgradeMode(clusterState)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Cannot update any Transform while the Transform feature is upgrading.",
+                    RestStatus.CONFLICT
+                )
+            );
+            return;
+        }
 
         final DiscoveryNodes nodes = clusterState.nodes();
 
@@ -159,7 +171,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
 
                         boolean updateChangesSettings = update.changesSettings(originalConfig);
                         boolean updateChangesHeaders = update.changesHeaders(originalConfig);
-                        if (updateChangesSettings || updateChangesHeaders) {
+                        boolean updateChangesDestIndex = update.changesDestIndex(originalConfig);
+                        if (updateChangesSettings || updateChangesHeaders || updateChangesDestIndex) {
                             PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
                                 request.getId(),
                                 clusterState
@@ -244,6 +257,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
     ) {
         transformTask.applyNewSettings(request.getConfig().getSettings());
         transformTask.applyNewAuthState(request.getAuthState());
+        transformTask.checkAndResetDestinationIndexBlock(request.getConfig());
         listener.onResponse(new Response(request.getConfig()));
     }
 

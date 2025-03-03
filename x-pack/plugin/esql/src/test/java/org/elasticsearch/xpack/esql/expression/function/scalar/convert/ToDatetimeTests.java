@@ -37,12 +37,20 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
         final String read = "Attribute[channel=0]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryDatetime(suppliers, read, DataType.DATETIME, Instant::toEpochMilli, emptyList());
-        TestCaseSupplier.forUnaryDateNanos(
+        TestCaseSupplier.unary(
+            suppliers,
+            read,
+            TestCaseSupplier.dateCases(),
+            DataType.DATETIME,
+            v -> ((Instant) v).toEpochMilli(),
+            emptyList()
+        );
+        TestCaseSupplier.unary(
             suppliers,
             "ToDatetimeFromDateNanosEvaluator[field=" + read + "]",
+            TestCaseSupplier.dateNanosCases(),
             DataType.DATETIME,
-            i -> DateUtils.toMilliSeconds(DateUtils.toLong(i)),
+            i -> DateUtils.toMilliSeconds(DateUtils.toLong((Instant) i)),
             emptyList()
         );
 
@@ -73,8 +81,8 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
             BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.TWO),
             UNSIGNED_LONG_MAX,
             bi -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + bi + "] out of [long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + bi + "] out of [long] range"
             )
         );
         TestCaseSupplier.forUnaryDouble(
@@ -85,8 +93,8 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
             Double.NEGATIVE_INFINITY,
             -9.223372036854777E18, // a "convenient" value smaller than `(double) Long.MIN_VALUE` (== ...776E18)
             d -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
             )
         );
         TestCaseSupplier.forUnaryDouble(
@@ -97,8 +105,8 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
             9.223372036854777E18, // a "convenient" value larger than `(double) Long.MAX_VALUE` (== ...776E18)
             Double.POSITIVE_INFINITY,
             d -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
             )
         );
         TestCaseSupplier.forUnaryStrings(
@@ -107,8 +115,8 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
             DataType.DATETIME,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.IllegalArgumentException: "
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: "
                     + (bytesRef.utf8ToString().isEmpty()
                         ? "cannot parse empty datetime"
                         : ("failed to parse date field [" + bytesRef.utf8ToString() + "] with format [strict_date_optional_time]"))
@@ -143,8 +151,8 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
             DataType.DATETIME,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.IllegalArgumentException: failed to parse date field ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: failed to parse date field ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "] with format [strict_date_optional_time]"
             )
@@ -163,14 +171,14 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
             DataType.DATETIME,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.IllegalArgumentException: failed to parse date field ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: failed to parse date field ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "] with format [strict_date_optional_time]"
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "date_nanos or datetime or numeric or string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     private static String randomDateString(long from, long to) {

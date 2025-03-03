@@ -52,6 +52,7 @@ import static org.junit.Assert.assertThat;
  */
 public class DataLoader {
     public static final String TEST_INDEX = "endgame-140";
+    public static final String TEST_SHARD_FAILURES_INDEX = "endgame-shard-failures";
     public static final String TEST_EXTRA_INDEX = "extra";
     public static final String TEST_NANOS_INDEX = "endgame-140-nanos";
     public static final String TEST_SAMPLE = "sample1,sample2,sample3";
@@ -103,6 +104,11 @@ public class DataLoader {
         //
         load(client, TEST_MISSING_EVENTS_INDEX, null, null, p);
         load(client, TEST_SAMPLE_MULTI, null, null, p);
+        //
+        // index with a runtime field ("broken", type long) that causes shard failures.
+        // the rest of the mapping is the same as TEST_INDEX
+        //
+        load(client, TEST_SHARD_FAILURES_INDEX, null, DataLoader::timestampToUnixMillis, p);
     }
 
     private static void load(

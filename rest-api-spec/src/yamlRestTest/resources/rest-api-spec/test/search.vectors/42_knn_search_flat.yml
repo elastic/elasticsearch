@@ -257,6 +257,61 @@ setup:
   - gte: {hits.hits.2._score: 0.78}
   - lte: {hits.hits.2._score: 0.791}
 ---
+"Vector rescoring has no effect for non-quantized vectors and provides same results as non-rescored knn":
+  - requires:
+      reason: 'Quantized vector rescoring is required'
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [knn_quantized_vector_rescore_oversample]
+  - skip:
+      features: "headers"
+
+  # Non-rescored knn
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: flat
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 3
+
+  # Get scores - hit ordering may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - set: { hits.hits.0._score: knn_score0 }
+  - set: { hits.hits.1._score: knn_score1 }
+  - set: { hits.hits.2._score: knn_score2 }
+
+  # Rescored knn
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        index: flat
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 3
+            num_candidates: 3
+            rescore_vector:
+              oversample: 1.5
+
+  # Compare scores as hit IDs may change depending on how things are distributed
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._score: $knn_score0 }
+  - match: { hits.hits.1._score: $knn_score1 }
+  - match: { hits.hits.2._score: $knn_score2 }
+---
 "Test bad parameters":
   - do:
       catch: bad_request

@@ -7,16 +7,20 @@
 
 package org.elasticsearch.xpack.inference.external.action.elastic;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.ElasticInferenceServiceSparseEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 
 public class ElasticInferenceServiceActionCreator implements ElasticInferenceServiceActionVisitor {
 
@@ -24,15 +28,28 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
 
     private final ServiceComponents serviceComponents;
 
-    public ElasticInferenceServiceActionCreator(Sender sender, ServiceComponents serviceComponents) {
+    private final TraceContext traceContext;
+
+    private final InputType inputType;
+
+    public ElasticInferenceServiceActionCreator(
+        Sender sender,
+        ServiceComponents serviceComponents,
+        TraceContext traceContext,
+        InputType inputType
+    ) {
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
+        this.traceContext = traceContext;
+        this.inputType = inputType;
     }
 
     @Override
     public ExecutableAction create(ElasticInferenceServiceSparseEmbeddingsModel model) {
-        var requestManager = new ElasticInferenceServiceSparseEmbeddingsRequestManager(model, serviceComponents);
-        var errorMessage = constructFailedToSendRequestMessage(model.uri(), "Elastic Inference Service sparse embeddings");
+        var requestManager = new ElasticInferenceServiceSparseEmbeddingsRequestManager(model, serviceComponents, traceContext, inputType);
+        var errorMessage = constructFailedToSendRequestMessage(
+            String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
+        );
         return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 }

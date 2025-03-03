@@ -106,11 +106,26 @@ detailed warning, expand the query bar, and click *warnings*.
 ==== Query history
 
 You can reuse your recent {esql} queries in the query bar.
-In the query bar click *Show recent queries*.
+In the query bar, click *Show recent queries*.
 
 You can then scroll through your recent queries:
 
 image::images/esql/esql-discover-query-history.png[align="center",size="50%"]
+
+[discrete]
+[[esql-kibana-starred-queries]]
+==== Starred queries
+
+From the query history, you can mark some queries as favorite to find and access them faster later.
+
+In the query bar, click *Show recent queries*.
+
+From the **Recent** tab, you can star any queries you want.
+
+In the **Starred** tab, find all the queries you have previously starred.
+
+image::images/esql/esql-discover-query-starred.png[align="center",size="50%"]
+
 
 [discrete]
 [[esql-kibana-results-table]]

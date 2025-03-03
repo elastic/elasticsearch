@@ -54,7 +54,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
 
     @Override
     protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/component_templates");
+        sb.append("/_cat/component_templates\n");
     }
 
     @Override

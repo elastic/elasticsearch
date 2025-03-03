@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -38,7 +37,6 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         MetadataCreateDataStreamService metadataCreateDataStreamService,
         SystemIndices systemIndices
     ) {
@@ -49,7 +47,6 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
             threadPool,
             actionFilters,
             CreateDataStreamAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.metadataCreateDataStreamService = metadataCreateDataStreamService;

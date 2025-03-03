@@ -49,9 +49,7 @@ import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
-import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
-import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -213,6 +211,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private Map<String, Object> runtimeMappings = emptyMap();
 
+    private boolean skipInnerHits = false;
+
     /**
      * Constructs a new search source builder.
      */
@@ -288,6 +288,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
+        }
+        if (in.getTransportVersion().isPatchFrom(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE_BACKPORT_8_16)
+            || in.getTransportVersion().onOrAfter(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE)) {
+            skipInnerHits = in.readBoolean();
+        } else {
+            skipInnerHits = false;
         }
     }
 
@@ -377,6 +383,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             out.writeOptionalNamedWriteable(rankBuilder);
         } else if (rankBuilder != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
+        }
+        if (out.getTransportVersion().isPatchFrom(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE_BACKPORT_8_16)
+            || out.getTransportVersion().onOrAfter(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE)) {
+            out.writeBoolean(skipInnerHits);
         }
     }
 
@@ -1279,6 +1289,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.collapse = collapse;
         rewrittenBuilder.pointInTimeBuilder = pointInTimeBuilder;
         rewrittenBuilder.runtimeMappings = runtimeMappings;
+        rewrittenBuilder.skipInnerHits = skipInnerHits;
         return rewrittenBuilder;
     }
 
@@ -1867,6 +1878,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return builder;
     }
 
+    public SearchSourceBuilder skipInnerHits(boolean skipInnerHits) {
+        this.skipInnerHits = skipInnerHits;
+        return this;
+    }
+
+    public boolean skipInnerHits() {
+        return this.skipInnerHits;
+    }
+
     public static class IndexBoost implements Writeable, ToXContentObject {
         private final String index;
         private final float boost;
@@ -2121,7 +2141,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             collapse,
             trackTotalHitsUpTo,
             pointInTimeBuilder,
-            runtimeMappings
+            runtimeMappings,
+            skipInnerHits
         );
     }
 
@@ -2166,7 +2187,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(collapse, other.collapse)
             && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
             && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
-            && Objects.equals(runtimeMappings, other.runtimeMappings);
+            && Objects.equals(runtimeMappings, other.runtimeMappings)
+            && Objects.equals(skipInnerHits, other.skipInnerHits);
     }
 
     @Override
@@ -2334,18 +2356,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             for (@SuppressWarnings("rawtypes")
             var rescorer : rescores()) {
                 validationException = rescorer.validate(this, validationException);
-            }
-        }
-
-        if (pointInTimeBuilder() == null && sorts() != null) {
-            for (var sortBuilder : sorts()) {
-                if (sortBuilder instanceof FieldSortBuilder fieldSortBuilder
-                    && ShardDocSortField.NAME.equals(fieldSortBuilder.getFieldName())) {
-                    validationException = addValidationError(
-                        "[" + FieldSortBuilder.SHARD_DOC_FIELD_NAME + "] sort field cannot be used without [point in time]",
-                        validationException
-                    );
-                }
             }
         }
         return validationException;

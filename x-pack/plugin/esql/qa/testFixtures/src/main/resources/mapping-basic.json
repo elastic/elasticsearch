@@ -21,6 +21,9 @@
         "_meta_field": {
             "type" : "keyword"
         },
+        "hire_date": {
+          "type": "date"
+        },
         "job": {
             "type": "text",
             "fields": {

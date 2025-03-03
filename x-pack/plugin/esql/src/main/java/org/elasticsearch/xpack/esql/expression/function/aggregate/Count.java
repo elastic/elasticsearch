@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -58,7 +60,9 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             ),
             @Example(
                 description = "To count the same stream of data based on two different expressions "
-                    + "use the pattern `COUNT(<expression> OR NULL)`",
+                    + "use the pattern `COUNT(<expression> OR NULL)`. This builds on the three-valued logic "
+                    + "({wikipedia}/Three-valued_logic[3VL]) of the language: `TRUE OR NULL` is `TRUE`, but `FALSE OR NULL` is `NULL`, "
+                    + "plus the way COUNT handles `NULL`s: `COUNT(TRUE)` and `COUNT(FALSE)` are both 1, but `COUNT(NULL)` is 0.",
                 file = "stats",
                 tag = "count-or-null"
             ) }
@@ -69,6 +73,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             optional = true,
             name = "field",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
                 "date",
@@ -121,8 +126,8 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
-        return CountAggregatorFunction.supplier(inputChannels);
+    public AggregatorFunctionSupplier supplier() {
+        return CountAggregatorFunction.supplier();
     }
 
     @Override
@@ -139,6 +144,9 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     public Expression surrogate() {
         var s = source();
         var field = field();
+        if (field.dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
+            return new Sum(s, FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT));
+        }
 
         if (field.foldable()) {
             if (field instanceof Literal l) {

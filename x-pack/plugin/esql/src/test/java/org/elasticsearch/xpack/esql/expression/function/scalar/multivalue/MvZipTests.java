@@ -52,7 +52,7 @@ public class MvZipTests extends AbstractScalarFunctionTestCase {
             }
         }
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, (v, p) -> "string"));
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     private static TestCaseSupplier supplier(DataType leftType, DataType rightType, DataType delimType) {

@@ -113,6 +113,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     }
 
     /**
+     * Returns path to the searched nested object.
+     */
+    public String path() {
+        return path;
+    }
+
+    /**
      * Returns inner hit definition in the scope of this query and reusing the defined type and query.
      */
 

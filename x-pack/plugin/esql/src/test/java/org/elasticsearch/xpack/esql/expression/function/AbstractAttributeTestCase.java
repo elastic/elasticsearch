@@ -15,13 +15,12 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.sameInstance;
@@ -52,9 +51,7 @@ public abstract class AbstractAttributeTestCase<T extends Attribute> extends Abs
 
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(Attribute.getNamedWriteables());
-        entries.add(UnsupportedAttribute.ENTRY);
-        return new NamedWriteableRegistry(entries);
+        return new NamedWriteableRegistry(ExpressionWritables.attributes());
     }
 
     @Override

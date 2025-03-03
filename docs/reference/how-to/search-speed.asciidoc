@@ -567,3 +567,8 @@ also possible to update the client-side logic in order to route queries to the
 relevant indices based on filters. However `constant_keyword` makes it
 transparently and allows to decouple search requests from the index topology in
 exchange of very little overhead.
+
+[discrete]
+=== Default search timeout
+
+By default, search requests don't time out. You can set a timeout using the <<search-timeout,`search.default_search_timeout`>> setting.

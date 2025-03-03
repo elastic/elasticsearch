@@ -7,14 +7,17 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -22,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -63,9 +67,11 @@ import java.util.Set;
  * is the only place where this information is available. This also means that the knowledge of the usage of doc-values does not need
  * to be serialized between nodes, and is only used locally.
  */
-public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.OptimizerRule<AggregateExec> {
+public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+    AggregateExec,
+    LocalPhysicalOptimizerContext> {
     @Override
-    protected PhysicalPlan rule(AggregateExec aggregate) {
+    protected PhysicalPlan rule(AggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
         var foundAttributes = new HashSet<FieldAttribute>();
 
         PhysicalPlan plan = aggregate.transformDown(UnaryExec.class, exec -> {
@@ -75,11 +81,13 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Optimizer
                 for (NamedExpression aggExpr : agg.aggregates()) {
                     if (aggExpr instanceof Alias as && as.child() instanceof SpatialAggregateFunction af) {
                         if (af.field() instanceof FieldAttribute fieldAttribute
-                            && allowedForDocValues(fieldAttribute, agg, foundAttributes)) {
+                            && allowedForDocValues(fieldAttribute, ctx.searchStats(), agg, foundAttributes)) {
                             // We need to both mark the field to load differently, and change the spatial function to know to use it
                             foundAttributes.add(fieldAttribute);
                             changedAggregates = true;
-                            orderedAggregates.add(as.replaceChild(af.withDocValues()));
+                            orderedAggregates.add(
+                                as.replaceChild(af.withFieldExtractPreference(MappedFieldType.FieldExtractPreference.DOC_VALUES))
+                            );
                         } else {
                             orderedAggregates.add(aggExpr);
                         }
@@ -152,9 +160,20 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Optimizer
     /**
      * This function disallows the use of more than one field for doc-values extraction in the same spatial relation function.
      * This is because comparing two doc-values fields is not supported in the current implementation.
+     * This also rejects fields that do not have doc-values in the field mapping, as well as rejecting geo_shape and cartesian_shape
+     * because we do not yet support full doc-values extraction for non-point geometries. We do have aggregations that support
+     * shapes, and to prevent them triggering this rule on non-point geometries we have to explicitly disallow them here.
      */
-    private boolean allowedForDocValues(FieldAttribute fieldAttribute, AggregateExec agg, Set<FieldAttribute> foundAttributes) {
-        if (fieldAttribute.field().isAggregatable() == false) {
+    private boolean allowedForDocValues(
+        FieldAttribute fieldAttribute,
+        SearchStats stats,
+        AggregateExec agg,
+        Set<FieldAttribute> foundAttributes
+    ) {
+        if (stats.hasDocValues(fieldAttribute.fieldName()) == false) {
+            return false;
+        }
+        if (fieldAttribute.dataType() == DataType.GEO_SHAPE || fieldAttribute.dataType() == DataType.CARTESIAN_SHAPE) {
             return false;
         }
         var candidateDocValuesAttributes = new HashSet<>(foundAttributes);

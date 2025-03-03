@@ -12,6 +12,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -54,6 +55,9 @@ public final class IngestDocument {
     static final String TIMESTAMP = "timestamp";
     // This is the maximum number of nested pipelines that can be within a pipeline. If there are more, we bail out with an error
     public static final int MAX_PIPELINES = Integer.parseInt(System.getProperty("es.ingest.max_pipelines", "100"));
+
+    // a 'not found' sentinel value for use in getOrDefault calls in order to avoid containsKey-and-then-get
+    private static final Object NOT_FOUND = new Object();
 
     private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
@@ -186,8 +190,8 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
-        FieldPath fieldPath = new FieldPath(path);
-        Object context = fieldPath.initialContext;
+        final FieldPath fieldPath = FieldPath.of(path);
+        Object context = fieldPath.initialContext(this);
         for (String pathElement : fieldPath.pathElements) {
             ResolveResult result = resolve(pathElement, path, context);
             if (result.wasSuccessful) {
@@ -257,8 +261,8 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public boolean hasField(String path, boolean failOutOfRange) {
-        FieldPath fieldPath = new FieldPath(path);
-        Object context = fieldPath.initialContext;
+        final FieldPath fieldPath = FieldPath.of(path);
+        Object context = fieldPath.initialContext(this);
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
             String pathElement = fieldPath.pathElements[i];
             if (context == null) {
@@ -325,8 +329,8 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
      */
     public void removeField(String path) {
-        FieldPath fieldPath = new FieldPath(path);
-        Object context = fieldPath.initialContext;
+        final FieldPath fieldPath = FieldPath.of(path);
+        Object context = fieldPath.initialContext(this);
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
             ResolveResult result = resolve(fieldPath.pathElements[i], path, context);
             if (result.wasSuccessful) {
@@ -375,11 +379,15 @@ public final class IngestDocument {
         if (context == null) {
             return ResolveResult.error("cannot resolve [" + pathElement + "] from null as part of path [" + fullPath + "]");
         }
-        if (context instanceof Map<?, ?> map) {
-            if (map.containsKey(pathElement)) {
-                return ResolveResult.success(map.get(pathElement));
+        if (context instanceof Map<?, ?>) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) context;
+            Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+            if (object == NOT_FOUND) {
+                return ResolveResult.error("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
+            } else {
+                return ResolveResult.success(object);
             }
-            return ResolveResult.error("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
         }
         if (context instanceof List<?> list) {
             int index;
@@ -536,8 +544,8 @@ public final class IngestDocument {
     }
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {
-        FieldPath fieldPath = new FieldPath(path);
-        Object context = fieldPath.initialContext;
+        final FieldPath fieldPath = FieldPath.of(path);
+        Object context = fieldPath.initialContext(this);
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
             String pathElement = fieldPath.pathElements[i];
             if (context == null) {
@@ -546,12 +554,13 @@ public final class IngestDocument {
             if (context instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> map = (Map<String, Object>) context;
-                if (map.containsKey(pathElement)) {
-                    context = map.get(pathElement);
-                } else {
-                    HashMap<Object, Object> newMap = new HashMap<>();
+                Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (object == NOT_FOUND) {
+                    Map<Object, Object> newMap = new HashMap<>();
                     map.put(pathElement, newMap);
                     context = newMap;
+                } else {
+                    context = object;
                 }
             } else if (context instanceof List<?> list) {
                 int index;
@@ -590,16 +599,16 @@ public final class IngestDocument {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;
             if (append) {
-                if (map.containsKey(leafKey)) {
-                    Object object = map.get(leafKey);
+                Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (object == NOT_FOUND) {
+                    List<Object> list = new ArrayList<>();
+                    appendValues(list, value);
+                    map.put(leafKey, list);
+                } else {
                     Object list = appendValues(object, value, allowDuplicates);
                     if (list != object) {
                         map.put(leafKey, list);
                     }
-                } else {
-                    List<Object> list = new ArrayList<>();
-                    appendValues(list, value);
-                    map.put(leafKey, list);
                 }
                 return;
             }
@@ -987,21 +996,45 @@ public final class IngestDocument {
         }
     }
 
-    private class FieldPath {
+    private static final class FieldPath {
 
-        private final String[] pathElements;
-        private final Object initialContext;
+        private static final int MAX_SIZE = 512;
+        private static final Map<String, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
-        private FieldPath(String path) {
+        // constructing a new FieldPath requires that we parse a String (e.g. "foo.bar.baz") into an array
+        // of path elements (e.g. ["foo", "bar", "baz"]). Calling String#split results in the allocation
+        // of an ArrayList to hold the results, then a new String is created for each path element, and
+        // then finally a String[] is allocated to hold the actual result -- in addition to all that, we
+        // do some processing ourselves on the path and path elements to validate and prepare them.
+        // the above CACHE and the below 'FieldPath.of' method allow us to almost always avoid this work.
+
+        static FieldPath of(String path) {
             if (Strings.isEmpty(path)) {
                 throw new IllegalArgumentException("path cannot be null nor empty");
             }
+            FieldPath res = CACHE.get(path);
+            if (res != null) {
+                return res;
+            }
+            res = new FieldPath(path);
+            if (CACHE.size() > MAX_SIZE) {
+                CACHE.clear();
+            }
+            CACHE.put(path, res);
+            return res;
+        }
+
+        private final String[] pathElements;
+        private final boolean useIngestContext;
+
+        // you shouldn't call this directly, use the FieldPath.of method above instead!
+        private FieldPath(String path) {
             String newPath;
             if (path.startsWith(INGEST_KEY_PREFIX)) {
-                initialContext = ingestMetadata;
+                useIngestContext = true;
                 newPath = path.substring(INGEST_KEY_PREFIX.length());
             } else {
-                initialContext = ctxMap;
+                useIngestContext = false;
                 if (path.startsWith(SOURCE_PREFIX)) {
                     newPath = path.substring(SOURCE_PREFIX.length());
                 } else {
@@ -1014,6 +1047,9 @@ public final class IngestDocument {
             }
         }
 
+        public Object initialContext(IngestDocument document) {
+            return useIngestContext ? document.getIngestMetadata() : document.getCtxMap();
+        }
     }
 
     private static class ResolveResult {

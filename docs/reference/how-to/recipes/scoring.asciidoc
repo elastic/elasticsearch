@@ -88,8 +88,9 @@ pages independently of the query.
 
 There are two main queries that allow combining static score contributions with
 textual relevance, eg. as computed with BM25:
- - <<query-dsl-script-score-query,`script_score` query>>
- - <<query-dsl-rank-feature-query,`rank_feature` query>>
+
+* <<query-dsl-script-score-query,`script_score` query>>
+* <<query-dsl-rank-feature-query,`rank_feature` query>>
 
 For instance imagine that you have a `pagerank` field that you wish to
 combine with the BM25 score so that the final score is equal to

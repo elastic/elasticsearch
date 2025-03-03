@@ -78,6 +78,9 @@ AND of AND Hungary`.
 `analyze_wildcard`::
 (Optional, Boolean) If `true`, the query attempts to analyze wildcard terms in
 the query string. Defaults to `false`.
+Note that, in case of `true`, only queries that end with a `*`
+are fully analyzed. Queries that start with `*` or have it in the middle
+are only <<analysis-normalizers,normalized>>.
 
 `analyzer`::
 (Optional, string) <<analysis,Analyzer>> used to convert text in the

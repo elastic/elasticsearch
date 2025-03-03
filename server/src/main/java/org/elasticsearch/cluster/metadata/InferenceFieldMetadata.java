@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,8 +23,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.TransportVersions.SEMANTIC_TEXT_SEARCH_INFERENCE_ID;
 
 /**
  * Contains inference field data for fields.
@@ -56,7 +55,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     public InferenceFieldMetadata(StreamInput input) throws IOException {
         this.name = input.readString();
         this.inferenceId = input.readString();
-        if (input.getTransportVersion().onOrAfter(SEMANTIC_TEXT_SEARCH_INFERENCE_ID)) {
+        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.searchInferenceId = input.readString();
         } else {
             this.searchInferenceId = this.inferenceId;
@@ -68,7 +67,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(inferenceId);
-        if (out.getTransportVersion().onOrAfter(SEMANTIC_TEXT_SEARCH_INFERENCE_ID)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeString(searchInferenceId);
         }
         out.writeStringArray(sourceFields);

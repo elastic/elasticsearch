@@ -1,7 +1,7 @@
 # "version" holds the version of the templates and ingest pipelines installed
 # by xpack-plugin apm-data. This must be increased whenever an existing template or
 # pipeline is changed, in order for it to be updated on Elasticsearch upgrade.
-version: 10
+version: 13
 
 component-templates:
   # Data lifecycle.
@@ -97,3 +97,24 @@ ingest-pipelines:
   - metrics-apm@pipeline:
       dependencies:
         - apm@pipeline
+
+lifecycle-policies:
+  - logs-apm.app_logs-default_policy
+  - logs-apm.error_logs-default_policy
+  - metrics-apm.app_metrics-default_policy
+  - metrics-apm.internal_metrics-default_policy
+  - metrics-apm.service_destination_10m_metrics-default_policy
+  - metrics-apm.service_destination_1m_metrics-default_policy
+  - metrics-apm.service_destination_60m_metrics-default_policy
+  - metrics-apm.service_summary_10m_metrics-default_policy
+  - metrics-apm.service_summary_1m_metrics-default_policy
+  - metrics-apm.service_summary_60m_metrics-default_policy
+  - metrics-apm.service_transaction_10m_metrics-default_policy
+  - metrics-apm.service_transaction_1m_metrics-default_policy
+  - metrics-apm.service_transaction_60m_metrics-default_policy
+  - metrics-apm.transaction_10m_metrics-default_policy
+  - metrics-apm.transaction_1m_metrics-default_policy
+  - metrics-apm.transaction_60m_metrics-default_policy
+  - traces-apm.rum_traces-default_policy
+  - traces-apm.sampled_traces-default_policy
+  - traces-apm.traces-default_policy

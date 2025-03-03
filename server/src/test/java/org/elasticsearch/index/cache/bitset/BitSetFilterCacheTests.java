@@ -93,17 +93,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("test", "_na_", 0));
 
-        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
-        });
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, BitsetFilterCache.Listener.NOOP);
         BitSetProducer filter = cache.getBitSetProducer(new TermQuery(new Term("field", "value")));
         assertThat(matchCount(filter, reader), equalTo(3));
 
@@ -236,17 +226,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
     }
 
     public void testRejectOtherIndex() throws IOException {
-        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
-        });
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, BitsetFilterCache.Listener.NOOP);
 
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());

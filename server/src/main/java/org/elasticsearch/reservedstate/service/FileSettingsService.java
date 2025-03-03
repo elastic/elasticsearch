@@ -59,7 +59,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      * @param environment we need the environment to pull the location of the config and operator directories
      */
     public FileSettingsService(ClusterService clusterService, ReservedClusterStateService stateService, Environment environment) {
-        super(clusterService, environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME));
+        super(clusterService, environment.configDir().toAbsolutePath().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME));
         this.stateService = stateService;
     }
 

@@ -72,6 +72,10 @@
     "st_base64": {
       "type": "semantic_text",
       "inference_id": "test_sparse_inference"
+    },
+    "st_logs": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
     }
   }
 }

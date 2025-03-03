@@ -35,7 +35,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class TestQueryRulesetAction {
 
-    public static final NodeFeature QUERY_RULES_TEST_API = new NodeFeature("query_rules.test");
+    public static final NodeFeature QUERY_RULES_TEST_API = new NodeFeature("query_rules.test", true);
 
     // TODO - We'd like to transition this to require less stringent permissions
     public static final ActionType<TestQueryRulesetAction.Response> TYPE = new ActionType<>("cluster:admin/xpack/query_rules/test");

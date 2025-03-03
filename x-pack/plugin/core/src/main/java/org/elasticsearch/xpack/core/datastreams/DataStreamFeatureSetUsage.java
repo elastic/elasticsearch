@@ -52,7 +52,8 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
         builder.field("indices_count", streamStats.indicesBehindDataStream);
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
             builder.startObject("failure_store");
-            builder.field("enabled_count", streamStats.failureStoreEnabledDataStreamCount);
+            builder.field("explicitly_enabled_count", streamStats.failureStoreExplicitlyEnabledDataStreamCount);
+            builder.field("effectively_enabled_count", streamStats.failureStoreEffectivelyEnabledDataStreamCount);
             builder.field("failure_indices_count", streamStats.failureStoreIndicesCount);
             builder.endObject();
         }
@@ -83,7 +84,8 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
     public record DataStreamStats(
         long totalDataStreamCount,
         long indicesBehindDataStream,
-        long failureStoreEnabledDataStreamCount,
+        long failureStoreExplicitlyEnabledDataStreamCount,
+        long failureStoreEffectivelyEnabledDataStreamCount,
         long failureStoreIndicesCount
     ) implements Writeable {
 
@@ -92,6 +94,7 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
                 in.readVLong(),
                 in.readVLong(),
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
+                in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING) ? in.readVLong() : 0,
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0
             );
         }
@@ -101,7 +104,10 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
             out.writeVLong(this.totalDataStreamCount);
             out.writeVLong(this.indicesBehindDataStream);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                out.writeVLong(this.failureStoreEnabledDataStreamCount);
+                out.writeVLong(this.failureStoreExplicitlyEnabledDataStreamCount);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)) {
+                    out.writeVLong(failureStoreEffectivelyEnabledDataStreamCount);
+                }
                 out.writeVLong(this.failureStoreIndicesCount);
             }
         }

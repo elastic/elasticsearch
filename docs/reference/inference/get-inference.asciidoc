@@ -2,6 +2,12 @@
 [[get-inference-api]]
 === Get {infer} API
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+--
+
 Retrieves {infer} endpoint information.
 
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in {ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure, Google AI Studio, Google Vertex AI, Anthropic, Watsonx.ai, or Hugging Face.
@@ -78,12 +84,17 @@ The API returns the following response:
 {
   "inference_id": "my-elser-model",
   "task_type": "sparse_embedding",
-  "service": "elser",
+  "service": "elasticsearch",
   "service_settings": {
     "num_allocations": 1,
-    "num_threads": 1
+    "num_threads": 1,
+    "model_id": ".elser_model_2"
   },
-  "task_settings": {}
+  "chunking_settings": {
+    "strategy": "sentence",
+    "max_chunk_size": 250,
+    "sentence_overlap": 1
+  }
 }
 ------------------------------------------------------------
 // NOTCONSOLE

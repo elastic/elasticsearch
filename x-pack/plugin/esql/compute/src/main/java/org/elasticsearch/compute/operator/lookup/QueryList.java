@@ -9,6 +9,9 @@ package org.elasticsearch.compute.operator.lookup;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -20,6 +23,8 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -30,6 +35,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
@@ -38,10 +44,16 @@ import java.util.function.IntFunction;
  * Generates a list of Lucene queries based on the input block.
  */
 public abstract class QueryList {
+    protected final SearchExecutionContext searchExecutionContext;
+    protected final MappedFieldType field;
     protected final Block block;
+    protected final boolean onlySingleValues;
 
-    protected QueryList(Block block) {
+    protected QueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block, boolean onlySingleValues) {
+        this.searchExecutionContext = searchExecutionContext;
+        this.field = field;
         this.block = block;
+        this.onlySingleValues = onlySingleValues;
     }
 
     /**
@@ -52,10 +64,57 @@ public abstract class QueryList {
     }
 
     /**
+     * Returns a copy of this query list that only returns queries for single-valued positions.
+     * That is, it returns `null` queries for either multivalued or null positions.
+     */
+    public abstract QueryList onlySingleValues();
+
+    final Query getQuery(int position) {
+        final int valueCount = block.getValueCount(position);
+        if (onlySingleValues && valueCount != 1) {
+            return null;
+        }
+        final int firstValueIndex = block.getFirstValueIndex(position);
+
+        Query query = doGetQuery(position, firstValueIndex, valueCount);
+
+        if (onlySingleValues) {
+            query = wrapSingleValueQuery(query);
+        }
+
+        return query;
+    }
+
+    /**
      * Returns the query at the given position.
      */
     @Nullable
-    abstract Query getQuery(int position);
+    abstract Query doGetQuery(int position, int firstValueIndex, int valueCount);
+
+    private Query wrapSingleValueQuery(Query query) {
+        SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
+            searchExecutionContext.getForField(field, MappedFieldType.FielddataOperation.SEARCH),
+            // Not emitting warnings for multivalued fields not matching
+            Warnings.NOOP_WARNINGS
+        );
+
+        Query rewrite = singleValueQuery;
+        try {
+            rewrite = singleValueQuery.rewrite(searchExecutionContext.searcher());
+            if (rewrite instanceof MatchAllDocsQuery) {
+                // nothing to filter
+                return query;
+            }
+        } catch (IOException e) {
+            // ignore
+            // TODO: Should we do something with the exception?
+        }
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(query, BooleanClause.Occur.FILTER);
+        builder.add(rewrite, BooleanClause.Occur.FILTER);
+        return builder.build();
+    }
 
     /**
      * Returns a list of term queries for the given field and the input block
@@ -93,7 +152,7 @@ public abstract class QueryList {
             case COMPOSITE -> throw new IllegalArgumentException("can't read values from [composite] block");
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
-        return new TermQueryList(field, searchExecutionContext, block, blockToJavaObject);
+        return new TermQueryList(field, searchExecutionContext, block, false, blockToJavaObject);
     }
 
     /**
@@ -103,7 +162,7 @@ public abstract class QueryList {
     public static QueryList ipTermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, BytesRefBlock block) {
         BytesRef scratch = new BytesRef();
         byte[] ipBytes = new byte[InetAddressPoint.BYTES];
-        return new TermQueryList(field, searchExecutionContext, block, offset -> {
+        return new TermQueryList(field, searchExecutionContext, block, false, offset -> {
             final var bytes = block.getBytesRef(offset, scratch);
             if (ipBytes.length != bytes.length) {
                 // Lucene only support 16-byte IP addresses, even IPv4 is encoded in 16 bytes
@@ -123,6 +182,7 @@ public abstract class QueryList {
             field,
             searchExecutionContext,
             block,
+            false,
             field instanceof RangeFieldMapper.RangeFieldType rangeFieldType
                 ? offset -> rangeFieldType.dateTimeFormatter().formatMillis(block.getLong(offset))
                 : block::getLong
@@ -133,37 +193,37 @@ public abstract class QueryList {
      * Returns a list of geo_shape queries for the given field and the input block.
      */
     public static QueryList geoShapeQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
-        return new GeoShapeQueryList(field, searchExecutionContext, block);
+        return new GeoShapeQueryList(field, searchExecutionContext, block, false);
     }
 
     private static class TermQueryList extends QueryList {
-        private final MappedFieldType field;
-        private final SearchExecutionContext searchExecutionContext;
         private final IntFunction<Object> blockValueReader;
 
         private TermQueryList(
             MappedFieldType field,
             SearchExecutionContext searchExecutionContext,
             Block block,
+            boolean onlySingleValues,
             IntFunction<Object> blockValueReader
         ) {
-            super(block);
-            this.field = field;
-            this.searchExecutionContext = searchExecutionContext;
+            super(field, searchExecutionContext, block, onlySingleValues);
             this.blockValueReader = blockValueReader;
         }
 
         @Override
-        Query getQuery(int position) {
-            final int first = block.getFirstValueIndex(position);
-            final int count = block.getValueCount(position);
-            return switch (count) {
+        public TermQueryList onlySingleValues() {
+            return new TermQueryList(field, searchExecutionContext, block, true, blockValueReader);
+        }
+
+        @Override
+        Query doGetQuery(int position, int firstValueIndex, int valueCount) {
+            return switch (valueCount) {
                 case 0 -> null;
-                case 1 -> field.termQuery(blockValueReader.apply(first), searchExecutionContext);
+                case 1 -> field.termQuery(blockValueReader.apply(firstValueIndex), searchExecutionContext);
                 default -> {
-                    final List<Object> terms = new ArrayList<>(count);
-                    for (int i = 0; i < count; i++) {
-                        final Object value = blockValueReader.apply(first + i);
+                    final List<Object> terms = new ArrayList<>(valueCount);
+                    for (int i = 0; i < valueCount; i++) {
+                        final Object value = blockValueReader.apply(firstValueIndex + i);
                         terms.add(value);
                     }
                     yield field.termsQuery(terms, searchExecutionContext);
@@ -174,27 +234,31 @@ public abstract class QueryList {
 
     private static class GeoShapeQueryList extends QueryList {
         private final BytesRef scratch = new BytesRef();
-        private final MappedFieldType field;
-        private final SearchExecutionContext searchExecutionContext;
         private final IntFunction<Geometry> blockValueReader;
         private final IntFunction<Query> shapeQuery;
 
-        private GeoShapeQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
-            super(block);
+        private GeoShapeQueryList(
+            MappedFieldType field,
+            SearchExecutionContext searchExecutionContext,
+            Block block,
+            boolean onlySingleValues
+        ) {
+            super(field, searchExecutionContext, block, onlySingleValues);
 
-            this.field = field;
-            this.searchExecutionContext = searchExecutionContext;
             this.blockValueReader = blockToGeometry(block);
             this.shapeQuery = shapeQuery();
         }
 
         @Override
-        Query getQuery(int position) {
-            final int first = block.getFirstValueIndex(position);
-            final int count = block.getValueCount(position);
-            return switch (count) {
+        public GeoShapeQueryList onlySingleValues() {
+            return new GeoShapeQueryList(field, searchExecutionContext, block, true);
+        }
+
+        @Override
+        Query doGetQuery(int position, int firstValueIndex, int valueCount) {
+            return switch (valueCount) {
                 case 0 -> null;
-                case 1 -> shapeQuery.apply(first);
+                case 1 -> shapeQuery.apply(firstValueIndex);
                 // TODO: support multiple values
                 default -> throw new IllegalArgumentException("can't read multiple Geometry values from a single position");
             };

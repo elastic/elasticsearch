@@ -5,6 +5,12 @@
 <titleabbrev>Execute watch</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-watcher[{watcher} APIs].
+--
+
 Forces the execution of a stored watch.
 
 [[watcher-api-execute-watch-request]]

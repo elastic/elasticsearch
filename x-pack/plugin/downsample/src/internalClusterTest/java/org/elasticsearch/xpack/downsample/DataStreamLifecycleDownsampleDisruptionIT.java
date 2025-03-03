@@ -119,7 +119,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
             } catch (Exception e) {
                 throw new AssertionError(e);
             }
-        }, 60, TimeUnit.SECONDS);
+        }, 120, TimeUnit.SECONDS);
         ensureGreen(targetIndex);
     }
 }

@@ -19,7 +19,6 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -45,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.elasticsearch.Version.V_8_2_0;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_MACHINE_MEMORY_PERCENT;
@@ -61,7 +61,6 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client,
         MlMemoryTracker memoryTracker
     ) {
@@ -72,7 +71,6 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
             threadPool,
             actionFilters,
             MlMemoryAction.Request::new,
-            indexNameExpressionResolver,
             MlMemoryAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -106,7 +104,11 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
                 .setTimeout(request.ackTimeout())
                 .execute(delegate.delegateFailureAndWrap((delegate2, nodesStatsResponse) -> {
                     TrainedModelCacheInfoAction.Request trainedModelCacheInfoRequest = new TrainedModelCacheInfoAction.Request(
-                        nodesStatsResponse.getNodes().stream().map(NodeStats::getNode).toArray(DiscoveryNode[]::new)
+                        nodesStatsResponse.getNodes()
+                            .stream()
+                            .map(NodeStats::getNode)
+                            .filter(node -> node.getVersion().onOrAfter(V_8_2_0)) // the cache info action was added in 8.2
+                            .toArray(DiscoveryNode[]::new)
                     ).timeout(request.ackTimeout());
 
                     parentTaskClient.execute(

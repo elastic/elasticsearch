@@ -1,5 +1,0 @@
-pr: 112687
-summary: Add `TaskManager` to `pluginServices`
-area: Infra/Metrics
-type: enhancement
-issues: []

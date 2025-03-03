@@ -19,6 +19,8 @@ at all.
 
 // end::ml-settings-description-tag[]
 
+TIP: To control memory usage used by {ml} jobs, you can use the <<circuit-breakers-page-model-inference, machine learning circuit breaker settings>>.
+
 [discrete]
 [[general-ml-settings]]
 ==== General machine learning settings
@@ -67,7 +69,7 @@ limitations as described <<ml-settings-description,above>>.
 The inference cache exists in the JVM heap on each ingest node. The cache
 affords faster processing times for the `inference` processor. The value can be
 a static byte sized value (such as `2gb`) or a percentage of total allocated
-heap. Defaults to `40%`. See also <<model-inference-circuit-breaker>>.
+heap. Defaults to `40%`. See also <<circuit-breakers-page-model-inference>>.
 
 [[xpack-interference-model-ttl]]
 // tag::interference-model-ttl-tag[]
@@ -250,10 +252,3 @@ nodes in your cluster, you shouldn't use this setting.
 If this setting is `true` it also affects the default value for
 `xpack.ml.max_model_memory_limit`. In this case `xpack.ml.max_model_memory_limit`
 defaults to the largest size that could be assigned in the current cluster.
-
-[discrete]
-[[model-inference-circuit-breaker]]
-==== {ml-cap} circuit breaker settings
-
-The relevant circuit breaker settings can be found in the <<circuit-breakers-page-model-inference, Circuit Breakers page>>.
-

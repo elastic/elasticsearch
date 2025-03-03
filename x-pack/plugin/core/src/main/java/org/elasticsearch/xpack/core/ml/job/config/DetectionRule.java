@@ -68,7 +68,7 @@ public class DetectionRule implements ToXContentObject, Writeable {
         actions = in.readEnumSet(RuleAction.class);
         scope = new RuleScope(in);
         conditions = in.readCollectionAsList(RuleCondition::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_ADD_DETECTION_RULE_PARAMS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             params = new RuleParams(in);
         } else {
             params = new RuleParams();
@@ -80,7 +80,7 @@ public class DetectionRule implements ToXContentObject, Writeable {
         out.writeEnumSet(actions);
         scope.writeTo(out);
         out.writeCollection(conditions);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_ADD_DETECTION_RULE_PARAMS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             params.writeTo(out);
         }
     }

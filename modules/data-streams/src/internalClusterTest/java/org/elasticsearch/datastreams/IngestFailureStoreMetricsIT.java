@@ -21,10 +21,12 @@ import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -196,9 +198,9 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
         createDataStream();
 
         // Initialize failure store.
-        var rolloverRequest = new RolloverRequest(dataStream, null);
-        rolloverRequest.setIndicesOptions(
-            IndicesOptions.builder(rolloverRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.FAILURES).build()
+        var rolloverRequest = new RolloverRequest(
+            IndexNameExpressionResolver.combineSelector(dataStream, IndexComponentSelector.FAILURES),
+            null
         );
         var rolloverResponse = client().execute(RolloverAction.INSTANCE, rolloverRequest).actionGet();
         var failureStoreIndex = rolloverResponse.getNewIndex();
@@ -286,8 +288,8 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStream + "*"))
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, failureStore))
-                .template(new Template(null, new CompressedXContent("""
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .template(Template.builder().mappings(new CompressedXContent("""
                     {
                       "dynamic": false,
                       "properties": {
@@ -298,7 +300,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
                             "type": "long"
                         }
                       }
-                    }"""), null))
+                    }""")).dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(failureStore)))
                 .build()
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();

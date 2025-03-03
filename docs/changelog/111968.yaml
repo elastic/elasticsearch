@@ -1,6 +1,0 @@
-pr: 111968
-summary: "ESQL: don't lose the original casting error message"
-area: ES|QL
-type: bug
-issues:
- - 111967

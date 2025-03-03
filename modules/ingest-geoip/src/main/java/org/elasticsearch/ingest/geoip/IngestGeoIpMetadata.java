@@ -45,7 +45,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<IngestGeoIpMetadata, Void> PARSER = new ConstructingObjectParser<>(
-        "ingest_geoip_metadata",
+        TYPE,
         a -> new IngestGeoIpMetadata(
             ((List<DatabaseConfigurationMetadata>) a[0]).stream().collect(Collectors.toMap((m) -> m.database().id(), Function.identity()))
         )
@@ -69,7 +69,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER;
+        return TransportVersions.V_8_16_0;
     }
 
     public Map<String, DatabaseConfigurationMetadata> getDatabases() {
@@ -138,7 +138,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER;
+            return TransportVersions.V_8_16_0;
         }
     }
 

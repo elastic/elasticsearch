@@ -62,7 +62,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "boolean";
 
-    static final NodeFeature BOOLEAN_DIMENSION = new NodeFeature("mapper.boolean_dimension");
+    static final NodeFeature BOOLEAN_DIMENSION = new NodeFeature("mapper.boolean_dimension", true);
 
     public static class Values {
         public static final BytesRef TRUE = new BytesRef("T");
@@ -499,7 +499,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         if (fieldType().isDimension()) {
-            context.getDimensions().addBoolean(fieldType().name(), value).validate(context.indexSettings());
+            context.getRoutingFields().addBoolean(fieldType().name(), value);
         }
         if (indexed) {
             context.doc().add(new StringField(fieldType().name(), value ? Values.TRUE : Values.FALSE, Field.Store.NO));
@@ -552,14 +552,14 @@ public class BooleanFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            var loader = new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()) {
-                @Override
-                protected void writeValue(XContentBuilder b, long value) throws IOException {
-                    b.value(value == 1);
+            return new SyntheticSourceSupport.Native(
+                () -> new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()) {
+                    @Override
+                    protected void writeValue(XContentBuilder b, long value) throws IOException {
+                        b.value(value == 1);
+                    }
                 }
-            };
-
-            return new SyntheticSourceSupport.Native(loader);
+            );
         }
 
         return super.syntheticSourceSupport();

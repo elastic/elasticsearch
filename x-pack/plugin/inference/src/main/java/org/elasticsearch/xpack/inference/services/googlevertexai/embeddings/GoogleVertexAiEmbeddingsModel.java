@@ -8,15 +8,12 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
 import org.apache.http.client.utils.URIBuilder;
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
-import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.googlevertexai.GoogleVertexAiActionVisitor;
 import org.elasticsearch.xpack.inference.external.request.googlevertexai.GoogleVertexAiUtils;
@@ -26,16 +23,23 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiS
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings.AUTO_TRUNCATE;
 
 public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
 
-    private URI uri;
+    public static GoogleVertexAiEmbeddingsModel of(
+        GoogleVertexAiEmbeddingsModel model,
+        Map<String, Object> taskSettings,
+        InputType inputType
+    ) {
+        var requestTaskSettings = GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
+        return new GoogleVertexAiEmbeddingsModel(
+            model,
+            GoogleVertexAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings, inputType)
+        );
+    }
 
     public GoogleVertexAiEmbeddingsModel(
         String inferenceEntityId,
@@ -60,6 +64,10 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
 
     public GoogleVertexAiEmbeddingsModel(GoogleVertexAiEmbeddingsModel model, GoogleVertexAiEmbeddingsServiceSettings serviceSettings) {
         super(model, serviceSettings);
+    }
+
+    public GoogleVertexAiEmbeddingsModel(GoogleVertexAiEmbeddingsModel model, GoogleVertexAiEmbeddingsTaskSettings taskSettings) {
+        super(model, taskSettings);
     }
 
     // Should only be used directly for testing
@@ -126,13 +134,9 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         return (GoogleVertexAiEmbeddingsRateLimitServiceSettings) super.rateLimitServiceSettings();
     }
 
-    public URI uri() {
-        return uri;
-    }
-
     @Override
-    public ExecutableAction accept(GoogleVertexAiActionVisitor visitor, Map<String, Object> taskSettings) {
-        return visitor.create(this, taskSettings);
+    public ExecutableAction accept(GoogleVertexAiActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
+        return visitor.create(this, taskSettings, inputType);
     }
 
     public static URI buildUri(String location, String projectId, String modelId) throws URISyntaxException {
@@ -150,31 +154,5 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
                 format("%s:%s", modelId, GoogleVertexAiUtils.PREDICT)
             )
             .build();
-    }
-
-    public static class Configuration {
-        public static Map<String, SettingsConfiguration> get() {
-            return configuration.getOrCompute();
-        }
-
-        private static final LazyInitializable<Map<String, SettingsConfiguration>, RuntimeException> configuration =
-            new LazyInitializable<>(() -> {
-                var configurationMap = new HashMap<String, SettingsConfiguration>();
-
-                configurationMap.put(
-                    AUTO_TRUNCATE,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TOGGLE)
-                        .setLabel("Auto Truncate")
-                        .setOrder(1)
-                        .setRequired(false)
-                        .setSensitive(false)
-                        .setTooltip("Specifies if the API truncates inputs longer than the maximum token length automatically.")
-                        .setType(SettingsConfigurationFieldType.BOOLEAN)
-                        .setValue(false)
-                        .build()
-                );
-
-                return Collections.unmodifiableMap(configurationMap);
-            });
     }
 }

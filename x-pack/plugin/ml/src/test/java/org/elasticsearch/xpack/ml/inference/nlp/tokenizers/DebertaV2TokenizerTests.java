@@ -94,6 +94,20 @@ public class DebertaV2TokenizerTests extends ESTestCase {
         }
     }
 
+    public void testTokenizeWithHiddenControlCharacters() throws IOException {
+        try (
+            DebertaV2Tokenizer tokenizer = DebertaV2Tokenizer.builder(
+                TEST_CASE_VOCAB,
+                TEST_CASE_SCORES,
+                new DebertaV2Tokenization(false, false, null, Tokenization.Truncate.NONE, -1)
+            ).build()
+        ) {
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("\u009F\u008Fz", Tokenization.Truncate.NONE, -1, 0, null).get(0);
+            assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁", "z"));
+
+        }
+    }
+
     public void testSurrogatePair() throws IOException {
         try (
             DebertaV2Tokenizer tokenizer = DebertaV2Tokenizer.builder(

@@ -386,7 +386,7 @@ class DownsampleShardIndexer {
 
                     if (logger.isTraceEnabled()) {
                         logger.trace(
-                            "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> downsample bucket ts: [{}]",
+                            "Doc: [{}] - _tsid: [{}], @timestamp: [{}] -> downsample bucket ts: [{}]",
                             docId,
                             DocValueFormat.TIME_SERIES_ID.format(tsidHash),
                             timestampFormat.format(timestamp),

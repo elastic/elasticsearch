@@ -4,6 +4,12 @@
 <titleabbrev>Update</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-document[Document APIs].
+--
+
 Updates a document using the specified script.
 
 [[docs-update-api-request]]
@@ -71,7 +77,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 `_source`::
-(Optional, list) Set to `false` to disable source retrieval (default: `true`).
+(Optional, list) Set to `true` to enable source retrieval (default: `false`).
 You can also specify a comma-separated list of the fields you want to retrieve.
 
 `_source_excludes`::
@@ -301,23 +307,19 @@ POST test/_update/1
 [discrete]
 ===== Upsert
 
-If the document does not already exist, the contents of the `upsert` element
-are inserted as a new document. If the document exists, the
-`script` is executed:
+An upsert operation lets you update an existing document or insert a new one if it doesn't exist, in a single request.
+
+In this example, if the product with ID `1` exists, its price will be updated to `100`. If the product does not exist, a new document with ID `1` and a price of `50` will be inserted.
 
 [source,console]
 ----
-POST test/_update/1
+POST /test/_update/1
 {
-  "script": {
-    "source": "ctx._source.counter += params.count",
-    "lang": "painless",
-    "params": {
-      "count": 4
-    }
+  "doc": {
+    "product_price": 100
   },
   "upsert": {
-    "counter": 1
+    "product_price": 50
   }
 }
 ----

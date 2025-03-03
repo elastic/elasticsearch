@@ -75,7 +75,7 @@ index with routing:
       reason: tsdb indexing changed in 8.2.0
 
   - do:
-      catch: /specifying routing is not supported because the destination index \[test\] is in time series mode/
+      catch: /specifying routing is not supported because the destination index \[test\] is in time.series mode/
       index:
         index:   test
         routing: foo
@@ -104,7 +104,7 @@ index with routing over _bulk:
         body:
           - '{"index": {"routing": "foo"}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
-  - match: {items.0.index.error.reason: "specifying routing is not supported because the destination index [test] is in time series mode"}
+  - match: {items.0.index.error.reason: '/specifying\ routing\ is\ not\ supported\ because\ the\ destination\ index\ \[test\]\ is\ in\ time.series\ mode/'}
 
 ---
 noop update:
@@ -120,7 +120,7 @@ noop update:
   - length: {hits.hits: 1}
 
   - do:
-      catch: /update is not supported because the destination index \[test\] is in time series mode/
+      catch: /update is not supported because the destination index \[test\] is in time.series mode/
       update:
         index:   test
         id:      "1"
@@ -129,14 +129,14 @@ noop update:
             {}
 
 ---
-update:
+regular update:
   - requires:
       cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   # We fail even though the document isn't found.
   - do:
-      catch: /update is not supported because the destination index \[test\] is in time series mode/
+      catch: /update is not supported because the destination index \[test\] is in time.series mode/
       update:
         index:   test
         id:      "1"
@@ -165,7 +165,7 @@ update over _bulk:
         body:
           - '{"update": {"_id": 1}}'
           - '{"doc":{"@timestamp": "2021-04-28T18:03:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}}'
-  - match: {items.0.update.error.reason: "update is not supported because the destination index [test] is in time series mode"}
+  - match: {items.0.update.error.reason: '/update\ is\ not\ supported\ because\ the\ destination\ index\ \[test\]\ is\ in\ time.series\ mode/'}
 
 ---
 search with routing:
@@ -175,7 +175,7 @@ search with routing:
 
   # We fail even though the document isn't found.
   - do:
-      catch: /searching with a specified routing is not supported because the destination index \[test\] is in time series mode/
+      catch: /searching with a specified routing is not supported because the destination index \[test\] is in time.series mode/
       search:
         index:   test
         routing: rrrr

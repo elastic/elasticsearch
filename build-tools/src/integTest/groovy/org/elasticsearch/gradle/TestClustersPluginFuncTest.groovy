@@ -135,7 +135,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
             esplugin {
                 name = 'test-$pluginType'
-                classname 'org.acme.TestModule'
+                classname = 'org.acme.TestModule'
                 description = "test $pluginType description"
             }
 

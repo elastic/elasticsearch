@@ -268,3 +268,80 @@
 
   - length: { suggest.result: 1  }
   - length: { suggest.result.0.options: 1  }
+
+---
+"Duplicate suggestions in different contexts in sub-fields":
+  - requires:
+      cluster_features: [ "search.completion_field.duplicate.support" ]
+      reason: "Support for duplicate suggestions in different contexts"
+
+  - do:
+      indices.create:
+        index: completion_with_context
+        body:
+          mappings:
+            "properties":
+              "suggest_1":
+                "type": "completion"
+                "contexts":
+                  -
+                    "name": "color"
+                    "type": "category"
+                "fields":
+                  "suggest_2":
+                    "type": "completion"
+                    "contexts":
+                      -
+                        "name": "color"
+                        "type": "category"
+
+
+  - do:
+      index:
+        refresh: true
+        index: completion_with_context
+        id:    "1"
+        body:
+          suggest_1:
+            -
+              input: "foox"
+              weight: 2
+              contexts:
+                color: ["red"]
+            -
+              input: "foox"
+              weight: 3
+              contexts:
+                color: ["blue", "green"]
+  - do:
+      search:
+        body:
+          suggest:
+            result:
+              text: "foo"
+              completion:
+                field: suggest_1.suggest_2
+                contexts:
+                  color: "red"
+
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "foox" }
+  - match:  { suggest.result.0.options.0._score: 2 }
+
+
+  - do:
+      search:
+        body:
+          suggest:
+            result:
+              text: "foo"
+              completion:
+                field: suggest_1.suggest_2
+                contexts:
+                  color: "blue"
+
+  - length: { suggest.result: 1 }
+  - length: { suggest.result.0.options: 1 }
+  - match: { suggest.result.0.options.0.text: "foox" }
+  - match: { suggest.result.0.options.0._score: 3 }

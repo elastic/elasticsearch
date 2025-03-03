@@ -25,7 +25,6 @@ public class OsService implements ReportingService<OsInfo> {
 
     private static final Logger logger = LogManager.getLogger(OsService.class);
 
-    private final OsProbe probe;
     private final OsInfo info;
     private final SingleObjectCache<OsStats> osStatsCache;
 
@@ -37,10 +36,9 @@ public class OsService implements ReportingService<OsInfo> {
     );
 
     public OsService(Settings settings) throws IOException {
-        this.probe = OsProbe.getInstance();
         TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
-        this.info = probe.osInfo(refreshInterval.millis(), EsExecutors.nodeProcessors(settings));
-        this.osStatsCache = new OsStatsCache(refreshInterval, probe.osStats());
+        this.info = OsProbe.getInstance().osInfo(refreshInterval.millis(), EsExecutors.nodeProcessors(settings));
+        this.osStatsCache = new OsStatsCache(refreshInterval);
         logger.debug("using refresh_interval [{}]", refreshInterval);
     }
 
@@ -53,14 +51,28 @@ public class OsService implements ReportingService<OsInfo> {
         return osStatsCache.getOrRefresh();
     }
 
-    private class OsStatsCache extends SingleObjectCache<OsStats> {
-        OsStatsCache(TimeValue interval, OsStats initValue) {
-            super(interval, initValue);
+    private static class OsStatsCache extends SingleObjectCache<OsStats> {
+
+        private static final OsStats MISSING = new OsStats(
+            0L,
+            new OsStats.Cpu((short) 0, new double[0]),
+            new OsStats.Mem(0, 0, 0),
+            new OsStats.Swap(0, 0),
+            null
+        );
+
+        OsStatsCache(TimeValue interval) {
+            super(interval, MISSING);
         }
 
         @Override
         protected OsStats refresh() {
-            return probe.osStats();
+            return OsProbe.getInstance().osStats();
+        }
+
+        @Override
+        protected boolean needsRefresh() {
+            return getNoRefresh() == MISSING || super.needsRefresh();
         }
     }
 }

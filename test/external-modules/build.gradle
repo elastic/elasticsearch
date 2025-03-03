@@ -5,8 +5,8 @@ subprojects {
   apply plugin: 'elasticsearch.base-internal-es-plugin'
 
   esplugin {
-    name it.name
-    licenseFile rootProject.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
-    noticeFile rootProject.file('NOTICE.txt')
+    name = it.name
+    licenseFile = rootProject.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
+    noticeFile = rootProject.file('NOTICE.txt')
   }
 }

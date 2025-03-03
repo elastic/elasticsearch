@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -42,8 +41,7 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             GetComponentTemplateAction.NAME,
@@ -52,7 +50,6 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
             threadPool,
             actionFilters,
             GetComponentTemplateAction.Request::new,
-            indexNameExpressionResolver,
             GetComponentTemplateAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

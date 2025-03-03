@@ -150,10 +150,26 @@ public class ResolvedIndices {
         RemoteClusterService remoteClusterService,
         long startTimeInMillis
     ) {
-        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
+        return resolveWithIndexNamesAndOptions(
+            request.indices(),
             request.indicesOptions(),
-            request.indices()
+            clusterState,
+            indexNameExpressionResolver,
+            remoteClusterService,
+            startTimeInMillis
         );
+    }
+
+    public static ResolvedIndices resolveWithIndexNamesAndOptions(
+        String[] indexNames,
+        IndicesOptions indicesOptions,
+        ClusterState clusterState,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        RemoteClusterService remoteClusterService,
+        long startTimeInMillis
+    ) {
+        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(indicesOptions, indexNames);
+
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
         Index[] concreteLocalIndices = localIndices == null

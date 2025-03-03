@@ -47,6 +47,7 @@ public class SourceFieldMetricsTests extends MapperServiceTestCase {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 SourceProvider provider = SourceProvider.fromSyntheticSource(
                     mapper.mapping(),
+                    null,
                     createTestMapperMetrics().sourceFieldMetrics()
                 );
                 Source synthetic = provider.getSource(getOnlyLeafReader(reader).getContext(), 0);

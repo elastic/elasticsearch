@@ -12,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -40,7 +41,7 @@ public class NodeInfoTests extends ESTestCase {
     public void testGetInfo() {
         NodeInfo nodeInfo = new NodeInfo(
             Build.current().version(),
-            TransportVersion.current(),
+            new CompatibilityVersions(TransportVersion.current(), Map.of()),
             IndexVersion.current(),
             Map.of(),
             Build.current(),

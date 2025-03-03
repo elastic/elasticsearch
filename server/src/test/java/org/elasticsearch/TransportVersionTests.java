@@ -30,6 +30,15 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class TransportVersionTests extends ESTestCase {
 
+    /**
+     * This test is specific for 8.19, to ensure that transport versions are backported correctly. Do not forward or backport it,
+     * and do not adjust the TransportVersion to check (INITIAL_ELASTICSEARCH_8_19).
+     * If the test fails, there is something wrong with your backport PR.
+     */
+    public void testMaximumAllowedTransportVersion() {
+        assertThat(TransportVersions.LATEST_DEFINED.isPatchFrom(TransportVersions.INITIAL_ELASTICSEARCH_8_19), is(true));
+    }
+
     public void testVersionComparison() {
         TransportVersion V_7_2_0 = TransportVersions.V_7_2_0;
         TransportVersion V_8_0_0 = TransportVersions.V_8_0_0;
@@ -163,15 +172,15 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testIsPatchFrom() {
-        TransportVersion patchVersion = TransportVersion.fromId(8_800_00_4);
-        assertThat(TransportVersion.fromId(8_799_00_0).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_799_00_9).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_00_0).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_00_3).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_00_4).isPatchFrom(patchVersion), is(true));
-        assertThat(TransportVersion.fromId(8_800_00_9).isPatchFrom(patchVersion), is(true));
-        assertThat(TransportVersion.fromId(8_800_01_0).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_801_00_0).isPatchFrom(patchVersion), is(false));
+        TransportVersion patchVersion = TransportVersion.fromId(8_800_0_04);
+        assertThat(TransportVersion.fromId(8_799_0_00).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_799_0_09).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_0_00).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_0_03).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_0_04).isPatchFrom(patchVersion), is(true));
+        assertThat(TransportVersion.fromId(8_800_0_49).isPatchFrom(patchVersion), is(true));
+        assertThat(TransportVersion.fromId(8_800_1_00).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_801_0_00).isPatchFrom(patchVersion), is(false));
     }
 
     public void testVersionConstantPresent() {
@@ -187,6 +196,19 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testCURRENTIsLatest() {
         assertThat(Collections.max(TransportVersions.getAllVersions()), is(TransportVersion.current()));
+    }
+
+    public void testPatchVersionsStillAvailable() {
+        for (TransportVersion tv : TransportVersionUtils.allReleasedVersions()) {
+            if (tv.onOrAfter(TransportVersions.V_8_9_X) && (tv.id() % 100) > 90) {
+                fail(
+                    "Transport version "
+                        + tv
+                        + " is nearing the limit of available patch numbers."
+                        + " Please inform the Core/Infra team that isPatchFrom may need to be modified"
+                );
+            }
+        }
     }
 
     public void testToReleaseVersion() {
@@ -211,7 +233,7 @@ public class TransportVersionTests extends ESTestCase {
         Set<Integer> missingVersions = new TreeSet<>();
         TransportVersion previous = null;
         for (var tv : TransportVersions.getAllVersions()) {
-            if (tv.before(TransportVersions.V_8_15_2)) {
+            if (tv.before(TransportVersions.V_8_16_0)) {
                 continue;
             }
             if (previous == null) {

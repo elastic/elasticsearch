@@ -19,8 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -37,7 +36,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -1187,13 +1187,12 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
                 List.of("foo", "bar"),
                 new HashMap<>(),
                 InputType.INGEST,
-                new ChunkingOptions(null, null),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -1201,18 +1200,28 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(2));
             {
-                assertThat(results.get(0), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(0);
+                assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
+                var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals("foo", floatResult.chunks().get(0).matchedText());
-                assertArrayEquals(new float[] { 0.0123f, -0.0123f }, floatResult.chunks().get(0).embedding(), 0.0f);
+                assertThat(floatResult.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
+                assertArrayEquals(
+                    new float[] { 0.0123f, -0.0123f },
+                    ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding(),
+                    0.0f
+                );
             }
             {
-                assertThat(results.get(1), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(1);
+                assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
+                var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals("bar", floatResult.chunks().get(0).matchedText());
-                assertArrayEquals(new float[] { 1.0123f, -1.0123f }, floatResult.chunks().get(0).embedding(), 0.0f);
+                assertThat(floatResult.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
+                assertArrayEquals(
+                    new float[] { 1.0123f, -1.0123f },
+                    ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding(),
+                    0.0f
+                );
             }
 
             assertThat(webServer.requests(), hasSize(1));
@@ -1393,195 +1402,63 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace(
                 """
                     {
-                        "provider": "azureaistudio",
-                        "task_types": [
-                             {
-                                 "task_type": "text_embedding",
-                                 "configuration": {
-                                     "top_p": {
-                                         "default_value": null,
-                                         "depends_on": [],
-                                         "display": "numeric",
-                                         "label": "Top P",
-                                         "order": 4,
-                                         "required": false,
-                                         "sensitive": false,
-                                         "tooltip": "A number in the range of 0.0 to 2.0 that is an alternative value to temperature. Should not be used if temperature is specified.",
-                                         "type": "int",
-                                         "ui_restrictions": [],
-                                         "validations": [],
-                                         "value": null
-                                     },
-                                     "max_new_tokens": {
-                                         "default_value": null,
-                                         "depends_on": [],
-                                         "display": "numeric",
-                                         "label": "Max New Tokens",
-                                         "order": 2,
-                                         "required": false,
-                                         "sensitive": false,
-                                         "tooltip": "Provides a hint for the maximum number of output tokens to be generated.",
-                                         "type": "int",
-                                         "ui_restrictions": [],
-                                         "validations": [],
-                                         "value": null
-                                     },
-                                     "temperature": {
-                                         "default_value": null,
-                                         "depends_on": [],
-                                         "display": "numeric",
-                                         "label": "Temperature",
-                                         "order": 3,
-                                         "required": false,
-                                         "sensitive": false,
-                                         "tooltip": "A number in the range of 0.0 to 2.0 that specifies the sampling temperature.",
-                                         "type": "int",
-                                         "ui_restrictions": [],
-                                         "validations": [],
-                                         "value": null
-                                     },
-                                     "do_sample": {
-                                         "default_value": null,
-                                         "depends_on": [],
-                                         "display": "numeric",
-                                         "label": "Do Sample",
-                                         "order": 1,
-                                         "required": false,
-                                         "sensitive": false,
-                                         "tooltip": "Instructs the inference process to perform sampling or not.",
-                                         "type": "int",
-                                         "ui_restrictions": [],
-                                         "validations": [],
-                                         "value": null
-                                     }
-                                 }
-                             },
-                             {
-                                 "task_type": "completion",
-                                 "configuration": {
-                                     "user": {
-                                         "default_value": null,
-                                         "depends_on": [],
-                                         "display": "textbox",
-                                         "label": "User",
-                                         "order": 1,
-                                         "required": false,
-                                         "sensitive": false,
-                                         "tooltip": "Specifies the user issuing the request.",
-                                         "type": "str",
-                                         "ui_restrictions": [],
-                                         "validations": [],
-                                         "value": ""
-                                     }
-                                 }
-                             }
-                        ],
-                        "configuration": {
-                            "endpoint_type": {
-                                "default_value": null,
-                                "depends_on": [],
-                                "display": "dropdown",
-                                "label": "Endpoint Type",
-                                "options": [
-                                    {
-                                        "label": "token",
-                                        "value": "token"
-                                    },
-                                    {
-                                        "label": "realtime",
-                                        "value": "realtime"
-                                    }
-                                ],
-                                "order": 3,
-                                "required": true,
-                                "sensitive": false,
-                                "tooltip": "Specifies the type of endpoint that is used in your model deployment.",
-                                "type": "str",
-                                "ui_restrictions": [],
-                                "validations": [],
-                                "value": null
-                            },
-                            "provider": {
-                                "default_value": null,
-                                "depends_on": [],
-                                "display": "dropdown",
-                                "label": "Provider",
-                                "options": [
-                                    {
-                                        "label": "cohere",
-                                        "value": "cohere"
-                                    },
-                                    {
-                                        "label": "meta",
-                                        "value": "meta"
-                                    },
-                                    {
-                                        "label": "microsoft_phi",
-                                        "value": "microsoft_phi"
-                                    },
-                                    {
-                                        "label": "mistral",
-                                        "value": "mistral"
-                                    },
-                                    {
-                                        "label": "openai",
-                                        "value": "openai"
-                                    },
-                                    {
-                                        "label": "databricks",
-                                        "value": "databricks"
-                                    }
-                                ],
-                                "order": 3,
-                                "required": true,
-                                "sensitive": false,
-                                "tooltip": "The model provider for your deployment.",
-                                "type": "str",
-                                "ui_restrictions": [],
-                                "validations": [],
-                                "value": null
-                            },
-                            "api_key": {
-                                "default_value": null,
-                                "depends_on": [],
-                                "display": "textbox",
-                                "label": "API Key",
-                                "order": 1,
-                                "required": true,
-                                "sensitive": true,
-                                "tooltip": "API Key for the provider you're connecting to.",
-                                "type": "str",
-                                "ui_restrictions": [],
-                                "validations": [],
-                                "value": null
-                            },
-                            "rate_limit.requests_per_minute": {
-                                "default_value": null,
-                                "depends_on": [],
-                                "display": "numeric",
-                                "label": "Rate Limit",
-                                "order": 6,
+                        "service": "azureaistudio",
+                        "name": "Azure AI Studio",
+                        "task_types": ["text_embedding", "completion"],
+                        "configurations": {
+                            "dimensions": {
+                                "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://learn.microsoft.com/en-us/azure/ai-studio/reference/reference-model-inference-embeddings.",
+                                "label": "Dimensions",
                                 "required": false,
                                 "sensitive": false,
-                                "tooltip": "Minimize the number of rate limit errors.",
+                                "updatable": false,
                                 "type": "int",
-                                "ui_restrictions": [],
-                                "validations": [],
-                                "value": null
+                                "supported_task_types": ["text_embedding"]
                             },
-                            "target": {
-                                "default_value": null,
-                                "depends_on": [],
-                                "display": "textbox",
-                                "label": "Target",
-                                "order": 2,
+                            "endpoint_type": {
+                                "description": "Specifies the type of endpoint that is used in your model deployment.",
+                                "label": "Endpoint Type",
                                 "required": true,
                                 "sensitive": false,
-                                "tooltip": "The target URL of your Azure AI Studio model deployment.",
+                                "updatable": false,
                                 "type": "str",
-                                "ui_restrictions": [],
-                                "validations": [],
-                                "value": null
+                                "supported_task_types": ["text_embedding", "completion"]
+                            },
+                            "provider": {
+                                "description": "The model provider for your deployment.",
+                                "label": "Provider",
+                                "required": true,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "completion"]
+                            },
+                            "api_key": {
+                                "description": "API Key for the provider you're connecting to.",
+                                "label": "API Key",
+                                "required": true,
+                                "sensitive": true,
+                                "updatable": true,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "completion"]
+                            },
+                            "rate_limit.requests_per_minute": {
+                                "description": "Minimize the number of rate limit errors.",
+                                "label": "Rate Limit",
+                                "required": false,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "int",
+                                "supported_task_types": ["text_embedding", "completion"]
+                            },
+                            "target": {
+                                "description": "The target URL of your Azure AI Studio model deployment.",
+                                "label": "Target",
+                                "required": true,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "completion"]
                             }
                         }
                     }

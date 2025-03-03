@@ -4,6 +4,12 @@
 <titleabbrev>Get pipeline</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ingest[Ingest APIs].
+--
+
 Returns information about one or more ingest pipelines.
 This API returns a local reference of the pipeline.
 

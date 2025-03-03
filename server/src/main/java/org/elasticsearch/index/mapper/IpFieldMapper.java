@@ -55,6 +55,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.buildIpPrefixAutomaton;
 
 /**
@@ -92,8 +93,15 @@ public class IpFieldMapper extends FieldMapper {
         private final boolean ignoreMalformedByDefault;
         private final IndexVersion indexCreatedVersion;
         private final ScriptCompiler scriptCompiler;
+        private final SourceKeepMode indexSourceKeepMode;
 
-        public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion) {
+        public Builder(
+            String name,
+            ScriptCompiler scriptCompiler,
+            boolean ignoreMalformedByDefault,
+            IndexVersion indexCreatedVersion,
+            SourceKeepMode indexSourceKeepMode
+        ) {
             super(name);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.ignoreMalformedByDefault = ignoreMalformedByDefault;
@@ -114,6 +122,7 @@ public class IpFieldMapper extends FieldMapper {
                     );
                 }
             });
+            this.indexSourceKeepMode = indexSourceKeepMode;
         }
 
         Builder nullValue(String nullValue) {
@@ -184,6 +193,15 @@ public class IpFieldMapper extends FieldMapper {
             }
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.getValue();
+
+            String offsetsFieldName = getOffsetsFieldName(
+                context,
+                indexSourceKeepMode,
+                hasDocValues.getValue(),
+                stored.getValue(),
+                this,
+                indexCreatedVersion
+            );
             return new IpFieldMapper(
                 leafName(),
                 new IpFieldType(
@@ -198,7 +216,8 @@ public class IpFieldMapper extends FieldMapper {
                 ),
                 builderParams(this, context),
                 context.isSourceSynthetic(),
-                this
+                this,
+                offsetsFieldName
             );
         }
 
@@ -208,7 +227,7 @@ public class IpFieldMapper extends FieldMapper {
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
-        return new Builder(n, c.scriptCompiler(), ignoreMalformedByDefault, c.indexVersionCreated());
+        return new Builder(n, c.scriptCompiler(), ignoreMalformedByDefault, c.indexVersionCreated(), c.getIndexSettings().sourceKeepMode());
     }, MINIMUM_COMPATIBILITY_VERSION);
 
     public static final class IpFieldType extends SimpleMappedFieldType {
@@ -503,13 +522,16 @@ public class IpFieldMapper extends FieldMapper {
     private final Script script;
     private final FieldValues<InetAddress> scriptValues;
     private final ScriptCompiler scriptCompiler;
+    private final SourceKeepMode indexSourceKeepMode;
+    private final String offsetsFieldName;
 
     private IpFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
         boolean storeIgnored,
-        Builder builder
+        Builder builder,
+        String offsetsFieldName
     ) {
         super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformedByDefault = builder.ignoreMalformedByDefault;
@@ -525,6 +547,8 @@ public class IpFieldMapper extends FieldMapper {
         this.scriptCompiler = builder.scriptCompiler;
         this.dimension = builder.dimension.getValue();
         this.storeIgnored = storeIgnored;
+        this.indexSourceKeepMode = builder.indexSourceKeepMode;
+        this.offsetsFieldName = offsetsFieldName;
     }
 
     @Override
@@ -563,11 +587,19 @@ public class IpFieldMapper extends FieldMapper {
         if (address != null) {
             indexValue(context, address);
         }
+        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
+            if (address != null) {
+                BytesRef sortableValue = new BytesRef(InetAddressPoint.encode(address));
+                context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue);
+            } else {
+                context.getOffSetContext().recordNull(offsetsFieldName);
+            }
+        }
     }
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
         if (dimension) {
-            context.getDimensions().addIp(fieldType().name(), address).validate(context.indexSettings());
+            context.getRoutingFields().addIp(fieldType().name(), address);
         }
         if (indexed) {
             Field field = new InetAddressPoint(fieldType().name(), address);
@@ -595,7 +627,9 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).dimension(dimension).init(this);
+        return new Builder(leafName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion, indexSourceKeepMode).dimension(
+            dimension
+        ).init(this);
     }
 
     @Override
@@ -610,28 +644,44 @@ public class IpFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-            layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
-                @Override
-                protected BytesRef convert(BytesRef value) {
-                    byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
-                    return new BytesRef(NetworkAddress.format(InetAddressPoint.decode(bytes)));
+            return new SyntheticSourceSupport.Native(() -> {
+                var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+                if (offsetsFieldName != null) {
+                    layers.add(
+                        new SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, IpFieldMapper::convert)
+                    );
+                } else {
+                    layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                        @Override
+                        protected BytesRef convert(BytesRef value) {
+                            return IpFieldMapper.convert(value);
+                        }
+
+                        @Override
+                        protected BytesRef preserve(BytesRef value) {
+                            // No need to copy because convert has made a deep copy
+                            return value;
+                        }
+                    });
                 }
 
-                @Override
-                protected BytesRef preserve(BytesRef value) {
-                    // No need to copy because convert has made a deep copy
-                    return value;
+                if (ignoreMalformed) {
+                    layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
                 }
+                return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
             });
-
-            if (ignoreMalformed) {
-                layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
-            }
-
-            return new SyntheticSourceSupport.Native(new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers));
         }
 
         return super.syntheticSourceSupport();
+    }
+
+    static BytesRef convert(BytesRef value) {
+        byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
+        return new BytesRef(NetworkAddress.format(InetAddressPoint.decode(bytes)));
+    }
+
+    @Override
+    public String getOffsetFieldName() {
+        return offsetsFieldName;
     }
 }

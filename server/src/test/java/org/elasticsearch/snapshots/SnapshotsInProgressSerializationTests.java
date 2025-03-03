@@ -88,6 +88,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                                 nodeId -> SingleNodeShutdownMetadata.builder()
                                     .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                                     .setNodeId(nodeId)
+                                    .setNodeEphemeralId(nodeId)
                                     .setStartedAtMillis(randomNonNegativeLong())
                                     .setReason(getTestName())
                                     .build()
@@ -476,6 +477,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                                 "node-id",
                                 SingleNodeShutdownMetadata.builder()
                                     .setNodeId("node-id")
+                                    .setNodeEphemeralId("node-id")
                                     .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                                     .setStartedAtMillis(randomNonNegativeLong())
                                     .setReason("test")

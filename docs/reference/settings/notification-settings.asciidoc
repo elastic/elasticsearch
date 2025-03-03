@@ -118,6 +118,17 @@ If you configure multiple email accounts, you must either configure this setting
 or specify the email account to use in the <<actions-email,`email`>> action. See
 <<configuring-email>>.
 
+`xpack.notification.email.recipient_allowlist`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Specifies addresses to which emails are allowed to be sent.
+Emails with recipients (`To:`, `Cc:`, or `Bcc:`) outside of these patterns will be rejected and an
+error thrown. This setting defaults to `["*"]` which means all recipients are allowed.
+Simple globbing is supported, such as `list-*@company.com` in the list of allowed recipients.
+
+NOTE: This setting can't be used at the same time as `xpack.notification.email.account.domain_allowlist`
+and an error will be thrown if both are set at the same time. This setting can be used to specify domains
+to allow by using a wildcard pattern such as `*@company.com`.
+
 `xpack.notification.email.account`::
 Specifies account information for sending notifications via email. You
 can specify the following email account attributes:
@@ -129,6 +140,10 @@ Specifies domains to which emails are allowed to be sent. Emails with recipients
 `Bcc:`) outside of these domains will be rejected and an error thrown. This setting defaults to
 `["*"]` which means all domains are allowed. Simple globbing is supported, such as `*.company.com`
 in the list of allowed domains.
+
+NOTE: This setting can't be used at the same time as `xpack.notification.email.recipient_allowlist`
+and an error will be thrown if both are set at the same time.
+
 --
 [[email-account-attributes]]
 

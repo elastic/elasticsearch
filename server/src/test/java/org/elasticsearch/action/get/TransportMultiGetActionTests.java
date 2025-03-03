@@ -46,6 +46,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -67,7 +68,6 @@ public class TransportMultiGetActionTests extends ESTestCase {
     private static TransportService transportService;
     private static ClusterService clusterService;
     private static TransportMultiGetAction transportAction;
-    private static TransportShardMultiGetAction shardAction;
 
     @BeforeClass
     public static void beforeClass() throws Exception {
@@ -135,45 +135,22 @@ public class TransportMultiGetActionTests extends ESTestCase {
             )
             .build();
 
-        final ShardIterator index1ShardIterator = mock(ShardIterator.class);
-        when(index1ShardIterator.shardId()).thenReturn(new ShardId(index1, randomInt()));
+        final ShardIterator index1ShardIterator = new ShardIterator(new ShardId(index1, randomInt()), Collections.emptyList());
 
-        final ShardIterator index2ShardIterator = mock(ShardIterator.class);
-        when(index2ShardIterator.shardId()).thenReturn(new ShardId(index2, randomInt()));
+        final ShardIterator index2ShardIterator = new ShardIterator(new ShardId(index2, randomInt()), Collections.emptyList());
 
         final OperationRouting operationRouting = mock(OperationRouting.class);
         when(
             operationRouting.getShards(eq(clusterState), eq(index1.getName()), anyString(), nullable(String.class), nullable(String.class))
         ).thenReturn(index1ShardIterator);
-        when(operationRouting.shardId(eq(clusterState), eq(index1.getName()), nullable(String.class), nullable(String.class))).thenReturn(
-            new ShardId(index1, randomInt())
-        );
         when(
             operationRouting.getShards(eq(clusterState), eq(index2.getName()), anyString(), nullable(String.class), nullable(String.class))
         ).thenReturn(index2ShardIterator);
-        when(operationRouting.shardId(eq(clusterState), eq(index2.getName()), nullable(String.class), nullable(String.class))).thenReturn(
-            new ShardId(index2, randomInt())
-        );
 
         clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(transportService.getLocalNode());
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.operationRouting()).thenReturn(operationRouting);
-        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-
-        shardAction = new TransportShardMultiGetAction(
-            clusterService,
-            transportService,
-            mock(IndicesService.class),
-            threadPool,
-            new ActionFilters(emptySet()),
-            new Resolver(),
-            EmptySystemIndices.INSTANCE.getExecutorSelector(),
-            client
-        ) {
-            @Override
-            protected void doExecute(Task task, MultiGetShardRequest request, ActionListener<MultiGetShardResponse> listener) {}
-        };
     }
 
     @AfterClass
@@ -183,7 +160,6 @@ public class TransportMultiGetActionTests extends ESTestCase {
         transportService = null;
         clusterService = null;
         transportAction = null;
-        shardAction = null;
     }
 
     public void testTransportMultiGetAction() {
@@ -276,5 +252,4 @@ public class TransportMultiGetActionTests extends ESTestCase {
             return new Index("index1", randomBase64UUID());
         }
     }
-
 }

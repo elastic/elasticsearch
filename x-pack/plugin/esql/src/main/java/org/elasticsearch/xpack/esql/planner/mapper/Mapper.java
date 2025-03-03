@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner.mapper;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -23,14 +24,14 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
@@ -103,7 +104,7 @@ public class Mapper {
                     return enrichExec.child();
                 }
                 if (f instanceof UnaryExec unaryExec) {
-                    if (f instanceof LimitExec || f instanceof ExchangeExec || f instanceof OrderExec || f instanceof TopNExec) {
+                    if (f instanceof LimitExec || f instanceof ExchangeExec || f instanceof TopNExec) {
                         return f;
                     } else {
                         return unaryExec.child();
@@ -159,11 +160,6 @@ public class Mapper {
             return new LimitExec(limit.source(), mappedChild, limit.limit());
         }
 
-        if (unary instanceof OrderBy o) {
-            mappedChild = addExchangeForFragment(o, mappedChild);
-            return new OrderExec(o.source(), mappedChild, o.order());
-        }
-
         if (unary instanceof TopN topN) {
             mappedChild = addExchangeForFragment(topN, mappedChild);
             return new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
@@ -178,7 +174,7 @@ public class Mapper {
     private PhysicalPlan mapBinary(BinaryPlan bp) {
         if (bp instanceof Join join) {
             JoinConfig config = join.config();
-            if (config.type() != JoinType.LEFT) {
+            if (config.type() != JoinTypes.LEFT) {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
             }
 
@@ -190,7 +186,7 @@ public class Mapper {
             }
 
             PhysicalPlan right = map(bp.right());
-            // no fragment means lookup
+            // if the right is data we can use a hash join directly
             if (right instanceof LocalSourceExec localData) {
                 return new HashJoinExec(
                     join.source(),
@@ -201,6 +197,11 @@ public class Mapper {
                     config.rightFields(),
                     join.output()
                 );
+            }
+            if (right instanceof FragmentExec fragment
+                && fragment.fragment() instanceof EsRelation relation
+                && relation.indexMode() == IndexMode.LOOKUP) {
+                return new LookupJoinExec(join.source(), left, right, config.leftFields(), config.rightFields(), join.rightOutputFields());
             }
         }
 

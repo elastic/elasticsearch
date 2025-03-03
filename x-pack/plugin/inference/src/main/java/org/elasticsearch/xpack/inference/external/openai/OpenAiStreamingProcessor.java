@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.inference.external.openai;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -18,10 +18,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
@@ -103,7 +101,7 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
  *     </code>
  * </pre>
  */
-public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSentEvent>, ChunkedToXContent> {
+public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSentEvent>, InferenceServiceResults.Result> {
     private static final Logger log = LogManager.getLogger(OpenAiStreamingProcessor.class);
     private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in OpenAI chat completions response";
 
@@ -115,19 +113,7 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
     @Override
     protected void next(Deque<ServerSentEvent> item) throws Exception {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-
-        var results = new ArrayDeque<StreamingChatCompletionResults.Result>(item.size());
-        for (ServerSentEvent event : item) {
-            if (ServerSentEventField.DATA == event.name() && event.hasValue()) {
-                try {
-                    var delta = parse(parserConfig, event);
-                    delta.forEachRemaining(results::offer);
-                } catch (Exception e) {
-                    log.warn("Failed to parse event from inference provider: {}", event);
-                    throw e;
-                }
-            }
-        }
+        var results = parseEvent(item, OpenAiStreamingProcessor::parse, parserConfig, log);
 
         if (results.isEmpty()) {
             upstream().request(1);
@@ -136,7 +122,7 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
         }
     }
 
-    private Iterator<StreamingChatCompletionResults.Result> parse(XContentParserConfiguration parserConfig, ServerSentEvent event)
+    private static Iterator<StreamingChatCompletionResults.Result> parse(XContentParserConfiguration parserConfig, ServerSentEvent event)
         throws IOException {
         if (DONE_MESSAGE.equalsIgnoreCase(event.value())) {
             return Collections.emptyIterator();

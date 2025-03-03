@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +18,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN;
 import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT;
 
 /**
@@ -47,7 +47,7 @@ public final class RRFRankDoc extends RankDoc {
      */
     public final float[] scores;
 
-    public final int rankConstant;
+    public final Integer rankConstant;
 
     public RRFRankDoc(int doc, int shardIndex, int queryCount, int rankConstant) {
         super(doc, 0f, shardIndex);
@@ -57,20 +57,38 @@ public final class RRFRankDoc extends RankDoc {
         this.rankConstant = rankConstant;
     }
 
+    public RRFRankDoc(int doc, int shardIndex) {
+        super(doc, 0f, shardIndex);
+        positions = null;
+        scores = null;
+        rankConstant = null;
+    }
+
     public RRFRankDoc(StreamInput in) throws IOException {
         super(in);
         rank = in.readVInt();
-        positions = in.readIntArray();
-        scores = in.readFloatArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RRF_QUERY_REWRITE)) {
-            this.rankConstant = in.readVInt();
+        if (in.getTransportVersion().onOrAfter(RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN)) {
+            if (in.readBoolean()) {
+                positions = in.readIntArray();
+            } else {
+                positions = null;
+            }
+            scores = in.readOptionalFloatArray();
+            rankConstant = in.readOptionalVInt();
         } else {
-            this.rankConstant = DEFAULT_RANK_CONSTANT;
+            positions = in.readIntArray();
+            scores = in.readFloatArray();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                this.rankConstant = in.readVInt();
+            } else {
+                this.rankConstant = DEFAULT_RANK_CONSTANT;
+            }
         }
     }
 
     @Override
     public Explanation explain(Explanation[] sources, String[] queryNames) {
+        assert positions != null && scores != null && rankConstant != null;
         assert sources.length == scores.length;
         int queries = positions.length;
         Explanation[] details = new Explanation[queries];
@@ -117,10 +135,21 @@ public final class RRFRankDoc extends RankDoc {
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(rank);
-        out.writeIntArray(positions);
-        out.writeFloatArray(scores);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RRF_QUERY_REWRITE)) {
-            out.writeVInt(rankConstant);
+        if (out.getTransportVersion().onOrAfter(RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN)) {
+            if (positions != null) {
+                out.writeBoolean(true);
+                out.writeIntArray(positions);
+            } else {
+                out.writeBoolean(false);
+            }
+            out.writeOptionalFloatArray(scores);
+            out.writeOptionalVInt(rankConstant);
+        } else {
+            out.writeIntArray(positions == null ? new int[0] : positions);
+            out.writeFloatArray(scores == null ? new float[0] : scores);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                out.writeVInt(rankConstant == null ? DEFAULT_RANK_CONSTANT : rankConstant);
+            }
         }
     }
 
@@ -166,13 +195,14 @@ public final class RRFRankDoc extends RankDoc {
 
     @Override
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("positions", positions);
-        builder.field("scores", scores);
-        builder.field("rankConstant", rankConstant);
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.RRF_QUERY_REWRITE;
+        if (positions != null) {
+            builder.array("positions", positions);
+        }
+        if (scores != null) {
+            builder.array("scores", scores);
+        }
+        if (rankConstant != null) {
+            builder.field("rankConstant", rankConstant);
+        }
     }
 }

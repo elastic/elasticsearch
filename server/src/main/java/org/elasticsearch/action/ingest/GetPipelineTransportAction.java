@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestService;
@@ -31,8 +30,7 @@ public class GetPipelineTransportAction extends TransportMasterNodeReadAction<Ge
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             GetPipelineAction.NAME,
@@ -41,7 +39,6 @@ public class GetPipelineTransportAction extends TransportMasterNodeReadAction<Ge
             threadPool,
             actionFilters,
             GetPipelineRequest::new,
-            indexNameExpressionResolver,
             GetPipelineResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

@@ -176,10 +176,10 @@ nodes that have a shared cache.
 ====
 Manually mounting snapshots captured by an Index Lifecycle Management ({ilm-init}) policy can
 interfere with {ilm-init}'s automatic management. This may lead to issues such as data loss
-or complications with snapshot handling. 
+or complications with snapshot handling.
 
 For optimal results, allow {ilm-init} to manage
-snapshots automatically. 
+snapshots automatically.
 
 <<ilm-searchable-snapshot,Learn more about {ilm-init} snapshot management>>.
 ====
@@ -292,6 +292,14 @@ mount snapshots into a cluster that is in the same region as the snapshot
 repository. If you wish to search data across multiple regions, configure
 multiple clusters and use <<modules-cross-cluster-search,{ccs}>> or
 <<xpack-ccr,{ccr}>> instead of {search-snaps}.
+
+It's worth noting that if a searchable snapshot index has no replicas, then when the node
+hosting it is shut down, allocation will immediately try to relocate the index to a new node
+in order to maximize availability. For fully mounted indices this will result in the new node
+downloading the entire index snapshot from the cloud repository. Under a rolling cluster restart,
+this may happen multiple times for each searchable snapshot index. Temporarily
+disabling allocation during planned node restart will prevent this, as described in
+the <<restart-cluster-rolling,cluster restart procedure>>.
 
 [discrete]
 [[back-up-restore-searchable-snapshots]]

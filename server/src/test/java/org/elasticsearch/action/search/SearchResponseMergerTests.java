@@ -639,7 +639,6 @@ public class SearchResponseMergerTests extends ESTestCase {
                     10000D,
                     count,
                     InternalAggregations.EMPTY,
-                    false,
                     DocValueFormat.RAW
                 );
                 InternalDateRange range = factory.create(rangeAggName, singletonList(bucket), DocValueFormat.RAW, false, emptyMap());
@@ -1498,15 +1497,7 @@ public class SearchResponseMergerTests extends ESTestCase {
     private static InternalAggregations createDeterminsticAggregation(String maxAggName, String rangeAggName, double value, int count) {
         Max max = new Max(maxAggName, value, DocValueFormat.RAW, Collections.emptyMap());
         InternalDateRange.Factory factory = new InternalDateRange.Factory();
-        InternalDateRange.Bucket bucket = factory.createBucket(
-            "bucket",
-            0D,
-            10000D,
-            count,
-            InternalAggregations.EMPTY,
-            false,
-            DocValueFormat.RAW
-        );
+        InternalDateRange.Bucket bucket = factory.createBucket("bucket", 0D, 10000D, count, InternalAggregations.EMPTY, DocValueFormat.RAW);
 
         InternalDateRange range = factory.create(rangeAggName, singletonList(bucket), DocValueFormat.RAW, false, emptyMap());
         InternalAggregations aggs = InternalAggregations.from(Arrays.asList(range, max));

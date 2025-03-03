@@ -1,5 +1,0 @@
-pr: 112916
-summary: Allow out of range term queries for numeric types
-area: Search
-type: bug
-issues: []

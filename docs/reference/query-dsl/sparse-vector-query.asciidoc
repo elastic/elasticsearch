@@ -11,7 +11,8 @@ This can be achieved with one of two strategies:
 - Using an {nlp} model to convert query text into a list of token-weight pairs
 - Sending in precalculated token-weight pairs as query vectors
 
-These token-weight pairs are then used in a query against a <<sparse-vector,sparse vector>>.
+These token-weight pairs are then used in a query against a <<sparse-vector,sparse vector>> 
+or a <<semantic-text, semantic_text>> field with a compatible sparse inference model.
 At query time, query vectors are calculated using the same inference model that was used to create the tokens.
 When querying, these query vectors are ORed together with their respective weights, which means scoring is effectively a <<vector-functions-dot-product,dot product>> calculation between stored dimensions and query dimensions.
 
@@ -61,10 +62,14 @@ GET _search
 (Required, string) The name of the field that contains the token-weight pairs to be searched against.
 
 `inference_id`::
-(Optional, string) The <<inference-apis,inference ID>> to use to convert the query text into token-weight pairs.
+(Optional, string)
+The <<inference-apis,inference ID>> to use to convert the query text into token-weight pairs.
 It must be the same inference ID that was used to create the tokens from the input text.
 Only one of `inference_id` and `query_vector` is allowed.
 If `inference_id` is specified, `query` must also be specified.
+If all queried fields are of type <<semantic-text, semantic_text>>, the inference ID associated with the `semantic_text` field will be inferred.
+You can reference a `deployment_id` of a {ml} trained model deployment as an `inference_id`.
+For example, if you download and deploy the ELSER model in the {ml-cap} trained models UI in {kib}, you can use the `deployment_id` of that deployment as the `inference_id`.
 
 `query`::
 (Optional, string) The query text you want to use for search.
@@ -291,5 +296,3 @@ GET my-index/_search
 //TEST[skip: Requires inference]
 
 NOTE: When performing <<modules-cross-cluster-search, cross-cluster search>>, inference is performed on the local cluster.
-
-

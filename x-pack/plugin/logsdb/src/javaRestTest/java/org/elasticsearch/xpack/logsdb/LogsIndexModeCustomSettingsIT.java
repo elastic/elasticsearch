@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.hamcrest.Matchers;
@@ -23,6 +26,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 @SuppressWarnings("unchecked")
 public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
@@ -113,11 +117,15 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
             }""";
 
         assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
-        assertOK(createDataStream(client, "logs-custom-dev"));
-
+        Request request = new Request("PUT", "_data_stream/logs-custom-dev");
+        if (minimumIndexVersion().onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)) {
+            request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
+        }
+        assertOK(client.performRequest(request));
         var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
         String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
         assertThat(sourceMode, equalTo("stored"));
+        assertDeprecationWarningForTemplate("logs@custom");
     }
 
     public void testConfigureDisabledSourceBeforeIndexCreation() {
@@ -183,11 +191,16 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
             }""";
 
         assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
-        assertOK(createDataStream(client, "logs-custom-dev"));
+        Request request = new Request("PUT", "_data_stream/logs-custom-dev");
+        if (minimumIndexVersion().onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)) {
+            request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
+        }
+        assertOK(client.performRequest(request));
 
         var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
         String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
         assertThat(sourceMode, equalTo("stored"));
+        assertDeprecationWarningForTemplate("logs@custom");
     }
 
     public void testConfigureDisabledSourceWhenIndexIsCreated() throws IOException {
@@ -498,5 +511,16 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
 
     private Function<Object, Map<String, Object>> subObject(String key) {
         return (mapAsObject) -> (Map<String, Object>) ((Map<String, Object>) mapAsObject).get(key);
+    }
+
+    private void assertDeprecationWarningForTemplate(String templateName) throws IOException {
+        var request = new Request("GET", "/_migration/deprecations");
+        var response = entityAsMap(client().performRequest(request));
+        assertThat(response.containsKey("templates"), is(true));
+        Map<?, ?> issuesByTemplate = (Map<?, ?>) response.get("templates");
+        assertThat(issuesByTemplate.containsKey(templateName), equalTo(true));
+        var templateIssues = (List<?>) issuesByTemplate.get(templateName);
+        assertThat(((Map<?, ?>) templateIssues.get(0)).get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING_TITLE));
+        assertThat(((Map<?, ?>) templateIssues.get(0)).get("details"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
     }
 }

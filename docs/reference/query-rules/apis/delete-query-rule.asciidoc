@@ -6,6 +6,12 @@
 <titleabbrev>Delete query rule</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-query_rules[Query rules APIs].
+--
+
 Removes an individual query rule within an existing query ruleset.
 This is a destructive action that is only recoverable by re-adding the same rule via the <<put-query-rule, create or update query rule>> API.
 

@@ -55,6 +55,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
     private static final Logger logger = LogManager.getLogger(TransportFreezeIndexAction.class);
 
     private final DestructiveOperations destructiveOperations;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final MetadataIndexStateService indexStateService;
 
     @Inject
@@ -74,12 +75,12 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
             threadPool,
             actionFilters,
             FreezeRequest::new,
-            indexNameExpressionResolver,
             FreezeResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.destructiveOperations = destructiveOperations;
         this.indexStateService = indexStateService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.destructiveOperations = destructiveOperations;
     }
 
     @Override

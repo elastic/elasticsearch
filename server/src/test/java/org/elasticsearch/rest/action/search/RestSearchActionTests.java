@@ -75,7 +75,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
         ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
 
-        action.handleRequest(request, new FakeRestChannel(request, false, 1), verifyingClient);
+        action.handleRequest(request, new FakeRestChannel(request, true, 1), verifyingClient);
     }
 
     public void testValidateSearchRequest() {
@@ -105,7 +105,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
             ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
 
             SearchRequest searchRequest = new SearchRequest();
-            KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", new float[] { 1, 1, 1 }, 10, 100, null);
+            KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", new float[] { 1, 1, 1 }, 10, 100, null, null);
             searchRequest.source(new SearchSourceBuilder().knnSearch(List.of(knnSearch)));
 
             Exception ex = expectThrows(

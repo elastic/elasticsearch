@@ -294,8 +294,8 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     }
 
     @SuppressForbidden(reason = "need to check file settings support on exact cluster state")
-    private static boolean supportsFileSettings(ClusterState clusterState) {
-        return clusterState.clusterFeatures().clusterHasFeature(FileSettingsFeatures.FILE_SETTINGS_SUPPORTED);
+    private boolean supportsFileSettings(ClusterState clusterState) {
+        return clusterState.clusterFeatures().clusterHasFeature(clusterState.nodes(), FileSettingsFeatures.FILE_SETTINGS_SUPPORTED);
     }
 
     private void setReady(boolean ready) {

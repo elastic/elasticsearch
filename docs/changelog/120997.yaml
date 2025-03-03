@@ -1,0 +1,5 @@
+pr: 120997
+summary: Allow `SSHA-256` for API key credential hash
+area: Authentication
+type: enhancement
+issues: []

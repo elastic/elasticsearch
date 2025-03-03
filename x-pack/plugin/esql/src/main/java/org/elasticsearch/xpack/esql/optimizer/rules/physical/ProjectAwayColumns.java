@@ -73,8 +73,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                             Source.EMPTY,
                             new Project(logicalFragment.source(), logicalFragment, output),
                             fragmentExec.esFilter(),
-                            fragmentExec.estimatedRowSize(),
-                            fragmentExec.reducer()
+                            fragmentExec.estimatedRowSize()
                         );
                         return new ExchangeExec(exec.source(), output, exec.inBetweenAggs(), newChild);
                     }

@@ -12,28 +12,36 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link TopIpAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class TopIpAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
   private final int limit;
 
   private final boolean ascending;
 
-  public TopIpAggregatorFunctionSupplier(List<Integer> channels, int limit, boolean ascending) {
-    this.channels = channels;
+  public TopIpAggregatorFunctionSupplier(int limit, boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
   }
 
   @Override
-  public TopIpAggregatorFunction aggregator(DriverContext driverContext) {
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return TopIpAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return TopIpGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public TopIpAggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
     return TopIpAggregatorFunction.create(driverContext, channels, limit, ascending);
   }
 
   @Override
-  public TopIpGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  public TopIpGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return TopIpGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
   }
 

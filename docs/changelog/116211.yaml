@@ -1,5 +1,0 @@
-pr: 116211
-summary: Use underlying `ByteBuf` `refCount` for `ReleasableBytesReference`
-area: Network
-type: bug
-issues: []

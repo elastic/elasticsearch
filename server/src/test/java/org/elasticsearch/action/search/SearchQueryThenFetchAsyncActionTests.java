@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -165,7 +164,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             }
         };
         CountDownLatch latch = new CountDownLatch(1);
-        GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter(
+        List<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards,
@@ -219,7 +218,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 null
             ) {
                 @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
                         public void run() {
@@ -273,16 +272,20 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     }
 
     public void testMinimumVersionBetweenNewAndOldVersion() {
-        var oldVersion = new VersionInformation(
-            VersionUtils.getFirstVersion(),
-            IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersionUtils.randomCompatibleVersion(random())
-        );
-
         var newVersion = new VersionInformation(
             VersionUtils.maxCompatibleVersion(VersionUtils.getFirstVersion()),
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
+        );
+
+        var oldVersion = new VersionInformation(
+            VersionUtils.randomVersionBetween(
+                random(),
+                Version.CURRENT.minimumCompatibilityVersion(),
+                VersionUtils.getPreviousVersion(newVersion.nodeVersion())
+            ),
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersionUtils.randomCompatibleVersion(random())
         );
 
         var minVersion = VersionUtils.randomVersionBetween(
@@ -332,7 +335,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         routingOldVersionShard.started();
         list.add(new SearchShardIterator(null, new ShardId(new Index("idx", "_na_"), 1), singletonList(routingOldVersionShard), idx));
 
-        GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(list);
         final SearchRequest searchRequest = new SearchRequest(minVersion);
         searchRequest.setMaxConcurrentShardRequests(numConcurrent);
         searchRequest.setBatchedReduceSize(2);
@@ -350,7 +352,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 controller,
                 task::isCancelled,
                 task.getProgressListener(),
-                shardsIter.size(),
+                list.size(),
                 exc -> {}
             )
         ) {
@@ -376,7 +378,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     }
 
                 },
-                shardsIter,
+                list,
                 timeProvider,
                 new ClusterState.Builder(new ClusterName("test")).build(),
                 task,
@@ -446,7 +448,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         routingOldVersionShard.started();
         list.add(new SearchShardIterator(null, new ShardId(new Index("idx", "_na_"), 1), singletonList(routingOldVersionShard), idx));
 
-        GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(list);
         final SearchRequest searchRequest = new SearchRequest(minVersion);
         searchRequest.allowPartialSearchResults(false);
         searchRequest.source(new SearchSourceBuilder().size(1).sort(SortBuilders.fieldSort("timestamp")));
@@ -512,7 +513,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 controller,
                 task::isCancelled,
                 task.getProgressListener(),
-                shardsIter.size(),
+                list.size(),
                 exc -> {}
             )
         ) {
@@ -528,7 +529,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 resultConsumer,
                 searchRequest,
                 null,
-                shardsIter,
+                list,
                 timeProvider,
                 new ClusterState.Builder(new ClusterName("test")).build(),
                 task,
@@ -536,7 +537,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 null
             ) {
                 @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
                         public void run() {
@@ -609,7 +610,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         routingNewVersionShard2.started();
         list.add(new SearchShardIterator(null, new ShardId(new Index("idx", "_na_"), 1), singletonList(routingNewVersionShard2), idx));
 
-        GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(list);
         final SearchRequest searchRequest = new SearchRequest(minVersion);
         searchRequest.allowPartialSearchResults(false);
         searchRequest.source(new SearchSourceBuilder().size(1).sort(SortBuilders.fieldSort("timestamp")));
@@ -677,7 +677,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 controller,
                 task::isCancelled,
                 task.getProgressListener(),
-                shardsIter.size(),
+                list.size(),
                 exc -> {}
             )
         ) {
@@ -692,7 +692,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 resultConsumer,
                 searchRequest,
                 null,
-                shardsIter,
+                list,
                 timeProvider,
                 new ClusterState.Builder(new ClusterName("test")).build(),
                 task,
@@ -700,7 +700,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 null
             ) {
                 @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
                         public void run() {
@@ -732,18 +732,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             assertThat(phase.totalHits().value, equalTo(2L));
             assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
 
-            SearchShardTarget searchShardTarget = new SearchShardTarget("node3", shardIt.shardId(), null);
-            SearchActionListener<SearchPhaseResult> listener = new SearchActionListener<SearchPhaseResult>(searchShardTarget, 0) {
-                @Override
-                public void onFailure(Exception e) {}
-
-                @Override
-                protected void innerOnResponse(SearchPhaseResult response) {}
-            };
-            Exception e = expectThrows(
-                VersionMismatchException.class,
-                () -> action.executePhaseOnShard(shardIt, searchShardTarget, listener)
-            );
+            Exception e = expectThrows(VersionMismatchException.class, () -> action.getConnection(null, "node3"));
             assertThat(e.getMessage(), equalTo("One of the shards is incompatible with the required minimum version [" + minVersion + "]"));
         }
     }

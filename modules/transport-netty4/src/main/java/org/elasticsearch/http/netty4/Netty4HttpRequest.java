@@ -9,7 +9,6 @@
 
 package org.elasticsearch.http.netty4;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.EmptyHttpHeaders;
@@ -125,39 +124,6 @@ public class Netty4HttpRequest implements HttpRequest {
         if (pooled && released.compareAndSet(false, true)) {
             request.release();
             content.close();
-        }
-    }
-
-    @Override
-    public HttpRequest releaseAndCopy() {
-        assert released.get() == false;
-        if (pooled == false) {
-            return this;
-        }
-        try {
-            final ByteBuf copiedContent = Unpooled.copiedBuffer(request.content());
-            HttpBody newContent;
-            if (content.isStream()) {
-                newContent = content;
-            } else {
-                newContent = Netty4Utils.fullHttpBodyFrom(copiedContent);
-            }
-            return new Netty4HttpRequest(
-                sequence,
-                new DefaultFullHttpRequest(
-                    request.protocolVersion(),
-                    request.method(),
-                    request.uri(),
-                    copiedContent,
-                    request.headers(),
-                    request.trailingHeaders()
-                ),
-                new AtomicBoolean(false),
-                false,
-                newContent
-            );
-        } finally {
-            release();
         }
     }
 

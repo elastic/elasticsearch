@@ -15,10 +15,17 @@ import java.util.Objects;
  * A feature published by a node.
  *
  * @param id        The feature id. Must be unique in the node.
+ * @param assumedAfterNextCompatibilityBoundary
+ *              {@code true} if this feature is removed at the next compatibility boundary (ie next major version),
+ *              and so should be assumed to be met by all nodes after that boundary, even if they don't publish it.
  */
-public record NodeFeature(String id) {
+public record NodeFeature(String id, boolean assumedAfterNextCompatibilityBoundary) {
 
     public NodeFeature {
         Objects.requireNonNull(id);
+    }
+
+    public NodeFeature(String id) {
+        this(id, false);
     }
 }

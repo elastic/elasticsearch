@@ -46,10 +46,10 @@ public class AnthropicCompletionRequestManager extends AnthropicRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var docsOnly = DocumentsOnlyInput.of(inferenceInputs);
-        var docsInput = docsOnly.getInputs();
-        var stream = docsOnly.stream();
-        AnthropicChatCompletionRequest request = new AnthropicChatCompletionRequest(docsInput, model, stream);
+        var chatCompletionInput = inferenceInputs.castTo(ChatCompletionInput.class);
+        var inputs = chatCompletionInput.getInputs();
+        var stream = chatCompletionInput.stream();
+        AnthropicChatCompletionRequest request = new AnthropicChatCompletionRequest(inputs, model, stream);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

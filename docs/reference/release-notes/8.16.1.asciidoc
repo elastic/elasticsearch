@@ -1,0 +1,50 @@
+[[release-notes-8.16.1]]
+== {es} version 8.16.1
+
+Also see <<breaking-changes-8.16,Breaking changes in 8.16>>.
+
+[[bug-8.16.1]]
+[float]
+=== Bug fixes
+
+Data streams::
+* Add missing header in `put_data_lifecycle` rest-api-spec {es-pull}116292[#116292]
+
+Mapping::
+* Ignore conflicting fields during dynamic mapping update {es-pull}114227[#114227] (issue: {es-issue}114228[#114228])
+
+Ranking::
+* Propagating nested `inner_hits` to the parent compound retriever {es-pull}116408[#116408] (issue: {es-issue}116397[#116397])
+
+Relevance::
+* Fix handling of bulk requests with semantic text fields and delete ops {es-pull}116942[#116942]
+
+Search::
+* Fix handling of time exceeded exception in fetch phase {es-pull}116676[#116676]
+* Semantic text simple partial update {es-pull}116478[#116478]
+* Validate missing shards after the coordinator rewrite {es-pull}116382[#116382]
+
+Vector Search::
+* Update Semantic Query To Handle Zero Size Responses {es-pull}116277[#116277] (issue: {es-issue}116083[#116083])
+
+[[enhancement-8.16.1]]
+[float]
+=== Enhancements
+
+Data streams::
+* Apm-data: disable date_detection for all apm data streams {es-pull}116995[#116995]
+
+Ingest Node::
+* Add postal_code support to the City and Enterprise databases {es-pull}114193[#114193]
+* Add support for registered country fields for maxmind geoip databases {es-pull}114521[#114521]
+* Support IPinfo database configurations {es-pull}114548[#114548]
+* Support more maxmind fields in the geoip processor {es-pull}114268[#114268]
+
+Relevance::
+* Add tracking for query rule types {es-pull}116357[#116357]
+
+Snapshot/Restore::
+* Improve message about insecure S3 settings {es-pull}116915[#116915]
+* Split searchable snapshot into multiple repo operations {es-pull}116918[#116918]
+
+

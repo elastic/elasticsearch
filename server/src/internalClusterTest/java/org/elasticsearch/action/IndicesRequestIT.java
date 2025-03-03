@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheReque
 import org.elasticsearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -157,9 +158,11 @@ public class IndicesRequestIT extends ESIntegTestCase {
         for (int i = 0; i < numIndices; i++) {
             indices.add("test" + i);
         }
-        for (String index : indices) {
-            assertAcked(prepareCreate(index).addAlias(new Alias(index + "-alias")));
-        }
+        assertAcked(
+            indices.stream()
+                .map(index -> prepareCreate(index).addAlias(new Alias(index + "-alias")))
+                .toArray(CreateIndexRequestBuilder[]::new)
+        );
         ensureGreen();
     }
 
@@ -556,11 +559,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     public void testSearchQueryThenFetch() throws Exception {
-        interceptTransportActions(
-            SearchTransportService.QUERY_ACTION_NAME,
-            SearchTransportService.FETCH_ID_ACTION_NAME,
-            SearchTransportService.FREE_CONTEXT_ACTION_NAME
-        );
+        interceptTransportActions(SearchTransportService.QUERY_ACTION_NAME, SearchTransportService.FETCH_ID_ACTION_NAME);
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
         for (int i = 0; i < randomIndicesOrAliases.length; i++) {
@@ -580,16 +579,13 @@ public class IndicesRequestIT extends ESIntegTestCase {
             SearchTransportService.QUERY_ACTION_NAME,
             SearchTransportService.FETCH_ID_ACTION_NAME
         );
-        // free context messages are not necessarily sent, but if they are, check their indices
-        assertIndicesSubsetOptionalRequests(Arrays.asList(searchRequest.indices()), SearchTransportService.FREE_CONTEXT_ACTION_NAME);
     }
 
     public void testSearchDfsQueryThenFetch() throws Exception {
         interceptTransportActions(
             SearchTransportService.DFS_ACTION_NAME,
             SearchTransportService.QUERY_ID_ACTION_NAME,
-            SearchTransportService.FETCH_ID_ACTION_NAME,
-            SearchTransportService.FREE_CONTEXT_ACTION_NAME
+            SearchTransportService.FETCH_ID_ACTION_NAME
         );
 
         String[] randomIndicesOrAliases = randomIndicesOrAliases();
@@ -611,8 +607,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
             SearchTransportService.QUERY_ID_ACTION_NAME,
             SearchTransportService.FETCH_ID_ACTION_NAME
         );
-        // free context messages are not necessarily sent, but if they are, check their indices
-        assertIndicesSubsetOptionalRequests(Arrays.asList(searchRequest.indices()), SearchTransportService.FREE_CONTEXT_ACTION_NAME);
     }
 
     private static void assertSameIndices(IndicesRequest originalRequest, String... actions) {

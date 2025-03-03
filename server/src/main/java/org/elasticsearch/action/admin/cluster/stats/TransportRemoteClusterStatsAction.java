@@ -10,11 +10,11 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -27,26 +27,26 @@ import org.elasticsearch.transport.TransportService;
 public class TransportRemoteClusterStatsAction extends HandledTransportAction<RemoteClusterStatsRequest, RemoteClusterStatsResponse> {
 
     public static final String NAME = "cluster:monitor/stats/remote";
-    public static final ActionType<RemoteClusterStatsResponse> TYPE = new ActionType<>(NAME);
     public static final RemoteClusterActionType<RemoteClusterStatsResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
         NAME,
         RemoteClusterStatsResponse::new
     );
-    private final NodeClient client;
+
+    private final Client client;
+    private final TransportService transportService;
 
     @Inject
-    public TransportRemoteClusterStatsAction(NodeClient client, TransportService transportService, ActionFilters actionFilters) {
+    public TransportRemoteClusterStatsAction(Client client, TransportService transportService, ActionFilters actionFilters) {
         super(NAME, transportService, actionFilters, RemoteClusterStatsRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
+        this.transportService = transportService;
     }
 
     @Override
     protected void doExecute(Task task, RemoteClusterStatsRequest request, ActionListener<RemoteClusterStatsResponse> listener) {
-        ClusterStatsRequest subRequest = new ClusterStatsRequest().asRemoteStats();
-        subRequest.setParentTask(request.getParentTask());
-        client.execute(
+        new ParentTaskAssigningClient(client, transportService.getLocalNode(), task).execute(
             TransportClusterStatsAction.TYPE,
-            subRequest,
+            ClusterStatsRequest.newRemoteClusterStatsRequest(),
             listener.map(
                 clusterStatsResponse -> new RemoteClusterStatsResponse(
                     clusterStatsResponse.getClusterUUID(),

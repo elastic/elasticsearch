@@ -80,7 +80,7 @@ public class GetPipelineResponse extends ActionResponse implements ToXContentObj
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         for (PipelineConfiguration pipeline : pipelines) {
-            builder.field(pipeline.getId(), summary ? Map.of() : pipeline.getConfigAsMap());
+            builder.field(pipeline.getId(), summary ? Map.of() : pipeline.getConfig());
         }
         builder.endObject();
         return builder;

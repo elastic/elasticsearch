@@ -7,20 +7,24 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<RegexExtract> {
+public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<RegexExtract>, PostAnalysisVerificationAware, SortAgnostic {
     protected final Expression input;
     protected final List<Attribute> extractedFields;
 
@@ -92,4 +96,22 @@ public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<R
     public int hashCode() {
         return Objects.hash(super.hashCode(), input, extractedFields);
     }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        DataType type = input.dataType();
+        if (DataType.isString(type) == false) {
+            failures.add(
+                fail(
+                    input,
+                    "{} only supports KEYWORD or TEXT values, found expression [{}] type [{}]",
+                    getClass().getSimpleName(),
+                    input.sourceText(),
+                    type
+                )
+            );
+        }
+
+    }
+
 }

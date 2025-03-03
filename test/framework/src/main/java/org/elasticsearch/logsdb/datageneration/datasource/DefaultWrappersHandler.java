@@ -11,6 +11,7 @@ package org.elasticsearch.logsdb.datageneration.datasource;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashSet;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -24,6 +25,16 @@ public class DefaultWrappersHandler implements DataSourceHandler {
     @Override
     public DataSourceResponse.ArrayWrapper handle(DataSourceRequest.ArrayWrapper ignored) {
         return new DataSourceResponse.ArrayWrapper(wrapInArray());
+    }
+
+    @Override
+    public DataSourceResponse.RepeatingWrapper handle(DataSourceRequest.RepeatingWrapper ignored) {
+        return new DataSourceResponse.RepeatingWrapper(repeatValues());
+    }
+
+    @Override
+    public DataSourceResponse.MalformedWrapper handle(DataSourceRequest.MalformedWrapper request) {
+        return new DataSourceResponse.MalformedWrapper(injectMalformed(request.malformedValues()));
     }
 
     private static Function<Supplier<Object>, Supplier<Object>> injectNulls() {
@@ -40,5 +51,24 @@ public class DefaultWrappersHandler implements DataSourceHandler {
 
             return values.get();
         };
+    }
+
+    private static Function<Supplier<Object>, Supplier<Object>> repeatValues() {
+        return (values) -> {
+            HashSet<Object> previousValues = new HashSet<>();
+            return () -> {
+                if (previousValues.size() > 0 && ESTestCase.randomBoolean()) {
+                    return ESTestCase.randomFrom(previousValues);
+                } else {
+                    var value = values.get();
+                    previousValues.add(value);
+                    return value;
+                }
+            };
+        };
+    }
+
+    private static Function<Supplier<Object>, Supplier<Object>> injectMalformed(Supplier<Object> malformedValues) {
+        return (values) -> () -> ESTestCase.randomDouble() <= 0.1 ? malformedValues.get() : values.get();
     }
 }

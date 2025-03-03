@@ -112,7 +112,7 @@
  *         {@link org.elasticsearch.common.io.stream.NamedWriteable#writeTo},
  *         and a deserializing constructor. Then add an {@link org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry}
  *         constant and register it. To register it, look for a method like
- *         {@link org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction#getNamedWriteables()}
+ *         {@link org.elasticsearch.xpack.esql.expression.function.scalar.ScalarFunctionWritables#getNamedWriteables()}
  *         in your function's class hierarchy. Keep going up until you hit a function with that name.
  *         Then add your new "ENTRY" constant to the list it returns.
  *     </li>
@@ -131,6 +131,7 @@
  *         the moment, but it's good to extend {@code AbstractScalarFunctionTestCase}. All of
  *         these tests are parameterized and expect to spend some time finding good parameters.
  *         Also add serialization tests that extend {@code AbstractExpressionSerializationTests<>}.
+ *         And also add type error tests that extends {@code ErrorsForCasesWithoutExamplesTestCase}.
  *     </li>
  *     <li>
  *         Once you are happy with the tests run the auto formatter:

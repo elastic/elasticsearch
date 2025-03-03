@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -14,23 +15,23 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.alibabacloudsearch.AlibabaCloudSearchActionVisitor;
@@ -42,14 +43,12 @@ import org.elasticsearch.xpack.inference.external.request.alibabacloudsearch.Ali
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModelTests;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionTaskSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsTaskSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModel;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
@@ -272,8 +271,8 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                 TimeValue timeout,
                 ActionListener<InferenceServiceResults> listener
             ) {
-                InferenceTextEmbeddingFloatResults results = new InferenceTextEmbeddingFloatResults(
-                    List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { -0.028680f, 0.022033f }))
+                TextEmbeddingFloatResults results = new TextEmbeddingFloatResults(
+                    List.of(new TextEmbeddingFloatResults.Embedding(new float[] { -0.028680f, 0.022033f }))
                 );
 
                 listener.onResponse(results);
@@ -325,6 +324,43 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         }
     }
 
+    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
+            var model = OpenAiChatCompletionModelTests.createCompletionModel(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10)
+            );
+            assertThrows(
+                ElasticsearchStatusException.class,
+                () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
+            );
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_UpdatesEmbeddingSizeAndSimilarity() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
+            var embeddingSize = randomNonNegativeInt();
+            var model = AlibabaCloudSearchEmbeddingsModelTests.createModel(
+                randomAlphaOfLength(10),
+                randomFrom(TaskType.values()),
+                AlibabaCloudSearchEmbeddingsServiceSettingsTests.createRandom(),
+                AlibabaCloudSearchEmbeddingsTaskSettingsTests.createRandom(),
+                null
+            );
+
+            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+            assertEquals(SimilarityMeasure.DOT_PRODUCT, updatedModel.getServiceSettings().similarity());
+            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
+        }
+    }
+
     public void testChunkedInfer_TextEmbeddingChunkingSettingsSet() throws IOException {
         testChunkedInfer(TaskType.TEXT_EMBEDDING, ChunkingSettingsTests.createRandomChunkingSettings());
     }
@@ -341,36 +377,6 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         testChunkedInfer(TaskType.SPARSE_EMBEDDING, null);
     }
 
-    public void testChunkedInfer_InvalidTaskType() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
-            var model = AlibabaCloudSearchCompletionModelTests.createModel(
-                randomAlphaOfLength(10),
-                TaskType.COMPLETION,
-                AlibabaCloudSearchCompletionServiceSettingsTests.createRandom(),
-                AlibabaCloudSearchCompletionTaskSettingsTests.createRandom(),
-                null
-            );
-
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
-            try {
-                service.chunkedInfer(
-                    model,
-                    null,
-                    List.of("foo", "bar"),
-                    new HashMap<>(),
-                    InputType.INGEST,
-                    new ChunkingOptions(null, null),
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                );
-            } catch (Exception e) {
-                assertThat(e, instanceOf(IllegalArgumentException.class));
-            }
-        }
-    }
-
     private void testChunkedInfer(TaskType taskType, ChunkingSettings chunkingSettings) throws IOException {
         var input = List.of("foo", "bar");
 
@@ -379,27 +385,20 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
             var model = createModelForTaskType(taskType, chunkingSettings);
 
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                input,
-                new HashMap<>(),
-                InputType.INGEST,
-                new ChunkingOptions(null, null),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INGEST, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, instanceOf(List.class));
             assertThat(results, hasSize(2));
             var firstResult = results.get(0);
-            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-                assertThat(firstResult, instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-            } else if (TaskType.SPARSE_EMBEDDING.equals(taskType)) {
-                assertThat(firstResult, instanceOf(InferenceChunkedSparseEmbeddingResults.class));
-            }
+            assertThat(firstResult, instanceOf(ChunkedInferenceEmbedding.class));
+            Class<?> expectedClass = switch (taskType) {
+                case TEXT_EMBEDDING -> TextEmbeddingFloatResults.Chunk.class;
+                case SPARSE_EMBEDDING -> SparseEmbeddingResults.Chunk.class;
+                default -> null;
+            };
+            assertThat(((ChunkedInferenceEmbedding) firstResult).chunks().get(0), instanceOf(expectedClass));
         }
     }
 
@@ -409,209 +408,63 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace(
                 """
                     {
-                       "provider": "alibabacloud-ai-search",
-                       "task_types": [
-                             {
-                                 "task_type": "text_embedding",
-                                 "configuration": {
-                                     "input_type": {
-                                         "default_value": null,
-                                         "depends_on": [],
-                                         "display": "dropdown",
-                                         "label": "Input Type",
-                                         "options": [
-                                             {
-                                                 "label": "ingest",
-                                                 "value": "ingest"
-                                             },
-                                             {
-                                                 "label": "search",
-                                                 "value": "search"
-                                             }
-                                         ],
-                                         "order": 1,
-                                         "required": false,
-                                         "sensitive": false,
-                                         "tooltip": "Specifies the type of input passed to the model.",
-                                         "type": "str",
-                                         "ui_restrictions": [],
-                                         "validations": [],
-                                         "value": ""
-                                     }
-                                 }
-                             },
-                             {
-                                 "task_type": "sparse_embedding",
-                                 "configuration": {
-                                     "return_token": {
-                                         "default_value": null,
-                                         "depends_on": [],
-                                         "display": "toggle",
-                                         "label": "Return Token",
-                                         "order": 2,
-                                         "required": false,
-                                         "sensitive": false,
-                                         "tooltip": "If `true`, the token name will be returned in the response. Defaults to `false` which means only the token ID will be returned in the response.",
-                                         "type": "bool",
-                                         "ui_restrictions": [],
-                                         "validations": [],
-                                         "value": true
-                                     },
-                                     "input_type": {
-                                         "default_value": null,
-                                         "depends_on": [],
-                                         "display": "dropdown",
-                                         "label": "Input Type",
-                                         "options": [
-                                             {
-                                                 "label": "ingest",
-                                                 "value": "ingest"
-                                             },
-                                             {
-                                                 "label": "search",
-                                                 "value": "search"
-                                             }
-                                         ],
-                                         "order": 1,
-                                         "required": false,
-                                         "sensitive": false,
-                                         "tooltip": "Specifies the type of input passed to the model.",
-                                         "type": "str",
-                                         "ui_restrictions": [],
-                                         "validations": [],
-                                         "value": ""
-                                     }
-                                 }
-                             },
-                             {
-                                 "task_type": "rerank",
-                                 "configuration": {}
-                             },
-                             {
-                                 "task_type": "completion",
-                                 "configuration": {}
-                             }
-                       ],
-                       "configuration": {
+                       "service": "alibabacloud-ai-search",
+                       "name": "AlibabaCloud AI Search",
+                       "task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"],
+                       "configurations": {
                          "workspace": {
-                           "default_value": null,
-                           "depends_on": [],
-                           "display": "textbox",
+                           "description": "The name of the workspace used for the {infer} task.",
                            "label": "Workspace",
-                           "order": 5,
                            "required": true,
                            "sensitive": false,
-                           "tooltip": "The name of the workspace used for the {infer} task.",
+                           "updatable": false,
                            "type": "str",
-                           "ui_restrictions": [],
-                           "validations": [],
-                           "value": null
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "api_key": {
-                           "default_value": null,
-                           "depends_on": [],
-                           "display": "textbox",
+                           "description": "A valid API key for the AlibabaCloud AI Search API.",
                            "label": "API Key",
-                           "order": 1,
                            "required": true,
                            "sensitive": true,
-                           "tooltip": "A valid API key for the AlibabaCloud AI Search API.",
+                           "updatable": true,
                            "type": "str",
-                           "ui_restrictions": [],
-                           "validations": [],
-                           "value": null
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "service_id": {
-                           "default_value": null,
-                           "depends_on": [],
-                           "display": "dropdown",
+                           "description": "The name of the model service to use for the {infer} task.",
                            "label": "Project ID",
-                           "options": [
-                             {
-                               "label": "ops-text-embedding-001",
-                               "value": "ops-text-embedding-001"
-                             },
-                             {
-                               "label": "ops-text-embedding-zh-001",
-                               "value": "ops-text-embedding-zh-001"
-                             },
-                             {
-                               "label": "ops-text-embedding-en-001",
-                               "value": "ops-text-embedding-en-001"
-                             },
-                             {
-                               "label": "ops-text-embedding-002",
-                               "value": "ops-text-embedding-002"
-                             },
-                             {
-                               "label": "ops-text-sparse-embedding-001",
-                               "value": "ops-text-sparse-embedding-001"
-                             },
-                             {
-                               "label": "ops-bge-reranker-larger",
-                               "value": "ops-bge-reranker-larger"
-                             }
-                           ],
-                           "order": 2,
                            "required": true,
                            "sensitive": false,
-                           "tooltip": "The name of the model service to use for the {infer} task.",
+                           "updatable": false,
                            "type": "str",
-                           "ui_restrictions": [],
-                           "validations": [],
-                           "value": null
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "host": {
-                           "default_value": null,
-                           "depends_on": [],
-                           "display": "textbox",
+                           "description": "The name of the host address used for the {infer} task. You can find the host address at https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] of the documentation.",
                            "label": "Host",
-                           "order": 3,
                            "required": true,
                            "sensitive": false,
-                           "tooltip": "The name of the host address used for the {infer} task. You can find the host address at https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] of the documentation.",
+                           "updatable": false,
                            "type": "str",
-                           "ui_restrictions": [],
-                           "validations": [],
-                           "value": null
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "rate_limit.requests_per_minute": {
-                           "default_value": null,
-                           "depends_on": [],
-                           "display": "numeric",
+                           "description": "Minimize the number of rate limit errors.",
                            "label": "Rate Limit",
-                           "order": 6,
                            "required": false,
                            "sensitive": false,
-                           "tooltip": "Minimize the number of rate limit errors.",
+                           "updatable": false,
                            "type": "int",
-                           "ui_restrictions": [],
-                           "validations": [],
-                           "value": null
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "http_schema": {
-                           "default_value": null,
-                           "depends_on": [],
-                           "display": "dropdown",
+                           "description": "",
                            "label": "HTTP Schema",
-                           "options": [
-                             {
-                               "label": "https",
-                               "value": "https"
-                             },
-                             {
-                               "label": "http",
-                               "value": "http"
-                             }
-                           ],
-                           "order": 4,
-                           "required": true,
+                           "required": false,
                            "sensitive": false,
-                           "tooltip": "",
+                           "updatable": false,
                            "type": "str",
-                           "ui_restrictions": [],
-                           "validations": [],
-                           "value": null
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          }
                        }
                     }
@@ -669,10 +522,10 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         ) {
             public ExecutableAction accept(AlibabaCloudSearchActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
                 return (inferenceInputs, timeout, listener) -> {
-                    InferenceTextEmbeddingFloatResults results = new InferenceTextEmbeddingFloatResults(
+                    TextEmbeddingFloatResults results = new TextEmbeddingFloatResults(
                         List.of(
-                            new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.0123f, -0.0123f }),
-                            new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.0456f, -0.0456f })
+                            new TextEmbeddingFloatResults.Embedding(new float[] { 0.0123f, -0.0123f }),
+                            new TextEmbeddingFloatResults.Embedding(new float[] { 0.0456f, -0.0456f })
                         )
                     );
 

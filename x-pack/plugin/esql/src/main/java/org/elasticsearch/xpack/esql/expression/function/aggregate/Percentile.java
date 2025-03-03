@@ -16,6 +16,7 @@ import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionS
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -92,10 +93,8 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
-                ? in.readNamedWriteable(Expression.class)
-                : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? in.readNamedWriteableCollectionAsList(Expression.class).get(0)
                 : in.readNamedWriteable(Expression.class)
         );
@@ -157,22 +156,22 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels) {
-        return new PercentileLongAggregatorFunctionSupplier(inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier longSupplier() {
+        return new PercentileLongAggregatorFunctionSupplier(percentileValue());
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels) {
-        return new PercentileIntAggregatorFunctionSupplier(inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier intSupplier() {
+        return new PercentileIntAggregatorFunctionSupplier(percentileValue());
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
-        return new PercentileDoubleAggregatorFunctionSupplier(inputChannels, percentileValue());
+    protected AggregatorFunctionSupplier doubleSupplier() {
+        return new PercentileDoubleAggregatorFunctionSupplier(percentileValue());
     }
 
     private int percentileValue() {
-        return ((Number) percentile.fold()).intValue();
+        return ((Number) percentile.fold(FoldContext.small() /* TODO remove me */)).intValue();
     }
 
     @Override

@@ -250,6 +250,11 @@ Privileges to list and view details on existing repositories and snapshots.
 +
 This privilege is not available in {serverless-full}.
 
+`monitor_stats`::
+Privileges to list and view details of stats.
++
+This privilege is not available in {serverless-full}.
+
 `monitor_text_structure`::
 All read-only operations related to the <<find-structure,find structure API>>.
 +

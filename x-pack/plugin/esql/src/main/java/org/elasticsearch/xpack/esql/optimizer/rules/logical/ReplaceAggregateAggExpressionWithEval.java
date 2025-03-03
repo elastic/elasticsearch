@@ -9,18 +9,21 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -50,6 +53,16 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
         // build alias map
         AttributeMap<Expression> aliases = new AttributeMap<>();
         aggregate.forEachExpressionUp(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
+
+        // Build Categorize grouping functions map.
+        // Functions like BUCKET() shouldn't reach this point,
+        // as they are moved to an early EVAL by ReplaceAggregateNestedExpressionWithEval
+        Map<Categorize, Attribute> groupingAttributes = new HashMap<>();
+        aggregate.forEachExpressionUp(Alias.class, a -> {
+            if (a.child() instanceof Categorize groupingFunction) {
+                groupingAttributes.put(groupingFunction, a.toAttribute());
+            }
+        });
 
         // break down each aggregate into AggregateFunction and/or grouping key
         // preserve the projection at the end
@@ -108,6 +121,9 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
                         // (even when found) return a reference to it
                         return alias.toAttribute();
                     });
+
+                    // replace grouping functions with their references
+                    aggExpression = aggExpression.transformUp(Categorize.class, groupingAttributes::get);
 
                     Alias alias = as.replaceChild(aggExpression);
                     newEvals.add(alias);

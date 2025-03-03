@@ -10,6 +10,7 @@
 package org.elasticsearch.search.retriever;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -23,20 +24,21 @@ public class TestCompoundRetrieverBuilder extends CompoundRetrieverBuilder<TestC
     public static final String NAME = "test_compound_retriever_builder";
 
     public TestCompoundRetrieverBuilder(int rankWindowSize) {
-        this(new ArrayList<>(), rankWindowSize);
+        this(new ArrayList<>(), rankWindowSize, new ArrayList<>());
     }
 
-    TestCompoundRetrieverBuilder(List<RetrieverSource> childRetrievers, int rankWindowSize) {
+    TestCompoundRetrieverBuilder(List<RetrieverSource> childRetrievers, int rankWindowSize, List<QueryBuilder> preFilterQueryBuilders) {
         super(childRetrievers, rankWindowSize);
+        this.preFilterQueryBuilders = preFilterQueryBuilders;
     }
 
     @Override
-    protected TestCompoundRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers) {
-        return new TestCompoundRetrieverBuilder(newChildRetrievers, rankWindowSize);
+    protected TestCompoundRetrieverBuilder clone(List<RetrieverSource> newChildRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
+        return new TestCompoundRetrieverBuilder(newChildRetrievers, rankWindowSize, newPreFilterQueryBuilders);
     }
 
     @Override
-    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
+    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
         return new RankDoc[0];
     }
 

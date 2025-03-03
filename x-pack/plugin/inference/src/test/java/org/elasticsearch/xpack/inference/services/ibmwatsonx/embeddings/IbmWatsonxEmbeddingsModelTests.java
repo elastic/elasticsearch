@@ -82,6 +82,7 @@ public class IbmWatsonxEmbeddingsModelTests extends ESTestCase {
                 null
             ),
             EmptyTaskSettings.INSTANCE,
+            null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

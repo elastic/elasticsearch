@@ -13,7 +13,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.SearchTimeoutException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -44,7 +48,13 @@ abstract class FetchPhaseDocsIterator {
     /**
      * Iterate over a set of docsIds within a particular shard and index reader
      */
-    public final SearchHit[] iterate(SearchShardTarget shardTarget, IndexReader indexReader, int[] docIds) {
+    public final SearchHit[] iterate(
+        SearchShardTarget shardTarget,
+        IndexReader indexReader,
+        int[] docIds,
+        boolean allowPartialResults,
+        QuerySearchResult querySearchResult
+    ) {
         SearchHit[] searchHits = new SearchHit[docIds.length];
         DocIdToIndex[] docs = new DocIdToIndex[docIds.length];
         for (int index = 0; index < docIds.length; index++) {
@@ -58,28 +68,51 @@ abstract class FetchPhaseDocsIterator {
             LeafReaderContext ctx = indexReader.leaves().get(leafOrd);
             int endReaderIdx = endReaderIdx(ctx, 0, docs);
             int[] docsInLeaf = docIdsInLeaf(0, endReaderIdx, docs, ctx.docBase);
-            setNextReader(ctx, docsInLeaf);
+            try {
+                setNextReader(ctx, docsInLeaf);
+            } catch (ContextIndexSearcher.TimeExceededException e) {
+                SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
+                assert allowPartialResults;
+                return SearchHits.EMPTY;
+            }
             for (int i = 0; i < docs.length; i++) {
-                if (i >= endReaderIdx) {
-                    leafOrd = ReaderUtil.subIndex(docs[i].docId, indexReader.leaves());
-                    ctx = indexReader.leaves().get(leafOrd);
-                    endReaderIdx = endReaderIdx(ctx, i, docs);
-                    docsInLeaf = docIdsInLeaf(i, endReaderIdx, docs, ctx.docBase);
-                    setNextReader(ctx, docsInLeaf);
+                try {
+                    if (i >= endReaderIdx) {
+                        leafOrd = ReaderUtil.subIndex(docs[i].docId, indexReader.leaves());
+                        ctx = indexReader.leaves().get(leafOrd);
+                        endReaderIdx = endReaderIdx(ctx, i, docs);
+                        docsInLeaf = docIdsInLeaf(i, endReaderIdx, docs, ctx.docBase);
+                        setNextReader(ctx, docsInLeaf);
+                    }
+                    currentDoc = docs[i].docId;
+                    assert searchHits[docs[i].index] == null;
+                    searchHits[docs[i].index] = nextDoc(docs[i].docId);
+                } catch (ContextIndexSearcher.TimeExceededException e) {
+                    if (allowPartialResults == false) {
+                        purgeSearchHits(searchHits);
+                    }
+                    SearchTimeoutException.handleTimeout(allowPartialResults, shardTarget, querySearchResult);
+                    assert allowPartialResults;
+                    SearchHit[] partialSearchHits = new SearchHit[i];
+                    System.arraycopy(searchHits, 0, partialSearchHits, 0, i);
+                    return partialSearchHits;
                 }
-                currentDoc = docs[i].docId;
-                assert searchHits[docs[i].index] == null;
-                searchHits[docs[i].index] = nextDoc(docs[i].docId);
             }
+        } catch (SearchTimeoutException e) {
+            throw e;
         } catch (Exception e) {
-            for (SearchHit searchHit : searchHits) {
-                if (searchHit != null) {
-                    searchHit.decRef();
-                }
-            }
+            purgeSearchHits(searchHits);
             throw new FetchPhaseExecutionException(shardTarget, "Error running fetch phase for doc [" + currentDoc + "]", e);
         }
         return searchHits;
+    }
+
+    private static void purgeSearchHits(SearchHit[] searchHits) {
+        for (SearchHit searchHit : searchHits) {
+            if (searchHit != null) {
+                searchHit.decRef();
+            }
+        }
     }
 
     private static int endReaderIdx(LeafReaderContext currentReaderContext, int index, DocIdToIndex[] docs) {

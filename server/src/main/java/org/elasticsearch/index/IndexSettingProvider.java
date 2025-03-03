@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
@@ -54,7 +55,7 @@ public interface IndexSettingProvider {
     /**
      * Infrastructure class that holds services that can be used by {@link IndexSettingProvider} instances.
      */
-    record Parameters(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
+    record Parameters(ClusterService clusterService, CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
 
     }
 

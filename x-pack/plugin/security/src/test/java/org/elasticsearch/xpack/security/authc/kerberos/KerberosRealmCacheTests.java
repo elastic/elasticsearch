@@ -48,7 +48,7 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         metadata.put(KerberosRealm.KRB_METADATA_UPN_KEY, username);
         final User expectedUser = new User(expectedUsername, roles.toArray(new String[0]), null, null, metadata, true);
         final byte[] decodedTicket = randomByteArrayOfLength(10);
-        final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+        final Path keytabPath = config.env().configDir().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
         final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
         mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(username, outToken), null);
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(decodedTicket);
@@ -78,7 +78,7 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
 
         final String authNUsername = randomFrom(userNames);
         final byte[] decodedTicket = randomByteArrayOfLength(10);
-        final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+        final Path keytabPath = config.env().configDir().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
         final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
         mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(authNUsername, outToken), null);
         final String expectedUsername = maybeRemoveRealmName(authNUsername);
@@ -137,7 +137,7 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         metadata.put(KerberosRealm.KRB_METADATA_UPN_KEY, username);
         final User expectedUser = new User(expectedUsername, roles.toArray(new String[0]), null, null, metadata, true);
         final byte[] decodedTicket = randomByteArrayOfLength(10);
-        final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+        final Path keytabPath = config.env().configDir().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
         final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
         mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(username, outToken), null);
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(decodedTicket);

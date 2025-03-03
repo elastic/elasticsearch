@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.security;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.integration.RoleMappingFileSettingsIT;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -29,12 +31,11 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.integration.RoleMappingFileSettingsIT.setupClusterStateListener;
 import static org.elasticsearch.integration.RoleMappingFileSettingsIT.setupClusterStateListenerForCleanup;
-import static org.elasticsearch.integration.RoleMappingFileSettingsIT.writeJSONFile;
-import static org.elasticsearch.integration.RoleMappingFileSettingsIT.writeJSONFileWithoutVersionIncrement;
 import static org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata.METADATA_NAME_FIELD;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
+@LuceneTestCase.SuppressFileSystems("*")
 public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
 
     private static final int MAX_WAIT_TIME_SECONDS = 20;
@@ -116,7 +117,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
 
         awaitFileSettingsWatcher();
         logger.info("--> write some role mappings, no other file settings");
-        writeJSONFile(masterNode, testJSONOnlyRoleMappings, logger, versionCounter);
+        RoleMappingFileSettingsIT.writeJSONFile(masterNode, testJSONOnlyRoleMappings, logger, versionCounter.incrementAndGet());
 
         assertRoleMappingsInClusterStateWithAwait(
             savedClusterState,
@@ -196,7 +197,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         Tuple<CountDownLatch, AtomicLong> savedClusterState = setupClusterStateListener(masterNode, "everyone_kibana_alone");
         awaitFileSettingsWatcher();
         logger.info("--> write some role mappings, no other file settings");
-        writeJSONFile(masterNode, testJSONOnlyRoleMappings, logger, versionCounter);
+        RoleMappingFileSettingsIT.writeJSONFile(masterNode, testJSONOnlyRoleMappings, logger, versionCounter.incrementAndGet());
 
         assertRoleMappingsInClusterStateWithAwait(
             savedClusterState,
@@ -226,7 +227,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         );
 
         // write without version increment and assert that change gets applied on restart
-        writeJSONFileWithoutVersionIncrement(masterNode, testJSONOnlyUpdatedRoleMappings, logger, versionCounter);
+        RoleMappingFileSettingsIT.writeJSONFile(masterNode, testJSONOnlyUpdatedRoleMappings, logger, versionCounter.get());
         logger.info("--> restart master");
         internalCluster().restartNode(masterNode);
         ensureGreen();
@@ -288,7 +289,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         var savedClusterState = setupClusterStateListenerForCleanup(masterNode);
         awaitFileSettingsWatcher();
         logger.info("--> remove the role mappings with an empty settings file");
-        writeJSONFile(masterNode, emptyJSON, logger, versionCounter);
+        RoleMappingFileSettingsIT.writeJSONFile(masterNode, emptyJSON, logger, versionCounter.incrementAndGet());
         boolean awaitSuccessful = savedClusterState.v1().await(MAX_WAIT_TIME_SECONDS, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
         // ensure cluster-state update got propagated to expected version

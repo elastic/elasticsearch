@@ -1,5 +1,0 @@
-pr: 112295
-summary: "ESQL: Speed up CASE for some parameters"
-area: ES|QL
-type: enhancement
-issues: []

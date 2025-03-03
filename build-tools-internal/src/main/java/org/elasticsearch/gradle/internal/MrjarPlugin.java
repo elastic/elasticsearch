@@ -9,7 +9,8 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.JavaVersion;
@@ -20,9 +21,12 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.JavaCompile;
+import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.jvm.tasks.Jar;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
@@ -45,6 +49,7 @@ import java.util.stream.Stream;
 import javax.inject.Inject;
 
 import static de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 import static org.objectweb.asm.Opcodes.V_PREVIEW;
 
 public class MrjarPlugin implements Plugin<Project> {
@@ -62,15 +67,18 @@ public class MrjarPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
+        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        var buildParams = loadBuildParams(project).get();
         var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
         var isIdeaSync = System.getProperty("idea.sync.active", "false").equals("true");
         var ideaSourceSetsEnabled = project.hasProperty(MRJAR_IDEA_ENABLED) && project.property(MRJAR_IDEA_ENABLED).equals("true");
+        int minJavaVersion = Integer.parseInt(buildParams.getMinimumCompilerVersion().getMajorVersion());
 
         // Ignore version-specific source sets if we are importing into IntelliJ and have not explicitly enabled this.
         // Avoids an IntelliJ bug:
         // https://youtrack.jetbrains.com/issue/IDEA-285640/Compiler-Options-Settings-language-level-is-set-incorrectly-with-JDK-19ea
         if (isIdeaSync == false || ideaSourceSetsEnabled) {
-            List<Integer> mainVersions = findSourceVersions(project);
+            List<Integer> mainVersions = findSourceVersions(project, minJavaVersion);
             List<String> mainSourceSets = new ArrayList<>();
             mainSourceSets.add(SourceSet.MAIN_SOURCE_SET_NAME);
             List<String> testSourceSets = new ArrayList<>(mainSourceSets);
@@ -79,13 +87,14 @@ public class MrjarPlugin implements Plugin<Project> {
                 String mainSourceSetName = SourceSet.MAIN_SOURCE_SET_NAME + javaVersion;
                 SourceSet mainSourceSet = addSourceSet(project, javaExtension, mainSourceSetName, mainSourceSets, javaVersion);
                 configureSourceSetInJar(project, mainSourceSet, javaVersion);
+                addJar(project, mainSourceSet, javaVersion);
                 mainSourceSets.add(mainSourceSetName);
                 testSourceSets.add(mainSourceSetName);
 
                 String testSourceSetName = SourceSet.TEST_SOURCE_SET_NAME + javaVersion;
                 SourceSet testSourceSet = addSourceSet(project, javaExtension, testSourceSetName, testSourceSets, javaVersion);
                 testSourceSets.add(testSourceSetName);
-                createTestTask(project, testSourceSet, javaVersion, mainSourceSets);
+                createTestTask(project, buildParams, testSourceSet, javaVersion, mainSourceSets);
             }
         }
 
@@ -93,6 +102,7 @@ public class MrjarPlugin implements Plugin<Project> {
     }
 
     private void configureMrjar(Project project) {
+
         var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
         jarTask.configure(task -> { task.manifest(manifest -> { manifest.attributes(Map.of("Multi-Release", "true")); }); });
 
@@ -142,12 +152,42 @@ public class MrjarPlugin implements Plugin<Project> {
         return sourceSet;
     }
 
+    private void addJar(Project project, SourceSet sourceSet, int javaVersion) {
+        project.getConfigurations().register("java" + javaVersion);
+        TaskProvider<Jar> jarTask = project.getTasks().register("java" + javaVersion + "Jar", Jar.class, task -> {
+            task.from(sourceSet.getOutput());
+            task.getArchiveClassifier().set("java" + javaVersion);
+        });
+        project.getArtifacts().add("java" + javaVersion, jarTask);
+    }
+
+    private void configurePreviewFeatures(Project project, SourceSet sourceSet, int javaVersion) {
+        project.getTasks().withType(JavaCompile.class).named(sourceSet.getCompileJavaTaskName()).configure(compileTask -> {
+            CompileOptions compileOptions = compileTask.getOptions();
+            compileOptions.getCompilerArgs().add("--enable-preview");
+            compileOptions.getCompilerArgs().add("-Xlint:-preview");
+
+            compileTask.doLast(t -> { stripPreviewFromFiles(compileTask.getDestinationDirectory().getAsFile().get().toPath()); });
+        });
+        project.getTasks().withType(Javadoc.class).named(name -> name.equals(sourceSet.getJavadocTaskName())).configureEach(javadocTask -> {
+            CoreJavadocOptions options = (CoreJavadocOptions) javadocTask.getOptions();
+            options.addBooleanOption("-enable-preview", true);
+            options.addStringOption("-release", String.valueOf(javaVersion));
+        });
+    }
+
     private void configureSourceSetInJar(Project project, SourceSet sourceSet, int javaVersion) {
         var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
         jarTask.configure(task -> task.into("META-INF/versions/" + javaVersion, copySpec -> copySpec.from(sourceSet.getOutput())));
     }
 
-    private void createTestTask(Project project, SourceSet sourceSet, int javaVersion, List<String> mainSourceSets) {
+    private void createTestTask(
+        Project project,
+        BuildParameterExtension buildParams,
+        SourceSet sourceSet,
+        int javaVersion,
+        List<String> mainSourceSets
+    ) {
         var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
         var testTaskProvider = project.getTasks().register(JavaPlugin.TEST_TASK_NAME + javaVersion, Test.class);
         testTaskProvider.configure(testTask -> {
@@ -164,9 +204,9 @@ public class MrjarPlugin implements Plugin<Project> {
 
             // only set the jdk if runtime java isn't set because setting the toolchain is incompatible with
             // runtime java setting the executable directly
-            if (BuildParams.getIsRuntimeJavaHomeSet()) {
+            if (buildParams.getIsRuntimeJavaHomeSet()) {
                 testTask.onlyIf("runtime java must support java " + javaVersion, t -> {
-                    JavaVersion runtimeJavaVersion = BuildParams.getRuntimeJavaVersion();
+                    JavaVersion runtimeJavaVersion = buildParams.getRuntimeJavaVersion().get();
                     return runtimeJavaVersion.isCompatibleWith(JavaVersion.toVersion(javaVersion));
                 });
             } else {
@@ -178,7 +218,7 @@ public class MrjarPlugin implements Plugin<Project> {
         project.getTasks().named("check").configure(checkTask -> checkTask.dependsOn(testTaskProvider));
     }
 
-    private static List<Integer> findSourceVersions(Project project) {
+    private static List<Integer> findSourceVersions(Project project, int minJavaVersion) {
         var srcDir = project.getProjectDir().toPath().resolve("src");
         List<Integer> versions = new ArrayList<>();
         try (var subdirStream = Files.list(srcDir)) {
@@ -187,7 +227,23 @@ public class MrjarPlugin implements Plugin<Project> {
                 String sourcesetName = sourceSetPath.getFileName().toString();
                 Matcher sourcesetMatcher = MRJAR_SOURCESET_PATTERN.matcher(sourcesetName);
                 if (sourcesetMatcher.matches()) {
-                    versions.add(Integer.parseInt(sourcesetMatcher.group(1)));
+                    int version = Integer.parseInt(sourcesetMatcher.group(1));
+                    if (version < minJavaVersion) {
+                        // NOTE: We allow mainNN for the min java version so that incubating modules can be used without warnings.
+                        // It is a workaround for https://bugs.openjdk.org/browse/JDK-8187591. Once min java is 22, we
+                        // can use the SuppressWarnings("preview") in the code using incubating modules and this check
+                        // can change to <=
+                        throw new IllegalArgumentException(
+                            "Found src dir '"
+                                + sourcesetName
+                                + "' for Java "
+                                + version
+                                + " but multi-release jar sourceset should have version "
+                                + minJavaVersion
+                                + " or greater"
+                        );
+                    }
+                    versions.add(version);
                 }
             }
         } catch (IOException e) {

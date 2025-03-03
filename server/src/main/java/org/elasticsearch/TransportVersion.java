@@ -98,6 +98,32 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
         return CurrentHolder.CURRENT;
     }
 
+    /**
+     * @return whether this is a known {@link TransportVersion}, i.e. one declared in {@link TransportVersions} or which dates back to
+     *         before 8.9.0 when they matched the release versions exactly and there was no branching or patching. Other versions may exist
+     *         in the wild (they're sent over the wire by numeric ID) but we don't know how to communicate using such versions.
+     */
+    public boolean isKnown() {
+        return before(TransportVersions.V_8_9_X) || TransportVersions.VERSION_IDS.containsKey(id);
+    }
+
+    /**
+     * @return the newest known {@link TransportVersion} which is no older than this instance. Returns {@link TransportVersions#ZERO} if
+     *         there are no such versions.
+     */
+    public TransportVersion bestKnownVersion() {
+        if (isKnown()) {
+            return this;
+        }
+        TransportVersion bestSoFar = TransportVersions.ZERO;
+        for (final var knownVersion : TransportVersions.VERSION_IDS.values()) {
+            if (knownVersion.after(bestSoFar) && knownVersion.before(this)) {
+                bestSoFar = knownVersion;
+            }
+        }
+        return bestSoFar;
+    }
+
     public static TransportVersion fromString(String str) {
         return TransportVersion.fromId(Integer.parseInt(str));
     }
@@ -110,20 +136,20 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
      * When a patch version of an existing transport version is created, {@code transportVersion.isPatchFrom(patchVersion)}
      * will match any transport version at or above {@code patchVersion} that is also of the same base version.
      * <p>
-     * For example, {@code version.isPatchFrom(8_800_00_4)} will return the following for the given {@code version}:
+     * For example, {@code version.isPatchFrom(8_800_0_04)} will return the following for the given {@code version}:
      * <ul>
-     *     <li>{@code 8_799_00_0.isPatchFrom(8_800_00_4)}: {@code false}</li>
-     *     <li>{@code 8_799_00_9.isPatchFrom(8_800_00_4)}: {@code false}</li>
-     *     <li>{@code 8_800_00_0.isPatchFrom(8_800_00_4)}: {@code false}</li>
-     *     <li>{@code 8_800_00_3.isPatchFrom(8_800_00_4)}: {@code false}</li>
-     *     <li>{@code 8_800_00_4.isPatchFrom(8_800_00_4)}: {@code true}</li>
-     *     <li>{@code 8_800_00_9.isPatchFrom(8_800_00_4)}: {@code true}</li>
-     *     <li>{@code 8_800_01_0.isPatchFrom(8_800_00_4)}: {@code false}</li>
-     *     <li>{@code 8_801_00_0.isPatchFrom(8_800_00_4)}: {@code false}</li>
+     *     <li>{@code 8_799_0_00.isPatchFrom(8_800_0_04)}: {@code false}</li>
+     *     <li>{@code 8_799_0_09.isPatchFrom(8_800_0_04)}: {@code false}</li>
+     *     <li>{@code 8_800_0_00.isPatchFrom(8_800_0_04)}: {@code false}</li>
+     *     <li>{@code 8_800_0_03.isPatchFrom(8_800_0_04)}: {@code false}</li>
+     *     <li>{@code 8_800_0_04.isPatchFrom(8_800_0_04)}: {@code true}</li>
+     *     <li>{@code 8_800_0_49.isPatchFrom(8_800_0_04)}: {@code true}</li>
+     *     <li>{@code 8_800_1_00.isPatchFrom(8_800_0_04)}: {@code false}</li>
+     *     <li>{@code 8_801_0_00.isPatchFrom(8_800_0_04)}: {@code false}</li>
      * </ul>
      */
     public boolean isPatchFrom(TransportVersion version) {
-        return onOrAfter(version) && id < version.id + 10 - (version.id % 10);
+        return onOrAfter(version) && id < version.id + 100 - (version.id % 100);
     }
 
     /**

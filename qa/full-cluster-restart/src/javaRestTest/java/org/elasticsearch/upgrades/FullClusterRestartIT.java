@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.XContentTestUtils;
@@ -82,6 +83,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_COMPRESS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -91,6 +93,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -631,13 +634,14 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                 )
             );
 
-            // assertBusy to work around https://github.com/elastic/elasticsearch/issues/104371
-            assertBusy(
-                () -> assertThat(
-                    EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/indices?v&error_trace")).getEntity()),
-                    containsString("testrollover-000002")
-                )
-            );
+            assertBusy(() -> {
+                Request catIndices = new Request("GET", "/_cat/indices?v&error_trace");
+                // the cat APIs can sometimes 404, erroneously
+                // see https://github.com/elastic/elasticsearch/issues/104371
+                setIgnoredErrorResponseCodes(catIndices, RestStatus.NOT_FOUND);
+                Response response = assertOK(client().performRequest(catIndices));
+                assertThat(EntityUtils.toString(response.getEntity()), containsString("testrollover-000002"));
+            });
         }
 
         Request countRequest = new Request("POST", "/" + index + "-*/_search");
@@ -1285,12 +1289,16 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", snapResponse));
         assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", snapResponse));
         // the format can change depending on the ES node version running & this test code running
+        // and if there's an in-progress release that hasn't been published yet,
+        // which could affect the top range of the index release version
+        String firstReleaseVersion = tookOnIndexVersion.toReleaseVersion().split("-")[0];
         assertThat(
-            XContentMapValues.extractValue("snapshots.version", snapResponse),
+            (Iterable<String>) XContentMapValues.extractValue("snapshots.version", snapResponse),
             anyOf(
-                equalTo(List.of(tookOnVersion)),
-                equalTo(List.of(tookOnIndexVersion.toString())),
-                equalTo(List.of(tookOnIndexVersion.toReleaseVersion()))
+                contains(tookOnVersion),
+                contains(tookOnIndexVersion.toString()),
+                contains(firstReleaseVersion),
+                contains(startsWith(firstReleaseVersion + "-"))
             )
         );
 

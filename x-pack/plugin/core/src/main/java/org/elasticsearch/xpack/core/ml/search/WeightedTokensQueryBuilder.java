@@ -125,7 +125,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         }
 
         return (this.tokenPruningConfig == null)
-            ? WeightedTokensUtils.queryBuilderWithAllTokens(tokens, ft, context)
+            ? WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, tokens, ft, context)
             : WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, tokens, ft, context);
     }
 

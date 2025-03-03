@@ -22,7 +22,7 @@ import org.elasticsearch.core.ReleasableIterator;
 $endif$
 /**
  * Vector implementation that stores a constant $type$ value.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
 final class Constant$Type$Vector extends AbstractVector implements $Type$Vector {
 

@@ -214,7 +214,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 // with DFS_QUERY_THEN_FETCH, the local shards are never skipped
                 assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
             } else {
-                assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(localNumShards - 1));
+                assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(localNumShards));
             }
             assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
             assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
@@ -224,7 +224,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
             assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards));
             if (clusters.isCcsMinimizeRoundtrips()) {
-                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards - 1));
+                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards));
             } else {
                 assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards));
             }
@@ -379,11 +379,9 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             r.incRef();
             l.onResponse(r);
         }));
-        assertBusy(() -> assertTrue(queryFuture.isDone()));
-
         // dfs=true overrides the minimize_roundtrips=true setting and does not minimize roundtrips
         if (skipUnavailable == false && minimizeRoundtrips && dfs == false) {
-            ExecutionException ee = expectThrows(ExecutionException.class, () -> queryFuture.get());
+            ExecutionException ee = expectThrows(ExecutionException.class, queryFuture::get);
             assertNotNull(ee.getCause());
             assertThat(ee.getCause(), instanceOf(RemoteTransportException.class));
             Throwable rootCause = ExceptionsHelper.unwrap(ee.getCause(), IllegalStateException.class);
@@ -622,10 +620,8 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             r.incRef();
             l.onResponse(r);
         }));
-        assertBusy(() -> assertTrue(queryFuture.isDone()));
-
         if (skipUnavailable == false || minimizeRoundtrips == false) {
-            ExecutionException ee = expectThrows(ExecutionException.class, () -> queryFuture.get());
+            ExecutionException ee = expectThrows(ExecutionException.class, queryFuture::get);
             assertNotNull(ee.getCause());
             Throwable rootCause = ExceptionsHelper.unwrap(ee, IllegalStateException.class);
             assertThat(rootCause.getMessage(), containsString("index corrupted"));

@@ -12,9 +12,14 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.retry.ErrorMessage;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 
-public record HuggingFaceErrorResponseEntity(String message) implements ErrorMessage {
+public class HuggingFaceErrorResponseEntity extends ErrorResponse {
+
+    public HuggingFaceErrorResponseEntity(String message) {
+        super(message);
+    }
+
     /**
      * An example error response for invalid auth would look like
      * <code>
@@ -26,9 +31,9 @@ public record HuggingFaceErrorResponseEntity(String message) implements ErrorMes
      *
      * @param response The error response
      * @return An error entity if the response is JSON with the above structure
-     * or null if the response does not contain the error field
+     * or {@link ErrorResponse#UNDEFINED_ERROR} if the error field wasn't found
      */
-    public static HuggingFaceErrorResponseEntity fromResponse(HttpResult response) {
+    public static ErrorResponse fromResponse(HttpResult response) {
         try (
             XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(XContentParserConfiguration.EMPTY, response.body())
@@ -42,11 +47,6 @@ public record HuggingFaceErrorResponseEntity(String message) implements ErrorMes
             // swallow the error
         }
 
-        return null;
-    }
-
-    @Override
-    public String getErrorMessage() {
-        return message;
+        return ErrorResponse.UNDEFINED_ERROR;
     }
 }

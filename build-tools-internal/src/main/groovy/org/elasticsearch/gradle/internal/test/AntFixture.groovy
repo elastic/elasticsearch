@@ -10,22 +10,37 @@
 package org.elasticsearch.gradle.internal.test
 
 import org.elasticsearch.gradle.OS
+
 import org.elasticsearch.gradle.internal.AntFixtureStop
 import org.elasticsearch.gradle.internal.AntTask
+import org.elasticsearch.gradle.testclusters.TestClusterInfo
+import org.elasticsearch.gradle.testclusters.TestClusterValueSource
+import org.elasticsearch.gradle.testclusters.TestClustersRegistry
 import org.gradle.api.GradleException
+import org.gradle.api.file.ProjectLayout
+import org.gradle.api.provider.Property
+import org.gradle.api.provider.Provider
+import org.gradle.api.provider.ProviderFactory
+import org.gradle.api.provider.ValueSource
+import org.gradle.api.provider.ValueSourceParameters
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskProvider
+
+import javax.inject.Inject
 
 /**
  * A fixture for integration tests which runs in a separate process launched by Ant.
  */
-class AntFixture extends AntTask implements Fixture {
+class AntFixture extends AntTask {
 
     /** The path to the executable that starts the fixture. */
     @Internal
     String executable
 
     private final List<Object> arguments = new ArrayList<>()
+    private ProjectLayout projectLayout
+    private final ProviderFactory providerFactory
 
     void args(Object... args) {
         arguments.addAll(args)
@@ -69,17 +84,12 @@ class AntFixture extends AntTask implements Fixture {
         return tmpFile.exists()
     }
 
-    private final TaskProvider<AntFixtureStop> stopTask
-
-    AntFixture() {
-        stopTask = createStopTask()
+    @Inject
+    AntFixture(ProjectLayout projectLayout, ProviderFactory providerFactory) {
+        this.providerFactory = providerFactory
+        this.projectLayout = projectLayout;
+        TaskProvider<AntFixtureStop> stopTask = createStopTask()
         finalizedBy(stopTask)
-    }
-
-    @Override
-    @Internal
-    TaskProvider<AntFixtureStop> getStopTask() {
-        return stopTask
     }
 
     @Override
@@ -231,7 +241,7 @@ class AntFixture extends AntTask implements Fixture {
      */
     @Internal
     protected File getBaseDir() {
-        return new File(project.buildDir, "fixtures/${name}")
+        return new File(projectLayout.getBuildDirectory().getAsFile().get(), "fixtures/${name}")
     }
 
     /** Returns the working directory for the process. Defaults to "cwd" inside baseDir. */
@@ -242,7 +252,7 @@ class AntFixture extends AntTask implements Fixture {
 
     /** Returns the file the process writes its pid to. Defaults to "pid" inside baseDir. */
     @Internal
-    protected File getPidFile() {
+    File getPidFile() {
         return new File(baseDir, 'pid')
     }
 
@@ -264,6 +274,12 @@ class AntFixture extends AntTask implements Fixture {
         return portsFile.readLines("UTF-8").get(0)
     }
 
+    @Internal
+    Provider<String> getAddressAndPortProvider() {
+        File thePortFile = portsFile
+        return providerFactory.provider(() -> thePortFile.readLines("UTF-8").get(0))
+    }
+
     /** Returns a file that wraps around the actual command when {@code spawn == true}. */
     @Internal
     protected File getWrapperScript() {
@@ -280,5 +296,23 @@ class AntFixture extends AntTask implements Fixture {
     @Internal
     protected File getRunLog() {
         return new File(cwd, 'run.log')
+    }
+
+    @Internal
+    Provider<AntFixtureValueSource> getAddressAndPortSource() {
+        return providerFactory.of(AntFixtureValueSource.class, spec -> {
+            spec.getParameters().getPortFile().set(portsFile);
+        });
+    }
+
+    static abstract class AntFixtureValueSource implements ValueSource<String, AntFixtureValueSource.Parameters> {
+        @Override
+        String obtain() {
+            return getParameters().getPortFile().map { it.readLines("UTF-8").get(0) }.get()
+        }
+
+        interface Parameters extends ValueSourceParameters {
+            Property<File> getPortFile();
+        }
     }
 }

@@ -4,9 +4,6 @@ import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
 
 pluginManagement {
   repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
     mavenCentral()
     gradlePluginPortal()
   }
@@ -20,6 +17,8 @@ plugins {
   id "com.gradle.develocity" version "3.18.1"
   id 'elasticsearch.java-toolchain'
 }
+
+enableFeaturePreview "STABLE_CONFIGURATION_CACHE"
 
 rootProject.name = "elasticsearch"
 
@@ -78,6 +77,7 @@ List projects = [
   'distribution:packages:aarch64-rpm',
   'distribution:packages:rpm',
   'distribution:bwc:bugfix',
+  'distribution:bwc:bugfix2',
   'distribution:bwc:maintenance',
   'distribution:bwc:minor',
   'distribution:bwc:staged',
@@ -89,13 +89,13 @@ List projects = [
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',
   'distribution:tools:ansi-console',
-  'distribution:tools:entitlement-agent',
-  'distribution:tools:entitlement-agent:impl',
-  'distribution:tools:entitlement-bridge',
-  'distribution:tools:entitlement-runtime',
   'server',
   'test:framework',
+  'test:fixtures:aws-ec2-fixture',
+  'test:fixtures:aws-fixture-utils',
+  'test:fixtures:aws-sts-fixture',
   'test:fixtures:azure-fixture',
+  'test:fixtures:ec2-imds-fixture',
   'test:fixtures:gcs-fixture',
   'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',

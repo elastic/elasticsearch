@@ -38,11 +38,11 @@ Data is often messy and incomplete. <<ingest,Ingest pipelines>> lets you clean, 
 
 <<esql,ES|QL>> has support for <<esql-spatial-functions, Geospatial Search>> functions, enabling efficient index searching for documents that intersect with, are within, are contained by, or are disjoint from a query geometry. In addition, the `ST_DISTANCE` function calculates the distance between two points.
 
-* experimental:[] <<esql-st_intersects>>
-* experimental:[] <<esql-st_disjoint>>
-* experimental:[] <<esql-st_contains>>
-* experimental:[] <<esql-st_within>>
-* experimental:[] <<esql-st_distance>>
+* <<esql-st_intersects>>
+* <<esql-st_disjoint>>
+* <<esql-st_contains>>
+* <<esql-st_within>>
+* <<esql-st_distance>>
 
 [discrete]
 [[geospatial-aggregate]]

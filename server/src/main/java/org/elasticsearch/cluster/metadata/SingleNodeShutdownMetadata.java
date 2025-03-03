@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.NODE_SHUTDOWN_EPHEMERAL_ID_ADDED;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -40,6 +41,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     public static final TransportVersion GRACE_PERIOD_ADDED_VERSION = TransportVersions.V_8_9_X;
 
     public static final ParseField NODE_ID_FIELD = new ParseField("node_id");
+    public static final ParseField NODE_EPHEMERAL_ID_FIELD = new ParseField("node_ephemeral_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField REASON_FIELD = new ParseField("reason");
     public static final String STARTED_AT_READABLE_FIELD = "shutdown_started";
@@ -53,18 +55,25 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         "node_shutdown_info",
         a -> new SingleNodeShutdownMetadata(
             (String) a[0],
-            Type.valueOf((String) a[1]),
-            (String) a[2],
-            (long) a[3],
-            (boolean) a[4],
-            (TimeValue) a[5],
-            (String) a[6],
-            (TimeValue) a[7]
+            (String) a[1],
+            Type.valueOf((String) a[2]),
+            (String) a[3],
+            (long) a[4],
+            (boolean) a[5],
+            (TimeValue) a[6],
+            (String) a[7],
+            (TimeValue) a[8]
         )
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NODE_ID_FIELD);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> p.textOrNull(),
+            NODE_EPHEMERAL_ID_FIELD,
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REASON_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), STARTED_AT_MILLIS_FIELD);
@@ -91,6 +100,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     public static final TimeValue DEFAULT_RESTART_SHARD_ALLOCATION_DELAY = TimeValue.timeValueMinutes(5);
 
     private final String nodeId;
+    @Nullable
+    private final String nodeEphemeralId;
     private final Type type;
     private final String reason;
     private final long startedAtMillis;
@@ -110,6 +121,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
      */
     private SingleNodeShutdownMetadata(
         String nodeId,
+        @Nullable String nodeEphemeralId,
         Type type,
         String reason,
         long startedAtMillis,
@@ -119,6 +131,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         @Nullable TimeValue gracePeriod
     ) {
         this.nodeId = Objects.requireNonNull(nodeId, "node ID must not be null");
+        this.nodeEphemeralId = nodeEphemeralId;
         this.type = Objects.requireNonNull(type, "shutdown type must not be null");
         this.reason = Objects.requireNonNull(reason, "shutdown reason must not be null");
         this.startedAtMillis = startedAtMillis;
@@ -157,6 +170,11 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
 
     public SingleNodeShutdownMetadata(StreamInput in) throws IOException {
         this.nodeId = in.readString();
+        if (in.getTransportVersion().onOrAfter(NODE_SHUTDOWN_EPHEMERAL_ID_ADDED)) {
+            this.nodeEphemeralId = in.readOptionalString();
+        } else {
+            this.nodeEphemeralId = null; // empty when talking to old nodes, meaning the persistent node id is the only differentiator
+        }
         this.type = in.readEnum(Type.class);
         this.reason = in.readString();
         this.startedAtMillis = in.readVLong();
@@ -179,6 +197,15 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
      */
     public String getNodeId() {
         return nodeId;
+    }
+
+    /**
+     * @return The ephemeral ID of the node this {@link SingleNodeShutdownMetadata} concerns, or
+     *  {@code null} if the ephemeral id is unknown.
+     */
+    @Nullable
+    public String getNodeEphemeralId() {
+        return nodeEphemeralId;
     }
 
     /**
@@ -241,6 +268,9 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
+        if (out.getTransportVersion().onOrAfter(NODE_SHUTDOWN_EPHEMERAL_ID_ADDED)) {
+            out.writeOptionalString(nodeEphemeralId);
+        }
         if ((out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION) && this.type == SingleNodeShutdownMetadata.Type.REPLACE)
             || (out.getTransportVersion().before(SIGTERM_ADDED_VERSION) && this.type == Type.SIGTERM)) {
             out.writeEnum(SingleNodeShutdownMetadata.Type.REMOVE);
@@ -264,6 +294,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         builder.startObject();
         {
             builder.field(NODE_ID_FIELD.getPreferredName(), nodeId);
+            builder.field(NODE_EPHEMERAL_ID_FIELD.getPreferredName(), nodeEphemeralId);
             builder.field(TYPE_FIELD.getPreferredName(), type);
             builder.field(REASON_FIELD.getPreferredName(), reason);
             builder.timestampFieldsFromUnixEpochMillis(
@@ -295,6 +326,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         return getStartedAtMillis() == that.getStartedAtMillis()
             && getNodeSeen() == that.getNodeSeen()
             && getNodeId().equals(that.getNodeId())
+            && Objects.equals(getNodeEphemeralId(), that.getNodeEphemeralId())
             && getType() == that.getType()
             && getReason().equals(that.getReason())
             && Objects.equals(getAllocationDelay(), that.getAllocationDelay())
@@ -306,6 +338,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     public int hashCode() {
         return Objects.hash(
             getNodeId(),
+            getNodeEphemeralId(),
             getType(),
             getReason(),
             getStartedAtMillis(),
@@ -322,6 +355,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         stringBuilder.append("{")
             .append("nodeId=[")
             .append(nodeId)
+            .append("], nodeEphemeralId=[")
+            .append(nodeEphemeralId)
             .append(']')
             .append(", type=[")
             .append(type)
@@ -350,6 +385,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             return builder();
         }
         return new Builder().setNodeId(original.getNodeId())
+            .setNodeEphemeralId(original.getNodeEphemeralId())
             .setType(original.getType())
             .setReason(original.getReason())
             .setStartedAtMillis(original.getStartedAtMillis())
@@ -359,6 +395,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
 
     public static class Builder {
         private String nodeId;
+        private String nodeEphemeralId;
         private Type type;
         private String reason;
         private long startedAtMillis = -1;
@@ -375,6 +412,15 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
          */
         public Builder setNodeId(String nodeId) {
             this.nodeId = nodeId;
+            return this;
+        }
+
+        /**
+         * @param nodeEphemeralId The node ephemeral ID this metadata refers to.
+         * @return This builder.
+         */
+        public Builder setNodeEphemeralId(String nodeEphemeralId) {
+            this.nodeEphemeralId = nodeEphemeralId;
             return this;
         }
 
@@ -444,6 +490,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
 
             return new SingleNodeShutdownMetadata(
                 nodeId,
+                nodeEphemeralId,
                 type,
                 reason,
                 startedAtMillis,

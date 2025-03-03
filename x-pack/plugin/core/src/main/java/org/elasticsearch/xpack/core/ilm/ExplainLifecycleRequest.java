@@ -18,7 +18,7 @@ import java.util.Objects;
 
 /**
  * The request object used by the Explain Lifecycle API.
- *
+ * <p>
  * Multiple indices may be queried in the same request using the
  * {@link #indices(String...)} method
  */

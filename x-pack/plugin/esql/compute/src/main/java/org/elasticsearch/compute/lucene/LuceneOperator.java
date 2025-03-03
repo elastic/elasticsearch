@@ -68,6 +68,10 @@ public abstract class LuceneOperator extends SourceOperator {
     long processingNanos;
     int pagesEmitted;
     boolean doneCollecting;
+    /**
+     * Count of rows this operator has emitted.
+     */
+    private long rowsEmitted;
 
     protected LuceneOperator(BlockFactory blockFactory, int maxPageSize, LuceneSliceQueue sliceQueue) {
         this.blockFactory = blockFactory;
@@ -79,6 +83,7 @@ public abstract class LuceneOperator extends SourceOperator {
         protected final DataPartitioning dataPartitioning;
         protected final int taskConcurrency;
         protected final int limit;
+        protected final ScoreMode scoreMode;
         protected final LuceneSliceQueue sliceQueue;
 
         /**
@@ -95,6 +100,7 @@ public abstract class LuceneOperator extends SourceOperator {
             ScoreMode scoreMode
         ) {
             this.limit = limit;
+            this.scoreMode = scoreMode;
             this.dataPartitioning = dataPartitioning;
             var weightFunction = weightFunction(queryFunction, scoreMode);
             this.sliceQueue = LuceneSliceQueue.create(contexts, weightFunction, dataPartitioning, taskConcurrency);
@@ -113,7 +119,12 @@ public abstract class LuceneOperator extends SourceOperator {
     @Override
     public final Page getOutput() {
         try {
-            return getCheckedOutput();
+            Page page = getCheckedOutput();
+            if (page != null) {
+                pagesEmitted++;
+                rowsEmitted += page.getPositionCount();
+            }
+            return page;
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
         }
@@ -250,6 +261,7 @@ public abstract class LuceneOperator extends SourceOperator {
         private final int sliceMin;
         private final int sliceMax;
         private final int current;
+        private final long rowsEmitted;
 
         private Status(LuceneOperator operator) {
             processedSlices = operator.processedSlices;
@@ -274,6 +286,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 current = scorer.position;
             }
             pagesEmitted = operator.pagesEmitted;
+            rowsEmitted = operator.rowsEmitted;
         }
 
         Status(
@@ -286,7 +299,8 @@ public abstract class LuceneOperator extends SourceOperator {
             int pagesEmitted,
             int sliceMin,
             int sliceMax,
-            int current
+            int current,
+            long rowsEmitted
         ) {
             this.processedSlices = processedSlices;
             this.processedQueries = processedQueries;
@@ -298,6 +312,7 @@ public abstract class LuceneOperator extends SourceOperator {
             this.sliceMin = sliceMin;
             this.sliceMax = sliceMax;
             this.current = current;
+            this.rowsEmitted = rowsEmitted;
         }
 
         Status(StreamInput in) throws IOException {
@@ -316,6 +331,11 @@ public abstract class LuceneOperator extends SourceOperator {
             sliceMin = in.readVInt();
             sliceMax = in.readVInt();
             current = in.readVInt();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                rowsEmitted = in.readVLong();
+            } else {
+                rowsEmitted = 0;
+            }
         }
 
         @Override
@@ -334,6 +354,9 @@ public abstract class LuceneOperator extends SourceOperator {
             out.writeVInt(sliceMin);
             out.writeVInt(sliceMax);
             out.writeVInt(current);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                out.writeVLong(rowsEmitted);
+            }
         }
 
         @Override
@@ -381,6 +404,10 @@ public abstract class LuceneOperator extends SourceOperator {
             return current;
         }
 
+        public long rowsEmitted() {
+            return rowsEmitted;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -397,6 +424,7 @@ public abstract class LuceneOperator extends SourceOperator {
             builder.field("slice_min", sliceMin);
             builder.field("slice_max", sliceMax);
             builder.field("current", current);
+            builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
         }
 
@@ -414,12 +442,13 @@ public abstract class LuceneOperator extends SourceOperator {
                 && pagesEmitted == status.pagesEmitted
                 && sliceMin == status.sliceMin
                 && sliceMax == status.sliceMax
-                && current == status.current;
+                && current == status.current
+                && rowsEmitted == status.rowsEmitted;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(processedSlices, sliceIndex, totalSlices, pagesEmitted, sliceMin, sliceMax, current);
+            return Objects.hash(processedSlices, sliceIndex, totalSlices, pagesEmitted, sliceMin, sliceMax, current, rowsEmitted);
         }
 
         @Override
@@ -438,7 +467,8 @@ public abstract class LuceneOperator extends SourceOperator {
             final var query = queryFunction.apply(ctx);
             final var searcher = ctx.searcher();
             try {
-                return searcher.createWeight(searcher.rewrite(new ConstantScoreQuery(query)), scoreMode, 1);
+                Query actualQuery = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
+                return searcher.createWeight(searcher.rewrite(actualQuery), scoreMode, 1);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

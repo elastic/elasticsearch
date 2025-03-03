@@ -57,6 +57,32 @@ interface KqlBaseVisitor<T> extends ParseTreeVisitor<T> {
      */
     T visitNestedQuery(KqlBaseParser.NestedQueryContext ctx);
     /**
+     * Visit a parse tree produced by the {@code booleanNestedQuery}
+     * labeled alternative in {@link KqlBaseParser#nestedSubQuery}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitBooleanNestedQuery(KqlBaseParser.BooleanNestedQueryContext ctx);
+    /**
+     * Visit a parse tree produced by the {@code defaultNestedQuery}
+     * labeled alternative in {@link KqlBaseParser#nestedSubQuery}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitDefaultNestedQuery(KqlBaseParser.DefaultNestedQueryContext ctx);
+    /**
+     * Visit a parse tree produced by {@link KqlBaseParser#nestedSimpleSubQuery}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitNestedSimpleSubQuery(KqlBaseParser.NestedSimpleSubQueryContext ctx);
+    /**
+     * Visit a parse tree produced by {@link KqlBaseParser#nestedParenthesizedQuery}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitNestedParenthesizedQuery(KqlBaseParser.NestedParenthesizedQueryContext ctx);
+    /**
      * Visit a parse tree produced by {@link KqlBaseParser#matchAllQuery}.
      * @param ctx the parse tree
      * @return the visitor result

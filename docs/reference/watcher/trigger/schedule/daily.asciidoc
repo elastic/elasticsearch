@@ -97,3 +97,27 @@ or minutes as an array. For example, following `daily` schedule triggers at
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+[[specifying-time-zone-for-daily-schedule]]
+===== Specifying a time zone for a daily schedule
+By default, daily schedules are evaluated in the UTC time zone. To use a different time zone,
+you can specify the `timezone` parameter in the schedule. For example, the following
+`daily` schedule triggers at 6:00 AM and 6:00 PM in the `Pacific/Galapagos` time zone:
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "timezone" : "Pacific/Galapagos",
+      "daily" : {
+        "at" : {
+          "hour" : [ 6, 18 ],
+          "minute" : 0
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

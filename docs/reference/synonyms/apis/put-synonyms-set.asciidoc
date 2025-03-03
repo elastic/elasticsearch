@@ -5,6 +5,12 @@
 <titleabbrev>Create or update synonyms set</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-synonyms[Synonyms APIs].
+--
+
 Creates or updates a synonyms set.
 
 NOTE: Synonyms sets are limited to a maximum of 10,000 synonym rules per set.

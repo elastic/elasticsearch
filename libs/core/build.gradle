@@ -8,7 +8,6 @@
  */
 
 apply plugin: 'elasticsearch.publish'
-apply plugin: 'elasticsearch.mrjar'
 
 dependencies {
   // This dependency is used only by :libs:core for null-checking interop with other tools

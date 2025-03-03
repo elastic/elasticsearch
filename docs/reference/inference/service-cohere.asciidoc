@@ -1,5 +1,11 @@
 [[infer-service-cohere]]
-=== Cohere {infer} service
+=== Cohere {infer} integration
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+--
 
 Creates an {infer} endpoint to perform an {infer} task with the `cohere` service.
 
@@ -38,7 +44,7 @@ Available task types:
 (Optional, object)
 include::inference-shared.asciidoc[tag=chunking-settings]
 
-`max_chunking_size`:::
+`max_chunk_size`:::
 (Optional, integer)
 include::inference-shared.asciidoc[tag=chunking-settings-max-chunking-size]
 
@@ -56,7 +62,7 @@ include::inference-shared.asciidoc[tag=chunking-settings-strategy]
 
 `service`::
 (Required, string)
-The type of service supported for the specified task type. In this case, 
+The type of service supported for the specified task type. In this case,
 `cohere`.
 
 `service_settings`::
@@ -121,6 +127,8 @@ Valid values are:
 * `byte`: use it for signed int8 embeddings (this is a synonym of `int8`).
 * `float`: use it for the default float embeddings.
 * `int8`: use it for signed int8 embeddings.
+* `binary`: use it for binary embeddings, which are encoded as bytes with signed int8 precision.
+* `bit`: use it for binary embeddings, which are encoded as bytes with signed int8 precision (this is a synonym of `binary`).
 
 `model_id`:::
 (Optional, string)

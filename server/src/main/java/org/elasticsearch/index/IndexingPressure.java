@@ -105,6 +105,9 @@ public class IndexingPressure {
     private final AtomicLong replicaRejections = new AtomicLong(0);
     private final AtomicLong primaryDocumentRejections = new AtomicLong(0);
 
+    private final AtomicLong lowWaterMarkSplits = new AtomicLong(0);
+    private final AtomicLong highWaterMarkSplits = new AtomicLong(0);
+
     private final long lowWatermark;
     private final long lowWatermarkSize;
     private final long highWatermark;
@@ -265,11 +268,20 @@ public class IndexingPressure {
 
     public boolean shouldSplitBulk(long size) {
         long currentUsage = (currentCombinedCoordinatingAndPrimaryBytes.get() + currentReplicaBytes.get());
-        return (currentUsage >= lowWatermark && size >= lowWatermarkSize) || (currentUsage >= highWatermark && size >= highWatermarkSize);
+        if (currentUsage >= highWatermark && size >= highWatermarkSize) {
+            highWaterMarkSplits.getAndIncrement();
+            logger.trace(() -> Strings.format("Split bulk due to high watermark: current bytes [%d] and size [%d]", currentUsage, size));
+            return (true);
+        }
+        if (currentUsage >= lowWatermark && size >= lowWatermarkSize) {
+            lowWaterMarkSplits.getAndIncrement();
+            logger.trace(() -> Strings.format("Split bulk due to low watermark: current bytes [%d] and size [%d]", currentUsage, size));
+            return (true);
+        }
+        return (false);
     }
 
     public IndexingPressureStats stats() {
-        // TODO: Update stats with new primary/replica/coordinating limits and add throttling stats
         return new IndexingPressureStats(
             totalCombinedCoordinatingAndPrimaryBytes.get(),
             totalCoordinatingBytes.get(),
@@ -290,7 +302,9 @@ public class IndexingPressure {
             currentPrimaryOps.get(),
             currentReplicaOps.get(),
             primaryDocumentRejections.get(),
-            totalCoordinatingRequests.get()
+            totalCoordinatingRequests.get(),
+            lowWaterMarkSplits.get(),
+            highWaterMarkSplits.get()
         );
     }
 }

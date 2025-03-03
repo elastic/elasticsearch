@@ -5,6 +5,12 @@
 <titleabbrev>Update filters</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Updates the description of a filter, adds items, or removes items. 
 
 [[ml-update-filter-request]]

@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -81,7 +82,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                     lastResolvedIndex = Tuple.tuple(item.index(), concreteSingleIndex);
                 }
                 item.routing(clusterState.metadata().resolveIndexRouting(item.routing(), item.index()));
-                shardId = clusterService.operationRouting().shardId(clusterState, concreteSingleIndex, item.id(), item.routing());
+                shardId = OperationRouting.shardId(clusterState, concreteSingleIndex, item.id(), item.routing());
             } catch (RoutingMissingException e) {
                 responses.set(i, newItemFailure(e.getIndex().getName(), e.getId(), e));
                 continue;

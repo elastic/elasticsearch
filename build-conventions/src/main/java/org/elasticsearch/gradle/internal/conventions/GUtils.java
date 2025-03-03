@@ -16,4 +16,12 @@ public abstract class GUtils {
     public static String capitalize(String s) {
         return s.substring(0, 1).toUpperCase(Locale.ROOT) + s.substring(1);
     }
+
+    public static <T> T elvis(T given, T fallback) {
+        if (given == null) {
+            return fallback;
+        } else {
+            return given;
+        }
+    }
 }

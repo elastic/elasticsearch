@@ -48,6 +48,16 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         return DefaultESVectorUtilSupport.ipByteBinByteImpl(q, d);
     }
 
+    @Override
+    public int ipByteBit(byte[] q, byte[] d) {
+        return DefaultESVectorUtilSupport.ipByteBitImpl(q, d);
+    }
+
+    @Override
+    public float ipFloatBit(float[] q, byte[] d) {
+        return DefaultESVectorUtilSupport.ipFloatBitImpl(q, d);
+    }
+
     private static final VectorSpecies<Byte> BYTE_SPECIES_128 = ByteVector.SPECIES_128;
     private static final VectorSpecies<Byte> BYTE_SPECIES_256 = ByteVector.SPECIES_256;
 

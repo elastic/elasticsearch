@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -61,7 +60,6 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
         final Client client,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final CcrLicenseChecker ccrLicenseChecker
     ) {
         super(
@@ -71,7 +69,6 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             PutAutoFollowPatternAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;

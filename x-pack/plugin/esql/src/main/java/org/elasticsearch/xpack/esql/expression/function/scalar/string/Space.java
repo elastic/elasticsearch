@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -82,7 +83,7 @@ public class Space extends UnaryScalarFunction {
     }
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
-    static BytesRef process(@Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch, int number) {
+    static BytesRef process(@Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch, int number) {
         checkNumber(number);
         scratch.grow(number);
         scratch.setLength(number);
@@ -112,7 +113,7 @@ public class Space extends UnaryScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field.foldable()) {
-            Object folded = field.fold();
+            Object folded = field.fold(toEvaluator.foldCtx());
             if (folded instanceof Integer num) {
                 checkNumber(num);
                 return toEvaluator.apply(new Literal(source(), " ".repeat(num), KEYWORD));

@@ -17,7 +17,11 @@ public record MlMemoryAutoscalingCapacity(ByteSizeValue nodeSize, ByteSizeValue 
     }
 
     public static Builder from(AutoscalingCapacity autoscalingCapacity) {
-        return builder(autoscalingCapacity.node().memory(), autoscalingCapacity.total().memory());
+        if (autoscalingCapacity == null) {
+            return builder(null, null);
+        } else {
+            return builder(autoscalingCapacity.node().memory(), autoscalingCapacity.total().memory());
+        }
     }
 
     @Override

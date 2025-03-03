@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.CancellableFanOut;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterSnapshotStats;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -74,8 +75,6 @@ import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.CCS_REMOTE_TELEMETRY_STATS;
-
 /**
  * Transport action implementing _cluster/stats API.
  */
@@ -106,25 +105,25 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final RepositoriesService repositoriesService;
     private final SearchUsageHolder searchUsageHolder;
     private final CCSUsageTelemetry ccsUsageHolder;
+    private final CCSUsageTelemetry esqlUsageHolder;
 
     private final Executor clusterStateStatsExecutor;
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
     private final MetadataStatsCache<AnalysisStats> analysisStatsCache;
     private final RemoteClusterService remoteClusterService;
-    private final TransportRemoteClusterStatsAction remoteClusterStatsAction;
 
     @Inject
     public TransportClusterStatsAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
+        Client client,
         NodeService nodeService,
         IndicesService indicesService,
         RepositoriesService repositoriesService,
         UsageService usageService,
         ActionFilters actionFilters,
-        Settings settings,
-        TransportRemoteClusterStatsAction remoteClusterStatsAction
+        Settings settings
     ) {
         super(
             TYPE.name(),
@@ -139,12 +138,15 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.repositoriesService = repositoriesService;
         this.searchUsageHolder = usageService.getSearchUsageHolder();
         this.ccsUsageHolder = usageService.getCcsUsageHolder();
+        this.esqlUsageHolder = usageService.getEsqlUsageHolder();
         this.clusterStateStatsExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.settings = settings;
-        this.remoteClusterStatsAction = remoteClusterStatsAction;
+
+        // register remote-cluster action with transport service only and not as a local-node Action that the Client can invoke
+        new TransportRemoteClusterStatsAction(client, transportService, actionFilters);
     }
 
     @Override
@@ -295,6 +297,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
         final RepositoryUsageStats repositoryUsageStats = repositoriesService.getUsageStats();
         final CCSTelemetrySnapshot ccsTelemetry = ccsUsageHolder.getCCSTelemetrySnapshot();
+        final CCSTelemetrySnapshot esqlTelemetry = esqlUsageHolder.getCCSTelemetrySnapshot();
 
         return new ClusterStatsNodeResponse(
             nodeInfo.getNode(),
@@ -304,7 +307,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             shardsStats.toArray(new ShardStats[shardsStats.size()]),
             searchUsageStats,
             repositoryUsageStats,
-            ccsTelemetry
+            ccsTelemetry,
+            esqlTelemetry
         );
     }
 
@@ -459,7 +463,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             var remoteRequest = new RemoteClusterStatsRequest();
             remoteRequest.setParentTask(taskId);
             remoteClusterClient.getConnection(remoteRequest, listener.delegateFailureAndWrap((responseListener, connection) -> {
-                if (connection.getTransportVersion().before(CCS_REMOTE_TELEMETRY_STATS)) {
+                if (connection.getTransportVersion().before(TransportVersions.V_8_16_0)) {
                     responseListener.onResponse(null);
                 } else {
                     remoteClusterClient.execute(connection, TransportRemoteClusterStatsAction.REMOTE_TYPE, remoteRequest, responseListener);

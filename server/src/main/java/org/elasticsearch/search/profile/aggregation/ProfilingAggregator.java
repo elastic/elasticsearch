@@ -10,6 +10,7 @@
 package org.elasticsearch.search.profile.aggregation;
 
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -68,7 +69,7 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         Timer timer = profileBreakdown.getNewTimer(AggregationTimingType.BUILD_AGGREGATION);
         InternalAggregation[] result;
         timer.start();

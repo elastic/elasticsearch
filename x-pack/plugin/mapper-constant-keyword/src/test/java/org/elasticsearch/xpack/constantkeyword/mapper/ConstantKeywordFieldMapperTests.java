@@ -333,6 +333,17 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         assertThat(syntheticSource(mapper, b -> {}), equalTo("{}"));
     }
 
+    public void testNoValueInDocumentSyntheticSource() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            b.field("type", "constant_keyword");
+            b.field("value", randomAlphaOfLength(5));
+            b.endObject();
+        })).documentMapper();
+
+        assertThat(syntheticSource(mapper, b -> {}), equalTo("{}"));
+    }
+
     @Override
     protected boolean supportsEmptyInputArray() {
         return false;

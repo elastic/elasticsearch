@@ -52,7 +52,7 @@ However, a fast, accessible third-party data source that stores huge amounts of 
 
 [NOTE]
 ====
-Incremental syncs for the SharePoint Online connector use specific logic.
+Incremental syncs for <<es-connectors-sharepoint-online,SharePoint Online>> and <<es-connectors-google-drive,Google Drive>> connectors use specific logic.
 All other connectors use the same shared connector framework logic for incremental syncs.
 ====
 

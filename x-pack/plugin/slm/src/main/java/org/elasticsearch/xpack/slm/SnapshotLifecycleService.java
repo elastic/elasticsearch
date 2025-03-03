@@ -46,7 +46,7 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.curren
  * task according to the policy's schedule.
  */
 public class SnapshotLifecycleService implements Closeable, ClusterStateListener {
-    public static final NodeFeature INTERVAL_SCHEDULE = new NodeFeature("slm.interval_schedule");
+    public static final NodeFeature INTERVAL_SCHEDULE = new NodeFeature("slm.interval_schedule", true);
     private static final Logger logger = LogManager.getLogger(SnapshotLifecycleService.class);
     private static final String JOB_PATTERN_SUFFIX = "-\\d+$";
 

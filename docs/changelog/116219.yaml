@@ -1,6 +1,0 @@
-pr: 116219
-summary: "[apm-data] Apply lazy rollover on index template creation"
-area: Data streams
-type: bug
-issues:
- - 116230

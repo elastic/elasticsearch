@@ -82,7 +82,7 @@ public class AnalyticsCollectionResolver {
         // Listing data streams that are matching the analytics collection pattern.
         List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
             state,
-            IndicesOptions.lenientExpandOpen(),
+            IndicesOptions.lenientExpandOpenNoSelectors(),
             EVENT_DATA_STREAM_INDEX_PATTERN
         );
 

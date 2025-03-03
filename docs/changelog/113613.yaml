@@ -1,7 +1,0 @@
-pr: 113613
-summary: "Add `CircuitBreaker` to TDigest, Step 4: Take into account shallow classes\
-  \ size"
-area: ES|QL
-type: enhancement
-issues:
- - 113916

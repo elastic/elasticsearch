@@ -126,6 +126,20 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertTrue("true update changes headers", update.changesHeaders(config));
     }
 
+    public void testChangesDestIndex() {
+        TransformConfig config = randomTransformConfig();
+        TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
+        assertFalse("null update does not change destination index", update.changesDestIndex(config));
+
+        var newDestWithSameIndex = new DestConfig(config.getDestination().getIndex(), null, null);
+        update = new TransformConfigUpdate(null, newDestWithSameIndex, null, null, null, null, null, null);
+        assertFalse("equal update does not change destination index", update.changesDestIndex(config));
+
+        var newDestWithNewIndex = new DestConfig(config.getDestination().getIndex() + "-new", null, null);
+        update = new TransformConfigUpdate(null, newDestWithNewIndex, null, null, null, null, null, null);
+        assertTrue("true update changes destination index", update.changesDestIndex(config));
+    }
+
     public void testApply() {
         TransformConfig config = new TransformConfig(
             "time-transform",

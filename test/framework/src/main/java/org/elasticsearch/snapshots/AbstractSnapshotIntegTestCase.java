@@ -127,6 +127,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     @After
     public void assertConsistentHistoryInLuceneIndex() throws Exception {
+        internalCluster().beforeIndexDeletion();
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 

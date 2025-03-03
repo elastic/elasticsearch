@@ -21,6 +21,7 @@ import org.elasticsearch.compute.aggregation.TopIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -81,10 +82,8 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         super(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
-                ? in.readNamedWriteable(Expression.class)
-                : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? in.readNamedWriteableCollectionAsList(Expression.class)
                 : asList(in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class))
         );
@@ -117,11 +116,11 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     private int limitValue() {
-        return (int) limitField().fold();
+        return (int) limitField().fold(FoldContext.small() /* TODO remove me */);
     }
 
     private String orderRawValue() {
-        return BytesRefs.toString(orderField().fold());
+        return BytesRefs.toString(orderField().fold(FoldContext.small() /* TODO remove me */));
     }
 
     private boolean orderValue() {
@@ -189,25 +188,25 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (type == DataType.LONG || type == DataType.DATETIME) {
-            return new TopLongAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+            return new TopLongAggregatorFunctionSupplier(limitValue(), orderValue());
         }
         if (type == DataType.INTEGER) {
-            return new TopIntAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+            return new TopIntAggregatorFunctionSupplier(limitValue(), orderValue());
         }
         if (type == DataType.DOUBLE) {
-            return new TopDoubleAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+            return new TopDoubleAggregatorFunctionSupplier(limitValue(), orderValue());
         }
         if (type == DataType.BOOLEAN) {
-            return new TopBooleanAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+            return new TopBooleanAggregatorFunctionSupplier(limitValue(), orderValue());
         }
         if (type == DataType.IP) {
-            return new TopIpAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+            return new TopIpAggregatorFunctionSupplier(limitValue(), orderValue());
         }
         if (DataType.isString(type)) {
-            return new TopBytesRefAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+            return new TopBytesRefAggregatorFunctionSupplier(limitValue(), orderValue());
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

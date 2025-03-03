@@ -37,6 +37,31 @@ public class IndexingPressureTests extends ESTestCase {
         assertThat(IndexingPressure.MAX_REPLICA_BYTES.get(settings), Matchers.equalTo(ByteSizeValue.ofKb(30)));
     }
 
+    public void testHighAndLowWatermarkSplits() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+
+        try (
+            Releasable ignored1 = indexingPressure.markCoordinatingOperationStarted(10, ByteSizeValue.ofKb(6).getBytes(), false);
+            Releasable ignored2 = indexingPressure.markCoordinatingOperationStarted(10, ByteSizeValue.ofKb(2).getBytes(), false)
+        ) {
+            assertFalse(indexingPressure.shouldSplitBulk(randomIntBetween(1, 1000)));
+            assertEquals(indexingPressure.stats().getHighWaterMarkSplits(), 0L);
+            assertEquals(indexingPressure.stats().getLowWaterMarkSplits(), 0L);
+            assertTrue(indexingPressure.shouldSplitBulk(randomIntBetween(1025, 10000)));
+            assertEquals(indexingPressure.stats().getHighWaterMarkSplits(), 0L);
+            assertEquals(indexingPressure.stats().getLowWaterMarkSplits(), 1L);
+
+            try (Releasable ignored3 = indexingPressure.markPrimaryOperationStarted(10, ByteSizeValue.ofKb(1).getBytes(), false)) {
+                assertFalse(indexingPressure.shouldSplitBulk(randomIntBetween(1, 127)));
+                assertEquals(indexingPressure.stats().getHighWaterMarkSplits(), 0L);
+                assertEquals(indexingPressure.stats().getLowWaterMarkSplits(), 1L);
+                assertTrue(indexingPressure.shouldSplitBulk(randomIntBetween(129, 1000)));
+                assertEquals(indexingPressure.stats().getHighWaterMarkSplits(), 1L);
+                assertEquals(indexingPressure.stats().getLowWaterMarkSplits(), 1L);
+            }
+        }
+    }
+
     public void testHighAndLowWatermarkSettings() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
 

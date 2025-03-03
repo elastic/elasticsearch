@@ -186,8 +186,8 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
 
     // visible for testing
     void shuttingDown(ClusterChangedEvent event) {
-        DiscoveryNode node = clusterService.localNode();
-        if (isNodeShuttingDown(event, node.getId())) {
+        if (isNodeShuttingDown(event)) {
+            var node = event.state().getNodes().getLocalNode();
             abortTaskIfApplicable("node [{" + node.getName() + "}{" + node.getId() + "}] shutting down");
         }
     }
@@ -202,9 +202,18 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         }
     }
 
-    private static boolean isNodeShuttingDown(ClusterChangedEvent event, String nodeId) {
-        return event.previousState().metadata().nodeShutdowns().contains(nodeId) == false
-            && event.state().metadata().nodeShutdowns().contains(nodeId);
+    private static boolean isNodeShuttingDown(ClusterChangedEvent event) {
+        if (event.metadataChanged() == false) {
+            return false;
+        }
+        var shutdownsOld = event.previousState().metadata().nodeShutdowns();
+        var shutdownsNew = event.state().metadata().nodeShutdowns();
+        if (shutdownsNew == shutdownsOld) {
+            return false;
+        }
+        String nodeId = event.state().nodes().getLocalNodeId();
+        return shutdownsOld.contains(nodeId) == false && shutdownsNew.contains(nodeId);
+
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {

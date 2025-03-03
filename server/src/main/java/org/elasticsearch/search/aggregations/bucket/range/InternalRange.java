@@ -36,9 +36,8 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     @SuppressWarnings("rawtypes")
     static final Factory FACTORY = new Factory();
 
-    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucketWritable implements Range.Bucket {
 
-        protected final transient boolean keyed;
         protected final transient DocValueFormat format;
         protected final double from;
         protected final double to;
@@ -46,16 +45,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         private final InternalAggregations aggregations;
         private final String key;
 
-        public Bucket(
-            String key,
-            double from,
-            double to,
-            long docCount,
-            InternalAggregations aggregations,
-            boolean keyed,
-            DocValueFormat format
-        ) {
-            this.keyed = keyed;
+        public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, DocValueFormat format) {
             this.format = format;
             this.key = key;
             this.from = from;
@@ -82,10 +72,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         @Override
         public Object getTo() {
             return to;
-        }
-
-        public boolean getKeyed() {
-            return keyed;
         }
 
         public DocValueFormat getFormat() {
@@ -120,8 +106,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return aggregations;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder bucketToXContent(XContentBuilder builder, Params params, boolean keyed) throws IOException {
             final String key = getKeyAsString();
             if (keyed) {
                 builder.startObject(key);
@@ -207,16 +192,8 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
 
         @SuppressWarnings("unchecked")
-        public B createBucket(
-            String key,
-            double from,
-            double to,
-            long docCount,
-            InternalAggregations aggregations,
-            boolean keyed,
-            DocValueFormat format
-        ) {
-            return (B) new Bucket(key, from, to, docCount, aggregations, keyed, format);
+        public B createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, DocValueFormat format) {
+            return (B) new Bucket(key, from, to, docCount, aggregations, format);
         }
 
         @SuppressWarnings("unchecked")
@@ -232,7 +209,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 prototype.to,
                 prototype.getDocCount(),
                 aggregations,
-                prototype.keyed,
                 prototype.format
             );
         }
@@ -285,7 +261,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             }
             long docCount = in.readVLong();
             InternalAggregations aggregations = InternalAggregations.readFrom(in);
-            ranges.add(getFactory().createBucket(key, from, to, docCount, aggregations, keyed, format));
+            ranges.add(getFactory().createBucket(key, from, to, docCount, aggregations, format));
         }
         this.ranges = ranges;
     }
@@ -335,7 +311,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
                 @Override
                 protected Bucket createBucket(Bucket proto, long docCount, InternalAggregations aggregations) {
-                    return getFactory().createBucket(proto.key, proto.from, proto.to, docCount, aggregations, proto.keyed, proto.format);
+                    return getFactory().createBucket(proto.key, proto.from, proto.to, docCount, aggregations, proto.format);
                 }
             };
 
@@ -371,7 +347,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                         b.to,
                         samplingContext.scaleUp(b.getDocCount()),
                         InternalAggregations.finalizeSampling(b.getAggregations(), samplingContext),
-                        b.keyed,
                         b.format
                     )
                 )
@@ -390,7 +365,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             builder.startArray(CommonFields.BUCKETS.getPreferredName());
         }
         for (B range : ranges) {
-            range.toXContent(builder, params);
+            range.bucketToXContent(builder, params, keyed);
         }
         if (keyed) {
             builder.endObject();

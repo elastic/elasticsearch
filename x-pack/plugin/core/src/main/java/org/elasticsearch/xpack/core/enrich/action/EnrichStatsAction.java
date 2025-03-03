@@ -209,7 +209,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                     in.readVLong(),
                     in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readLong() : -1,
                     in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readLong() : -1,
-                    in.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_STATS_SIZE_ADDED) ? in.readLong() : -1
+                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readLong() : -1
                 );
             }
 
@@ -237,7 +237,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                     out.writeLong(hitsTimeInMillis);
                     out.writeLong(missesTimeInMillis);
                 }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.ENRICH_CACHE_STATS_SIZE_ADDED)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                     out.writeLong(cacheSizeInBytes);
                 }
             }

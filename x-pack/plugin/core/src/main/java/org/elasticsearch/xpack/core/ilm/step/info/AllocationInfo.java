@@ -14,19 +14,15 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Represents the state of an index's shards allocation, including a user friendly message describing the current state.
  * It allows to transfer the allocation information to {@link org.elasticsearch.xcontent.XContent} using
  * {@link #toXContent(XContentBuilder, Params)}
  */
-public class AllocationInfo implements ToXContentObject {
-
-    private final long numberOfReplicas;
-    private final long numberShardsLeftToAllocate;
-    private final boolean allShardsActive;
-    private final String message;
+public record AllocationInfo(long numberOfReplicas, long numberShardsLeftToAllocate, boolean allShardsActive, String message)
+    implements
+        ToXContentObject {
 
     static final ParseField NUMBER_OF_REPLICAS = new ParseField("number_of_replicas");
     static final ParseField SHARDS_TO_ALLOCATE = new ParseField("shards_left_to_allocate");
@@ -42,13 +38,6 @@ public class AllocationInfo implements ToXContentObject {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), SHARDS_TO_ALLOCATE);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ALL_SHARDS_ACTIVE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), MESSAGE);
-    }
-
-    public AllocationInfo(long numberOfReplicas, long numberShardsLeftToAllocate, boolean allShardsActive, String message) {
-        this.numberOfReplicas = numberOfReplicas;
-        this.numberShardsLeftToAllocate = numberShardsLeftToAllocate;
-        this.allShardsActive = allShardsActive;
-        this.message = message;
     }
 
     /**
@@ -72,22 +61,6 @@ public class AllocationInfo implements ToXContentObject {
         );
     }
 
-    public long getNumberOfReplicas() {
-        return numberOfReplicas;
-    }
-
-    public long getNumberShardsLeftToAllocate() {
-        return numberShardsLeftToAllocate;
-    }
-
-    public boolean allShardsActive() {
-        return allShardsActive;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -97,26 +70,6 @@ public class AllocationInfo implements ToXContentObject {
         builder.field(NUMBER_OF_REPLICAS.getPreferredName(), numberOfReplicas);
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(numberOfReplicas, numberShardsLeftToAllocate, allShardsActive);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        AllocationInfo other = (AllocationInfo) obj;
-        return Objects.equals(numberOfReplicas, other.numberOfReplicas)
-            && Objects.equals(numberShardsLeftToAllocate, other.numberShardsLeftToAllocate)
-            && Objects.equals(message, other.message)
-            && Objects.equals(allShardsActive, other.allShardsActive);
     }
 
     @Override

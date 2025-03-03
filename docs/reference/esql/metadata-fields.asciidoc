@@ -20,6 +20,8 @@ supported ones are:
   * <<mapping-ignored-field,`_ignored`>>: the ignored source document fields. The field is of the type
   <<keyword,keyword>>.
 
+  * `_score`: when enabled, the final score assigned to each row matching an ES|QL query. Scoring will be updated when using <<esql-search-functions,full text search functions>>.
+
 To enable the access to these fields, the <<esql-from,`FROM`>> source command needs
 to be provided with a dedicated directive:
 

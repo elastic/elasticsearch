@@ -44,10 +44,10 @@ public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequ
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var docsOnly = DocumentsOnlyInput.of(inferenceInputs);
-        var docsInput = docsOnly.getInputs();
-        var stream = docsOnly.stream();
-        var requestEntity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, docsInput);
+        var chatCompletionInput = inferenceInputs.castTo(ChatCompletionInput.class);
+        var inputs = chatCompletionInput.getInputs();
+        var stream = chatCompletionInput.stream();
+        var requestEntity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, inputs);
         var request = new AmazonBedrockChatCompletionRequest(model, requestEntity, timeout, stream);
         var responseHandler = new AmazonBedrockChatCompletionResponseHandler();
 

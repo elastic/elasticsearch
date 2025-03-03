@@ -7,7 +7,7 @@
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
-apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'com.gradleup.shadow'
 
 dependencies {
   implementation "org.opensaml:opensaml-security-api:${versions.opensaml}"

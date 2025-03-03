@@ -1,0 +1,6 @@
+pr: 117748
+summary: Add IMDSv2 support to `repository-s3`
+area: Snapshot/Restore
+type: enhancement
+issues:
+ - 105135

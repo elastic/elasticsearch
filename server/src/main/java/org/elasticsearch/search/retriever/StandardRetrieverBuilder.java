@@ -39,7 +39,7 @@ import java.util.Objects;
 public final class StandardRetrieverBuilder extends RetrieverBuilder implements ToXContent {
 
     public static final String NAME = "standard";
-    public static final NodeFeature STANDARD_RETRIEVER_SUPPORTED = new NodeFeature("standard_retriever_supported");
+    public static final NodeFeature STANDARD_RETRIEVER_SUPPORTED = new NodeFeature("standard_retriever_supported", true);
 
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SEARCH_AFTER_FIELD = new ParseField("search_after");

@@ -12,6 +12,8 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -119,72 +121,74 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         /*
          * Collect the list of buckets, populate the filter with terms
          * that are too frequent, and figure out how to merge sub-buckets.
          */
-        StringRareTerms.Bucket[][] rarestPerOrd = new StringRareTerms.Bucket[owningBucketOrds.length][];
-        SetBackedScalingCuckooFilter[] filters = new SetBackedScalingCuckooFilter[owningBucketOrds.length];
-        long keepCount = 0;
-        long[] mergeMap = new long[(int) bucketOrds.size()];
-        Arrays.fill(mergeMap, -1);
-        long offset = 0;
-        for (int owningOrdIdx = 0; owningOrdIdx < owningBucketOrds.length; owningOrdIdx++) {
-            try (BytesRefHash bucketsInThisOwningBucketToCollect = new BytesRefHash(1, bigArrays())) {
-                filters[owningOrdIdx] = newFilter();
-                List<StringRareTerms.Bucket> builtBuckets = new ArrayList<>();
-                BytesKeyedBucketOrds.BucketOrdsEnum collectedBuckets = bucketOrds.ordsEnum(owningBucketOrds[owningOrdIdx]);
-                BytesRef scratch = new BytesRef();
-                while (collectedBuckets.next()) {
-                    collectedBuckets.readValue(scratch);
-                    long docCount = bucketDocCount(collectedBuckets.ord());
-                    // if the key is below threshold, reinsert into the new ords
-                    if (docCount <= maxDocCount) {
-                        StringRareTerms.Bucket bucket = new StringRareTerms.Bucket(BytesRef.deepCopyOf(scratch), docCount, null, format);
-                        bucket.bucketOrd = offset + bucketsInThisOwningBucketToCollect.add(scratch);
-                        mergeMap[(int) collectedBuckets.ord()] = bucket.bucketOrd;
-                        builtBuckets.add(bucket);
-                        keepCount++;
-                    } else {
-                        filters[owningOrdIdx].add(scratch);
+        try (
+            ObjectArray<StringRareTerms.Bucket[]> rarestPerOrd = bigArrays().newObjectArray(owningBucketOrds.size());
+            ObjectArray<SetBackedScalingCuckooFilter> filters = bigArrays().newObjectArray(owningBucketOrds.size())
+        ) {
+            try (LongArray mergeMap = bigArrays().newLongArray(bucketOrds.size())) {
+                mergeMap.fill(0, mergeMap.size(), -1);
+                long keepCount = 0;
+                long offset = 0;
+                for (long owningOrdIdx = 0; owningOrdIdx < owningBucketOrds.size(); owningOrdIdx++) {
+                    try (BytesRefHash bucketsInThisOwningBucketToCollect = new BytesRefHash(1, bigArrays())) {
+                        filters.set(owningOrdIdx, newFilter());
+                        List<StringRareTerms.Bucket> builtBuckets = new ArrayList<>();
+                        BytesKeyedBucketOrds.BucketOrdsEnum collectedBuckets = bucketOrds.ordsEnum(owningBucketOrds.get(owningOrdIdx));
+                        BytesRef scratch = new BytesRef();
+                        while (collectedBuckets.next()) {
+                            collectedBuckets.readValue(scratch);
+                            long docCount = bucketDocCount(collectedBuckets.ord());
+                            // if the key is below threshold, reinsert into the new ords
+                            if (docCount <= maxDocCount) {
+                                checkRealMemoryCBForInternalBucket();
+                                StringRareTerms.Bucket bucket = new StringRareTerms.Bucket(
+                                    BytesRef.deepCopyOf(scratch),
+                                    docCount,
+                                    null,
+                                    format
+                                );
+                                bucket.bucketOrd = offset + bucketsInThisOwningBucketToCollect.add(scratch);
+                                mergeMap.set(collectedBuckets.ord(), bucket.bucketOrd);
+                                builtBuckets.add(bucket);
+                                keepCount++;
+                            } else {
+                                filters.get(owningOrdIdx).add(scratch);
+                            }
+                        }
+                        rarestPerOrd.set(owningOrdIdx, builtBuckets.toArray(StringRareTerms.Bucket[]::new));
+                        offset += bucketsInThisOwningBucketToCollect.size();
                     }
                 }
-                rarestPerOrd[owningOrdIdx] = builtBuckets.toArray(StringRareTerms.Bucket[]::new);
-                offset += bucketsInThisOwningBucketToCollect.size();
-            }
-        }
 
-        /*
-         * Only merge/delete the ordinals if we have actually deleted one,
-         * to save on some redundant work.
-         */
-        if (keepCount != mergeMap.length) {
-            LongUnaryOperator howToMerge = b -> mergeMap[(int) b];
-            rewriteBuckets(offset, howToMerge);
-            if (deferringCollector() != null) {
-                ((BestBucketsDeferringCollector) deferringCollector()).rewriteBuckets(howToMerge);
+                /*
+                 * Only merge/delete the ordinals if we have actually deleted one,
+                 * to save on some redundant work.
+                 */
+                if (keepCount != mergeMap.size()) {
+                    LongUnaryOperator howToMerge = mergeMap::get;
+                    rewriteBuckets(offset, howToMerge);
+                    if (deferringCollector() != null) {
+                        ((BestBucketsDeferringCollector) deferringCollector()).rewriteBuckets(howToMerge);
+                    }
+                }
             }
-        }
 
-        /*
-         * Now build the results!
-         */
-        buildSubAggsForAllBuckets(rarestPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
-        InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            Arrays.sort(rarestPerOrd[ordIdx], ORDER.comparator());
-            result[ordIdx] = new StringRareTerms(
-                name,
-                ORDER,
-                metadata(),
-                format,
-                Arrays.asList(rarestPerOrd[ordIdx]),
-                maxDocCount,
-                filters[ordIdx]
-            );
+            /*
+             * Now build the results!
+             */
+            buildSubAggsForAllBuckets(rarestPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
+
+            return StringRareTermsAggregator.this.buildAggregations(Math.toIntExact(owningBucketOrds.size()), ordIdx -> {
+                StringRareTerms.Bucket[] buckets = rarestPerOrd.get(ordIdx);
+                Arrays.sort(buckets, ORDER.comparator());
+                return new StringRareTerms(name, ORDER, metadata(), format, Arrays.asList(buckets), maxDocCount, filters.get(ordIdx));
+            });
         }
-        return result;
     }
 
     @Override

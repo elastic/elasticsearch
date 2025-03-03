@@ -1136,3 +1136,20 @@ for both cases.
 *Impact* +
 To detect a server timeout, check the `timed_out` field of the JSON response.
 ====
+
+.The `Content-Type` response header no longer specifies the charset.
+[%collapsible]
+====
+*Details* +
+The `Content-Type` response header no longer specifies the charset. This information is not required when transferring JSON data, because JSON text will always be encoded in Unicode, with UTF-8 being the default encoding.
+
+*Impact* +
+Some applications and utilities, such as PowerShell's https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/invoke-restmethod[Invoke-RestMethod], must receive charset information to display data correctly. If your application or utility relies on charset information in the `Content-Type` response header, UTF-8 encoded characters will be rendered incorrectly in the response body.
+
+As a workaround, to render non-ASCII characters, include an HTTP `Accept` header in your requests, specifying the charset: 
+
+[source,sh]
+----
+Accept: application/json; charset=utf-8
+----
+====

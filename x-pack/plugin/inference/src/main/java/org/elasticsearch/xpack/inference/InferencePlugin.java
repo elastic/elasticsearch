@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -23,41 +25,59 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.plugins.internal.InternalSearchPlugin;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceServicesAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceServicesAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
+import org.elasticsearch.xpack.inference.action.TransportInferenceActionProxy;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
+import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
+import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
+import org.elasticsearch.xpack.inference.common.NoopNodeLocalRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -65,9 +85,15 @@ import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
+import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder;
@@ -91,17 +117,17 @@ import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandler;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
-import org.elasticsearch.xpack.inference.telemetry.ApmInferenceStats;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.util.ArrayList;
@@ -110,12 +136,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.inference.common.InferenceAPIClusterAwareRateLimitingFeature.INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG;
 
-public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, MapperPlugin, SearchPlugin {
+public class InferencePlugin extends Plugin
+    implements
+        ActionPlugin,
+        ExtensiblePlugin,
+        SystemIndexPlugin,
+        MapperPlugin,
+        SearchPlugin,
+        InternalSearchPlugin,
+        ClusterPlugin {
 
     /**
      * When this setting is true the verification check that
@@ -133,14 +166,26 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         Setting.Property.Dynamic
     );
 
+    public static final LicensedFeature.Momentary INFERENCE_API_FEATURE = LicensedFeature.momentary(
+        "inference",
+        "api",
+        License.OperationMode.ENTERPRISE
+    );
+
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
+
+    private static final Logger log = LogManager.getLogger(InferencePlugin.class);
 
     private final Settings settings;
     private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
     private final SetOnce<AmazonBedrockRequestSender.Factory> amazonBedrockFactory = new SetOnce<>();
+    private final SetOnce<HttpRequestSender.Factory> elasicInferenceServiceFactory = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
-    private final SetOnce<ElasticInferenceServiceComponents> eisComponents = new SetOnce<>();
+    // This is mainly so that the rest handlers can access the ThreadPool in a way that avoids potential null pointers from it
+    // not being initialized yet
+    private final SetOnce<ThreadPool> threadPoolSetOnce = new SetOnce<>();
+    private final SetOnce<ElasticInferenceServiceComponents> elasticInferenceServiceComponents = new SetOnce<>();
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
     private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
@@ -153,13 +198,15 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionHandler<>(InferenceAction.INSTANCE, TransportInferenceAction.class),
+            new ActionHandler<>(InferenceActionProxy.INSTANCE, TransportInferenceActionProxy.class),
             new ActionHandler<>(GetInferenceModelAction.INSTANCE, TransportGetInferenceModelAction.class),
             new ActionHandler<>(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
             new ActionHandler<>(UpdateInferenceModelAction.INSTANCE, TransportUpdateInferenceModelAction.class),
             new ActionHandler<>(DeleteInferenceEndpointAction.INSTANCE, TransportDeleteInferenceEndpointAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class),
             new ActionHandler<>(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class),
-            new ActionHandler<>(GetInferenceServicesAction.INSTANCE, TransportGetInferenceServicesAction.class)
+            new ActionHandler<>(GetInferenceServicesAction.INSTANCE, TransportGetInferenceServicesAction.class),
+            new ActionHandler<>(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class)
         );
     }
 
@@ -177,7 +224,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     ) {
         return List.of(
             new RestInferenceAction(),
-            new RestStreamInferenceAction(),
+            new RestStreamInferenceAction(threadPoolSetOnce),
             new RestGetInferenceModelAction(),
             new RestPutInferenceModelAction(),
             new RestUpdateInferenceModelAction(),
@@ -189,9 +236,11 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        var components = new ArrayList<>();
         var throttlerManager = new ThrottlerManager(settings, services.threadPool(), services.clusterService());
         var truncator = new Truncator(settings, services.clusterService());
         serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
+        threadPoolSetOnce.set(services.threadPool());
 
         var httpClientManager = HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager);
         var httpRequestSenderFactory = new HttpRequestSender.Factory(serviceComponents.get(), httpClientManager, services.clusterService());
@@ -208,14 +257,44 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var inferenceServices = new ArrayList<>(inferenceServiceExtensions);
         inferenceServices.add(this::getInferenceServiceFactories);
 
-        if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
-            ElasticInferenceServiceSettings eisSettings = new ElasticInferenceServiceSettings(settings);
-            eisComponents.set(new ElasticInferenceServiceComponents(eisSettings.getEisGatewayUrl()));
+        // Create a separate instance of HTTPClientManager with its own SSL configuration (`xpack.inference.elastic.http.ssl.*`).
+        var elasticInferenceServiceHttpClientManager = HttpClientManager.create(
+            settings,
+            services.threadPool(),
+            services.clusterService(),
+            throttlerManager,
+            getSslService()
+        );
 
-            inferenceServices.add(
-                () -> List.of(context -> new ElasticInferenceService(httpFactory.get(), serviceComponents.get(), eisComponents.get()))
-            );
-        }
+        var elasticInferenceServiceRequestSenderFactory = new HttpRequestSender.Factory(
+            serviceComponents.get(),
+            elasticInferenceServiceHttpClientManager,
+            services.clusterService()
+        );
+        elasicInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
+
+        ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
+        String elasticInferenceUrl = inferenceServiceSettings.getElasticInferenceServiceUrl();
+
+        var elasticInferenceServiceComponentsInstance = ElasticInferenceServiceComponents.withDefaultRevokeDelay(elasticInferenceUrl);
+        elasticInferenceServiceComponents.set(elasticInferenceServiceComponentsInstance);
+
+        var authorizationHandler = new ElasticInferenceServiceAuthorizationHandler(
+            elasticInferenceServiceComponentsInstance.elasticInferenceServiceUrl(),
+            services.threadPool()
+        );
+
+        inferenceServices.add(
+            () -> List.of(
+                context -> new ElasticInferenceService(
+                    elasicInferenceServiceFactory.get(),
+                    serviceComponents.get(),
+                    elasticInferenceServiceComponentsInstance,
+                    modelRegistry,
+                    authorizationHandler
+                )
+            )
+        );
 
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(
             services.client(),
@@ -226,22 +305,37 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
         // reference correctly
-        var registry = new InferenceServiceRegistry(inferenceServices, factoryContext);
-        registry.init(services.client());
-        if (DefaultElserFeatureFlag.isEnabled()) {
-            for (var service : registry.getServices().values()) {
-                service.defaultConfigIds().forEach(modelRegistry::addDefaultIds);
-            }
+        var serviceRegistry = new InferenceServiceRegistry(inferenceServices, factoryContext);
+        serviceRegistry.init(services.client());
+        for (var service : serviceRegistry.getServices().values()) {
+            service.defaultConfigIds().forEach(modelRegistry::addDefaultIds);
         }
-        inferenceServiceRegistry.set(registry);
+        inferenceServiceRegistry.set(serviceRegistry);
 
-        var actionFilter = new ShardBulkInferenceActionFilter(registry, modelRegistry);
+        var actionFilter = new ShardBulkInferenceActionFilter(services.clusterService(), serviceRegistry, modelRegistry, getLicenseState());
         shardBulkInferenceActionFilter.set(actionFilter);
 
         var meterRegistry = services.telemetryProvider().getMeterRegistry();
-        var stats = new PluginComponentBinding<>(InferenceStats.class, ApmInferenceStats.create(meterRegistry));
+        var inferenceStats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));
 
-        return List.of(modelRegistry, registry, httpClientManager, stats);
+        components.add(serviceRegistry);
+        components.add(modelRegistry);
+        components.add(httpClientManager);
+        components.add(inferenceStats);
+
+        // Only add InferenceServiceNodeLocalRateLimitCalculator (which is a ClusterStateListener) for cluster aware rate limiting,
+        // if the rate limiting feature flags are enabled, otherwise provide noop implementation
+        InferenceServiceRateLimitCalculator calculator;
+        if (INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG.isEnabled()) {
+            calculator = new InferenceServiceNodeLocalRateLimitCalculator(services.clusterService(), serviceRegistry);
+        } else {
+            calculator = new NoopNodeLocalRateLimitCalculator();
+        }
+
+        // Add binding for interface -> implementation
+        components.add(new PluginComponentBinding<>(InferenceServiceRateLimitCalculator.class, calculator));
+
+        return components;
     }
 
     @Override
@@ -264,6 +358,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get()),
             context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get()),
             context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get()),
+            context -> new JinaAIService(httpFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new
         );
     }
@@ -337,16 +432,17 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Stream.of(
-            HttpSettings.getSettingsDefinitions(),
-            HttpClientManager.getSettingsDefinitions(),
-            ThrottlerManager.getSettingsDefinitions(),
-            RetrySettings.getSettingsDefinitions(),
-            ElasticInferenceServiceSettings.getSettingsDefinitions(),
-            Truncator.getSettingsDefinitions(),
-            RequestExecutorServiceSettings.getSettingsDefinitions(),
-            List.of(SKIP_VALIDATE_AND_START)
-        ).flatMap(Collection::stream).collect(Collectors.toList());
+        ArrayList<Setting<?>> settings = new ArrayList<>();
+        settings.addAll(HttpSettings.getSettingsDefinitions());
+        settings.addAll(HttpClientManager.getSettingsDefinitions());
+        settings.addAll(ThrottlerManager.getSettingsDefinitions());
+        settings.addAll(RetrySettings.getSettingsDefinitions());
+        settings.addAll(Truncator.getSettingsDefinitions());
+        settings.addAll(RequestExecutorServiceSettings.getSettingsDefinitions());
+        settings.add(SKIP_VALIDATE_AND_START);
+        settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
+
+        return settings;
     }
 
     @Override
@@ -368,8 +464,18 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     }
 
     @Override
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+        return Map.of(SemanticInferenceMetadataFieldsMapper.NAME, SemanticInferenceMetadataFieldsMapper.PARSER);
+    }
+
+    @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
+        return Map.of(
+            SemanticTextFieldMapper.CONTENT_TYPE,
+            SemanticTextFieldMapper.PARSER,
+            OffsetSourceFieldMapper.CONTENT_TYPE,
+            OffsetSourceFieldMapper.PARSER
+        );
     }
 
     @Override
@@ -382,10 +488,50 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     }
 
     @Override
+    public List<QueryRewriteInterceptor> getQueryRewriteInterceptors() {
+        return List.of(
+            new SemanticKnnVectorQueryRewriteInterceptor(),
+            new SemanticMatchQueryRewriteInterceptor(),
+            new SemanticSparseVectorQueryRewriteInterceptor()
+        );
+    }
+
+    @Override
     public List<RetrieverSpec<?>> getRetrievers() {
         return List.of(
-            new RetrieverSpec<>(new ParseField(TextSimilarityRankBuilder.NAME), TextSimilarityRankRetrieverBuilder::fromXContent),
+            new RetrieverSpec<>(
+                new ParseField(TextSimilarityRankBuilder.NAME),
+                (parser, context) -> TextSimilarityRankRetrieverBuilder.fromXContent(parser, context, getLicenseState())
+            ),
             new RetrieverSpec<>(new ParseField(RandomRankBuilder.NAME), RandomRankRetrieverBuilder::fromXContent)
         );
+    }
+
+    @Override
+    public Map<String, Highlighter> getHighlighters() {
+        return Map.of(SemanticTextHighlighter.NAME, new SemanticTextHighlighter());
+    }
+
+    // Get Elastic Inference service URL based on feature flags to support transitioning
+    // to the new Elastic Inference Service URL.
+    private String getElasticInferenceServiceUrl(ElasticInferenceServiceSettings settings) {
+        return settings.getElasticInferenceServiceUrl();
+    }
+
+    @Override
+    public void onNodeStarted() {
+        var registry = inferenceServiceRegistry.get();
+
+        if (registry != null) {
+            registry.onNodeStarted();
+        }
+    }
+
+    protected SSLService getSslService() {
+        return XPackPlugin.getSharedSslService();
+    }
+
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
     }
 }

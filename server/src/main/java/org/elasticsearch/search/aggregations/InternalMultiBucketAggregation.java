@@ -220,7 +220,7 @@ public abstract class InternalMultiBucketAggregation<
         return reducedBuckets;
     }
 
-    public abstract static class InternalBucket implements Bucket, Writeable {
+    public abstract static class InternalBucket implements Bucket {
 
         public Object getProperty(String containingAggName, List<String> path) {
             if (path.isEmpty()) {
@@ -248,4 +248,8 @@ public abstract class InternalMultiBucketAggregation<
             return aggregation.getProperty(path.subList(1, path.size()));
         }
     }
+
+    /** A {@link InternalBucket} that implements the {@link Writeable} interface. Most implementation might want
+     * to use this one except when specific logic is need to write into the stream. */
+    public abstract static class InternalBucketWritable extends InternalBucket implements Writeable {}
 }

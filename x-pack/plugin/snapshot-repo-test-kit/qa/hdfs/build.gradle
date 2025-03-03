@@ -34,7 +34,7 @@ dependencies {
 tasks.named("javaRestTest").configure {
   usesDefaultDistribution()
   description = "Runs rest tests against an elasticsearch cluster with HDFS."
-  BuildParams.withFipsEnabledOnly(it)
+  buildParams.withFipsEnabledOnly(it)
   // required for krb5kdc-fixture to work
   jvmArgs '--add-exports', 'java.security.jgss/sun.security.krb5=ALL-UNNAMED'
 }

@@ -144,6 +144,13 @@ For default services, connectors use the following roles to find users who have 
 
 For services other than these defaults, the connector iterates over access controls with `read` operations and finds the respective roles for those services.
 
+[IMPORTANT]
+====
+The ServiceNow connector applies access control at the service (table) level.
+This means documents within a given ServiceNow table share the same access control settings.
+Users with permission to a table can access all documents from that table in Elasticsearch.
+====
+
 [NOTE]
 ====
 The ServiceNow connector does not support scripted and conditional permissions.
@@ -167,7 +174,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 The following sections provide examples of advanced sync rules for this connector.
 
 [discrete#es-connectors-servicenow-sync-rules-number-incident-service]
-======= Indexing document based on incident number for Incident service
+*Indexing document based on incident number for Incident service*
 
 [source,js]
 ----
@@ -181,7 +188,7 @@ The following sections provide examples of advanced sync rules for this connecto
 // NOTCONSOLE
 
 [discrete#es-connectors-servicenow-sync-rules-active-false-user-service]
-======= Indexing document based on user activity state for User service
+*Indexing document based on user activity state for User service*
 
 [source,js]
 ----
@@ -195,7 +202,7 @@ The following sections provide examples of advanced sync rules for this connecto
 // NOTCONSOLE
 
 [discrete#es-connectors-servicenow-sync-rules-author-administrator-knowledge-service]
-======= Indexing document based on author name for Knowledge service
+*Indexing document based on author name for Knowledge service*
 
 [source,js]
 ----
@@ -379,6 +386,13 @@ For default services, connectors use the following roles to find users who have 
 
 For services other than these defaults, the connector iterates over access controls with `read` operations and finds the respective roles for those services.
 
+[IMPORTANT]
+====
+The ServiceNow connector applies access control at the service (table) level.
+This means documents within a given ServiceNow table share the same access control settings.
+Users with permission to a table can access all documents from that table in Elasticsearch.
+====
+
 [NOTE]
 ====
 The ServiceNow connector does not support scripted and conditional permissions.
@@ -407,7 +421,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 The following sections provide examples of advanced sync rules for this connector.
 
 [discrete#es-connectors-servicenow-client-sync-rules-number-incident-service]
-======= Indexing document based on incident number for Incident service
+*Indexing document based on incident number for Incident service*
 
 [source,js]
 ----
@@ -421,7 +435,7 @@ The following sections provide examples of advanced sync rules for this connecto
 // NOTCONSOLE
 
 [discrete#es-connectors-servicenow-client-sync-rules-active-false-user-service]
-======= Indexing document based on user activity state for User service
+*Indexing document based on user activity state for User service*
 
 [source,js]
 ----
@@ -435,7 +449,7 @@ The following sections provide examples of advanced sync rules for this connecto
 // NOTCONSOLE
 
 [discrete#es-connectors-servicenow-client-sync-rules-author-administrator-knowledge-service]
-======= Indexing document based on author name for Knowledge service
+*Indexing document based on author name for Knowledge service*
 
 [source,js]
 ----

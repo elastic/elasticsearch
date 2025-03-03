@@ -18,7 +18,7 @@ import java.util.BitSet;
 
 /**
  * Block implementation that stores values in a {@link BooleanArrayVector}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
 final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock {
 
@@ -122,7 +122,7 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.appendBoolean(getBoolean(getFirstValueIndex(pos)));
+                    builder.appendBoolean(getBoolean(first));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {

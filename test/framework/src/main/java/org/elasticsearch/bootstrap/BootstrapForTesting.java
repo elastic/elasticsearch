@@ -23,6 +23,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.test.ESTestCase;
@@ -118,8 +119,8 @@ public class BootstrapForTesting {
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
 
-        // install security manager if requested
-        if (systemPropertyAsBoolean("tests.security.manager", true)) {
+        // install security manager if available and requested
+        if (RuntimeVersionFeature.isSecurityManagerAvailable() && systemPropertyAsBoolean("tests.security.manager", true)) {
             try {
                 // initialize paths the same exact way as bootstrap
                 Permissions perms = new Permissions();

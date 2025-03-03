@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -431,8 +430,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             transportService,
             mock(ClusterService.class),
             threadPool,
-            mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class)
+            mock(ActionFilters.class)
         );
         assertThat(deleteAction.reservedStateHandlerName().get(), equalTo(ReservedSnapshotAction.NAME));
 
@@ -448,7 +446,6 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             mock(ClusterService.class),
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             mock(FeatureService.class)
         );
         assertThat(putAction.reservedStateHandlerName().get(), equalTo(ReservedSnapshotAction.NAME));

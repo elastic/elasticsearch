@@ -9,6 +9,9 @@
 
 package org.elasticsearch.test.cluster.util;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -20,6 +23,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 public final class IOUtils {
+    private static final Logger LOGGER = LogManager.getLogger(IOUtils.class);
     private static final int RETRY_DELETE_MILLIS = OS.current() == OS.WINDOWS ? 500 : 0;
     private static final int MAX_RETRY_DELETE_TIMES = OS.current() == OS.WINDOWS ? 15 : 0;
 
@@ -48,6 +52,30 @@ public final class IOUtils {
             throw new UncheckedIOException(e);
         } catch (InterruptedException x) {
             throw new UncheckedIOException("Interrupted while deleting.", new IOException());
+        }
+    }
+
+    /**
+     * Attempts to do a copy via linking, falling back to a normal copy if an exception is encountered.
+     *
+     * @see #syncWithLinks(Path, Path)
+     * @see #syncWithCopy(Path, Path)
+     * @param sourceRoot      where to copy from
+     * @param destinationRoot destination to link to
+     */
+    public static void syncMaybeWithLinks(Path sourceRoot, Path destinationRoot) {
+        try {
+            syncWithLinks(sourceRoot, destinationRoot);
+        } catch (LinkCreationException e) {
+            // Note does not work for network drives, e.g. Vagrant
+            LOGGER.info("Failed to sync using hard links. Falling back to copy.", e);
+            // ensure we get a clean copy
+            try {
+                deleteWithRetry(destinationRoot);
+            } catch (IOException ex) {
+                throw new UncheckedIOException(ex);
+            }
+            syncWithCopy(sourceRoot, destinationRoot);
         }
     }
 

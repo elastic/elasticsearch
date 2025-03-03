@@ -99,7 +99,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                             1L,
                             "routing",
                             VersionType.EXTERNAL,
-                            Map.of("_field", "89.160.20.128")
+                            new HashMap<>(Map.of("_field", "89.160.20.128"))
                         );
                         processor1.execute(document1);
                         assertThat(document1.getSourceAndMetadata().get("geoip"), notNullValue());
@@ -109,7 +109,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                             1L,
                             "routing",
                             VersionType.EXTERNAL,
-                            Map.of("_field", "89.160.20.128")
+                            new HashMap<>(Map.of("_field", "89.160.20.128"))
                         );
                         processor2.execute(document2);
                         assertThat(document2.getSourceAndMetadata().get("geoip"), notNullValue());

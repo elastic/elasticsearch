@@ -1,6 +1,0 @@
-pr: 114157
-summary: Add a `terminate` ingest processor
-area: Ingest Node
-type: feature
-issues:
- - 110218

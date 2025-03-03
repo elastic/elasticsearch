@@ -14,6 +14,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -36,6 +37,7 @@ public class Neg extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Neg", Neg::new);
 
     @FunctionInfo(
+        operator = "-",
         returnType = { "double", "integer", "long", "date_period", "time_duration" },
         description = "Returns the negation of the argument."
     )
@@ -87,12 +89,12 @@ public class Neg extends UnaryScalarFunction {
     }
 
     @Override
-    public final Object fold() {
+    public final Object fold(FoldContext ctx) {
         DataType dataType = field().dataType();
         // For date periods and time durations, we need to treat folding differently. These types are unrepresentable, so there is no
         // evaluator for them - but the default folding requires an evaluator.
         if (dataType == DATE_PERIOD) {
-            Period fieldValue = (Period) field().fold();
+            Period fieldValue = (Period) field().fold(ctx);
             try {
                 return fieldValue.negated();
             } catch (ArithmeticException e) {
@@ -102,7 +104,7 @@ public class Neg extends UnaryScalarFunction {
             }
         }
         if (dataType == TIME_DURATION) {
-            Duration fieldValue = (Duration) field().fold();
+            Duration fieldValue = (Duration) field().fold(ctx);
             try {
                 return fieldValue.negated();
             } catch (ArithmeticException e) {
@@ -111,7 +113,7 @@ public class Neg extends UnaryScalarFunction {
                 throw ExceptionUtils.math(source(), e);
             }
         }
-        return super.fold();
+        return super.fold(ctx);
     }
 
     @Override

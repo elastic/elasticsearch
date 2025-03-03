@@ -16,9 +16,11 @@ import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -197,6 +199,24 @@ public class MvSliceTests extends AbstractScalarFunctionTestCase {
                 "MvSliceLongEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
                 DataType.DATE_NANOS,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
+            );
+        }));
+
+        suppliers.add(new TestCaseSupplier(List.of(DataType.UNSIGNED_LONG, DataType.INTEGER, DataType.INTEGER), () -> {
+            List<Long> field = randomList(1, 10, () -> randomNonNegativeLong());
+            List<BigInteger> result = field.stream().map(NumericUtils::unsignedLongAsBigInteger).toList();
+            int length = field.size();
+            int start = randomIntBetween(0, length - 1);
+            int end = randomIntBetween(start, length - 1);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field, DataType.UNSIGNED_LONG, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
+                ),
+                "MvSliceLongEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
+                DataType.UNSIGNED_LONG,
+                equalTo(start == end ? result.get(start) : result.subList(start, end + 1))
             );
         }));
     }

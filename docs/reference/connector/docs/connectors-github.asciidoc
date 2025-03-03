@@ -210,7 +210,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 The following sections provide examples of advanced sync rules for this connector.
 
 [discrete#es-connectors-github-sync-rules-advanced-branch]
-======= Indexing document and files based on branch name configured via branch key
+*Indexing document and files based on branch name configured via branch key*
 
 [source,js]
 ----
@@ -226,7 +226,7 @@ The following sections provide examples of advanced sync rules for this connecto
 // NOTCONSOLE
 
 [discrete#es-connectors-github-sync-rules-advanced-issue-key]
-======= Indexing document based on issue query related to bugs via issue key
+*Indexing document based on issue query related to bugs via issue key*
 
 [source,js]
 ----
@@ -242,7 +242,7 @@ The following sections provide examples of advanced sync rules for this connecto
 // NOTCONSOLE
 
 [discrete#es-connectors-github-sync-rules-advanced-pr-key]
-======= Indexing document based on PR query related to open PR's via PR key
+*Indexing document based on PR query related to open PR's via PR key*
 
 [source,js]
 ----
@@ -258,7 +258,7 @@ The following sections provide examples of advanced sync rules for this connecto
 // NOTCONSOLE
 
 [discrete#es-connectors-github-sync-rules-advanced-issue-query-branch-name]
-======= Indexing document and files based on queries and branch name
+*Indexing document and files based on queries and branch name*
 
 [source,js]
 ----
@@ -283,7 +283,7 @@ Check the Elasticsearch index for the actual document count.
 ====
 
 [discrete#es-connectors-github-sync-rules-advanced-overlapping]
-======= Advanced rules for overlapping
+*Advanced rules for overlapping*
 
 [source,js]
 ----
@@ -550,7 +550,7 @@ Advanced sync rules are defined through a source-specific DSL JSON snippet.
 The following sections provide examples of advanced sync rules for this connector.
 
 [discrete#es-connectors-github-client-sync-rules-advanced-branch]
-======= Indexing document and files based on branch name configured via branch key
+*Indexing document and files based on branch name configured via branch key*
 
 [source,js]
 ----
@@ -566,7 +566,7 @@ The following sections provide examples of advanced sync rules for this connecto
 // NOTCONSOLE
 
 [discrete#es-connectors-github-client-sync-rules-advanced-issue-key]
-======= Indexing document based on issue query related to bugs via issue key
+*Indexing document based on issue query related to bugs via issue key*
 
 [source,js]
 ----
@@ -582,7 +582,7 @@ The following sections provide examples of advanced sync rules for this connecto
 // NOTCONSOLE
 
 [discrete#es-connectors-github-client-sync-rules-advanced-pr-key]
-======= Indexing document based on PR query related to open PR's via PR key
+*Indexing document based on PR query related to open PR's via PR key*
 
 [source,js]
 ----
@@ -598,7 +598,7 @@ The following sections provide examples of advanced sync rules for this connecto
 // NOTCONSOLE
 
 [discrete#es-connectors-github-client-sync-rules-advanced-issue-query-branch-name]
-======= Indexing document and files based on queries and branch name
+*Indexing document and files based on queries and branch name*
 
 [source,js]
 ----
@@ -623,7 +623,7 @@ Check the Elasticsearch index for the actual document count.
 ====
 
 [discrete#es-connectors-github-client-sync-rules-advanced-overlapping]
-======= Advanced rules for overlapping
+*Advanced rules for overlapping*
 
 [source,js]
 ----

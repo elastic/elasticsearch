@@ -15,7 +15,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SequenceFloatBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -33,8 +33,8 @@ public class SumFloatAggregatorFunctionTests extends AggregatorFunctionTestCase 
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new SumFloatAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new SumFloatAggregatorFunctionSupplier();
     }
 
     @Override

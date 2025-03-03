@@ -127,7 +127,7 @@ exact match object type:
       reason: routing_path error message updated in 8.14.0
 
   - do:
-      catch: '/All fields that match routing_path must be configured with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[dim\] was \[object\]./'
+      catch: '/All fields that match routing_path must be .*flattened fields.* \[dim\] was \[object\]./'
       indices.create:
         index: tsdb_index
         body:
@@ -345,37 +345,6 @@ nested dimensions:
                         time_series_dimension: true
 
 ---
-nested fields:
-  - requires:
-      cluster_features: ["gte_v8.2.0"]
-      reason: message changed in 8.2.0
-
-  - do:
-      catch: /cannot have nested fields when index is in \[index.mode=time_series\]/
-      indices.create:
-        index: test
-        body:
-          settings:
-            index:
-              mode: time_series
-              routing_path: [dim]
-              time_series:
-                start_time: 2021-04-28T00:00:00Z
-                end_time: 2021-04-29T00:00:00Z
-          mappings:
-            properties:
-              "@timestamp":
-                type: date
-              dim:
-                type: keyword
-                time_series_dimension: true
-              nested:
-                type: nested
-                properties:
-                  foo:
-                    type: keyword
-
----
 "Unable to define a metric type for a runtime field":
   - requires:
       cluster_features: ["gte_v8.5.0"]
@@ -450,11 +419,6 @@ nested fields:
                 type: long
                 time_series_metric: gauge
 
-  - do:
-      indices.get_mapping: {}
-
-  - match: {tsdb-synthetic.mappings._source.mode: synthetic}
-
 ---
 stored source is supported:
   - requires:
@@ -485,12 +449,6 @@ stored source is supported:
                       uid:
                         type: keyword
                         time_series_dimension: true
-
-  - do:
-      indices.get:
-        index: tsdb_index
-
-  - match: { tsdb_index.mappings._source.mode: "stored" }
 
 ---
 disabled source is not supported:

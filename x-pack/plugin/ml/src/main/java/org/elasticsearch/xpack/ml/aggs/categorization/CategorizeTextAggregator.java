@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Releasables;
@@ -110,31 +111,33 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] ordsToCollect) throws IOException {
-        Bucket[][] topBucketsPerOrd = new Bucket[ordsToCollect.length][];
-        for (int ordIdx = 0; ordIdx < ordsToCollect.length; ordIdx++) {
-            final long ord = ordsToCollect[ordIdx];
-            final TokenListCategorizer categorizer = (ord < categorizers.size()) ? categorizers.get(ord) : null;
-            if (categorizer == null) {
-                topBucketsPerOrd[ordIdx] = new Bucket[0];
-                continue;
+    public InternalAggregation[] buildAggregations(LongArray ordsToCollect) throws IOException {
+        try (ObjectArray<Bucket[]> topBucketsPerOrd = bigArrays().newObjectArray(ordsToCollect.size())) {
+            for (long ordIdx = 0; ordIdx < ordsToCollect.size(); ordIdx++) {
+                final long ord = ordsToCollect.get(ordIdx);
+                final TokenListCategorizer categorizer = (ord < categorizers.size()) ? categorizers.get(ord) : null;
+                if (categorizer == null) {
+                    topBucketsPerOrd.set(ordIdx, new Bucket[0]);
+                    continue;
+                }
+                int size = (int) Math.min(bucketOrds.bucketsInOrd(ordIdx), bucketCountThresholds.getShardSize());
+                checkRealMemoryCBForInternalBucket();
+                topBucketsPerOrd.set(ordIdx, categorizer.toOrderedBuckets(size));
             }
-            int size = (int) Math.min(bucketOrds.bucketsInOrd(ordIdx), bucketCountThresholds.getShardSize());
-            topBucketsPerOrd[ordIdx] = categorizer.toOrderedBuckets(size);
-        }
-        buildSubAggsForAllBuckets(topBucketsPerOrd, Bucket::getBucketOrd, Bucket::setAggregations);
-        InternalAggregation[] results = new InternalAggregation[ordsToCollect.length];
-        for (int ordIdx = 0; ordIdx < ordsToCollect.length; ordIdx++) {
-            results[ordIdx] = new InternalCategorizationAggregation(
-                name,
-                bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(),
-                similarityThreshold,
-                metadata(),
-                Arrays.asList(topBucketsPerOrd[ordIdx])
+            buildSubAggsForAllBuckets(topBucketsPerOrd, Bucket::getBucketOrd, Bucket::setAggregations);
+
+            return buildAggregations(
+                Math.toIntExact(ordsToCollect.size()),
+                ordIdx -> new InternalCategorizationAggregation(
+                    name,
+                    bucketCountThresholds.getRequiredSize(),
+                    bucketCountThresholds.getMinDocCount(),
+                    similarityThreshold,
+                    metadata(),
+                    Arrays.asList(topBucketsPerOrd.get(ordIdx))
+                )
             );
         }
-        return results;
     }
 
     @Override

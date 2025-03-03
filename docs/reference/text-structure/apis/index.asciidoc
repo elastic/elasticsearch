@@ -2,6 +2,12 @@
 [[text-structure-apis]]
 == Text structure APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-text_structure[Text structure APIs].
+--
+
 You can use the following APIs to find text structures:
 
 * <<find-field-structure>>

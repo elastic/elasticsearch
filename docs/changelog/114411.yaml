@@ -1,5 +1,0 @@
-pr: 114411
-summary: "ESQL: Push down filters even in case of renames in Evals"
-area: ES|QL
-type: enhancement
-issues: []

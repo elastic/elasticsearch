@@ -10,14 +10,12 @@ package org.elasticsearch.xpack.core.inference.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
@@ -48,13 +46,13 @@ import static org.elasticsearch.core.Strings.format;
 public class InferenceAction extends ActionType<InferenceAction.Response> {
 
     public static final InferenceAction INSTANCE = new InferenceAction();
-    public static final String NAME = "cluster:monitor/xpack/inference";
+    public static final String NAME = "cluster:internal/xpack/inference";
 
     public InferenceAction() {
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends BaseInferenceActionRequest {
 
         public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30);
         public static final ParseField INPUT = new ParseField("input");
@@ -343,7 +341,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         private final InferenceServiceResults results;
         private final boolean isStreaming;
-        private final Flow.Publisher<ChunkedToXContent> publisher;
+        private final Flow.Publisher<InferenceServiceResults.Result> publisher;
 
         public Response(InferenceServiceResults results) {
             this.results = results;
@@ -351,7 +349,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.publisher = null;
         }
 
-        public Response(InferenceServiceResults results, Flow.Publisher<ChunkedToXContent> publisher) {
+        public Response(InferenceServiceResults results, Flow.Publisher<InferenceServiceResults.Result> publisher) {
             this.results = results;
             this.isStreaming = true;
             this.publisher = publisher;
@@ -435,7 +433,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
          * When the RestResponse is finished with the current chunk, it will request the next chunk using the subscription.
          * If the RestResponse is closed, it will cancel the subscription.
          */
-        public Flow.Publisher<ChunkedToXContent> publisher() {
+        public Flow.Publisher<InferenceServiceResults.Result> publisher() {
             assert isStreaming() : "this should only be called after isStreaming() verifies this object is non-null";
             return publisher;
         }

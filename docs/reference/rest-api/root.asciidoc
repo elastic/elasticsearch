@@ -4,6 +4,12 @@
 <titleabbrev>Root API</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-info[Info APIs].
+--
+
 The Elasticsearch API's base url returns its basic build, 
 version, and cluster information. 
 

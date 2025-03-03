@@ -70,7 +70,8 @@ public class WatcherPluginTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(),
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            List.of()
         );
         // this will trip an assertion if the watcher indexing operation listener is null (which it is) but we try to add it
         watcher.onIndexModule(indexModule);

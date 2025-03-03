@@ -20,4 +20,9 @@ public class RoutingFeatures implements FeatureSpecification {
     public Set<NodeFeature> getFeatures() {
         return Set.of(IndexRouting.BOOLEAN_ROUTING_PATH, IndexRouting.MULTI_VALUE_ROUTING_PATH);
     }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(IndexRouting.LOGSB_ROUTE_ON_SORT_FIELDS);
+    }
 }

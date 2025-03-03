@@ -11,11 +11,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.monitor.metrics.IndexModeStatsActionType;
@@ -29,8 +29,6 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.application.LogsDBFeatureSetUsage;
 
-import static org.elasticsearch.index.mapper.SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING;
-
 public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final ClusterService clusterService;
     private final FeatureService featureService;
@@ -43,17 +41,9 @@ public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction
         FeatureService featureService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        Client client,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        Client client
     ) {
-        super(
-            XPackUsageFeatureAction.LOGSDB.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.LOGSDB.name(), transportService, clusterService, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.client = client;
@@ -71,12 +61,13 @@ public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction
         for (IndexMetadata indexMetadata : state.metadata()) {
             if (indexMetadata.getIndexMode() == IndexMode.LOGSDB) {
                 numIndices++;
-                if (INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC) {
+                if (IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC) {
                     numIndicesWithSyntheticSources++;
                 }
             }
         }
         final boolean enabled = LogsDBPlugin.CLUSTER_LOGSDB_ENABLED.get(clusterService.getSettings());
+        final boolean hasCustomCutoffDate = System.getProperty(LogsdbLicenseService.CUTOFF_DATE_SYS_PROP_NAME) != null;
         if (featureService.clusterHasFeature(state, XPackFeatures.LOGSDB_TELMETRY_STATS)) {
             final DiscoveryNode[] nodes = state.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
             final var statsRequest = new IndexModeStatsActionType.StatsRequest(nodes);
@@ -91,13 +82,16 @@ public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction
                         finalNumIndices,
                         finalNumIndicesWithSyntheticSources,
                         indexStats.numDocs(),
-                        indexStats.numBytes()
+                        indexStats.numBytes(),
+                        hasCustomCutoffDate
                     )
                 );
             }));
         } else {
             listener.onResponse(
-                new XPackUsageFeatureResponse(new LogsDBFeatureSetUsage(true, enabled, numIndices, numIndicesWithSyntheticSources, 0L, 0L))
+                new XPackUsageFeatureResponse(
+                    new LogsDBFeatureSetUsage(true, enabled, numIndices, numIndicesWithSyntheticSources, 0L, 0L, hasCustomCutoffDate)
+                )
             );
         }
     }

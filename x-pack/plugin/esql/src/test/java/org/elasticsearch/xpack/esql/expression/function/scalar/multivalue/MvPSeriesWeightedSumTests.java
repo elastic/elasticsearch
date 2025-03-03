@@ -32,22 +32,19 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
+
         doubles(cases);
 
-        cases = randomizeBytesRefsOffset(cases);
-        cases = anyNullIsNull(
-            cases,
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
             (nullPosition, nullValueDataType, original) -> nullValueDataType == DataType.NULL ? DataType.NULL : original.expectedType(),
             (nullPosition, nullData, original) -> {
                 if (nullData.isForceLiteral()) {
                     return equalTo("LiteralsEvaluator[lit=null]");
                 }
                 return nullData.type() == DataType.NULL ? equalTo("LiteralsEvaluator[lit=null]") : original;
-            }
+            },
+            cases
         );
-        cases = errorsForCasesWithoutExamples(cases, (valid, position) -> "double");
-
-        return parameterSuppliersFromTypedData(cases);
     }
 
     @Override
@@ -100,8 +97,9 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
             Double.isFinite(expectedResult) ? closeTo(expectedResult, Math.abs(expectedResult * .00000001)) : nullValue()
         );
         if (Double.isFinite(expectedResult) == false) {
-            return testCase.withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.lang.ArithmeticException: double overflow");
+            return testCase.withWarning(
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+            ).withWarning("Line 1:1: java.lang.ArithmeticException: double overflow");
         }
         return testCase;
     }

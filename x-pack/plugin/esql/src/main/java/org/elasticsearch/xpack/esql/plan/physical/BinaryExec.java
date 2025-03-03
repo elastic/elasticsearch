@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
@@ -39,6 +40,10 @@ public abstract class BinaryExec extends PhysicalPlan {
     public PhysicalPlan right() {
         return right;
     }
+
+    public abstract AttributeSet leftReferences();
+
+    public abstract AttributeSet rightReferences();
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 
@@ -97,9 +96,9 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         OperationMode requestMode,
         boolean assertSameClusterState
     ) {
-        IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Collections.emptyMap(), currentMode);
+        IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Map.of(), currentMode);
         SnapshotLifecycleMetadata snapshotLifecycleMetadata = new SnapshotLifecycleMetadata(
-            Collections.emptyMap(),
+            Map.of(),
             currentMode,
             new SnapshotLifecycleStats()
         );
@@ -131,9 +130,9 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         OperationMode requestMode,
         boolean assertSameClusterState
     ) {
-        IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Collections.emptyMap(), currentMode);
+        IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Map.of(), currentMode);
         SnapshotLifecycleMetadata snapshotLifecycleMetadata = new SnapshotLifecycleMetadata(
-            Collections.emptyMap(),
+            Map.of(),
             currentMode,
             new SnapshotLifecycleStats()
         );

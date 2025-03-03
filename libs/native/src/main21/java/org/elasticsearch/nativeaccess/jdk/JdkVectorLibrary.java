@@ -9,6 +9,8 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.nativeaccess.lib.LoaderHelper;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
@@ -25,6 +27,8 @@ import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 public final class JdkVectorLibrary implements VectorLibrary {
 
+    static final Logger logger = LogManager.getLogger(JdkVectorLibrary.class);
+
     static final MethodHandle dot7u$mh;
     static final MethodHandle sqr7u$mh;
 
@@ -36,6 +40,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
         try {
             int caps = (int) vecCaps$mh.invokeExact();
+            logger.info("vec_caps=" + caps);
             if (caps != 0) {
                 if (caps == 2) {
                     dot7u$mh = downcallHandle(

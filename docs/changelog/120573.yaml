@@ -1,0 +1,5 @@
+pr: 120573
+summary: Optimize `IngestDocument` `FieldPath` allocation
+area: Ingest Node
+type: enhancement
+issues: []

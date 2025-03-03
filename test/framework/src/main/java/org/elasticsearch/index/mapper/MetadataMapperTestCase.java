@@ -39,7 +39,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     protected abstract void registerParameters(ParameterChecker checker) throws IOException;
 
-    private record ConflictCheck(XContentBuilder init, XContentBuilder update) {}
+    private record ConflictCheck(XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {}
 
     private record UpdateCheck(XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {}
 
@@ -59,7 +59,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
                 b.startObject(fieldName());
                 update.accept(b);
                 b.endObject();
-            })));
+            }), d -> {}));
         }
 
         /**
@@ -69,8 +69,8 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
          * @param init   the initial mapping
          * @param update the updated mapping
          */
-        public void registerConflictCheck(String param, XContentBuilder init, XContentBuilder update) {
-            conflictChecks.put(param, new ConflictCheck(init, update));
+        public void registerConflictCheck(String param, XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {
+            conflictChecks.put(param, new ConflictCheck(init, update, check));
         }
 
         public void registerUpdateCheck(XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {
@@ -96,6 +96,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
                 e.getMessage(),
                 anyOf(containsString("Cannot update parameter [" + param + "]"), containsString("different [" + param + "]"))
             );
+            checker.conflictChecks.get(param).check.accept(mapperService.documentMapper());
         }
         for (UpdateCheck updateCheck : checker.updateChecks) {
             MapperService mapperService = createMapperService(updateCheck.init);

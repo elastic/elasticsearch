@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -61,6 +60,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStrea
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveDataStreamOptions;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveLifecycle;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 
@@ -83,7 +83,6 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
         SystemIndices systemIndices,
@@ -96,7 +95,6 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             threadPool,
             actionFilters,
             SimulateIndexTemplateRequest::new,
-            indexNameExpressionResolver,
             SimulateIndexTemplateResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -348,7 +346,13 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         if (template.getDataStreamTemplate() != null && lifecycle == null && isDslOnlyMode) {
             lifecycle = DataStreamLifecycle.DEFAULT;
         }
-        return new Template(settings, mergedMapping, aliasesByName, lifecycle);
+        return new Template(
+            settings,
+            mergedMapping,
+            aliasesByName,
+            lifecycle,
+            resolveDataStreamOptions(simulatedState.metadata(), matchingTemplate)
+        );
     }
 
     private static IndexLongFieldRange getEventIngestedRange(String indexName, ClusterState simulatedState) {

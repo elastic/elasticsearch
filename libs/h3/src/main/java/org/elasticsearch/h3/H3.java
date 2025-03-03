@@ -174,11 +174,11 @@ public final class H3 {
      * Find the cell {@link CellBoundary} coordinates for the cell
      */
     public static CellBoundary h3ToGeoBoundary(long h3) {
-        FaceIJK fijk = H3Index.h3ToFaceIjk(h3);
+        final FaceIJK fijk = H3Index.h3ToFaceIjk(h3);
         if (H3Index.H3_is_pentagon(h3)) {
-            return fijk.faceIjkPentToCellBoundary(H3Index.H3_get_resolution(h3), 0, Constants.NUM_PENT_VERTS);
+            return fijk.faceIjkPentToCellBoundary(H3Index.H3_get_resolution(h3));
         } else {
-            return fijk.faceIjkToCellBoundary(H3Index.H3_get_resolution(h3), 0, Constants.NUM_HEX_VERTS);
+            return fijk.faceIjkToCellBoundary(H3Index.H3_get_resolution(h3));
         }
     }
 

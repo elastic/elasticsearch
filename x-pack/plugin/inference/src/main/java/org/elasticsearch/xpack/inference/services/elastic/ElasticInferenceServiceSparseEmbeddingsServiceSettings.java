@@ -17,7 +17,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -61,10 +60,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             context
         );
 
-        if (modelId != null && ElserModels.isValidEisModel(modelId) == false) {
-            validationException.addValidationError("unknown ELSER model id [" + modelId + "]");
-        }
-
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
@@ -80,7 +75,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
     public ElasticInferenceServiceSparseEmbeddingsServiceSettings(
         String modelId,
         @Nullable Integer maxInputTokens,
-        RateLimitSettings rateLimitSettings
+        @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.modelId = Objects.requireNonNull(modelId);
         this.maxInputTokens = maxInputTokens;
@@ -113,7 +108,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_EIS_INTEGRATION_ADDED;
+        return TransportVersions.V_8_16_0;
     }
 
     @Override

@@ -2,8 +2,8 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.'
-  classname 'org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin'
+  description = 'The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.'
+  classname ='org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin'
 }
 
 versions << [

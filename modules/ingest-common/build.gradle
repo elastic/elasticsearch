@@ -13,8 +13,8 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
-  classname 'org.elasticsearch.ingest.common.IngestCommonPlugin'
+  description = 'Module for ingest processors that do not require additional security permissions or have large dependencies and resources'
+  classname ='org.elasticsearch.ingest.common.IngestCommonPlugin'
   extendedPlugins = ['lang-painless']
 }
 

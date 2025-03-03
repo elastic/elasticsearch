@@ -39,6 +39,8 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
 
     def "yamlRestTestVxCompatTest does nothing when there are no tests"() {
         given:
+        internalBuild()
+
         subProject(":distribution:bwc:maintenance") << """
         configurations { checkout }
         artifacts {
@@ -47,9 +49,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         """
 
         buildFile << """
-        plugins {
-          id 'elasticsearch.legacy-yaml-rest-compat-test'
-        }
+        apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
         """
 
         when:
@@ -62,7 +62,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
     }
 
-    def "yamlRestTestVxCompatTest executes and copies api and transforms tests from :bwc:maintenance"() {
+    def "yamlRestCompatTest executes and copies api and transforms tests from :bwc:maintenance"() {
         given:
         internalBuild()
 
@@ -144,6 +144,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
 
     def "yamlRestTestVxCompatTest is wired into check and checkRestCompat"() {
         given:
+        internalBuild()
         withVersionCatalogue()
         subProject(":distribution:bwc:maintenance") << """
         configurations { checkout }
@@ -153,10 +154,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         """
 
         buildFile << """
-        plugins {
-          id 'elasticsearch.legacy-yaml-rest-compat-test'
-        }
-
+        apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
         """
 
         when:

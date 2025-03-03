@@ -1,5 +1,0 @@
-pr: 116274
-summary: "[ES|QL] Verify aggregation filter's type is boolean to avoid `class_cast_exception`"
-area: ES|QL
-type: bug
-issues: []

@@ -14,11 +14,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.index.Index;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedMap;
-import java.util.stream.Stream;
 
 public class DataStreamsActionUtil {
 
@@ -47,25 +48,39 @@ public class DataStreamsActionUtil {
         return indicesOptions;
     }
 
-    public static Stream<String> resolveConcreteIndexNames(
+    public static List<String> resolveConcreteIndexNames(
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterState clusterState,
         String[] names,
         IndicesOptions indicesOptions
     ) {
-        List<String> abstractionNames = getDataStreamNames(indexNameExpressionResolver, clusterState, names, indicesOptions);
+        List<ResolvedExpression> resolvedDataStreamExpressions = indexNameExpressionResolver.dataStreams(
+            clusterState,
+            updateIndicesOptions(indicesOptions),
+            names
+        );
         SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
 
-        return abstractionNames.stream().flatMap(abstractionName -> {
-            IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
+        List<String> results = new ArrayList<>(resolvedDataStreamExpressions.size());
+        for (ResolvedExpression resolvedExpression : resolvedDataStreamExpressions) {
+            IndexAbstraction indexAbstraction = indicesLookup.get(resolvedExpression.resource());
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 DataStream dataStream = (DataStream) indexAbstraction;
-                List<Index> indices = dataStream.getIndices();
-                return indices.stream().map(Index::getName);
-            } else {
-                return Stream.empty();
+                if (IndexNameExpressionResolver.shouldIncludeRegularIndices(indicesOptions, resolvedExpression.selector())) {
+                    selectDataStreamIndicesNames(dataStream, false, results);
+                }
+                if (IndexNameExpressionResolver.shouldIncludeFailureIndices(indicesOptions, resolvedExpression.selector())) {
+                    selectDataStreamIndicesNames(dataStream, true, results);
+                }
             }
-        });
+        }
+        return results;
+    }
+
+    private static void selectDataStreamIndicesNames(DataStream indexAbstraction, boolean failureStore, List<String> accumulator) {
+        for (Index index : indexAbstraction.getDataStreamIndices(failureStore).getIndices()) {
+            accumulator.add(index.getName());
+        }
     }
 }

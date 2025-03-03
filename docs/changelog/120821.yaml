@@ -1,0 +1,5 @@
+pr: 120821
+summary: "[Deprecation] Add `transform_ids` to outdated index"
+area: Transform
+type: enhancement
+issues: []

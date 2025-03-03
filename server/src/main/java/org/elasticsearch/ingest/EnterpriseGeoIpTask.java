@@ -36,7 +36,10 @@ public final class EnterpriseGeoIpTask {
     }
 
     public static final String ENTERPRISE_GEOIP_DOWNLOADER = "enterprise-geoip-downloader";
-    public static final NodeFeature GEOIP_DOWNLOADER_DATABASE_CONFIGURATION = new NodeFeature("geoip.downloader.database.configuration");
+    public static final NodeFeature GEOIP_DOWNLOADER_DATABASE_CONFIGURATION = new NodeFeature(
+        "geoip.downloader.database.configuration",
+        true
+    );
 
     public static class EnterpriseGeoIpTaskParams implements PersistentTaskParams {
 
@@ -64,7 +67,7 @@ public final class EnterpriseGeoIpTask {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER;
+            return TransportVersions.V_8_16_0;
         }
 
         @Override

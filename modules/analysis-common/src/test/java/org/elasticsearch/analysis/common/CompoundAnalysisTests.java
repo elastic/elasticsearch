@@ -31,6 +31,9 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -42,6 +45,7 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class CompoundAnalysisTests extends ESTestCase {
+
     public void testDefaultsCompoundAnalysis() throws Exception {
         Settings settings = getJsonSettings();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
@@ -59,6 +63,44 @@ public class CompoundAnalysisTests extends ESTestCase {
                 terms,
                 hasItems("donau", "dampf", "schiff", "donaudampfschiff", "spargel", "creme", "suppe", "spargelcremesuppe")
             );
+        }
+        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
+    }
+
+    public void testHyphenationDecompoundingAnalyzerOnlyLongestMatch() throws Exception {
+        Settings[] settingsArr = new Settings[] { getJsonSettings(), getYamlSettings() };
+        for (Settings settings : settingsArr) {
+            List<String> terms = analyze(settings, "hyphenationDecompoundingAnalyzerOnlyLongestMatch", "kaffeemaschine fussballpumpe");
+            MatcherAssert.assertThat(
+                terms,
+                hasItems("kaffeemaschine", "kaffee", "fee", "maschine", "fussballpumpe", "fussball", "ballpumpe", "pumpe")
+            );
+        }
+        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
+    }
+
+    /**
+     * For example given a word list of: ["kaffee", "fee", "maschine"]
+     * no_sub_matches should prevent the token "fee" as a token in "kaffeemaschine".
+     */
+    public void testHyphenationDecompoundingAnalyzerNoSubMatches() throws Exception {
+        Settings[] settingsArr = new Settings[] { getJsonSettings(), getYamlSettings() };
+        for (Settings settings : settingsArr) {
+            List<String> terms = analyze(settings, "hyphenationDecompoundingAnalyzerNoSubMatches", "kaffeemaschine fussballpumpe");
+            MatcherAssert.assertThat(terms, hasItems("kaffeemaschine", "kaffee", "maschine", "fussballpumpe", "fussball", "ballpumpe"));
+        }
+        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
+    }
+
+    /**
+     * For example given a word list of: ["fuss", "fussball", "ballpumpe", "ball", "pumpe"]
+     * no_overlapping_matches should prevent the token "ballpumpe" as a token in "fussballpumpe.
+     */
+    public void testHyphenationDecompoundingAnalyzerNoOverlappingMatches() throws Exception {
+        Settings[] settingsArr = new Settings[] { getJsonSettings(), getYamlSettings() };
+        for (Settings settings : settingsArr) {
+            List<String> terms = analyze(settings, "hyphenationDecompoundingAnalyzerNoOverlappingMatches", "kaffeemaschine fussballpumpe");
+            MatcherAssert.assertThat(terms, hasItems("kaffeemaschine", "kaffee", "maschine", "fussballpumpe", "fussball", "pumpe"));
         }
         assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
@@ -92,20 +134,25 @@ public class CompoundAnalysisTests extends ESTestCase {
     }
 
     private Settings getJsonSettings() throws IOException {
-        String json = "/org/elasticsearch/analysis/common/test1.json";
-        return Settings.builder()
-            .loadFromStream(json, getClass().getResourceAsStream(json), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
+        return getSettings("/org/elasticsearch/analysis/common/test1.json");
     }
 
     private Settings getYamlSettings() throws IOException {
-        String yaml = "/org/elasticsearch/analysis/common/test1.yml";
+        return getSettings("/org/elasticsearch/analysis/common/test1.yml");
+    }
+
+    private Settings getSettings(String filePath) throws IOException {
+        String hypenationRulesFileName = "de_DR.xml";
+        InputStream hypenationRules = getClass().getResourceAsStream(hypenationRulesFileName);
+        Path home = createTempDir();
+        Path config = home.resolve("config");
+        Files.createDirectory(config);
+        Files.copy(hypenationRules, config.resolve(hypenationRulesFileName));
+
         return Settings.builder()
-            .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
+            .loadFromStream(filePath, getClass().getResourceAsStream(filePath), false)
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(Environment.PATH_HOME_SETTING.getKey(), home.toString())
             .build();
     }
 }

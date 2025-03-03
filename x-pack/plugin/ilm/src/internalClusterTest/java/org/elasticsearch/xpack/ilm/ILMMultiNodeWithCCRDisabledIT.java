@@ -34,10 +34,9 @@ import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -50,7 +49,7 @@ public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, DataStreamsPlugin.class, IndexLifecycle.class, Ccr.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, DataStreamsPlugin.class, IndexLifecycle.class, Ccr.class);
     }
 
     @Override
@@ -75,7 +74,7 @@ public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
         actions.put(shrinkAction.getWriteableName(), shrinkAction);
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
 
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-policy", Collections.singletonMap(hotPhase.getName(), hotPhase));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-policy", Map.of(hotPhase.getName(), hotPhase));
         client().execute(ILMActions.PUT, new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy)).get();
 
         Template t = new Template(
@@ -89,7 +88,7 @@ public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
         );
 
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
-            .indexPatterns(Collections.singletonList(index))
+            .indexPatterns(List.of(index))
             .template(t)
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
@@ -121,12 +120,12 @@ public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
     }
 
     public void startHotOnlyNode() {
-        Settings nodeSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_hot", "ingest")).build();
+        Settings nodeSettings = Settings.builder().putList("node.roles", List.of("master", "data_hot", "ingest")).build();
         internalCluster().startNode(nodeSettings);
     }
 
     public void startWarmOnlyNode() {
-        Settings nodeSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_warm", "ingest")).build();
+        Settings nodeSettings = Settings.builder().putList("node.roles", List.of("master", "data_warm", "ingest")).build();
         internalCluster().startNode(nodeSettings);
     }
 }

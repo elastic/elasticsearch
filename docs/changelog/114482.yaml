@@ -1,5 +1,0 @@
-pr: 114482
-summary: Remove snapshot build restriction for match and qstr functions
-area: ES|QL
-type: feature
-issues: []

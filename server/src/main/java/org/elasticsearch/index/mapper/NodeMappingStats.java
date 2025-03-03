@@ -28,7 +28,7 @@ import java.util.Objects;
  */
 public class NodeMappingStats implements Writeable, ToXContentFragment {
 
-    public static final NodeFeature SEGMENT_LEVEL_FIELDS_STATS = new NodeFeature("mapper.segment_level_fields_stats");
+    public static final NodeFeature SEGMENT_LEVEL_FIELDS_STATS = new NodeFeature("mapper.segment_level_fields_stats", true);
 
     private static final class Fields {
         static final String MAPPINGS = "mappings";
@@ -52,7 +52,7 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
     public NodeMappingStats(StreamInput in) throws IOException {
         totalCount = in.readVLong();
         totalEstimatedOverhead = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SEGMENT_LEVEL_FIELDS_STATS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             totalSegments = in.readVLong();
             totalSegmentFields = in.readVLong();
         }
@@ -93,7 +93,7 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(totalCount);
         out.writeVLong(totalEstimatedOverhead);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SEGMENT_LEVEL_FIELDS_STATS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeVLong(totalSegments);
             out.writeVLong(totalSegmentFields);
         }

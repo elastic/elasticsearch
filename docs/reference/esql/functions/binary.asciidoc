@@ -87,6 +87,7 @@ Supported types:
 
 include::types/greater_than_or_equal.asciidoc[]
 
+[[esql-add]]
 ==== Add `+`
 [.text-center]
 image::esql/functions/signature/add.svg[Embedded,opts=inline]
@@ -98,6 +99,7 @@ Supported types:
 
 include::types/add.asciidoc[]
 
+[[esql-subtract]]
 ==== Subtract `-`
 [.text-center]
 image::esql/functions/signature/sub.svg[Embedded,opts=inline]

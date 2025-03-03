@@ -411,7 +411,7 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveAsMergedMapping(indexName, IndexResolver.ALL_FIELDS, refs.acquire(indexResult -> {
+                        indexResolver.resolveAsMergedMapping(indexName, IndexResolver.ALL_FIELDS, null, refs.acquire(indexResult -> {
                             if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
                                 EsIndex esIndex = indexResult.get();
                                 var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));
@@ -434,8 +434,8 @@ public class EnrichPolicyResolver {
     }
 
     protected Map<String, EnrichPolicy> availablePolicies() {
-        final EnrichMetadata metadata = clusterService.state().metadata().custom(EnrichMetadata.TYPE);
-        return metadata == null ? Map.of() : metadata.getPolicies();
+        final EnrichMetadata metadata = clusterService.state().metadata().custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY);
+        return metadata.getPolicies();
     }
 
     protected void getRemoteConnection(String cluster, ActionListener<Transport.Connection> listener) {

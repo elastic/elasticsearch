@@ -51,7 +51,7 @@ public final class InferenceProcessorInfoExtractor {
         }
         Counter counter = Counter.newCounter();
         ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
-            Map<String, Object> configMap = configuration.getConfigAsMap();
+            Map<String, Object> configMap = configuration.getConfig();
             List<Map<String, Object>> processorConfigs = (List<Map<String, Object>>) configMap.get(PROCESSORS_KEY);
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
@@ -73,7 +73,7 @@ public final class InferenceProcessorInfoExtractor {
 
         Set<String> modelIds = new LinkedHashSet<>();
         ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
-            Map<String, Object> configMap = configuration.getConfigAsMap();
+            Map<String, Object> configMap = configuration.getConfig();
             List<Map<String, Object>> processorConfigs = readList(configMap, PROCESSORS_KEY);
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
@@ -100,7 +100,7 @@ public final class InferenceProcessorInfoExtractor {
             return pipelineIdsByModelIds;
         }
         ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
-            Map<String, Object> configMap = configuration.getConfigAsMap();
+            Map<String, Object> configMap = configuration.getConfig();
             List<Map<String, Object>> processorConfigs = readList(configMap, PROCESSORS_KEY);
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
@@ -131,7 +131,7 @@ public final class InferenceProcessorInfoExtractor {
             return pipelineIds;
         }
         ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
-            Map<String, Object> configMap = configuration.getConfigAsMap();
+            Map<String, Object> configMap = configuration.getConfig();
             List<Map<String, Object>> processorConfigs = readList(configMap, PROCESSORS_KEY);
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {

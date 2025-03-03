@@ -107,4 +107,5 @@ public class BytesArrayTests extends AbstractBytesReferenceTestCase {
         Exception e = expectThrows(ArrayIndexOutOfBoundsException.class, () -> ref.getDoubleLE(9));
         assertThat(e.getMessage(), equalTo("Index 9 out of bounds for length 9"));
     }
+
 }

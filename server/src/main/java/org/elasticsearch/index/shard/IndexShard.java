@@ -2615,7 +2615,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void onSettingsChanged() {
-        Engine engineOrNull = getEngineOrNull();
+        Engine engineOrNull = getEngineOrNull(1, TimeUnit.SECONDS);
         if (engineOrNull != null) {
             engineOrNull.onSettingsChanged();
         }
@@ -3327,6 +3327,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } finally {
             engineLock.readLock().unlock();
         }
+    }
+
+    // TODO See how usages of this method are fixable
+    public Engine getEngineOrNull(long timeout, TimeUnit unit) {
+        try {
+            if (engineLock.readLock().tryLock(timeout, unit)) {
+                try {
+                    return getCurrentEngine(true);
+                } finally {
+                    engineLock.readLock().unlock();
+                }
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        return null;
     }
 
     public <R> R withEngine(Function<Engine, R> operation) {

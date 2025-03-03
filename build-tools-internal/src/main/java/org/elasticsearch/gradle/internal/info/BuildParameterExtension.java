@@ -54,11 +54,11 @@ public interface BuildParameterExtension {
 
     String getTestSeed();
 
-    Boolean getCi();
+    Boolean isCi();
 
     Integer getDefaultParallel();
 
-    Boolean getSnapshotBuild();
+    Boolean isSnapshotBuild();
 
     BwcVersions getBwcVersions();
 
@@ -66,5 +66,5 @@ public interface BuildParameterExtension {
 
     Random getRandom();
 
-    Boolean getGraalVmRuntime();
+    Boolean isGraalVmRuntime();
 }

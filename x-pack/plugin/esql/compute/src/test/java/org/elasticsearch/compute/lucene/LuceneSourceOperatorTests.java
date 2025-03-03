@@ -30,8 +30,10 @@ import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -144,7 +146,19 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
                 receivedRows.addAndGet(p.getPositionCount());
                 p.releaseBlocks();
             });
-            Driver driver = new Driver("driver" + i, driverContext, sourceOperator, List.of(), sinkOperator, () -> {});
+            Driver driver = new Driver(
+                "driver" + i,
+                "test",
+                0,
+                0,
+                driverContext,
+                () -> "test",
+                sourceOperator,
+                List.of(),
+                sinkOperator,
+                TimeValue.timeValueNanos(1),
+                () -> {}
+            );
             drivers.add(driver);
         }
         OperatorTestCase.runDriver(drivers);
@@ -194,7 +208,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         List<Page> results = new ArrayList<>();
 
         OperatorTestCase.runDriver(
-            new Driver("test", ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add), () -> {})
+            TestDriverFactory.create(ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add))
         );
         OperatorTestCase.assertDriverContext(ctx);
 

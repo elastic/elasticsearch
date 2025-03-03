@@ -85,7 +85,7 @@ public interface EstimatesRowSize {
             }
             estimatedRowSize = maxEstimatedRowSize = 0;
             needsSortedDocIds = false;
-            return size;
+            return size == 0 ? 1 : size;
         }
 
         @Override

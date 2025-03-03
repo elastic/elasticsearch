@@ -374,6 +374,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
         final Integer rowSize = topNExec.estimatedRowSize();
+        assert rowSize != null && rowSize > 0 : "estimated row size [" + rowSize + "] wasn't set";
         PhysicalOperation source = plan(topNExec.child(), context);
 
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];

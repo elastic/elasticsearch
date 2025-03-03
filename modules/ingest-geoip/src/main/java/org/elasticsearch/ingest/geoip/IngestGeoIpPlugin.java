@@ -214,6 +214,11 @@ public class IngestGeoIpPlugin extends Plugin
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                new ParseField(IngestGeoIpMetadata.TYPE),
+                IngestGeoIpMetadata::fromXContent
+            ),
             new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskParams::fromXContent),
             new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskState::fromXContent),
             new NamedXContentRegistry.Entry(
@@ -232,7 +237,7 @@ public class IngestGeoIpPlugin extends Plugin
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata::new),
+            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.GeoIpMetadataDiff::new),
             new NamedWriteableRegistry.Entry(PersistentTaskState.class, GEOIP_DOWNLOADER, GeoIpTaskState::new),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, GEOIP_DOWNLOADER, GeoIpTaskParams::new),

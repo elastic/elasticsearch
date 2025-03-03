@@ -10,6 +10,7 @@ apply plugin: "elasticsearch.publish"
 
 dependencies {
   api project(':libs:core')
+  api project(':libs:entitlement')
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'ssl-config'

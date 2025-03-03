@@ -82,6 +82,11 @@ public class EsqlCapabilities {
         AGG_VALUES,
 
         /**
+         * Expand the {@code VALUES} agg to cover spatial types.
+         */
+        AGG_VALUES_SPATIAL,
+
+        /**
          * Does ESQL support async queries.
          */
         ASYNC_QUERY,
@@ -203,6 +208,11 @@ public class EsqlCapabilities {
          * Fixes on function {@code ROUND} that avoid it throwing exceptions on runtime for unsigned long cases.
          */
         FN_ROUND_UL_FIXES,
+
+        /**
+         * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
+         */
+        FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
 
         /**
          * All functions that take TEXT should never emit TEXT, only KEYWORD. #114334
@@ -407,6 +417,12 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */
         FIX_PARSING_LARGE_NEGATIVE_NUMBERS,
+
+        /**
+         * Fix precision of scaled_float field values retrieved from stored source
+         * see <a href="https://github.com/elastic/elasticsearch/issues/122547"> Slight inconsistency in ESQL using scaled_float field #122547 </a>
+         */
+        FIX_PRECISION_OF_SCALED_FLOAT_FIELDS,
 
         /**
          * Fix the status code returned when trying to run count_distinct on the _source type (which is not supported).
@@ -824,7 +840,22 @@ public class EsqlCapabilities {
         /**
          * Support partial_results
          */
-        SUPPORT_PARTIAL_RESULTS;
+        SUPPORT_PARTIAL_RESULTS,
+
+        /**
+         * Support for rendering aggregate_metric_double type
+         */
+        AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Support for FORK command
+         */
+        FORK(Build.current().isSnapshot()),
+
+        /**
+         * Allow mixed numeric types in conditional functions - case, greatest and least
+         */
+        MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST;
 
         private final boolean enabled;
 

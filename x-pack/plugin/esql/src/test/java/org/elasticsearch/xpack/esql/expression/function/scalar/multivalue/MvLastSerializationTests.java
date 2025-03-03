@@ -21,9 +21,4 @@ public class MvLastSerializationTests extends AbstractExpressionSerializationTes
     protected MvLast mutateInstance(MvLast instance) throws IOException {
         return new MvLast(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

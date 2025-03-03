@@ -171,6 +171,33 @@ public class IndexPrivilegeTests extends ESTestCase {
             );
         }
         {
+            Set<IndexPrivilege> actual = IndexPrivilege.resolveBySelectorAccess(Set.of("read_failure_store", "indices:data/read/*"));
+            assertThat(
+                actual,
+                containsInAnyOrder(IndexPrivilege.READ_FAILURE_STORE, resolvePrivilegeAndAssertSingleton(Set.of("indices:data/read/*")))
+            );
+            List<IndexComponentSelectorPredicate> actualPredicates = actual.stream().map(IndexPrivilege::getSelectorPredicate).toList();
+            assertThat(
+                actualPredicates,
+                containsInAnyOrder(IndexComponentSelectorPredicate.DATA, IndexComponentSelectorPredicate.FAILURES)
+            );
+        }
+        {
+            Set<IndexPrivilege> actual = IndexPrivilege.resolveBySelectorAccess(Set.of("read_failure_store", "indices:data/read/search"));
+            assertThat(
+                actual,
+                containsInAnyOrder(
+                    IndexPrivilege.READ_FAILURE_STORE,
+                    resolvePrivilegeAndAssertSingleton(Set.of("indices:data/read/search"))
+                )
+            );
+            List<IndexComponentSelectorPredicate> actualPredicates = actual.stream().map(IndexPrivilege::getSelectorPredicate).toList();
+            assertThat(
+                actualPredicates,
+                containsInAnyOrder(IndexComponentSelectorPredicate.DATA, IndexComponentSelectorPredicate.FAILURES)
+            );
+        }
+        {
             Set<IndexPrivilege> actual = IndexPrivilege.resolveBySelectorAccess(
                 Set.of("read_failure_store", "read", "indices:data/read/search", "view_index_metadata")
             );

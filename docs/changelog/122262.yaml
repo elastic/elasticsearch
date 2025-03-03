@@ -1,5 +1,5 @@
 pr: 122262
-summary: WIP measure search load per index
+summary: Measure search load per index
 area: Search
 type: feature
 issues: []

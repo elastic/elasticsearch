@@ -185,8 +185,7 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON, IndexComponentSelectorPredicate.ALL);
     public static final IndexPrivilege READ_FAILURE_STORE = new IndexPrivilege(
         "read_failure_store",
-        // TODO use READ_AUTOMATON here in authorization follow-up
-        Automatons.EMPTY,
+        READ_AUTOMATON,
         IndexComponentSelectorPredicate.FAILURES
     );
     public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON);

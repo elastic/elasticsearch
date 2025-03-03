@@ -412,10 +412,15 @@ public final class IndicesPermission {
             final DataStream ds = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
             if (ds != null) {
                 if (group.checkIndex(ds.getName())) {
-                    return true;
+                    final IndexComponentSelector selectorToCheck = indexAbstraction.isFailureIndexOfDataStream()
+                        ? IndexComponentSelector.FAILURES
+                        : selector;
+                    if (group.checkSelector(selectorToCheck)) {
+                        return true;
+                    }
                 }
             }
-            return group.checkIndex(name);
+            return group.checkIndex(name) && group.checkSelector(selector);
         }
 
         /**
@@ -864,8 +869,8 @@ public final class IndicesPermission {
             return query != null;
         }
 
-        public boolean checkSelector(IndexComponentSelector selector) {
-            return selectorPredicate.test(selector);
+        public boolean checkSelector(@Nullable IndexComponentSelector selector) {
+            return selectorPredicate.test(selector == null ? IndexComponentSelector.DATA : selector);
         }
 
         public boolean allowRestrictedIndices() {

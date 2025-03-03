@@ -18,7 +18,10 @@ import org.elasticsearch.search.fetch.subphase.StoredFieldsPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Set;
+
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -66,6 +69,18 @@ public class StoredFieldsSpecTests extends ESTestCase {
         assertFalse(spec.requiresSource());
         assertTrue(spec.requiresMetadata());
     }
+
+    public void testNoCloneOnMerge() {
+        StoredFieldsSpec spec = StoredFieldsSpec.NO_REQUIREMENTS;
+        spec = spec.merge(StoredFieldsSpec.NEEDS_SOURCE);
+        assertThat(spec.requiredStoredFields(), sameInstance(StoredFieldsSpec.NO_REQUIREMENTS.requiredStoredFields()));
+
+        StoredFieldsSpec needsCat = new StoredFieldsSpec(false, false, Set.of("cat"));
+        StoredFieldsSpec withCat = spec.merge(needsCat);
+        spec = withCat.merge(StoredFieldsSpec.NO_REQUIREMENTS);
+        assertThat(spec.requiredStoredFields(), sameInstance(withCat.requiredStoredFields()));
+    }
+
 
     private static SearchContext searchContext(SearchSourceBuilder sourceBuilder) {
         SearchContext sc = mock(SearchContext.class);

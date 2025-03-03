@@ -44,6 +44,10 @@ public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata,
         }
         Set<String> mergedFields;
         if (other.requiredStoredFields.isEmpty()) {
+            /*
+             * In the very very common case that we don't need new stored fields
+             * let's not clone the existing array.
+             */
             mergedFields = this.requiredStoredFields;
         } else {
             mergedFields = new HashSet<>(this.requiredStoredFields);

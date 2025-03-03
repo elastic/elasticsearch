@@ -75,26 +75,25 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
      */
     public static class Names {
         /**
-         * A thread pool with a very high (but finite) maximum size for use when there really is no other choice.
+         * A thread pool with a very high (but finite) maximum size. Use only after careful consideration.
          * <p>
-         * This pool may be used for one-off CPU-bound activities, but the maximum size is so high that it doesn't really work well to do a
+         * This pool may be used for one-off CPU-bound activities, but its maximum size is so high that it doesn't really work well to do a
          * lot of CPU-bound work in parallel here: submitting more CPU-bound tasks than we have CPUs to run them will burn a lot of CPU just
-         * context-switching in order to try and make fair progress on all the tasks at once. Better to submit fewer tasks and wait for them
-         * to complete before submitting more. See {@link ThrottledTaskRunner} and friends for utilities to help with this.
+         * context-switching in order to try and make fair progress on all the threads at once. Better to submit fewer tasks and wait for
+         * them to complete before submitting more, for instance using {@link ThrottledTaskRunner} and friends.
          * <p>
-         * Likewise you can do IO on this pool, but using it for lots of concurrent IO is likely
-         * harmful in clusters with poor concurrent IO performance (especially if using spinning disks).
+         * Likewise you can do IO on this pool, but using it for lots of concurrent IO is likely harmful in clusters with poor concurrent IO
+         * performance (especially if using spinning disks).
          * <p>
-         * Blocking on a future on this pool
-         * risks deadlock if there's a chance that the completion of the future depends on work being done on this pool. Unfortunately
-         * that's pretty likely in most cases because of how often this pool is used; it's really rare because of the high limit on the pool
-         * size, but when it happens it is extremely harmful to the node.
+         * Blocking on a future on this pool risks deadlock if there's a chance that the completion of the future depends on work being done
+         * on this pool. Unfortunately that's pretty likely in most cases because of how often this pool is used; it's really rare because
+         * of the high limit on the pool size, but when it happens it is extremely harmful to the node.
          * <p>
-         * This pool is also used for recovery-related work. The recovery subsystem bounds its own concurrency, and therefore the amount of
-         * recovery work done on the {@code #GENERIC} pool, via {@code cluster.routing.allocation.node_concurrent_recoveries} and related
-         * settings.
-         * <p>
-         * Other subsystems
+         * This pool is for instance used for recovery-related work, which is a mix of CPU-bound and IO-bound work. The recovery subsystem
+         * bounds its own concurrency, and therefore the amount of recovery work done on the {@code #GENERIC} pool, via {@code
+         * cluster.routing.allocation.node_concurrent_recoveries} and related settings. This pool is a good choice for recovery work because
+         * the threads used by recovery will be used by other {@code #GENERIC} work too rather than mostly sitting idle until cleaned up.
+         * Idle threads are surprisingly costly sometimes.
          * <p>
          * This pool does not reject any task. Tasks you submit to this executor after the pool starts to shut down may simply never run.
          */

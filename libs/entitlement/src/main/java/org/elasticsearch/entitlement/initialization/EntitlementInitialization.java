@@ -273,8 +273,7 @@ public class EntitlementInitialization {
             new LoadNativeLibrariesEntitlement(),
             new FilesEntitlement(
                 List.of(
-                    FileData.ofPath(Path.of("/co/elastic/apm/agent/"), READ),
-                    FileData.ofPath(Path.of("/agent/co/elastic/apm/agent/"), READ),
+                    FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
                     FileData.ofPath(Path.of("/proc/meminfo"), READ),
                     FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ)
                 )

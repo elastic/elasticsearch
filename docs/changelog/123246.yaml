@@ -1,0 +1,5 @@
+pr: 123246
+summary: Deduplicate allocation stats calls
+area: Allocation
+type: bug
+issues: []

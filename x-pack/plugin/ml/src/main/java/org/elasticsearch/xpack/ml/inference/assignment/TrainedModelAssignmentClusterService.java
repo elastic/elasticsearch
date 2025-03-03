@@ -272,7 +272,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     // Visible for testing
     static boolean areAssignedNodesRemoved(ClusterChangedEvent event) {
-        boolean nodesShutdownChanged = event.changedCustomMetadataSet().contains(NodesShutdownMetadata.TYPE);
+        boolean nodesShutdownChanged = event.changedCustomClusterMetadataSet().contains(NodesShutdownMetadata.TYPE);
         if (event.nodesRemoved() || nodesShutdownChanged) {
             Set<String> removedOrShuttingDownNodeIds = new HashSet<>(nodesShuttingDown(event.state()));
             event.nodesDelta().removedNodes().stream().map(DiscoveryNode::getId).forEach(removedOrShuttingDownNodeIds::add);
@@ -526,7 +526,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         Metadata.Builder metadata = Metadata.builder(currentState.metadata());
         if (currentState.getMinTransportVersion().onOrAfter(RENAME_ALLOCATION_TO_ASSIGNMENT_TRANSPORT_VERSION)) {
             metadata.putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
-                .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME);
+                .removeProjectCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME);
         } else {
             metadata.putCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME, modelAssignments.buildOld());
         }
@@ -1123,7 +1123,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     }
 
     static Optional<String> detectReasonIfMlJobsStopped(ClusterChangedEvent event) {
-        if (event.changedCustomMetadataSet().contains(PersistentTasksCustomMetadata.TYPE) == false) {
+        if (event.changedCustomProjectMetadataSet().contains(PersistentTasksCustomMetadata.TYPE) == false) {
             return Optional.empty();
         }
 
@@ -1182,7 +1182,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         // If the event indicates there were nodes added/removed, this method only looks at the current state and has
         // no previous knowledge of existing nodes. Consequently, if a model was manually removed (task-kill) from a node
         // it may get re-allocated to that node when another node is added/removed...
-        boolean nodesShutdownChanged = event.changedCustomMetadataSet().contains(NodesShutdownMetadata.TYPE);
+        boolean nodesShutdownChanged = event.changedCustomClusterMetadataSet().contains(NodesShutdownMetadata.TYPE);
         if (event.nodesChanged() || nodesShutdownChanged) {
             // This is just to track the various log messages that happen in this function to help with debugging in the future
             // so that we can reasonably assume they're all related

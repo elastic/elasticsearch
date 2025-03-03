@@ -83,7 +83,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             // explicit version - just use it, and see what happens
             restVersion = request.restApiVersion().get();
         } else if (featureService.clusterHasFeature(clusterService.state(), InfrastructureFeatures.ELASTICSEARCH_V9)) {
-            restVersion = RestApiVersion.current(); // every node is at least v9, so use the default
+            restVersion = RestApiVersion.V_9; // every node is at least v9, so use that
         } else {
             // not all nodes are v9. v8 nodes do not understand v9 rest API, so query using v8.
             // Capabilities can come and go, so it's ok for the response to change

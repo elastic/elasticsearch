@@ -7,12 +7,12 @@ mapped_pages:
 # {{esql}} metadata fields [esql-metadata-fields]
 
 
-{{esql}} can access [metadata fields](/reference/elasticsearch/mapping-reference/document-metadata-fields.md). The currently supported ones are:
+{{esql}} can access [metadata fields](/elasticsearch/docs/reference/elasticsearch/mapping-reference/document-metadata-fields.md). The currently supported ones are:
 
-* [`_index`](/reference/elasticsearch/mapping-reference/mapping-index-field.md): the index to which the document belongs. The field is of the type [keyword](/reference/elasticsearch/mapping-reference/keyword.md).
-* [`_id`](/reference/elasticsearch/mapping-reference/mapping-id-field.md): the source document’s ID. The field is of the type [keyword](/reference/elasticsearch/mapping-reference/keyword.md).
-* `_version`: the source document’s version. The field is of the type [long](/reference/elasticsearch/mapping-reference/number.md).
-* [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md): the ignored source document fields. The field is of the type [keyword](/reference/elasticsearch/mapping-reference/keyword.md).
+* [`_index`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-index-field.md): the index to which the document belongs. The field is of the type [keyword](/elasticsearch/docs/reference/elasticsearch/mapping-reference/keyword.md).
+* [`_id`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-id-field.md): the source document’s ID. The field is of the type [keyword](/elasticsearch/docs/reference/elasticsearch/mapping-reference/keyword.md).
+* `_version`: the source document’s version. The field is of the type [long](/elasticsearch/docs/reference/elasticsearch/mapping-reference/number.md).
+* [`_ignored`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-ignored-field.md): the ignored source document fields. The field is of the type [keyword](/elasticsearch/docs/reference/elasticsearch/mapping-reference/keyword.md).
 * `_score`: when enabled, the final score assigned to each row matching an ES|QL query. Scoring will be updated when using [full text search functions](/reference/query-languages/esql/esql-functions-operators.md#esql-search-functions).
 
 To enable the access to these fields, the [`FROM`](/reference/query-languages/esql/esql-commands.md#esql-from) source command needs to be provided with a dedicated directive:

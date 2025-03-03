@@ -30,7 +30,7 @@ The default and maximum limits can be changed using these dynamic cluster settin
 
 ### Supported types [_supported_types]
 
-{{esql}} currently supports the following [field types](/reference/elasticsearch/mapping-reference/field-data-types.md):
+{{esql}} currently supports the following [field types](/elasticsearch/docs/reference/elasticsearch/mapping-reference/field-data-types.md):
 
 * `alias`
 * `boolean`
@@ -42,11 +42,11 @@ The default and maximum limits can be changed using these dynamic cluster settin
 
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
 * `ip`
-* `keyword` [family](/reference/elasticsearch/mapping-reference/keyword.md) including `keyword`, `constant_keyword`, and `wildcard`
+* `keyword` [family](/elasticsearch/docs/reference/elasticsearch/mapping-reference/keyword.md) including `keyword`, `constant_keyword`, and `wildcard`
 * `int` (`short` and `byte` are represented as `int`)
 * `long`
 * `null`
-* `text` [family](/reference/elasticsearch/mapping-reference/text.md) including `text`, `semantic_text` and `match_only_text`
+* `text` [family](/elasticsearch/docs/reference/elasticsearch/mapping-reference/text.md) including `text`, `semantic_text` and `match_only_text`
 * [preview] `unsigned_long`
 * `version`
 * Spatial types
@@ -95,7 +95,7 @@ Querying a column with an unsupported type returns an error. If a column with an
 
 ### Limitations on supported types [_limitations_on_supported_types]
 
-Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.md) are not supported in all contexts:
+Some [field types](/elasticsearch/docs/reference/elasticsearch/mapping-reference/field-data-types.md) are not supported in all contexts:
 
 * Spatial types are not supported in the [SORT](/reference/query-languages/esql/esql-commands.md#esql-sort) processing command. Specifying a column of one of these types as a sort parameter will result in an error:
 
@@ -110,9 +110,9 @@ In addition, when [querying multiple indexes](docs-content://explore-analyze/que
 
 ## _source availability [esql-_source-availability]
 
-{{esql}} does not support configurations where the [_source field](/reference/elasticsearch/mapping-reference/mapping-source-field.md) is [disabled](/reference/elasticsearch/mapping-reference/mapping-source-field.md#disable-source-field).
+{{esql}} does not support configurations where the [_source field](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-source-field.md) is [disabled](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-source-field.md#disable-source-field).
 
-[preview] {{esql}}'s support for [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) is currently experimental.
+[preview] {{esql}}'s support for [synthetic `_source`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) is currently experimental.
 
 
 ## Full-text search [esql-limitations-full-text-search]
@@ -162,7 +162,7 @@ Note that, because of [the way {{esql}} treats `text` values](#esql-limitations-
 
 ## `text` fields behave like `keyword` fields [esql-limitations-text-fields]
 
-While {{esql}} supports [`text`](/reference/elasticsearch/mapping-reference/text.md) fields, {{esql}} does not treat these fields like the Search API does. {{esql}} queries do not query or aggregate the [analyzed string](docs-content://manage-data/data-store/text-analysis.md). Instead, an {{esql}} query will try to get a `text` field’s subfield of the [keyword family type](/reference/elasticsearch/mapping-reference/keyword.md) and query/aggregate that. If it’s not possible to retrieve a `keyword` subfield, {{esql}} will get the string from a document’s `_source`. If the `_source` cannot be retrieved, for example when using synthetic source, `null` is returned.
+While {{esql}} supports [`text`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/text.md) fields, {{esql}} does not treat these fields like the Search API does. {{esql}} queries do not query or aggregate the [analyzed string](docs-content://manage-data/data-store/text-analysis.md). Instead, an {{esql}} query will try to get a `text` field’s subfield of the [keyword family type](/elasticsearch/docs/reference/elasticsearch/mapping-reference/keyword.md) and query/aggregate that. If it’s not possible to retrieve a `keyword` subfield, {{esql}} will get the string from a document’s `_source`. If the `_source` cannot be retrieved, for example when using synthetic source, `null` is returned.
 
 Once a `text` field is retrieved, if the query touches it in any way, for example passing it into a function, the type will be converted to `keyword`. In fact, functions that operate on both `text` and `keyword` fields will perform as if the `text` field was a `keyword` field all along.
 
@@ -193,7 +193,7 @@ As a workaround, use wildcards and regular expressions. For example:
 | WHERE field RLIKE "[Ee]lasticsearch.*"
 ```
 
-Furthermore, a subfield may have been mapped with a [normalizer](/reference/elasticsearch/mapping-reference/normalizer.md), which can transform the original string. Or it may have been mapped with [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md), which can truncate the string. None of these mapping operations are applied to an {{esql}} query, which may lead to false positives or negatives.
+Furthermore, a subfield may have been mapped with a [normalizer](/elasticsearch/docs/reference/elasticsearch/mapping-reference/normalizer.md), which can transform the original string. Or it may have been mapped with [`ignore_above`](/elasticsearch/docs/reference/elasticsearch/mapping-reference/ignore-above.md), which can truncate the string. None of these mapping operations are applied to an {{esql}} query, which may lead to false positives or negatives.
 
 To avoid these issues, a best practice is to be explicit about the field that you query, and query `keyword` sub-fields instead of `text` fields. Or consider using one of the [full-text search](/reference/query-languages/esql/esql-functions-operators.md#esql-search-functions) functions.
 
@@ -249,7 +249,7 @@ The `DISSECT` command does not support reference keys.
 
 ## Grok limitations [esql-limitations-grok]
 
-The `GROK` command does not support configuring [custom patterns](/reference/ingestion-tools/enrich-processor/grok-processor.md#custom-patterns), or [multiple patterns](/reference/ingestion-tools/enrich-processor/grok-processor.md#trace-match). The `GROK` command is not subject to [Grok watchdog settings](/reference/ingestion-tools/enrich-processor/grok-processor.md#grok-watchdog).
+The `GROK` command does not support configuring [custom patterns](/elasticsearch/docs/reference/ingestion-tools/enrich-processor/grok-processor.md#custom-patterns), or [multiple patterns](/elasticsearch/docs/reference/ingestion-tools/enrich-processor/grok-processor.md#trace-match). The `GROK` command is not subject to [Grok watchdog settings](/elasticsearch/docs/reference/ingestion-tools/enrich-processor/grok-processor.md#grok-watchdog).
 
 
 ## Multivalue limitations [esql-limitations-mv]

@@ -91,7 +91,7 @@ FROM employees
 FROM employees
 ```
 
-You can use [date math](/reference/elasticsearch/rest-apis/api-conventions.md#api-date-math-index-names) to refer to indices, aliases and data streams. This can be useful for time series data, for example to access today’s index:
+You can use [date math](/elasticsearch/docs/reference/elasticsearch/rest-apis/api-conventions.md#api-date-math-index-names) to refer to indices, aliases and data streams. This can be useful for time series data, for example to access today’s index:
 
 ```esql
 FROM <logs-{now/d}>

@@ -84,7 +84,7 @@ The `ENRICH` command performs several operations and may impact the speed of you
 To use enrich policies, you must have:
 
 * `read` index privileges for any indices used
-* The `enrich_user` [built-in role](/reference/elasticsearch/roles.md)
+* The `enrich_user` [built-in role](/elasticsearch/docs/reference/elasticsearch/roles.md)
 
 
 ### Add enrich data [esql-create-enrich-source-index]
@@ -93,7 +93,7 @@ To begin, add documents to one or more source indices. These documents should co
 
 You can manage source indices just like regular {{es}} indices using the [document](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-document) and [index](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-indices) APIs.
 
-You also can set up [{{beats}}](beats://docs/reference/index.md), such as a [{{filebeat}}](beats://docs/reference/filebeat/filebeat-installation-configuration.md), to automatically send and index documents to your source indices. See [Getting started with {{beats}}](beats://reference/index.md).
+You also can set up [{{beats}}](/beats/docs/reference/ingestion-tools/index.md), such as a [{{filebeat}}](/beats/docs/reference/ingestion-tools/beats-filebeat/filebeat-installation-configuration.md), to automatically send and index documents to your source indices. See [Getting started with {{beats}}](/beats/docs/reference/ingestion-tools/index.md).
 
 
 ### Create an enrich policy [esql-create-enrich-policy]
@@ -118,7 +118,7 @@ Once the enrich policy is created, you need to execute it using the [execute enr
 The *enrich index* contains documents from the policy’s source indices. Enrich indices always begin with `.enrich-*`, are read-only, and are [force merged](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge).
 
 ::::{warning}
-Enrich indices should only be used by the [enrich processor](/reference/ingestion-tools/enrich-processor/enrich-processor.md) or the [{{esql}} `ENRICH` command](/reference/query-languages/esql/esql-commands.md#esql-enrich). Avoid using enrich indices for other purposes.
+Enrich indices should only be used by the [enrich processor](/elasticsearch/docs/reference/ingestion-tools/enrich-processor/enrich-processor.md) or the [{{esql}} `ENRICH` command](/reference/query-languages/esql/esql-commands.md#esql-enrich). Avoid using enrich indices for other purposes.
 
 ::::
 

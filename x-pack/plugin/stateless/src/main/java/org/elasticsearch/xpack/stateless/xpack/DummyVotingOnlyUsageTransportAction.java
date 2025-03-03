@@ -43,7 +43,7 @@ public class DummyVotingOnlyUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,

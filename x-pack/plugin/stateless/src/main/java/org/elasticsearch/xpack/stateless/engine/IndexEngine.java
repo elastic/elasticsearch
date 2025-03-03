@@ -21,6 +21,8 @@ package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
+import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.CommitBCCResolver;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.IndexEngineLocalReaderListener;
@@ -740,13 +742,18 @@ public class IndexEngine extends InternalEngine {
                 ThreadPoolMergeScheduler.MERGE_PREWARM.get(indexSettings.getSettings()),
                 engineConfig.getThreadPool(),
                 () -> mergeMetrics, // Have to use supplier as this method is called from super ctor
-                (mergeId, merge) -> cacheWarmingService.warmCacheForMerge(
-                    mergeId,
-                    shardId,
-                    store,
-                    merge,
-                    fileName -> statelessCommitService.getBlobLocation(shardId, fileName)
-                ),
+                (mergeId, merge) -> cacheWarmingService.warmCacheForMerge(mergeId, shardId, store, merge, fileName -> {
+                    BatchedCompoundCommit latestUploadedBcc = statelessCommitService.getLatestUploadedBcc(shardId);
+                    BlobLocation blobLocation = statelessCommitService.getBlobLocation(shardId, fileName);
+                    if (blobLocation != null && latestUploadedBcc != null) {
+                        // Only return the location if the file is uploaded as we don't want to try warming an un-uploaded file
+                        if (blobLocation.getBatchedCompoundCommitTermAndGeneration()
+                            .compareTo(latestUploadedBcc.primaryTermAndGeneration()) <= 0) {
+                            return blobLocation;
+                        }
+                    }
+                    return null;
+                }),
                 () -> forceMergesInProgress.get() == 0 && shouldSkipMerges.test(shardId),
                 this::onAfterMerge,
                 this::mergeException,

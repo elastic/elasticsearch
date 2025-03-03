@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.MetadataUpgrader;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -78,7 +79,8 @@ public class MockGatewayMetaState extends GatewayMetaState {
                 nodeEnvironment,
                 xContentRegistry,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L
+                () -> 0L,
+                ESTestCase::randomBoolean
             ),
             List.of(),
             CompatibilityVersionsUtils.staticCurrent()

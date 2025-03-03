@@ -82,6 +82,11 @@ public class EsqlCapabilities {
         AGG_VALUES,
 
         /**
+         * Expand the {@code VALUES} agg to cover spatial types.
+         */
+        AGG_VALUES_SPATIAL,
+
+        /**
          * Does ESQL support async queries.
          */
         ASYNC_QUERY,
@@ -205,6 +210,11 @@ public class EsqlCapabilities {
         FN_ROUND_UL_FIXES,
 
         /**
+         * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
+         */
+        FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
+
+        /**
          * All functions that take TEXT should never emit TEXT, only KEYWORD. #114334
          */
         FUNCTIONS_NEVER_EMIT_TEXT,
@@ -302,6 +312,11 @@ public class EsqlCapabilities {
          * Support multiple field mappings if appropriate conversion function is used (union types)
          */
         UNION_TYPES,
+
+        /**
+         * Support unmapped using the INSIST keyword.
+         */
+        UNMAPPED_FIELDS(Build.current().isSnapshot()),
 
         /**
          * Support for function {@code ST_DISTANCE}. Done in #108764.
@@ -402,6 +417,12 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */
         FIX_PARSING_LARGE_NEGATIVE_NUMBERS,
+
+        /**
+         * Fix precision of scaled_float field values retrieved from stored source
+         * see <a href="https://github.com/elastic/elasticsearch/issues/122547"> Slight inconsistency in ESQL using scaled_float field #122547 </a>
+         */
+        FIX_PRECISION_OF_SCALED_FLOAT_FIELDS,
 
         /**
          * Fix the status code returned when trying to run count_distinct on the _source type (which is not supported).
@@ -623,6 +644,11 @@ public class EsqlCapabilities {
         SORT_RETURNING_SOURCE_OK,
 
         /**
+         * _source field mapping directives: https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-source-field.html
+         */
+        SOURCE_FIELD_MAPPING,
+
+        /**
          * Allow filter per individual aggregation.
          */
         PER_AGG_FILTERING,
@@ -809,7 +835,27 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V3(EsqlPlugin.INLINESTATS_FEATURE_FLAG);
+        INLINESTATS_V3(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+
+        /**
+         * Support partial_results
+         */
+        SUPPORT_PARTIAL_RESULTS,
+
+        /**
+         * Support for rendering aggregate_metric_double type
+         */
+        AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Support for FORK command
+         */
+        FORK(Build.current().isSnapshot()),
+
+        /**
+         * Allow mixed numeric types in conditional functions - case, greatest and least
+         */
+        MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST;
 
         private final boolean enabled;
 

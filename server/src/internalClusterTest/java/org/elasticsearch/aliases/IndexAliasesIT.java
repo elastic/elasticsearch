@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -205,7 +205,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         // For now just making sure that filter was stored with the alias
         logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:kimchy]");
         ClusterState clusterState = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        IndexMetadata indexMd = clusterState.metadata().index("test");
+        IndexMetadata indexMd = clusterState.metadata().getProject().index("test");
         assertThat(indexMd.getAliases().get("alias1").filter().string(), equalTo("""
             {"term":{"user":{"value":"kimchy"}}}"""));
 
@@ -737,7 +737,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> verify that filter was updated");
-        Metadata metadata = internalCluster().clusterService().state().metadata();
+        ProjectMetadata metadata = internalCluster().clusterService().state().metadata().getProject();
         IndexAbstraction ia = metadata.getIndicesLookup().get("alias1");
         AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(metadata, ia);
         assertThat(aliasMetadata.getFilter().toString(), equalTo("""
@@ -1381,12 +1381,12 @@ public class IndexAliasesIT extends ESIntegTestCase {
         final var beforeAliasesVersions = new HashMap<String, Long>(indices.length);
         final var beforeMetadata = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
         for (final var index : indices) {
-            beforeAliasesVersions.put(index, beforeMetadata.index(index).getAliasesVersion());
+            beforeAliasesVersions.put(index, beforeMetadata.getProject().index(index).getAliasesVersion());
         }
         runnable.run();
         final var afterMetadata = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
         for (final String index : indices) {
-            assertThat(afterMetadata.index(index).getAliasesVersion(), equalTo(1 + beforeAliasesVersions.get(index)));
+            assertThat(afterMetadata.getProject().index(index).getAliasesVersion(), equalTo(1 + beforeAliasesVersions.get(index)));
         }
     }
 
@@ -1396,6 +1396,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(index)
             .getAliasesVersion();
         runnable.run();
@@ -1404,6 +1405,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(index)
             .getAliasesVersion();
         assertThat(afterAliasesVersion, equalTo(beforeAliasesVersion));

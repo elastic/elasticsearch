@@ -233,6 +233,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(indexName);
         assertThat(indexMetadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID), nullValue());
         final int numPrimaries = getNumShards(indexName).numPrimaries;
@@ -260,6 +261,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(indexName);
         for (int shardId = 0; shardId < numPrimaries; shardId++) {
             assertThat(restoredIndexMetadata.primaryTerm(shardId), greaterThan(primaryTerms.get(shardId)));
@@ -313,14 +315,15 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get()
             .getState()
             .getMetadata()
-            .getIndices()
+            .getProject()
+            .indices()
             .get("test-idx")
             .mapping();
         assertThat(mappings.sourceAsMap().toString(), containsString("baz"));
         assertThat(mappings.sourceAsMap().toString(), not(containsString("foo")));
 
         logger.info("--> assert that old settings are restored");
-        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings("test-idx").get();
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test-idx").get();
         assertThat(getSettingsResponse.getSetting("test-idx", "index.refresh_interval"), equalTo("10s"));
     }
 
@@ -733,7 +736,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         logger.info("--> assert that correct settings are restored");
-        GetSettingsResponse getSettingsResponse = client.admin().indices().prepareGetSettings("test-idx").get();
+        GetSettingsResponse getSettingsResponse = client.admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test-idx").get();
         assertThat(getSettingsResponse.getSetting("test-idx", INDEX_REFRESH_INTERVAL_SETTING.getKey()), equalTo("5s"));
         // Make sure that number of shards didn't change
         assertThat(getSettingsResponse.getSetting("test-idx", SETTING_NUMBER_OF_SHARDS), equalTo("" + numberOfShards));
@@ -759,7 +762,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         logger.info("--> assert that correct settings are restored and index is still functional");
-        getSettingsResponse = client.admin().indices().prepareGetSettings("test-idx").get();
+        getSettingsResponse = client.admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test-idx").get();
         assertThat(getSettingsResponse.getSetting("test-idx", INDEX_REFRESH_INTERVAL_SETTING.getKey()), equalTo("5s"));
         // Make sure that number of shards didn't change
         assertThat(getSettingsResponse.getSetting("test-idx", SETTING_NUMBER_OF_SHARDS), equalTo("" + numberOfShards));

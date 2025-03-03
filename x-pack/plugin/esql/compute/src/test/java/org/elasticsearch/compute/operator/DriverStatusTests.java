@@ -52,7 +52,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         assertThat(Strings.toString(status, true, true), equalTo("""
             {
               "session_id" : "ABC:123",
-              "task_description" : "test",
+              "description" : "test",
               "started" : "1973-11-29T09:27:00.000Z",
               "last_updated" : "1973-11-29T09:27:23.214Z",
               "cpu_nanos" : 123213,
@@ -157,7 +157,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
     @Override
     protected DriverStatus mutateInstance(DriverStatus instance) throws IOException {
         var sessionId = instance.sessionId();
-        var taskDescription = instance.taskDescription();
+        var description = instance.description();
         long started = instance.started();
         long lastUpdated = instance.lastUpdated();
         long cpuNanos = instance.cpuNanos();
@@ -167,8 +167,8 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         var activeOperators = instance.activeOperators();
         var sleeps = instance.sleeps();
         switch (between(0, 9)) {
-            case 0 -> sessionId = randomValueOtherThan(sessionId, this::randomSessionId);
-            case 1 -> taskDescription = randomValueOtherThan(taskDescription, DriverStatusTests::randomTaskDescription);
+            case 0 -> sessionId = randomValueOtherThan(sessionId, ESTestCase::randomIdentifier);
+            case 1 -> description = randomValueOtherThan(description, ESTestCase::randomIdentifier);
             case 2 -> started = randomValueOtherThan(started, ESTestCase::randomNonNegativeLong);
             case 3 -> lastUpdated = randomValueOtherThan(lastUpdated, ESTestCase::randomNonNegativeLong);
             case 4 -> cpuNanos = randomValueOtherThan(cpuNanos, ESTestCase::randomNonNegativeLong);
@@ -181,7 +181,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         }
         return new DriverStatus(
             sessionId,
-            taskDescription,
+            description,
             started,
             lastUpdated,
             cpuNanos,

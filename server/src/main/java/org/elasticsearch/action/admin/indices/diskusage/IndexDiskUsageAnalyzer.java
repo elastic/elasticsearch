@@ -295,7 +295,7 @@ final class IndexDiskUsageAnalyzer {
                 case RANGE -> {
                     var skipper = docValuesReader.getSkipper(field);
                     while (skipper.maxDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
-                        skipper.advance(skipper.maxDocID(skipper.numLevels() - 1)  + 1);
+                        skipper.advance(skipper.maxDocID(skipper.numLevels() - 1) + 1);
                     }
                 }
                 default -> throw new IllegalStateException("Unknown skipper type [" + field.docValuesSkipIndexType() + "]");

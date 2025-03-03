@@ -81,7 +81,6 @@ public class StoredFieldsSpecTests extends ESTestCase {
         assertThat(spec.requiredStoredFields(), sameInstance(withCat.requiredStoredFields()));
     }
 
-
     private static SearchContext searchContext(SearchSourceBuilder sourceBuilder) {
         SearchContext sc = mock(SearchContext.class);
         when(sc.fetchSourceContext()).thenReturn(sourceBuilder.fetchSource());

@@ -46,7 +46,8 @@ The following additional roles are available:
 
 * `voting_only`
 
-[[coordinating-only-node]]If you leave `node.roles` unset, then the node is considered to be a <<coordinating-only-node-role,coordinating only node>>.
+[[coordinating-only-node]]If you set `node.roles` to an empty array (`node.roles: [ ]`),
+then the node is considered to be a <<coordinating-only-node-role,coordinating only node>>.
 
 [IMPORTANT]
 ====

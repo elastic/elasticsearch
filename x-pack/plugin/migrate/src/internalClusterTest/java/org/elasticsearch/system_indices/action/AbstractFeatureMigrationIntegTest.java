@@ -20,13 +20,18 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
+import org.elasticsearch.indices.ExecutorNames;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -82,7 +87,6 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     public static final IndexVersion NEEDS_UPGRADE_INDEX_VERSION = IndexVersionUtils.getPreviousMajorVersion(
         SystemIndices.NO_UPGRADE_REQUIRED_INDEX_VERSION
     );
-    protected static final int UPGRADED_TO_VERSION = SystemIndices.NO_UPGRADE_REQUIRED_VERSION.major + 1;
 
     static final SystemIndexDescriptor EXTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
         .setIndexPattern(".ext-unman-*")
@@ -144,6 +148,31 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setAllowsTemplates()
         .build();
 
+    protected static final SystemDataStreamDescriptor SYSTEM_DATA_STREAM_DESCRIPTOR;
+
+    protected static final String TEST_DATA_STREAM_NAME = ".test-data-stream";
+
+    static {
+        try {
+            SYSTEM_DATA_STREAM_DESCRIPTOR = new SystemDataStreamDescriptor(
+                TEST_DATA_STREAM_NAME,
+                "system data stream test",
+                SystemDataStreamDescriptor.Type.EXTERNAL,
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of(TEST_DATA_STREAM_NAME))
+                    .template(new Template(Settings.EMPTY, new CompressedXContent("{\"properties\":{\"some_field\":{\"type\":\"keyword\"}}}"), null))
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                    .build(),
+                Map.of(),
+                List.of("product"),
+                ORIGIN,
+                ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+            );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     protected String masterAndDataNode;
     protected String masterName;
 
@@ -194,7 +223,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             createRequest.setSettings(
                 createSettings(
                     NEEDS_UPGRADE_INDEX_VERSION,
-                    descriptor.isInternal() ? INTERNAL_UNMANAGED_FLAG_VALUE : EXTERNAL_UNMANAGED_FLAG_VALUE
+                    descriptor.isExternal() ? EXTERNAL_UNMANAGED_FLAG_VALUE : INTERNAL_UNMANAGED_FLAG_VALUE
                 )
             );
         } else {
@@ -207,7 +236,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             );
         }
         if (descriptor.isAutomaticallyManaged() == false) {
-            createRequest.setMapping(createMapping(false, descriptor.isInternal()));
+            createRequest.setMapping(createMapping(false, descriptor.isExternal() == false));
         }
         CreateIndexResponse response = createRequest.get();
         Assert.assertTrue(response.isShardsAcknowledged());
@@ -216,9 +245,15 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     }
 
     protected void indexDocs(String indexName) {
+        indexDocs(indexName, false);
+    }
+
+    protected void indexDocs(String indexName, boolean dataStream) {
         List<IndexRequestBuilder> docs = new ArrayList<>(INDEX_DOC_COUNT);
         for (int i = 0; i < INDEX_DOC_COUNT; i++) {
-            docs.add(ESIntegTestCase.prepareIndex(indexName).setId(Integer.toString(i)).setSource(FIELD_NAME, "words words"));
+            docs.add(ESIntegTestCase.prepareIndex(indexName).setId(Integer.toString(i))
+                .setRequireDataStream(dataStream)
+                .setSource(FIELD_NAME, "words words"));
         }
         indexRandom(true, docs);
         IndicesStatsResponse indexStats = ESIntegTestCase.indicesAdmin().prepareStats(indexName).setDocs(true).get();
@@ -320,6 +355,11 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
 
             return Collections.singletonList(new AssociatedIndexDescriptor(ASSOCIATED_INDEX_NAME, TestPlugin.class.getCanonicalName()));
+        }
+
+        @Override
+        public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
+            return Collections.singletonList(SYSTEM_DATA_STREAM_DESCRIPTOR);
         }
 
         @Override

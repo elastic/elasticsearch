@@ -205,7 +205,7 @@ public class MetadataMigrateToDataStreamService {
         Function<IndexMetadata, MapperService> mapperSupplier,
         boolean removeAlias
     ) throws IOException {
-        prepareBackingIndex(b, im, dataStreamName, mapperSupplier, removeAlias, false, Settings.EMPTY);
+        prepareBackingIndex(b, im, dataStreamName, mapperSupplier, removeAlias, false, false, Settings.EMPTY);
     }
 
     /**
@@ -219,6 +219,8 @@ public class MetadataMigrateToDataStreamService {
      *                    exception should be thrown in that case instead
      * @param failureStore <code>true</code> if the index is being migrated into the data stream's failure store, <code>false</code> if it
      *                     is being migrated into the data stream's backing indices
+     * @param makeSystem <code>true</code> if the index is being migrated into the system data stream, <code>false</code> if it
+     *                     is being migrated into non-system data stream
      * @param nodeSettings The settings for the current node
      */
     static void prepareBackingIndex(
@@ -228,6 +230,7 @@ public class MetadataMigrateToDataStreamService {
         Function<IndexMetadata, MapperService> mapperSupplier,
         boolean removeAlias,
         boolean failureStore,
+        boolean makeSystem,
         Settings nodeSettings
     ) throws IOException {
         MappingMetadata mm = im.mapping();
@@ -258,6 +261,7 @@ public class MetadataMigrateToDataStreamService {
         imb.mappingVersion(im.getMappingVersion() + 1)
             .mappingsUpdatedVersion(IndexVersion.current())
             .putMapping(new MappingMetadata(mapper));
+        imb.system(makeSystem);
         b.put(imb);
     }
 

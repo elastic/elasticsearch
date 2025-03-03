@@ -143,7 +143,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         final String failedFeatureUpgradedName = failedFeatureName == null ? null : failedFeatureName + UPGRADED_INDEX_SUFFIX;
         final Exception exception = featureStatus == null ? null : featureStatus.getException();
 
-        return feature.getIndexDescriptors()
+        return feature.getSystemResourceDescriptors()
             .stream()
             .flatMap(descriptor -> descriptor.getMatchingIndices(state.metadata()).stream())
             .sorted(String::compareTo)

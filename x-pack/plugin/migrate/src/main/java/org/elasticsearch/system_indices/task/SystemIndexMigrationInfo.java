@@ -128,9 +128,12 @@ final class SystemIndexMigrationInfo extends SystemResourceMigrationInfo {
             + '\'';
     }
 
-    static SystemIndexMigrationInfo build(IndexMetadata currentIndex, SystemIndexDescriptor descriptor,
-                                          SystemIndices.Feature feature,
-                                          IndexScopedSettings indexScopedSettings) {
+    static SystemIndexMigrationInfo build(
+        IndexMetadata currentIndex,
+        SystemIndexDescriptor descriptor,
+        SystemIndices.Feature feature,
+        IndexScopedSettings indexScopedSettings
+    ) {
         final Settings settings;
         final String mapping;
         if (descriptor.isAutomaticallyManaged()) {

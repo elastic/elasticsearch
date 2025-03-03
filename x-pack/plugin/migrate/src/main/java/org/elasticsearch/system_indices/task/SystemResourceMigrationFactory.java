@@ -28,29 +28,37 @@ class SystemResourceMigrationFactory {
         Metadata metadata,
         IndexScopedSettings indexScopedSettings
     ) {
-        return Stream.concat(getSystemIndicesMigrationInfos(feature, metadata, indexScopedSettings),
-            getSystemDataStreamsMigrationInfos(feature, metadata));
+        return Stream.concat(
+            getSystemIndicesMigrationInfos(feature, metadata, indexScopedSettings),
+            getSystemDataStreamsMigrationInfos(feature, metadata)
+        );
     }
 
-    private static Stream<SystemIndexMigrationInfo> getSystemIndicesMigrationInfos(SystemIndices.Feature feature, Metadata metadata,
-                                                                                   IndexScopedSettings indexScopedSettings) {
+    private static Stream<SystemIndexMigrationInfo> getSystemIndicesMigrationInfos(
+        SystemIndices.Feature feature,
+        Metadata metadata,
+        IndexScopedSettings indexScopedSettings
+    ) {
         return feature.getIndexDescriptors()
             .stream()
             .flatMap(descriptor -> descriptor.getMatchingIndices(metadata).stream().map(metadata::index).filter(imd -> {
-                assert imd != null : "got null IndexMetadata for index in system descriptor ["
-                    + descriptor.getIndexPattern() + "] in feature [" + feature.getName() + "]";
+                assert imd != null
+                    : "got null IndexMetadata for index in system descriptor ["
+                        + descriptor.getIndexPattern()
+                        + "] in feature ["
+                        + feature.getName()
+                        + "]";
                 return Objects.nonNull(imd);
             }).map(imd -> SystemIndexMigrationInfo.build(imd, descriptor, feature, indexScopedSettings)));
     }
 
-    private static Stream<SystemDataStreamMigrationInfo> getSystemDataStreamsMigrationInfos(SystemIndices.Feature feature,
-                                                                                            Metadata metadata) {
-        return feature.getDataStreamDescriptors()
-            .stream()
-            .map(descriptor -> {
-                DataStream dataStream = metadata.dataStreams().get(descriptor.getDataStreamName());
-                return dataStream != null ? SystemDataStreamMigrationInfo.build(dataStream, descriptor, feature) : null;
-            })
-            .filter(Objects::nonNull);
+    private static Stream<SystemDataStreamMigrationInfo> getSystemDataStreamsMigrationInfos(
+        SystemIndices.Feature feature,
+        Metadata metadata
+    ) {
+        return feature.getDataStreamDescriptors().stream().map(descriptor -> {
+            DataStream dataStream = metadata.dataStreams().get(descriptor.getDataStreamName());
+            return dataStream != null ? SystemDataStreamMigrationInfo.build(dataStream, descriptor, feature) : null;
+        }).filter(Objects::nonNull);
     }
 }

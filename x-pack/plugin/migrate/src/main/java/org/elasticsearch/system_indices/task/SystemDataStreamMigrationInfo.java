@@ -19,18 +19,30 @@ final class SystemDataStreamMigrationInfo extends SystemResourceMigrationInfo {
     private final DataStream dataStream;
     private final String dataStreamName;
 
-    private SystemDataStreamMigrationInfo(DataStream dataStream, String dataStreamName, String featureName, String origin,
-                                          SystemIndices.Feature owningFeature) {
+    private SystemDataStreamMigrationInfo(
+        DataStream dataStream,
+        String dataStreamName,
+        String featureName,
+        String origin,
+        SystemIndices.Feature owningFeature
+    ) {
         super(featureName, origin, owningFeature);
         this.dataStreamName = dataStreamName;
         this.dataStream = dataStream;
     }
 
-    public static SystemDataStreamMigrationInfo build(DataStream dataStream,
-                                                      SystemDataStreamDescriptor dataStreamDescriptor,
-                                                      SystemIndices.Feature feature) {
-        return new SystemDataStreamMigrationInfo(dataStream, dataStreamDescriptor.getDataStreamName(), feature.getName(),
-            dataStreamDescriptor.getOrigin(), feature);
+    public static SystemDataStreamMigrationInfo build(
+        DataStream dataStream,
+        SystemDataStreamDescriptor dataStreamDescriptor,
+        SystemIndices.Feature feature
+    ) {
+        return new SystemDataStreamMigrationInfo(
+            dataStream,
+            dataStreamDescriptor.getDataStreamName(),
+            feature.getName(),
+            dataStreamDescriptor.getOrigin(),
+            feature
+        );
     }
 
     public String getDataStreamName() {
@@ -44,8 +56,7 @@ final class SystemDataStreamMigrationInfo extends SystemResourceMigrationInfo {
 
     @Override
     Stream<IndexMetadata> getIndices(Metadata metadata) {
-        return Stream.concat(dataStream.getIndices().stream(), dataStream.getFailureIndices().stream())
-            .map(metadata::getIndexSafe);
+        return Stream.concat(dataStream.getIndices().stream(), dataStream.getFailureIndices().stream()).map(metadata::getIndexSafe);
     }
 
     @Override

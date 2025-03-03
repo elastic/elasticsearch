@@ -40,11 +40,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.system.IndexPatternMatcher;
 import org.elasticsearch.indices.system.SystemResourceDescriptor;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotsService;
 
@@ -140,12 +140,23 @@ public class SystemIndices {
     private static final Map<String, Feature> SERVER_SYSTEM_FEATURE_DESCRIPTORS = Stream.of(
         new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR)),
         new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYMS_DESCRIPTOR)),
-        new Feature("sds-1", "Manages system data stream", Collections.emptyList(),
+        new Feature(
+            "sds-1",
+            "Manages system data stream",
+            Collections.emptyList(),
             Collections.singletonList(
-                new SystemDataStreamDescriptor(".sds-1", "Test System Data Stream",
-                    SystemDataStreamDescriptor.Type.INTERNAL, ComposableIndexTemplate.builder().build(), Collections.emptyMap(),
-                    List.of("es"), "sds", ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS)
-            ))
+                new SystemDataStreamDescriptor(
+                    ".sds-1",
+                    "Test System Data Stream",
+                    SystemDataStreamDescriptor.Type.INTERNAL,
+                    ComposableIndexTemplate.builder().build(),
+                    Collections.emptyMap(),
+                    List.of("es"),
+                    "sds",
+                    ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+                )
+            )
+        )
     ).collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
 
     public static final Map<String, SystemIndexDescriptor.MappingsVersion> SERVER_SYSTEM_MAPPINGS_VERSIONS =

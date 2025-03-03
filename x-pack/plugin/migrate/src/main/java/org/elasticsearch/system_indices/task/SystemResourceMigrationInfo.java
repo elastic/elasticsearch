@@ -16,12 +16,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.stream.Stream;
 
-abstract sealed class SystemResourceMigrationInfo implements Comparable<SystemResourceMigrationInfo> permits SystemDataStreamMigrationInfo, SystemIndexMigrationInfo {
+abstract sealed class SystemResourceMigrationInfo implements Comparable<SystemResourceMigrationInfo> permits SystemDataStreamMigrationInfo,
+    SystemIndexMigrationInfo {
     private static final Comparator<SystemResourceMigrationInfo> SAME_CLASS_COMPARATOR = Comparator.comparing(
         SystemResourceMigrationInfo::getFeatureName
     ).thenComparing(SystemResourceMigrationInfo::getCurrentResourceName);

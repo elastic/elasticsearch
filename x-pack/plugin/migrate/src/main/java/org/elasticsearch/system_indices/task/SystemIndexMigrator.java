@@ -101,7 +101,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         ClusterService clusterService,
         SystemIndices systemIndices,
         IndexScopedSettings indexScopedSettings,
-        ThreadPool threadPool) {
+        ThreadPool threadPool
+    ) {
         super(id, type, action, "system-index-migrator", parentTask, headers);
         this.baseClient = new ParentTaskAssigningClient(client, parentTask);
         this.clusterService = clusterService;
@@ -196,8 +197,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                     }
                     logger.warn(
                         () -> format(
-                            "resuming system index migration with resource [%s]," +
-                                " which does not match resource given in last task state [%s]",
+                            "resuming system index migration with resource [%s],"
+                                + " which does not match resource given in last task state [%s]",
                             nextMigrationInfo.getCurrentResourceName(),
                             stateIndexName
                         )
@@ -208,13 +209,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
 
         // Kick off our callback "loop" - finishIndexAndLoop calls back into prepareNextIndex
         logger.debug("cleaning up previous migration, task state: [{}]", taskState == null ? "null" : Strings.toString(taskState));
-        clearResults(
-            clusterService,
-            ActionListener.wrap(
-                state -> startFeatureMigration(stateFeatureName),
-                this::markAsFailed
-            )
-        );
+        clearResults(clusterService, ActionListener.wrap(state -> startFeatureMigration(stateFeatureName), this::markAsFailed));
     }
 
     private void finishIndexAndLoop(SystemIndexMigrationInfo migrationInfo, BulkByScrollResponse bulkResponse) {
@@ -259,8 +254,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                     if (successful == false) {
                         // GWB> Should we actually fail in this case instead of plugging along?
                         logger.warn(
-                            "post-migration hook for feature [{}] indicated failure;" +
-                                " feature migration metadata prior to failure was [{}]",
+                            "post-migration hook for feature [{}] indicated failure;"
+                                + " feature migration metadata prior to failure was [{}]",
                             lastMigrationInfo.getFeatureName(),
                             currentFeatureCallbackMetadata.get()
                         );
@@ -299,9 +294,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             lastMigrationInfo.getFeatureName(),
             SingleFeatureMigrationResult.success(),
             ActionListener.wrap(state -> {
-                startFeatureMigration(
-                    lastMigrationInfo.getFeatureName()
-                );
+                startFeatureMigration(lastMigrationInfo.getFeatureName());
             }, this::markAsFailed)
         );
         updateTask.submit(clusterService);
@@ -358,8 +351,11 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         return indexMetadata.isSystem() && indexMetadata.getCreationVersion().before(NO_UPGRADE_REQUIRED_INDEX_VERSION);
     }
 
-    private void migrateSingleIndex(SystemIndexMigrationInfo migrationInfo, ClusterState clusterState,
-                                    BiConsumer<SystemIndexMigrationInfo, BulkByScrollResponse> listener) {
+    private void migrateSingleIndex(
+        SystemIndexMigrationInfo migrationInfo,
+        ClusterState clusterState,
+        BiConsumer<SystemIndexMigrationInfo, BulkByScrollResponse> listener
+    ) {
         String oldIndexName = migrationInfo.getCurrentIndexName();
         final IndexMetadata imd = clusterState.metadata().index(oldIndexName);
         if (imd.getState().equals(CLOSE)) {
@@ -622,31 +618,47 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         migrationInfo.createClient(baseClient).execute(ReindexAction.INSTANCE, reindexRequest, listener);
     }
 
-    private void migrateDataStream(SystemDataStreamMigrationInfo migrationInfo, ClusterState clusterState,
-                                   Consumer<SystemDataStreamMigrationInfo> listener) {
+    private void migrateDataStream(
+        SystemDataStreamMigrationInfo migrationInfo,
+        ClusterState clusterState,
+        Consumer<SystemDataStreamMigrationInfo> listener
+    ) {
         String dataStreamName = migrationInfo.getDataStreamName();
-        logger.info("migrating indices from data stream [{}] from feature [{}] to new indices",
-            dataStreamName, migrationInfo.getFeatureName());
-
-        ReindexDataStreamAction.ReindexDataStreamRequest reindexRequest = new ReindexDataStreamAction.ReindexDataStreamRequest(
-            ReindexDataStreamAction.Mode.UPGRADE, dataStreamName);
-
-        ActionListener<ActionResponse> innerListener = ActionListener.wrap(
-            response -> listener.accept(migrationInfo),
-            this::markAsFailed
+        logger.info(
+            "migrating indices from data stream [{}] from feature [{}] to new indices",
+            dataStreamName,
+            migrationInfo.getFeatureName()
         );
 
-        try {
-            migrationInfo.createClient(baseClient).execute(ReindexDataStreamAction.INSTANCE, reindexRequest,
-                innerListener.delegateFailureAndWrap((delegate, startMigrationResponse) -> {
-                    if (startMigrationResponse.isAcknowledged() == false) {
-                        logger.error("failed to migrate indices from data stream [{}]", dataStreamName);
-                        delegate.onFailure(new ElasticsearchException("reindex system data stream ["
-                            + dataStreamName + "] from feature [" + migrationInfo.getFeatureName() + "] response is not acknowledge"));
-                    }
+        ReindexDataStreamAction.ReindexDataStreamRequest reindexRequest = new ReindexDataStreamAction.ReindexDataStreamRequest(
+            ReindexDataStreamAction.Mode.UPGRADE,
+            dataStreamName
+        );
 
-                    checkDataStreamMigrationStatus(migrationInfo, delegate);
-                }));
+        ActionListener<ActionResponse> innerListener = ActionListener.wrap(response -> listener.accept(migrationInfo), this::markAsFailed);
+
+        try {
+            migrationInfo.createClient(baseClient)
+                .execute(
+                    ReindexDataStreamAction.INSTANCE,
+                    reindexRequest,
+                    innerListener.delegateFailureAndWrap((delegate, startMigrationResponse) -> {
+                        if (startMigrationResponse.isAcknowledged() == false) {
+                            logger.error("failed to migrate indices from data stream [{}]", dataStreamName);
+                            delegate.onFailure(
+                                new ElasticsearchException(
+                                    "reindex system data stream ["
+                                        + dataStreamName
+                                        + "] from feature ["
+                                        + migrationInfo.getFeatureName()
+                                        + "] response is not acknowledge"
+                                )
+                            );
+                        }
+
+                        checkDataStreamMigrationStatus(migrationInfo, delegate);
+                    })
+                );
         } catch (Exception ex) {
             logger.error(
                 () -> format(
@@ -664,35 +676,53 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         String dataStreamName = migrationInfo.getDataStreamName();
         GetMigrationReindexStatusAction.Request getStatusRequest = new GetMigrationReindexStatusAction.Request(dataStreamName);
 
-        migrationInfo.createClient(baseClient).execute(GetMigrationReindexStatusAction.INSTANCE, getStatusRequest,
-            listener.delegateFailureAndWrap((delegate, migrationStatusResponse) -> {
-                ReindexDataStreamEnrichedStatus status = migrationStatusResponse.getEnrichedStatus();
-                logger.debug("data stream [{}] reindexing status: pending {} out of {} indices",
-                    dataStreamName, status.pending(), status.totalIndicesToBeUpgraded());
+        migrationInfo.createClient(baseClient)
+            .execute(
+                GetMigrationReindexStatusAction.INSTANCE,
+                getStatusRequest,
+                listener.delegateFailureAndWrap((delegate, migrationStatusResponse) -> {
+                    ReindexDataStreamEnrichedStatus status = migrationStatusResponse.getEnrichedStatus();
+                    logger.debug(
+                        "data stream [{}] reindexing status: pending {} out of {} indices",
+                        dataStreamName,
+                        status.pending(),
+                        status.totalIndicesToBeUpgraded()
+                    );
 
-                if (status.complete() == false) {
-                    threadPool.schedule(() -> checkDataStreamMigrationStatus(migrationInfo, listener),
-                        TimeValue.timeValueSeconds(1), threadPool.generic());
-                } else {
-                    List<Tuple<String, Exception>> errors = status.errors();
-                    if (errors != null && errors.isEmpty() == false) {
-                        logger.error("error occurred while reindexing data stream [{}], failures [{}]",
-                            migrationInfo, errors.stream().map(Tuple::v2).toList());
-
-                        ElasticsearchException ex = new ElasticsearchException(
-                            "error occurred while reindexing data stream [" + migrationInfo + "]");
-                        for (Tuple<String, Exception> error : errors) {
-                            ex.addSuppressed(error.v2());
-                        }
-
-                        delegate.onFailure(ex);
+                    if (status.complete() == false) {
+                        threadPool.schedule(
+                            () -> checkDataStreamMigrationStatus(migrationInfo, listener),
+                            TimeValue.timeValueSeconds(1),
+                            threadPool.generic()
+                        );
                     } else {
-                        logger.info("successfully migrated old indices from data stream [{}] from feature [{}] to new indices",
-                            dataStreamName, migrationInfo.getFeatureName());
-                        delegate.onResponse(migrationStatusResponse);
+                        List<Tuple<String, Exception>> errors = status.errors();
+                        if (errors != null && errors.isEmpty() == false) {
+                            logger.error(
+                                "error occurred while reindexing data stream [{}], failures [{}]",
+                                migrationInfo,
+                                errors.stream().map(Tuple::v2).toList()
+                            );
+
+                            ElasticsearchException ex = new ElasticsearchException(
+                                "error occurred while reindexing data stream [" + migrationInfo + "]"
+                            );
+                            for (Tuple<String, Exception> error : errors) {
+                                ex.addSuppressed(error.v2());
+                            }
+
+                            delegate.onFailure(ex);
+                        } else {
+                            logger.info(
+                                "successfully migrated old indices from data stream [{}] from feature [{}] to new indices",
+                                dataStreamName,
+                                migrationInfo.getFeatureName()
+                            );
+                            delegate.onResponse(migrationStatusResponse);
+                        }
                     }
-                }
-            }));
+                })
+            );
     }
 
     // Failure handlers
@@ -728,9 +758,11 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             migrationQueue.clear();
         }
         String featureName = Optional.ofNullable(migrationInfo)
-            .map(SystemResourceMigrationInfo::getFeatureName).orElse("<unknown feature>");
+            .map(SystemResourceMigrationInfo::getFeatureName)
+            .orElse("<unknown feature>");
         String indexName = Optional.ofNullable(migrationInfo)
-            .map(SystemResourceMigrationInfo::getCurrentResourceName).orElse("<unknown resource>");
+            .map(SystemResourceMigrationInfo::getCurrentResourceName)
+            .orElse("<unknown resource>");
 
         MigrationResultsUpdateTask.upsert(
             featureName,

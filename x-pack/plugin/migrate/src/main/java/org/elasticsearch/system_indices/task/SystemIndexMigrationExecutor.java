@@ -71,8 +71,18 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
         PersistentTasksCustomMetadata.PersistentTask<SystemIndexMigrationTaskParams> taskInProgress,
         Map<String, String> headers
     ) {
-        return new SystemIndexMigrator(client, id, type, action, parentTaskId, headers,
-            clusterService, systemIndices, indexScopedSettings, threadPool);
+        return new SystemIndexMigrator(
+            client,
+            id,
+            type,
+            action,
+            parentTaskId,
+            headers,
+            clusterService,
+            systemIndices,
+            indexScopedSettings,
+            threadPool
+        );
     }
 
     @Override

@@ -160,7 +160,13 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
                 SystemDataStreamDescriptor.Type.EXTERNAL,
                 ComposableIndexTemplate.builder()
                     .indexPatterns(List.of(TEST_DATA_STREAM_NAME))
-                    .template(new Template(Settings.EMPTY, new CompressedXContent("{\"properties\":{\"some_field\":{\"type\":\"keyword\"}}}"), null))
+                    .template(
+                        new Template(
+                            Settings.EMPTY,
+                            new CompressedXContent("{\"properties\":{\"some_field\":{\"type\":\"keyword\"}}}"),
+                            null
+                        )
+                    )
                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                     .build(),
                 Map.of(),
@@ -251,9 +257,12 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     protected void indexDocs(String indexName, boolean dataStream) {
         List<IndexRequestBuilder> docs = new ArrayList<>(INDEX_DOC_COUNT);
         for (int i = 0; i < INDEX_DOC_COUNT; i++) {
-            docs.add(ESIntegTestCase.prepareIndex(indexName).setId(Integer.toString(i))
-                .setRequireDataStream(dataStream)
-                .setSource(FIELD_NAME, "words words"));
+            docs.add(
+                ESIntegTestCase.prepareIndex(indexName)
+                    .setId(Integer.toString(i))
+                    .setRequireDataStream(dataStream)
+                    .setSource(FIELD_NAME, "words words")
+            );
         }
         indexRandom(true, docs);
         IndicesStatsResponse indexStats = ESIntegTestCase.indicesAdmin().prepareStats(indexName).setDocs(true).get();

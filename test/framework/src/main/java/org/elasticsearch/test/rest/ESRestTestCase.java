@@ -9,8 +9,6 @@
 
 package org.elasticsearch.test.rest;
 
-import io.netty.handler.codec.http.HttpMethod;
-
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -146,6 +144,8 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.notNullValue;
+
+import io.netty.handler.codec.http.HttpMethod;
 
 /**
  * Superclass for tests that interact with an external test cluster using Elasticsearch's {@link RestClient}.
@@ -426,17 +426,19 @@ public abstract class ESRestTestCase extends ESTestCase {
                 .collect(Collectors.toSet());
             assert semanticNodeVersions.isEmpty() == false || serverless;
 
-            final var response = entityAsMap(
-                adminClient.performRequest(
-                    new Request(
-                        "GET",
-                        "/_cluster/settings?include_defaults&filter_path=*." + multiProjectPluginVariant + ".multi_project.enabled"
+            if (multiProjectPluginVariant != null) {
+                final var response = entityAsMap(
+                    adminClient.performRequest(
+                        new Request(
+                            "GET",
+                            "/_cluster/settings?include_defaults&filter_path=*." + multiProjectPluginVariant + ".multi_project.enabled"
+                        )
                     )
-                )
-            );
-            multiProjectEnabled = Boolean.parseBoolean(
-                ObjectPath.evaluate(response, "defaults." + multiProjectPluginVariant + ".multi_project.enabled")
-            );
+                );
+                multiProjectEnabled = Boolean.parseBoolean(
+                    ObjectPath.evaluate(response, "defaults." + multiProjectPluginVariant + ".multi_project.enabled")
+                );
+            }
 
             testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
         }

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -75,7 +76,13 @@ public class MetadataIndexAliasesService {
 
             @Override
             public Tuple<ClusterState, ClusterStateAckListener> executeTask(ApplyAliasesTask applyAliasesTask, ClusterState clusterState) {
-                return new Tuple<>(applyAliasActions(clusterState, applyAliasesTask.request().actions()), applyAliasesTask);
+                return new Tuple<>(
+                    applyAliasActions(
+                        clusterState.projectState(applyAliasesTask.request().projectId()),
+                        applyAliasesTask.request().actions()
+                    ),
+                    applyAliasesTask
+                );
             }
         };
         this.taskQueue = clusterService.createTaskQueue("index-aliases", Priority.URGENT, this.executor);
@@ -91,9 +98,12 @@ public class MetadataIndexAliasesService {
     /**
      * Handles the cluster state transition to a version that reflects the provided {@link AliasAction}s.
      */
-    public ClusterState applyAliasActions(ClusterState currentState, Iterable<AliasAction> actions) {
+    public ClusterState applyAliasActions(ProjectState projectState, Iterable<AliasAction> actions) {
+        ClusterState currentState = projectState.cluster();
+        ProjectId projectId = projectState.projectId();
         List<Index> indicesToClose = new ArrayList<>();
         Map<String, IndexService> indices = new HashMap<>();
+        ProjectMetadata currentProjectMetadata = projectState.metadata();
         try {
             boolean changed = false;
             // Gather all the indexes that must be removed first so:
@@ -102,20 +112,21 @@ public class MetadataIndexAliasesService {
             Set<Index> indicesToDelete = new HashSet<>();
             for (AliasAction action : actions) {
                 if (action.removeIndex()) {
-                    IndexMetadata index = currentState.metadata().getIndices().get(action.getIndex());
+                    IndexMetadata index = currentProjectMetadata.indices().get(action.getIndex());
                     if (index == null) {
                         throw new IndexNotFoundException(action.getIndex());
                     }
-                    validateAliasTargetIsNotDSBackingIndex(currentState, action);
+                    validateAliasTargetIsNotDSBackingIndex(currentProjectMetadata, action);
                     indicesToDelete.add(index.getIndex());
                     changed = true;
                 }
             }
             // Remove the indexes if there are any to remove
             if (changed) {
-                currentState = MetadataDeleteIndexService.deleteIndices(currentState, indicesToDelete, clusterService.getSettings());
+                currentState = MetadataDeleteIndexService.deleteIndices(projectState, indicesToDelete, clusterService.getSettings());
+                currentProjectMetadata = currentState.metadata().getProject(projectId);
             }
-            Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+            ProjectMetadata.Builder metadata = ProjectMetadata.builder(currentProjectMetadata);
             // Run the remaining alias actions
             final Set<String> maybeModifiedIndices = new HashSet<>();
             for (AliasAction action : actions) {
@@ -164,7 +175,7 @@ public class MetadataIndexAliasesService {
                 if (index == null) {
                     throw new IndexNotFoundException(action.getIndex());
                 }
-                validateAliasTargetIsNotDSBackingIndex(currentState, action);
+                validateAliasTargetIsNotDSBackingIndex(currentProjectMetadata, action);
                 NewAliasValidator newAliasValidator = (alias, indexRouting, searchRouting, filter, writeIndex) -> {
                     AliasValidator.validateAlias(alias, action.getIndex(), indexRouting, lookup);
                     IndexSettings.MODE.get(index.getSettings()).validateAlias(indexRouting, searchRouting);
@@ -179,7 +190,7 @@ public class MetadataIndexAliasesService {
             }
 
             for (final String maybeModifiedIndex : maybeModifiedIndices) {
-                final IndexMetadata currentIndexMetadata = currentState.metadata().index(maybeModifiedIndex);
+                final IndexMetadata currentIndexMetadata = currentProjectMetadata.index(maybeModifiedIndex);
                 final IndexMetadata newIndexMetadata = metadata.get(maybeModifiedIndex);
                 // only increment the aliases version if the aliases actually changed for this index
                 if (currentIndexMetadata.getAliases().equals(newIndexMetadata.getAliases()) == false) {
@@ -189,11 +200,11 @@ public class MetadataIndexAliasesService {
             }
 
             if (changed) {
-                ClusterState updatedState = ClusterState.builder(currentState).metadata(metadata).build();
+                ProjectMetadata updatedMetadata = metadata.build();
                 // even though changes happened, they resulted in 0 actual changes to metadata
                 // i.e. remove and add the same alias to the same index
-                if (updatedState.metadata().equalsAliases(currentState.metadata()) == false) {
-                    return updatedState;
+                if (updatedMetadata.equalsAliases(currentProjectMetadata) == false) {
+                    return ClusterState.builder(currentState).putProjectMetadata(updatedMetadata).build();
                 }
             }
             return currentState;
@@ -248,8 +259,8 @@ public class MetadataIndexAliasesService {
         );
     }
 
-    private static void validateAliasTargetIsNotDSBackingIndex(ClusterState currentState, AliasAction action) {
-        IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(action.getIndex());
+    private static void validateAliasTargetIsNotDSBackingIndex(ProjectMetadata projectMetadata, AliasAction action) {
+        IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(action.getIndex());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + action.getIndex() + "] was not found";
         if (indexAbstraction.getParentDataStream() != null) {
             throw new IllegalArgumentException(

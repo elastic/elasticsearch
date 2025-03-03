@@ -92,7 +92,7 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         }).when(client).execute(any(GetInferenceModelAction.class), any(), any());
 
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        action.masterOperation(mock(Task.class), mock(XPackUsageRequest.class), mock(ClusterState.class), future);
+        action.localClusterStateOperation(mock(Task.class), mock(XPackUsageRequest.class), mock(ClusterState.class), future);
 
         BytesStreamOutput out = new BytesStreamOutput();
         future.get().getUsage().writeTo(out);

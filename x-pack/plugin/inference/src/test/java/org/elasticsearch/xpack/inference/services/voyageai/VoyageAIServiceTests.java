@@ -33,7 +33,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -1118,14 +1119,14 @@ public class VoyageAIServiceTests extends ESTestCase {
             assertEquals(buildExpectationFloat(List.of(new float[] { 0.123F, -0.123F })), result.asMap());
 
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
                 is(
@@ -1198,14 +1199,14 @@ public class VoyageAIServiceTests extends ESTestCase {
             assertEquals(buildExpectationFloat(List.of(new float[] { 0.123F, -0.123F })), result.asMap());
 
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
                 is(
@@ -1263,14 +1264,14 @@ public class VoyageAIServiceTests extends ESTestCase {
             assertEquals(buildExpectationFloat(List.of(new float[] { 0.123F, -0.123F })), result.asMap());
 
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
                 is(Map.of("input", List.of("abc"), "model", "voyage-3-large", "output_dtype", "float", "output_dimension", 1024))
@@ -1321,14 +1322,14 @@ public class VoyageAIServiceTests extends ESTestCase {
             assertEquals(buildExpectationFloat(List.of(new float[] { 0.123F, -0.123F })), result.asMap());
 
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
                 is(Map.of("input", List.of("abc"), "model", "voyage-3-large", "output_dtype", "float", "output_dimension", 1024))
@@ -1395,12 +1396,12 @@ public class VoyageAIServiceTests extends ESTestCase {
 
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
                 is(
@@ -1481,12 +1482,12 @@ public class VoyageAIServiceTests extends ESTestCase {
 
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
                 is(
@@ -1572,12 +1573,12 @@ public class VoyageAIServiceTests extends ESTestCase {
             );
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
                 is(Map.of("query", "query", "documents", List.of("candidate1", "candidate2", "candidate3"), "model", "model"))
@@ -1648,12 +1649,12 @@ public class VoyageAIServiceTests extends ESTestCase {
             );
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
                 is(
@@ -1729,14 +1730,14 @@ public class VoyageAIServiceTests extends ESTestCase {
 
             MatcherAssert.assertThat(result.asMap(), Matchers.is(buildExpectationFloat(List.of(new float[] { 0.123F, -0.123F }))));
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
                 is(
@@ -1835,29 +1836,37 @@ public class VoyageAIServiceTests extends ESTestCase {
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(2));
             {
-                assertThat(results.getFirst(), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
-                var floatResult = (ChunkedInferenceEmbeddingFloat) results.getFirst();
+                assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
+                var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("foo", floatResult.chunks().getFirst().matchedText());
-                assertArrayEquals(new float[] { 0.123f, -0.123f }, floatResult.chunks().getFirst().embedding(), 0.0f);
+                assertEquals("foo", floatResult.chunks().get(0).matchedText());
+                assertArrayEquals(
+                    new float[] { 0.123f, -0.123f },
+                    ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding(),
+                    0.0f
+                );
             }
             {
-                assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
-                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(1);
+                assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
+                var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("bar", floatResult.chunks().getFirst().matchedText());
-                assertArrayEquals(new float[] { 0.223f, -0.223f }, floatResult.chunks().getFirst().embedding(), 0.0f);
+                assertEquals("bar", floatResult.chunks().get(0).matchedText());
+                assertArrayEquals(
+                    new float[] { 0.223f, -0.223f },
+                    ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding(),
+                    0.0f
+                );
             }
 
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
                 is(Map.of("input", List.of("foo", "bar"), "model", "voyage-3-large", "output_dtype", "float", "output_dimension", 1024))

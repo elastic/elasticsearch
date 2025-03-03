@@ -44,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -122,18 +121,18 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             MatcherAssert.assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.123F, -0.123F }))));
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
             MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
+                webServer.requests().get(0).getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
                 equalTo(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
             );
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
                 equalTo(
@@ -197,18 +196,18 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             assertEquals(buildExpectationByte(List.of(new byte[] { 0, -1 })), result.asMap());
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
             MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
+                webServer.requests().get(0).getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
                 equalTo(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
             );
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
                 is(
@@ -272,18 +271,18 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             assertEquals(buildExpectationBinary(List.of(new byte[] { 0, -1 })), result.asMap());
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertNull(webServer.requests().get(0).getUri().getQuery());
             MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
             MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
+                webServer.requests().get(0).getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
                 equalTo(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
             );
 
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
                 is(
@@ -324,8 +323,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
+            ActionListener<HttpResult> listener = invocation.getArgument(3);
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
@@ -338,18 +336,14 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            is(format("Failed to send VoyageAI embeddings request to [%s]", getUrl(webServer)))
-        );
+        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send VoyageAI embeddings request. Cause: failed"));
     }
 
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled_WhenUrlIsNull() {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
+            ActionListener<HttpResult> listener = invocation.getArgument(3);
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
@@ -362,7 +356,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send VoyageAI embeddings request"));
+        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send VoyageAI embeddings request. Cause: failed"));
     }
 
     public void testExecute_ThrowsException() {
@@ -376,10 +370,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            is(format("Failed to send VoyageAI embeddings request to [%s]", getUrl(webServer)))
-        );
+        MatcherAssert.assertThat(thrownException.getMessage(), is(is("Failed to send VoyageAI embeddings request. Cause: failed")));
     }
 
     public void testExecute_ThrowsExceptionWithNullUrl() {
@@ -393,7 +384,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send VoyageAI embeddings request"));
+        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send VoyageAI embeddings request. Cause: failed"));
     }
 
     private ExecutableAction createAction(
@@ -405,7 +396,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         Sender sender
     ) {
         var model = VoyageAIEmbeddingsModelTests.createModel(url, apiKey, taskSettings, 1024, 1024, modelName, embeddingType);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(), "VoyageAI embeddings");
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("VoyageAI embeddings");
         var requestCreator = VoyageAIEmbeddingsRequestManager.of(model, threadPool);
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }

@@ -70,8 +70,11 @@ public record VoyageAIEmbeddingsRequestEntity(
     }
 
     static String convertToString(InputType inputType) {
+        if (inputType == null) {
+            return null;
+        }
+
         return switch (inputType) {
-            case null -> null;
             case INGEST -> DOCUMENT;
             case SEARCH -> QUERY;
             default -> {

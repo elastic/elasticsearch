@@ -65,11 +65,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.entitlement.runtime.policy.Platform.LINUX;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.DATA;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Platform.LINUX;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -145,8 +145,7 @@ public class EntitlementInitialization {
             bootstrapArgs.dataDirs(),
             bootstrapArgs.sharedRepoDirs(),
             bootstrapArgs.tempDir(),
-            bootstrapArgs.settingResolver(),
-            bootstrapArgs.settingGlobResolver()
+            bootstrapArgs.settingResolver()
         );
 
         List<Scope> serverScopes = new ArrayList<>();

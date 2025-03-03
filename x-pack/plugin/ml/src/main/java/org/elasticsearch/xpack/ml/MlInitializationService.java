@@ -155,7 +155,7 @@ public final class MlInitializationService implements ClusterStateListener {
             AnnotationIndex.createAnnotationsIndexIfNecessary(
                 client,
                 event.state(),
-                MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                 ActionListener.wrap(r -> isIndexCreationInProgress.set(false), e -> {
                     if (e.getMessage().equals(previousException)) {
                         logger.debug("Error creating ML annotations index or aliases", e);
@@ -249,7 +249,8 @@ public final class MlInitializationService implements ClusterStateListener {
         }, finalListener::onFailure);
 
         // Step 1: Fetch ML internal indices settings to find out whether they are already hidden or not.
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(mlHiddenIndexPatterns)
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT)
+            .indices(mlHiddenIndexPatterns)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
         client.admin().indices().getSettings(getSettingsRequest, getSettingsListener);
     }

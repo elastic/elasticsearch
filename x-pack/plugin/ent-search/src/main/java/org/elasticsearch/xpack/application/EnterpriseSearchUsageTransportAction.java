@@ -17,7 +17,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.injection.guice.Inject;
@@ -67,19 +66,11 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Settings settings,
         XPackLicenseState licenseState,
         Client client
     ) {
-        super(
-            XPackUsageFeatureAction.ENTERPRISE_SEARCH.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.ENTERPRISE_SEARCH.name(), transportService, clusterService, threadPool, actionFilters);
         this.licenseState = licenseState;
         this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
         this.indicesAdminClient = clientWithOrigin.admin().indices();

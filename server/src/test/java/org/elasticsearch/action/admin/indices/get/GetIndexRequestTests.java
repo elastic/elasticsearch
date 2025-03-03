@@ -75,7 +75,7 @@ public class GetIndexRequestTests extends ESTestCase {
     }
 
     public void testIndicesOptions() {
-        GetIndexRequest getIndexRequest = new GetIndexRequest();
+        GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
         assertThat(
             getIndexRequest.indicesOptions().concreteTargetOptions(),
             equalTo(IndicesOptions.strictExpandOpen().concreteTargetOptions())

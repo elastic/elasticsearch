@@ -12,7 +12,7 @@ import org.junit.ClassRule;
 
 public class JdbcShowTablesIT extends ShowTablesTestCase {
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
 
     @Override
     protected String getTestRestCluster() {

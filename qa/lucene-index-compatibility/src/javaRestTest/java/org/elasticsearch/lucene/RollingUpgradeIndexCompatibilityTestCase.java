@@ -73,6 +73,12 @@ public abstract class RollingUpgradeIndexCompatibilityTestCase extends AbstractI
                 closeClients();
                 cluster().upgradeNodeToVersion(i, expectedNodeVersion);
                 initClient();
+
+                ensureHealth((request -> {
+                    request.addParameter("timeout", "70s");
+                    request.addParameter("wait_for_nodes", String.valueOf(NODES));
+                    request.addParameter("wait_for_status", "yellow");
+                }));
             }
 
             currentNodeVersion = nodesVersions().get(nodeName);

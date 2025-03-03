@@ -86,6 +86,24 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 fileSystemOperations
             );
         });
+
+        // Also set up the "main" project which is just used for arbitrary overrides. See InternalDistributionDownloadPlugin.
+        if (System.getProperty("tests.bwc.main.version") != null) {
+            configureBwcProject(
+                project.project(":distribution:bwc:main"),
+                buildParams,
+                new BwcVersions.UnreleasedVersionInfo(
+                    Version.fromString(System.getProperty("tests.bwc.main.version")),
+                    "main",
+                    ":distribution:bwc:main"
+                ),
+                providerFactory,
+                objectFactory,
+                toolChainService,
+                isCi,
+                fileSystemOperations
+            );
+        }
     }
 
     private static void configureBwcProject(
@@ -337,8 +355,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         String bwcTaskName = buildBwcTaskName(projectName);
         bwcSetupExtension.bwcTask(bwcTaskName, c -> {
             boolean useNativeExpanded = projectArtifact.expandedDistDir != null;
+            boolean isReleaseBuild = System.getProperty("tests.bwc.snapshot", "true").equals("false");
             File expectedOutputFile = useNativeExpanded
-                ? new File(projectArtifact.expandedDistDir, "elasticsearch-" + bwcVersion.get() + "-SNAPSHOT")
+                ? new File(projectArtifact.expandedDistDir, "elasticsearch-" + bwcVersion.get() + (isReleaseBuild ? "" : "-SNAPSHOT"))
                 : projectArtifact.distFile;
             c.getInputs().file(new File(project.getBuildDir(), "refspec")).withPathSensitivity(PathSensitivity.RELATIVE);
             if (useNativeExpanded) {

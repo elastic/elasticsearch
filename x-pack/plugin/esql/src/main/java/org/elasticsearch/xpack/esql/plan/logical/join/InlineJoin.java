@@ -16,10 +16,9 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
@@ -71,10 +70,9 @@ public class InlineJoin extends Join {
             List<Alias> aliases = new ArrayList<>(schema.size());
             for (int i = 0; i < schema.size(); i++) {
                 Attribute attr = schema.get(i);
-                aliases.add(new Alias(attr.source(), attr.name(), Literal.of(attr, BlockUtils.toJavaObject(blocks[i], 0))));
+                aliases.add(new Alias(attr.source(), attr.name(), Literal.of(attr, BlockUtils.toJavaObject(blocks[i], 0)), attr.id()));
             }
-            LogicalPlan left = target.left();
-            return new Project(target.source(), left, CollectionUtils.combine(left.output(), aliases));
+            return new Eval(target.source(), target.left(), aliases);
         } else {
             return target.replaceRight(data);
         }

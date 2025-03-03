@@ -9,14 +9,27 @@
 
 package org.elasticsearch.entitlement.instrumentation;
 
-import java.io.IOException;
 import java.util.Map;
 
 /**
  * The SPI service entry point for instrumentation.
  */
 public interface InstrumentationService {
+
+    String CHECK_METHOD_PREFIX = "check$";
+
+    record InstrumentationInfo(MethodKey targetMethod, CheckMethod checkMethod) {}
+
     Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, CheckMethod> methods);
 
-    Map<MethodKey, CheckMethod> lookupMethods(Class<?> clazz) throws IOException;
+    Map<MethodKey, CheckMethod> lookupMethods(Class<?> clazz) throws ClassNotFoundException;
+
+    InstrumentationInfo lookupImplementationMethod(
+        Class<?> targetSuperclass,
+        String methodName,
+        Class<?> implementationClass,
+        Class<?> checkerClass,
+        String checkMethodName,
+        Class<?>... parameterTypes
+    ) throws NoSuchMethodException, ClassNotFoundException;
 }

@@ -10,5 +10,5 @@ FROM books
 | WHERE KQL("author: Faulkner")
 | KEEP book_no, author 
 | SORT book_no 
-| LIMIT 5;
+| LIMIT 5
 ```

@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 import static org.elasticsearch.xpack.inference.Utils.assertJsonEquals;
-import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
+import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createCompletionModel;
 
 public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
@@ -40,7 +40,7 @@ public class OpenAiUnifiedChatCompletionRequestEntityTests extends ESTestCase {
         var unifiedRequest = UnifiedCompletionRequest.of(messageList);
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
-        OpenAiChatCompletionModel model = createChatCompletionModel("test-url", "organizationId", "api-key", "test-endpoint", USER);
+        OpenAiChatCompletionModel model = createCompletionModel("test-url", "organizationId", "api-key", "test-endpoint", USER);
 
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 

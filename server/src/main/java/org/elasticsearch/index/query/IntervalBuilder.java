@@ -126,7 +126,7 @@ public abstract class IntervalBuilder {
         if (maxGaps == 0 && ordered) {
             return Intervals.phrase(sourcesArray);
         }
-        IntervalsSource inner = ordered ? XIntervals.ordered(sourcesArray) : XIntervals.unordered(sourcesArray);
+        IntervalsSource inner = ordered ? Intervals.ordered(sourcesArray) : Intervals.unordered(sourcesArray);
         if (maxGaps == -1) {
             return inner;
         }

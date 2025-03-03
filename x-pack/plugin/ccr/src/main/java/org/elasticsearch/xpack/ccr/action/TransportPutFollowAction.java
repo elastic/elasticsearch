@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -77,7 +76,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         final ClusterService clusterService,
         final IndexScopedSettings indexScopedSettings,
         final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final Client client,
         final RestoreService restoreService,
         final CcrLicenseChecker ccrLicenseChecker
@@ -89,7 +87,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             threadPool,
             actionFilters,
             PutFollowAction.Request::new,
-            indexNameExpressionResolver,
             PutFollowAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -308,6 +305,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             listener.delegateFailureAndWrap(
                 (l, r) -> ActiveShardsObserver.waitForActiveShards(
                     clusterService,
+                    Metadata.DEFAULT_PROJECT_ID,
                     new String[] { request.getFollowerIndex() },
                     request.waitForActiveShards(),
                     request.ackTimeout(),
@@ -337,11 +335,11 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 .setBackingIndices(
                     // Replicated data streams can't be rolled over, so having the `rolloverOnWrite` flag set to `true` wouldn't make sense
                     // (and potentially even break things).
-                    remoteDataStream.getBackingIndices().copy().setIndices(List.of(backingIndexToFollow)).setRolloverOnWrite(false).build()
+                    remoteDataStream.getDataComponent().copy().setIndices(List.of(backingIndexToFollow)).setRolloverOnWrite(false).build()
                 )
                 // Replicated data streams should not have the failure store marked for lazy rollover (which they do by default for lazy
                 // failure store creation).
-                .setFailureIndices(remoteDataStream.getFailureIndices().copy().setRolloverOnWrite(false).build())
+                .setFailureIndices(remoteDataStream.getFailureComponent().copy().setRolloverOnWrite(false).build())
                 .setReplicated(true)
                 .build();
         } else {
@@ -384,7 +382,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             }
 
             return localDataStream.copy()
-                .setBackingIndices(localDataStream.getBackingIndices().copy().setIndices(backingIndices).build())
+                .setBackingIndices(localDataStream.getDataComponent().copy().setIndices(backingIndices).build())
                 .setGeneration(remoteDataStream.getGeneration())
                 .setMetadata(remoteDataStream.getMetadata())
                 .build();

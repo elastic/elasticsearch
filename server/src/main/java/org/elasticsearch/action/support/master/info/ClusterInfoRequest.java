@@ -26,30 +26,14 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
 
     private String[] indices = Strings.EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions;
 
-    public ClusterInfoRequest(TimeValue masterTimeout) {
-        super(masterTimeout);
-    }
-
-    public ClusterInfoRequest(TimeValue masterTimeout, IndicesOptions indicesOptions) {
+    protected ClusterInfoRequest(TimeValue masterTimeout, IndicesOptions indicesOptions) {
         super(masterTimeout);
         this.indicesOptions = indicesOptions;
     }
 
-    @Deprecated(forRemoval = true)
-    public ClusterInfoRequest() {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-    }
-
-    // So subclasses can override the default indices options, if needed
-    @Deprecated(forRemoval = true)
-    protected ClusterInfoRequest(IndicesOptions indicesOptions) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-        this.indicesOptions = indicesOptions;
-    }
-
-    public ClusterInfoRequest(StreamInput in) throws IOException {
+    protected ClusterInfoRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
         if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {

@@ -56,6 +56,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
 
     private static final Logger logger = LogManager.getLogger(TransportResetTransformAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final TransformConfigManager transformConfigManager;
     private final TransformAuditor auditor;
     private final Client client;
@@ -82,9 +83,9 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.transformConfigManager = transformServices.configManager();
         this.auditor = transformServices.auditor();
         this.client = Objects.requireNonNull(client);

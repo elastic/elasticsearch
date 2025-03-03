@@ -28,7 +28,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -63,10 +62,13 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_KEY;
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_MESSAGE;
 
 public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNodeAction<PutRollupJobAction.Request> {
 
     private static final Logger LOGGER = LogManager.getLogger(TransportPutRollupJobAction.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportPutRollupJobAction.class);
     private static final XContentParserConfiguration PARSER_CONFIGURATION = XContentParserConfiguration.EMPTY.withFiltering(
         null,
         Set.of("_doc._meta._rollup"),
@@ -76,14 +78,12 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
 
     private final PersistentTasksService persistentTasksService;
     private final Client client;
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportPutRollupJobAction.class);
 
     @Inject
     public TransportPutRollupJobAction(
         TransportService transportService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
         PersistentTasksService persistentTasksService,
         Client client
@@ -95,7 +95,6 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             threadPool,
             actionFilters,
             PutRollupJobAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.persistentTasksService = persistentTasksService;
@@ -110,6 +109,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         ClusterState clusterState,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
         checkForDeprecatedTZ(request);
 
@@ -151,7 +151,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         String timeZone = request.getConfig().getGroupConfig().getDateHistogram().getTimeZone();
         String modernTZ = DateUtils.DEPRECATED_LONG_TIMEZONES.get(timeZone);
         if (modernTZ != null) {
-            deprecationLogger.warn(
+            DEPRECATION_LOGGER.warn(
                 DeprecationCategory.PARSING,
                 "deprecated_timezone",
                 "Creating Rollup job ["
@@ -323,7 +323,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             job.getConfig().getId(),
             RollupField.TASK_NAME,
             job,
-            null,
+            TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
             ActionListener.wrap(rollupConfigPersistentTask -> waitForRollupStarted(job, listener, persistentTasksService), e -> {
                 if (e instanceof ResourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(
@@ -371,7 +371,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
 
     static boolean hasRollupIndices(Metadata metadata) throws IOException {
         // Sniffing logic instead of invoking sourceAsMap(), which would materialize the entire mapping as map of maps.
-        for (var imd : metadata) {
+        for (var imd : metadata.getProject()) {
             if (imd.mapping() == null) {
                 continue;
             }

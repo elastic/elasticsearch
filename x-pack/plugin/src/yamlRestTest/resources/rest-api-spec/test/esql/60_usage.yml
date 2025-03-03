@@ -30,7 +30,8 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [ snapshot_test_for_telemetry, fn_byte_length ]
+          # A snapshot function was removed in match_function_options, it can't work on mixed cluster tests otherwise.
+          capabilities: [ snapshot_test_for_telemetry, fn_byte_length, match_function_options]
       reason: "Test that should only be executed on snapshot versions"
 
   - do: {xpack.usage: {}}

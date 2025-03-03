@@ -16,11 +16,15 @@ import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 
@@ -52,6 +56,9 @@ import static org.hamcrest.Matchers.equalTo;
 public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier)
     implements
         Supplier<TestCaseSupplier.TestCase> {
+
+    public static final Source TEST_SOURCE = new Source(new Location(1, 0), "source");
+    public static final Configuration TEST_CONFIGURATION = EsqlTestUtils.configuration(TEST_SOURCE.text());
 
     private static final Logger logger = LogManager.getLogger(TestCaseSupplier.class);
 
@@ -110,6 +117,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     @Override
     public TestCase get() {
         TestCase supplied = supplier.get();
+        if (types.size() != supplied.getData().size()) {
+            throw new IllegalStateException(name + ": type/data size mismatch " + types.size() + "/" + supplied.getData().size());
+        }
         for (int i = 0; i < types.size(); i++) {
             if (supplied.getData().get(i).type() != types.get(i)) {
                 throw new IllegalStateException(
@@ -1388,6 +1398,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         private final Source source;
         /**
+         * The {@link Configuration} this test case should use
+         */
+        private final Configuration configuration;
+        /**
          * The parameter values and types to pass into the function for this test run
          */
         private final List<TypedData> data;
@@ -1416,6 +1430,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         private final String[] expectedBuildEvaluatorWarnings;
 
+        /**
+         * @deprecated use subclasses of {@link ErrorsForCasesWithoutExamplesTestCase}
+         */
+        @Deprecated
         private final String expectedTypeError;
         private final boolean canBuildEvaluator;
 
@@ -1436,6 +1454,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this(data, evaluatorToString, expectedType, matcher, null, null, null, null, null, null);
         }
 
+        /**
+         * Build a test case for type errors.
+         * @deprecated use a subclass of {@link ErrorsForCasesWithoutExamplesTestCase} instead
+         */
+        @Deprecated
         public static TestCase typeError(List<TypedData> data, String expectedTypeError) {
             return new TestCase(data, null, null, null, null, null, expectedTypeError, null, null, null);
         }
@@ -1480,7 +1503,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Object extra,
             boolean canBuildEvaluator
         ) {
-            this.source = Source.EMPTY;
+            this.source = TEST_SOURCE;
+            this.configuration = TEST_CONFIGURATION;
             this.data = data;
             this.evaluatorToString = evaluatorToString;
             this.expectedType = expectedType == null ? null : expectedType.noText();
@@ -1500,6 +1524,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return source;
         }
 
+        public Configuration getConfiguration() {
+            return configuration;
+        }
+
         public List<TypedData> getData() {
             return data;
         }
@@ -1513,7 +1541,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         public List<Expression> getDataAsLiterals() {
-            return data.stream().map(TypedData::asLiteral).collect(Collectors.toList());
+            return data.stream().map(e -> e.mapExpression ? e.asMapExpression() : e.asLiteral()).collect(Collectors.toList());
         }
 
         public List<Object> getDataValues() {
@@ -1556,6 +1584,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return foldingExceptionMessage;
         }
 
+        /**
+         * @deprecated use subclasses of {@link ErrorsForCasesWithoutExamplesTestCase}
+         */
+        @Deprecated
         public String getExpectedTypeError() {
             return expectedTypeError;
         }
@@ -1730,6 +1762,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private final String name;
         private final boolean forceLiteral;
         private final boolean multiRow;
+        private final boolean mapExpression;
 
         /**
          * @param data value to test against
@@ -1751,6 +1784,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.name = name;
             this.forceLiteral = forceLiteral;
             this.multiRow = multiRow;
+            this.mapExpression = data instanceof MapExpression;
         }
 
         /**
@@ -1826,7 +1860,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public Expression asField() {
             if (forceLiteral) {
-                return asLiteral();
+                return mapExpression ? asMapExpression() : asLiteral();
             }
             return AbstractFunctionTestCase.field(name, type);
         }
@@ -1836,7 +1870,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public Expression asDeepCopyOfField() {
             if (forceLiteral) {
-                return asLiteral();
+                return mapExpression ? asMapExpression() : asLiteral();
             }
             return AbstractFunctionTestCase.deepCopyOfField(name, type);
         }
@@ -1870,6 +1904,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         @SuppressWarnings("unchecked")
         public List<Object> multiRowData() {
             return (List<Object>) data;
+        }
+
+        /**
+         * If the data is a MapExpression, return it as it is.
+         */
+        public MapExpression asMapExpression() {
+            return mapExpression ? (MapExpression) data : null;
         }
 
         /**

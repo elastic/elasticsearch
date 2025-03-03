@@ -44,6 +44,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     private final Settings settings;
     private final String mapping;
     private final String origin;
+    private final String migrationScript;
     private final SystemIndices.Feature owningFeature;
     private final boolean allowsTemplates;
 
@@ -57,6 +58,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         Settings settings,
         String mapping,
         String origin,
+        String migrationScript,
         SystemIndices.Feature owningFeature,
         boolean allowsTemplates
     ) {
@@ -65,6 +67,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         this.settings = settings;
         this.mapping = mapping;
         this.origin = origin;
+        this.migrationScript = migrationScript;
         this.owningFeature = owningFeature;
         this.allowsTemplates = allowsTemplates;
     }
@@ -116,6 +119,10 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
      */
     String getOrigin() {
         return origin;
+    }
+
+    String getMigrationScript() {
+        return migrationScript;
     }
 
     /**
@@ -217,6 +224,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
             settings,
             mapping,
             descriptor.getOrigin(),
+            descriptor.getMigrationScript(),
             feature,
             descriptor.allowsTemplates()
         );
@@ -251,10 +259,17 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     ) {
         return feature.getIndexDescriptors()
             .stream()
-            .flatMap(descriptor -> descriptor.getMatchingIndices(metadata).stream().map(metadata::index).filter(imd -> {
-                assert imd != null : "got null IndexMetadata for index in system index descriptor [" + descriptor.getIndexPattern() + "]";
-                return Objects.nonNull(imd);
-            }).map(imd -> SystemIndexMigrationInfo.build(imd, descriptor, feature, indexScopedSettings)));
+            .flatMap(
+                descriptor -> descriptor.getMatchingIndices(metadata.getDefaultProject())
+                    .stream()
+                    .map(metadata.getProject()::index)
+                    .filter(imd -> {
+                        assert imd != null
+                            : "got null IndexMetadata for index in system index descriptor [" + descriptor.getIndexPattern() + "]";
+                        return Objects.nonNull(imd);
+                    })
+                    .map(imd -> SystemIndexMigrationInfo.build(imd, descriptor, feature, indexScopedSettings))
+            );
     }
 
     static SystemIndexMigrationInfo fromTaskState(
@@ -265,7 +280,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     ) {
         SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(taskState.getCurrentIndex());
         SystemIndices.Feature feature = systemIndices.getFeature(taskState.getCurrentFeature());
-        IndexMetadata imd = metadata.index(taskState.getCurrentIndex());
+        IndexMetadata imd = metadata.getProject().index(taskState.getCurrentIndex());
 
         // It's possible for one or both of these to happen if the executing node fails during execution and:
         // 1. The task gets assigned to a node with a different set of plugins installed.

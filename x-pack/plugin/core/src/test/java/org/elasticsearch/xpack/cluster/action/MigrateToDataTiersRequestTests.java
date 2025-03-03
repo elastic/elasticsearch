@@ -19,7 +19,7 @@ public class MigrateToDataTiersRequestTests extends AbstractWireSerializingTestC
 
     @Override
     protected MigrateToDataTiersRequest createTestInstance() {
-        return new MigrateToDataTiersRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        return new MigrateToDataTiersRequest(TEST_REQUEST_TIMEOUT, randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     @Override

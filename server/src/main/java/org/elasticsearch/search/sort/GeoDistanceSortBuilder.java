@@ -74,6 +74,11 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     private static final ParseField UNIT_FIELD = new ParseField("unit");
     private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
+    /**
+     * Name for the sort {@link SortMode} which is mostly about sorting on multivalued fields.
+     * The {@code sort_mode} name has been deprecated since 5.0, but we don't plan to remove
+     * this so we don't break anyone using this.
+     */
     private static final ParseField SORTMODE_FIELD = new ParseField("mode", "sort_mode");
     private static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");
 

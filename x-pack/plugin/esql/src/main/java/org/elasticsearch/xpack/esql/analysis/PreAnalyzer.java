@@ -51,7 +51,7 @@ public class PreAnalyzer {
 
         plan.forEachUp(UnresolvedRelation.class, p -> {
             List<TableInfo> list = p.indexMode() == IndexMode.LOOKUP ? lookupIndices : indices;
-            list.add(new TableInfo(p.table()));
+            list.add(new TableInfo(p.indexPattern()));
         });
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 

@@ -84,22 +84,22 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         switch (between(0, 9)) {
             case 0 -> maxSize = randomValueOtherThan(maxSize, () -> {
                 ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-                return new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+                return ByteSizeValue.of(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
             });
             case 1 -> maxPrimaryShardSize = randomValueOtherThan(maxPrimaryShardSize, () -> {
                 ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
-                return new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
+                return ByteSizeValue.of(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
             });
             case 2 -> maxAge = randomValueOtherThan(maxAge, () -> randomPositiveTimeValue());
             case 3 -> maxDocs = maxDocs == null ? randomNonNegativeLong() : maxDocs + 1;
             case 4 -> maxPrimaryShardDocs = maxPrimaryShardDocs == null ? randomNonNegativeLong() : maxPrimaryShardDocs + 1;
             case 5 -> minSize = randomValueOtherThan(minSize, () -> {
                 ByteSizeUnit minSizeUnit = randomFrom(ByteSizeUnit.values());
-                return new ByteSizeValue(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);
+                return ByteSizeValue.of(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);
             });
             case 6 -> minPrimaryShardSize = randomValueOtherThan(minPrimaryShardSize, () -> {
                 ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
-                return new ByteSizeValue(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
+                return ByteSizeValue.of(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
             });
             case 7 -> minAge = randomValueOtherThan(minAge, () -> randomPositiveTimeValue());
             case 8 -> minDocs = minDocs == null ? randomNonNegativeLong() : minDocs + 1;

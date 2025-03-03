@@ -18,7 +18,7 @@ import java.util.BitSet;
 
 /**
  * Block implementation that stores values in a {@link IntArrayVector}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
 final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
 

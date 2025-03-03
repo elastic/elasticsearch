@@ -57,6 +57,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
 
     private static final Logger logger = LogManager.getLogger(TransportResetJobAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
     private final JobConfigProvider jobConfigProvider;
     private final JobResultsProvider jobResultsProvider;
@@ -81,9 +82,9 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
             threadPool,
             actionFilters,
             ResetJobAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
         this.client = Objects.requireNonNull(client);
         this.jobConfigProvider = Objects.requireNonNull(jobConfigProvider);
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
@@ -106,7 +107,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
 
         ActionListener<Job.Builder> jobListener = ActionListener.wrap(jobBuilder -> {
             Job job = jobBuilder.build();
-            PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
             JobState jobState = MlTasks.getJobState(job.getId(), tasks);
             if (request.isSkipJobStateValidation() == false && jobState != JobState.CLOSED) {
                 listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_RESET)));
@@ -212,7 +213,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
 
         // Now that we have updated the job's block reason, we should check again
         // if the job has been opened.
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, tasks);
         if (request.isSkipJobStateValidation() == false && jobState != JobState.CLOSED) {
             jobConfigProvider.updateJobBlockReason(

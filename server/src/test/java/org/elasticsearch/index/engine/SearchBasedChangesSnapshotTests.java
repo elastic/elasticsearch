@@ -16,7 +16,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.store.Store;
@@ -46,7 +46,7 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
     }
 
     protected abstract Translog.Snapshot newRandomSnapshot(
-        MappingLookup mappingLookup,
+        MapperService mapperService,
         Engine.Searcher engineSearcher,
         int searchBatchSize,
         long fromSeqNo,
@@ -117,7 +117,7 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
             Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (
                 Translog.Snapshot snapshot = newRandomSnapshot(
-                    engine.engineConfig.getMapperService().mappingLookup(),
+                    engine.engineConfig.getMapperService(),
                     searcher,
                     between(1, SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE),
                     fromSeqNo,
@@ -137,7 +137,7 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
             searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (
                 Translog.Snapshot snapshot = newRandomSnapshot(
-                    engine.engineConfig.getMapperService().mappingLookup(),
+                    engine.engineConfig.getMapperService(),
                     searcher,
                     between(1, SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE),
                     fromSeqNo,
@@ -163,7 +163,7 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
             Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (
                 Translog.Snapshot snapshot = newRandomSnapshot(
-                    engine.engineConfig.getMapperService().mappingLookup(),
+                    engine.engineConfig.getMapperService(),
                     searcher,
                     between(1, SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE),
                     fromSeqNo,
@@ -182,7 +182,7 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
             searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (
                 Translog.Snapshot snapshot = newRandomSnapshot(
-                    engine.engineConfig.getMapperService().mappingLookup(),
+                    engine.engineConfig.getMapperService(),
                     searcher,
                     between(1, SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE),
                     fromSeqNo,
@@ -206,7 +206,7 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
             searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (
                 Translog.Snapshot snapshot = newRandomSnapshot(
-                    engine.engineConfig.getMapperService().mappingLookup(),
+                    engine.engineConfig.getMapperService(),
                     searcher,
                     between(1, SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE),
                     fromSeqNo,
@@ -270,7 +270,7 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
         final boolean accessStats = randomBoolean();
         try (
             Translog.Snapshot snapshot = newRandomSnapshot(
-                engine.engineConfig.getMapperService().mappingLookup(),
+                engine.engineConfig.getMapperService(),
                 searcher,
                 between(1, 100),
                 0,

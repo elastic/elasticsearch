@@ -11,6 +11,8 @@ package org.elasticsearch.inference;
 
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 
+import java.util.EnumSet;
+
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomInt;
@@ -18,7 +20,9 @@ import static org.elasticsearch.test.ESTestCase.randomInt;
 public class SettingsConfigurationTestUtils {
 
     public static SettingsConfiguration getRandomSettingsConfigurationField() {
-        return new SettingsConfiguration.Builder().setDefaultValue(randomAlphaOfLength(10))
+        return new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)).setDefaultValue(
+            randomAlphaOfLength(10)
+        )
             .setDescription(randomAlphaOfLength(10))
             .setLabel(randomAlphaOfLength(10))
             .setRequired(randomBoolean())

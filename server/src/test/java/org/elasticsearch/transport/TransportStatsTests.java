@@ -20,50 +20,8 @@ import java.util.Map;
 
 public class TransportStatsTests extends ESTestCase {
     public void testToXContent() {
-        assertEquals(
-            Strings.toString(
-                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), new long[0], new long[0], Map.of()),
-                false,
-                true
-            ),
-            """
-                {"transport":{"server_open":1,"total_outbound_connections":2,\
-                "rx_count":3,"rx_size":"4mb","rx_size_in_bytes":4194304,\
-                "tx_count":5,"tx_size":"6mb","tx_size_in_bytes":6291456\
-                }}"""
-        );
-
         final var histogram = new long[HandlingTimeTracker.BUCKET_COUNT];
-        assertEquals(
-            Strings.toString(
-                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), histogram, histogram, Map.of()),
-                false,
-                true
-            ),
-            """
-                {"transport":{"server_open":1,"total_outbound_connections":2,\
-                "rx_count":3,"rx_size":"4mb","rx_size_in_bytes":4194304,\
-                "tx_count":5,"tx_size":"6mb","tx_size_in_bytes":6291456,\
-                "inbound_handling_time_histogram":[],\
-                "outbound_handling_time_histogram":[]\
-                }}"""
-        );
-
         histogram[4] = 10;
-        assertEquals(
-            Strings.toString(
-                new TransportStats(1, 2, 3, ByteSizeUnit.MB.toBytes(4), 5, ByteSizeUnit.MB.toBytes(6), histogram, histogram, Map.of()),
-                false,
-                true
-            ),
-            """
-                {"transport":{"server_open":1,"total_outbound_connections":2,\
-                "rx_count":3,"rx_size":"4mb","rx_size_in_bytes":4194304,\
-                "tx_count":5,"tx_size":"6mb","tx_size_in_bytes":6291456,\
-                "inbound_handling_time_histogram":[{"ge":"8ms","ge_millis":8,"lt":"16ms","lt_millis":16,"count":10}],\
-                "outbound_handling_time_histogram":[{"ge":"8ms","ge_millis":8,"lt":"16ms","lt_millis":16,"count":10}]\
-                }}"""
-        );
 
         final var requestSizeHistogram = new long[29];
         requestSizeHistogram[2] = 9;
@@ -84,8 +42,8 @@ public class TransportStatsTests extends ESTestCase {
                     ByteSizeUnit.MB.toBytes(4),
                     5,
                     ByteSizeUnit.MB.toBytes(6),
-                    new long[0],
-                    new long[0],
+                    histogram,
+                    histogram,
                     Map.of("internal:test/action", exampleActionStats)
                 ),
                 false,
@@ -95,6 +53,8 @@ public class TransportStatsTests extends ESTestCase {
                 {"transport":{"server_open":1,"total_outbound_connections":2,\
                 "rx_count":3,"rx_size":"4mb","rx_size_in_bytes":4194304,\
                 "tx_count":5,"tx_size":"6mb","tx_size_in_bytes":6291456,\
+                "inbound_handling_time_histogram":[{"ge":"8ms","ge_millis":8,"lt":"16ms","lt_millis":16,"count":10}],\
+                "outbound_handling_time_histogram":[{"ge":"8ms","ge_millis":8,"lt":"16ms","lt_millis":16,"count":10}],\
                 "actions":{"internal:test/action":%s}}}""", Strings.toString(exampleActionStats, false, true))
         );
     }

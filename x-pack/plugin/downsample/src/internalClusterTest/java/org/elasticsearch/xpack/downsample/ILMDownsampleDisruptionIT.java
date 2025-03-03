@@ -194,7 +194,10 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
         }, 1, TimeUnit.MINUTES);
         assertBusy(() -> {
             assertTrue("target index [" + targetIndex + "] does not exist", indexExists(targetIndex));
-            var getSettingsResponse = client().admin().indices().getSettings(new GetSettingsRequest().indices(targetIndex)).actionGet();
+            var getSettingsResponse = client().admin()
+                .indices()
+                .getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(targetIndex))
+                .actionGet();
             assertThat(getSettingsResponse.getSetting(targetIndex, IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()), equalTo("success"));
         }, 60, TimeUnit.SECONDS);
     }
@@ -203,7 +206,7 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
         final GetIndexResponse getIndexResponse = cluster.client()
             .admin()
             .indices()
-            .getIndex(new GetIndexRequest().indices(targetIndex))
+            .getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(targetIndex))
             .actionGet();
         assertEquals(1, getIndexResponse.indices().length);
         assertResponse(

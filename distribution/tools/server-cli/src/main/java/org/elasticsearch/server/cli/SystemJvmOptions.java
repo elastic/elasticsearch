@@ -18,6 +18,7 @@ import org.elasticsearch.jdk.RuntimeVersionFeature;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -27,7 +28,7 @@ final class SystemJvmOptions {
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
-        boolean entitlementsExplicitlyEnabled = Booleans.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "false"));
+        boolean entitlementsExplicitlyEnabled = Booleans.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "true"));
         // java 24+ only supports entitlements, but it may be enabled on earlier versions explicitly
         boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsExplicitlyEnabled;
         return Stream.of(
@@ -69,7 +70,7 @@ final class SystemJvmOptions {
                 // Pass through distribution type
                 "-Des.distribution.type=" + distroType
             ),
-            maybeEnableNativeAccess(),
+            maybeEnableNativeAccess(useEntitlements),
             maybeOverrideDockerCgroup(distroType),
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
@@ -124,11 +125,18 @@ final class SystemJvmOptions {
         return Stream.empty();
     }
 
-    private static Stream<String> maybeEnableNativeAccess() {
+    private static Stream<String> maybeEnableNativeAccess(boolean useEntitlements) {
+        var enableNativeAccessOptions = new ArrayList<String>();
         if (Runtime.version().feature() >= 21) {
-            return Stream.of("--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core");
+            enableNativeAccessOptions.add("--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core");
+            if (useEntitlements) {
+                enableNativeAccessOptions.add("--enable-native-access=ALL-UNNAMED");
+                if (Runtime.version().feature() >= 24) {
+                    enableNativeAccessOptions.add("--illegal-native-access=deny");
+                }
+            }
         }
-        return Stream.empty();
+        return enableNativeAccessOptions.stream();
     }
 
     /*
@@ -171,8 +179,8 @@ final class SystemJvmOptions {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
         // We instrument classes in these modules to call the bridge. Because the bridge gets patched
-        // into java.base, we must export the bridge from java.base to these modules.
-        String modulesContainingEntitlementInstrumentation = "java.logging";
+        // into java.base, we must export the bridge from java.base to these modules, as a comma-separated list
+        String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
         return Stream.of(
             "-Des.entitlements.enabled=true",
             "-XX:+EnableDynamicAgentLoading",

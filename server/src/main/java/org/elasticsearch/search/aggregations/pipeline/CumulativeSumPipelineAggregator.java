@@ -21,8 +21,6 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
@@ -53,12 +51,13 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
             if (thisBucketValue != null && thisBucketValue.isInfinite() == false && thisBucketValue.isNaN() == false) {
                 sum += thisBucketValue;
             }
-
-            List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                .collect(Collectors.toCollection(ArrayList::new));
-            aggs.add(new InternalSimpleValue(name(), sum, formatter, metadata()));
-            Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
-            newBuckets.add(newBucket);
+            newBuckets.add(
+                factory.createBucket(
+                    factory.getKey(bucket),
+                    bucket.getDocCount(),
+                    InternalAggregations.append(bucket.getAggregations(), new InternalSimpleValue(name(), sum, formatter, metadata()))
+                )
+            );
         }
         return factory.createAggregation(newBuckets);
     }

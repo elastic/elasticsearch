@@ -42,7 +42,7 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_9_0;
+        return TransportVersions.ZERO;
     }
 
     @Override

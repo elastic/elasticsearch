@@ -11,6 +11,8 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
@@ -56,6 +58,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     private final Set<String> createdDataStreams = new HashSet<>();
+    private final Set<String> createdStandAloneIndices = new HashSet<>();
 
     @Override
     @After
@@ -65,6 +68,12 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
                 deleteDataStream(createdDataStream);
             }
             createdDataStreams.clear();
+        }
+        if (createdStandAloneIndices.isEmpty() == false) {
+            for (String indexName : createdStandAloneIndices) {
+                client().admin().indices().delete(new DeleteIndexRequest(indexName));
+            }
+            createdStandAloneIndices.clear();
         }
         super.tearDown();
     }
@@ -80,6 +89,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testStatsEmptyDataStream() throws Exception {
+        maybeCreateCreatedStandAloneIndicesIndex();
         String dataStreamName = createDataStream();
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
@@ -97,6 +107,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testStatsExistingDataStream() throws Exception {
+        maybeCreateCreatedStandAloneIndicesIndex();
         String dataStreamName = createDataStream();
         long timestamp = createDocument(dataStreamName);
 
@@ -115,6 +126,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testStatsExistingDataStreamWithFailureStores() throws Exception {
+        maybeCreateCreatedStandAloneIndicesIndex();
         String dataStreamName = createDataStream(false, true);
         createFailedDocument(dataStreamName);
 
@@ -137,6 +149,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testStatsExistingHiddenDataStream() throws Exception {
+        maybeCreateCreatedStandAloneIndicesIndex();
         String dataStreamName = createDataStream(true, false);
         long timestamp = createDocument(dataStreamName);
 
@@ -155,6 +168,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testStatsClosedBackingIndexDataStream() throws Exception {
+        maybeCreateCreatedStandAloneIndicesIndex();
         String dataStreamName = createDataStream();
         createDocument(dataStreamName);
         assertTrue(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
@@ -198,6 +212,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testStatsRolledDataStream() throws Exception {
+        maybeCreateCreatedStandAloneIndicesIndex();
         String dataStreamName = createDataStream();
         long timestamp = createDocument(dataStreamName);
         assertTrue(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
@@ -218,6 +233,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     public void testStatsMultipleDataStreams() throws Exception {
+        maybeCreateCreatedStandAloneIndicesIndex();
         for (int dataStreamCount = 0; dataStreamCount < (2 + randomInt(3)); dataStreamCount++) {
             createDataStream();
         }
@@ -282,6 +298,14 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         );
         createdDataStreams.add(dataStreamName);
         return dataStreamName;
+    }
+
+    private void maybeCreateCreatedStandAloneIndicesIndex() {
+        if (randomBoolean()) {
+            String indexName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
+            assertAcked(client().admin().indices().create(new CreateIndexRequest(indexName)));
+            createdStandAloneIndices.add(indexName);
+        }
     }
 
     private long createDocument(String dataStreamName) throws Exception {

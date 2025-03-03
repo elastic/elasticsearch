@@ -102,15 +102,13 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                             p = new Eval(eval.source(), eval.child(), remaining);
                         }
                     }
-                } else if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
+                } else if (p instanceof EsRelation esr && esr.indexMode() == IndexMode.LOOKUP) {
                     // Normally, pruning EsRelation has no effect because InsertFieldExtraction only extracts the required fields, anyway.
-                    // The field extraction for LOOKUP JOIN works differently, however - we extract all fields (other than the join key)
-                    // that the EsRelation has.
-                    var remaining = removeUnused(esRelation.output(), used);
-                    // TODO: LookupFromIndexOperator cannot handle 0 lookup fields, yet. That means 1 field in total (key field + lookup).
-                    // https://github.com/elastic/elasticsearch/issues/118778
-                    if (remaining != null && remaining.size() > 1) {
-                        p = new EsRelation(esRelation.source(), esRelation.index(), remaining, esRelation.indexMode(), esRelation.frozen());
+                    // However, InsertFieldExtraction can't be currently used in LOOKUP JOIN right index,
+                    // it works differently as we extract all fields (other than the join key) that the EsRelation has.
+                    var remaining = removeUnused(esr.output(), used);
+                    if (remaining != null) {
+                        p = new EsRelation(esr.source(), esr.indexPattern(), esr.indexMode(), esr.indexNameWithModes(), remaining);
                     }
                 }
             } while (recheck);

@@ -1,0 +1,5 @@
+pr: 120774
+summary: Retry ES|QL node requests on shard level failures
+area: ES|QL
+type: enhancement
+issues: []

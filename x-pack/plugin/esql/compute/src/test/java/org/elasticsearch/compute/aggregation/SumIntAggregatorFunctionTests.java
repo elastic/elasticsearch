@@ -12,12 +12,13 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SequenceIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
 
 import java.util.List;
 import java.util.stream.LongStream;
@@ -32,8 +33,8 @@ public class SumIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new SumIntAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new SumIntAggregatorFunctionSupplier();
     }
 
     @Override
@@ -51,12 +52,11 @@ public class SumIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         try (
-            Driver d = new Driver(
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(Iterators.single(new Page(blockFactory.newDoubleArrayVector(new double[] { 1.0 }, 1).asBlock()))),
                 List.of(simple().get(driverContext)),
-                new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
-                () -> {}
+                new PageConsumerOperator(page -> fail("shouldn't have made it this far"))
             )
         ) {
             expectThrows(Exception.class, () -> runDriver(d));  // ### find a more specific exception type

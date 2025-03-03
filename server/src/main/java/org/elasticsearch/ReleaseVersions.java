@@ -10,7 +10,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.internal.BuildExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
@@ -78,10 +78,10 @@ public class ReleaseVersions {
             // replace all version lists with the smallest & greatest versions
             versions.replaceAll((k, v) -> {
                 if (v.size() == 1) {
-                    return List.of(v.get(0));
+                    return List.of(v.getFirst());
                 } else {
                     v.sort(Comparator.naturalOrder());
-                    return List.of(v.get(0), v.get(v.size() - 1));
+                    return List.of(v.getFirst(), v.getLast());
                 }
             });
 
@@ -100,22 +100,21 @@ public class ReleaseVersions {
 
             String lowerBound, upperBound;
             if (versionRange != null) {
-                lowerBound = versionRange.get(0).toString();
-                upperBound = lastItem(versionRange).toString();
+                lowerBound = versionRange.getFirst().toString();
+                upperBound = versionRange.getLast().toString();
             } else {
                 // infer the bounds from the surrounding entries
                 var lowerRange = versions.lowerEntry(id);
                 if (lowerRange != null) {
                     // the next version is just a guess - might be a newer revision, might be a newer minor or major...
-                    lowerBound = nextVersion(lastItem(lowerRange.getValue())).toString();
+                    lowerBound = nextVersion(lowerRange.getValue().getLast()).toString();
                 } else {
                     // a really old version we don't have a record for
                     // assume it's an old version id - we can just return it directly
                     // this will no longer be the case with ES 10 (which won't know about ES v8.x where we introduced separated versions)
                     // maybe keep the release mapping around in the csv file?
                     // SEP for now
-                    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-                    // @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)
+                    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)
                     Version oldVersion = Version.fromId(id);
                     return oldVersion.toString();
                 }
@@ -123,7 +122,7 @@ public class ReleaseVersions {
                 var upperRange = versions.higherEntry(id);
                 if (upperRange != null) {
                     // too hard to guess what version this id might be for using the next version - just use it directly
-                    upperBound = upperRange.getValue().get(0).toString();
+                    upperBound = upperRange.getValue().getFirst().toString();
                 } else {
                     // a newer version than all we know about? Can't map it...
                     upperBound = "[" + id + "]";
@@ -132,10 +131,6 @@ public class ReleaseVersions {
 
             return lowerBound.equals(upperBound) ? lowerBound : lowerBound + "-" + upperBound;
         };
-    }
-
-    private static <T> T lastItem(List<T> list) {
-        return list.get(list.size() - 1);
     }
 
     private static Version nextVersion(Version version) {

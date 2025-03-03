@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 
 import java.time.Clock;
@@ -66,7 +67,7 @@ public final class TransformIndex {
      *                 Returns {@code true} if the given index was created by the transform and {@code false} otherwise.
      */
     public static void isDestinationIndexCreatedByTransform(Client client, String destIndex, ActionListener<Boolean> listener) {
-        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(destIndex)
+        GetIndexRequest getIndexRequest = new GetIndexRequest(Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT).indices(destIndex)
             // We only need mappings, more specifically its "_meta" part
             .features(GetIndexRequest.Feature.MAPPINGS);
         executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, GetIndexAction.INSTANCE, getIndexRequest, ActionListener.wrap(getIndexResponse -> {

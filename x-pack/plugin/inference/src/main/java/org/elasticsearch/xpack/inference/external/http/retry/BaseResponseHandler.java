@@ -38,11 +38,27 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     protected final String requestType;
     private final ResponseParser parseFunction;
     private final Function<HttpResult, ErrorResponse> errorParseFunction;
+    private final boolean canHandleStreamingResponses;
 
     public BaseResponseHandler(String requestType, ResponseParser parseFunction, Function<HttpResult, ErrorResponse> errorParseFunction) {
+        this(requestType, parseFunction, errorParseFunction, false);
+    }
+
+    public BaseResponseHandler(
+        String requestType,
+        ResponseParser parseFunction,
+        Function<HttpResult, ErrorResponse> errorParseFunction,
+        boolean canHandleStreamingResponses
+    ) {
         this.requestType = Objects.requireNonNull(requestType);
         this.parseFunction = Objects.requireNonNull(parseFunction);
         this.errorParseFunction = Objects.requireNonNull(errorParseFunction);
+        this.canHandleStreamingResponses = canHandleStreamingResponses;
+    }
+
+    @Override
+    public boolean canHandleStreamingResponses() {
+        return canHandleStreamingResponses;
     }
 
     @Override
@@ -91,31 +107,24 @@ public abstract class BaseResponseHandler implements ResponseHandler {
 
     protected Exception buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
         var responseStatusCode = result.response().getStatusLine().getStatusCode();
-
-        if (errorResponse == null
-            || errorResponse.errorStructureFound() == false
-            || Strings.isNullOrEmpty(errorResponse.getErrorMessage())) {
-            return new ElasticsearchStatusException(
-                format(
-                    "%s for request from inference entity id [%s] status [%s]",
-                    message,
-                    request.getInferenceEntityId(),
-                    responseStatusCode
-                ),
-                toRestStatus(responseStatusCode)
-            );
-        }
-
         return new ElasticsearchStatusException(
-            format(
-                "%s for request from inference entity id [%s] status [%s]. Error message: [%s]",
-                message,
-                request.getInferenceEntityId(),
-                responseStatusCode,
-                errorResponse.getErrorMessage()
-            ),
+            errorMessage(message, request, result, errorResponse, responseStatusCode),
             toRestStatus(responseStatusCode)
         );
+    }
+
+    protected String errorMessage(String message, Request request, HttpResult result, ErrorResponse errorResponse, int statusCode) {
+        return (errorResponse == null
+            || errorResponse.errorStructureFound() == false
+            || Strings.isNullOrEmpty(errorResponse.getErrorMessage()))
+                ? format("%s for request from inference entity id [%s] status [%s]", message, request.getInferenceEntityId(), statusCode)
+                : format(
+                    "%s for request from inference entity id [%s] status [%s]. Error message: [%s]",
+                    message,
+                    request.getInferenceEntityId(),
+                    statusCode,
+                    errorResponse.getErrorMessage()
+                );
     }
 
     public static RestStatus toRestStatus(int statusCode) {

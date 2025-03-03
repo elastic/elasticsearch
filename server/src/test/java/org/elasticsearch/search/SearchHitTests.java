@@ -317,9 +317,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
 
         assertThat(searchHit.getSourceAsMap(), nullValue());
         assertThat(searchHit.getSourceRef(), nullValue());
-        assertThat(searchHit.getSourceAsMap(), nullValue());
         assertThat(searchHit.getSourceAsString(), nullValue());
-        assertThat(searchHit.getSourceAsMap(), nullValue());
         assertThat(searchHit.getSourceRef(), nullValue());
         assertThat(searchHit.getSourceAsString(), nullValue());
     }

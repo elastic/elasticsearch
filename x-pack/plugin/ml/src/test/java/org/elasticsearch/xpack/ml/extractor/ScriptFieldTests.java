@@ -23,7 +23,7 @@ public class ScriptFieldTests extends ESTestCase {
 
         ExtractedField field = new ScriptField("a_keyword");
 
-        assertThat(field.value(hit), equalTo(new String[] { "bar" }));
+        assertThat(field.value(hit, new SourceSupplier(hit)), equalTo(new String[] { "bar" }));
         assertThat(field.getName(), equalTo("a_keyword"));
         assertThat(field.getSearchField(), equalTo("a_keyword"));
         assertThat(field.getTypes().isEmpty(), is(true));
@@ -40,7 +40,7 @@ public class ScriptFieldTests extends ESTestCase {
 
         ExtractedField field = new ScriptField("array");
 
-        assertThat(field.value(hit), equalTo(new String[] { "a", "b" }));
+        assertThat(field.value(hit, new SourceSupplier(hit)), equalTo(new String[] { "a", "b" }));
         assertThat(field.getName(), equalTo("array"));
         assertThat(field.getSearchField(), equalTo("array"));
         assertThat(field.getTypes().isEmpty(), is(true));
@@ -52,7 +52,7 @@ public class ScriptFieldTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, () -> field.newFromSource());
 
         ExtractedField missing = new DocValueField("missing", Collections.singleton("keyword"));
-        assertThat(missing.value(hit), equalTo(new Object[0]));
+        assertThat(missing.value(hit, new SourceSupplier(hit)), equalTo(new Object[0]));
     }
 
     public void testMissing() {
@@ -60,6 +60,6 @@ public class ScriptFieldTests extends ESTestCase {
 
         ExtractedField missing = new ScriptField("missing");
 
-        assertThat(missing.value(hit), equalTo(new Object[0]));
+        assertThat(missing.value(hit, new SourceSupplier(hit)), equalTo(new Object[0]));
     }
 }

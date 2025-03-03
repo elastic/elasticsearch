@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
@@ -65,6 +68,7 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_ID = "check_recent_snapshot_failures";
     public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL = "https://ela.st/fix-recent-snapshot-failures";
+    public static final String DIAGNOSIS_CONTACT_SUPPORT_ID = "contact_support";
 
     // Visible for testing
     static Diagnosis.Definition checkRecentlyFailedSnapshots(String causeText, String actionText) {
@@ -77,8 +81,20 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
         );
     }
 
+    // Visible for testing
+    static Diagnosis.Definition contactSupport(String causeText, String actionText) {
+        return new Diagnosis.Definition(
+            NAME,
+            DIAGNOSIS_CONTACT_SUPPORT_ID,
+            causeText,
+            actionText,
+            ReferenceDocs.CONTACT_SUPPORT.toString()
+        );
+    }
+
     public static final String AUTOMATION_DISABLED_IMPACT_ID = "automation_disabled";
     public static final String STALE_SNAPSHOTS_IMPACT_ID = "stale_snapshots";
+    public static final String MISSING_SNAPSHOT_IMPACT_ID = "missing_snapshot";
 
     private final ClusterService clusterService;
     private volatile long failedSnapshotWarnThreshold;
@@ -102,7 +118,7 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         final ClusterState currentState = clusterService.state();
-        var slmMetadata = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+        var slmMetadata = currentState.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         final OperationMode currentMode = currentSLMMode(currentState);
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
             return createIndicator(
@@ -130,70 +146,33 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
                 verbose ? List.of(SLM_NOT_RUNNING) : List.of()
             );
         } else {
-            List<SnapshotLifecyclePolicyMetadata> unhealthyPolicies = slmMetadata.getSnapshotConfigurations()
-                .values()
-                .stream()
+            Collection<SnapshotLifecyclePolicyMetadata> snapshotConfigs = slmMetadata.getSnapshotConfigurations().values();
+
+            List<SnapshotLifecyclePolicyMetadata> failingSnapshotPolicies = snapshotConfigs.stream()
                 .filter(metadata -> snapshotFailuresExceedWarningCount(failedSnapshotWarnThreshold, metadata))
                 .sorted(Comparator.comparing(SnapshotLifecyclePolicyMetadata::getId))
                 .toList();
-
-            if (unhealthyPolicies.size() > 0) {
-                List<HealthIndicatorImpact> impacts = Collections.singletonList(
-                    new HealthIndicatorImpact(
-                        NAME,
-                        STALE_SNAPSHOTS_IMPACT_ID,
-                        2,
-                        "Some automated snapshots have not had a successful execution recently. Indices restored from affected "
-                            + "snapshots may not contain recent changes.",
-                        List.of(ImpactArea.BACKUP)
-                    )
+            if (failingSnapshotPolicies.isEmpty() == false) {
+                return createFailingSnapshotsIndicator(
+                    failingSnapshotPolicies,
+                    verbose,
+                    maxAffectedResourcesCount,
+                    slmMetadata,
+                    currentMode
                 );
+            }
 
-                String unhealthyPolicyCauses = unhealthyPolicies.stream()
-                    .map(
-                        policy -> "- ["
-                            + policy.getId()
-                            + "] had ["
-                            + policy.getInvocationsSinceLastSuccess()
-                            + "] repeated failures without successful execution"
-                            + (policy.getLastSuccess() != null && policy.getLastSuccess().getSnapshotStartTimestamp() != null
-                                ? " since [" + FORMATTER.formatMillis(policy.getLastSuccess().getSnapshotStartTimestamp()) + "]"
-                                : "")
-                    )
-                    .collect(Collectors.joining("\n"));
-                String cause = (unhealthyPolicies.size() > 1
-                    ? "Several automated snapshot policies are unhealthy:\n"
-                    : "An automated snapshot policy is unhealthy:\n") + unhealthyPolicyCauses;
-
-                String unhealthyPolicyActions = unhealthyPolicies.stream()
-                    .map(policy -> "- GET /_slm/policy/" + policy.getId() + "?human")
-                    .collect(Collectors.joining("\n"));
-                String action = "Check the snapshot lifecycle "
-                    + (unhealthyPolicies.size() > 1 ? "policies" : "policy")
-                    + " for detailed failure info:\n"
-                    + unhealthyPolicyActions;
-
-                return createIndicator(
-                    YELLOW,
-                    "Encountered [" + unhealthyPolicies.size() + "] unhealthy snapshot lifecycle management policies.",
-                    createDetails(verbose, unhealthyPolicies, slmMetadata, currentMode),
-                    impacts,
-                    verbose
-                        ? List.of(
-                            new Diagnosis(
-                                checkRecentlyFailedSnapshots(cause, action),
-                                List.of(
-                                    new Diagnosis.Resource(
-                                        Diagnosis.Resource.Type.SLM_POLICY,
-                                        unhealthyPolicies.stream()
-                                            .map(SnapshotLifecyclePolicyMetadata::getId)
-                                            .limit(Math.min(unhealthyPolicies.size(), maxAffectedResourcesCount))
-                                            .toList()
-                                    )
-                                )
-                            )
-                        )
-                        : List.of()
+            List<SnapshotLifecyclePolicyMetadata> missingSnapshotPolicies = snapshotConfigs.stream()
+                .filter(SlmHealthIndicatorService::missingSnapshotTimeExceeded)
+                .sorted(Comparator.comparing(SnapshotLifecyclePolicyMetadata::getId))
+                .toList();
+            if (missingSnapshotPolicies.isEmpty() == false) {
+                return createMissingSnapshotIndicator(
+                    missingSnapshotPolicies,
+                    verbose,
+                    maxAffectedResourcesCount,
+                    slmMetadata,
+                    currentMode
                 );
             }
 
@@ -205,6 +184,21 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
                 Collections.emptyList()
             );
         }
+    }
+
+    static boolean missingSnapshotTimeExceeded(SnapshotLifecyclePolicyMetadata policyMetadata) {
+        TimeValue unhealthyIfNoSnapshotWithin = policyMetadata.getPolicy().getUnhealthyIfNoSnapshotWithin();
+        if (unhealthyIfNoSnapshotWithin == null) {
+            return false;
+        }
+        Long startTime = getMissingSnapshotPeriodStartTime(policyMetadata);
+        if (startTime != null) {
+            // time since last successful snapshot is exceeded
+            long now = Instant.now().toEpochMilli();
+            long threshold = unhealthyIfNoSnapshotWithin.getMillis();
+            return now - startTime > threshold;
+        }
+        return false;
     }
 
     static boolean snapshotFailuresExceedWarningCount(long failedSnapshotWarnThreshold, SnapshotLifecyclePolicyMetadata policyMetadata) {
@@ -236,7 +230,7 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("slm_status", mode);
         details.put("policies", metadata.getSnapshotConfigurations().size());
-        if (unhealthyPolicies.size() > 0) {
+        if (unhealthyPolicies.isEmpty() == false) {
             details.put(
                 "unhealthy_policies",
                 Map.of(
@@ -254,5 +248,151 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
             );
         }
         return new SimpleHealthIndicatorDetails(details);
+    }
+
+    private HealthIndicatorResult createFailingSnapshotsIndicator(
+        List<SnapshotLifecyclePolicyMetadata> unhealthyPolicies,
+        boolean verbose,
+        int maxAffectedResourcesCount,
+        SnapshotLifecycleMetadata slmMetadata,
+        OperationMode currentMode
+    ) {
+        List<HealthIndicatorImpact> impacts = Collections.singletonList(
+            new HealthIndicatorImpact(
+                NAME,
+                STALE_SNAPSHOTS_IMPACT_ID,
+                2,
+                "Some automated snapshots have not had a successful execution recently. Indices restored from affected "
+                    + "snapshots may not contain recent changes.",
+                List.of(ImpactArea.BACKUP)
+            )
+        );
+
+        String unhealthyPolicyCauses = unhealthyPolicies.stream()
+            .map(
+                policy -> "- ["
+                    + policy.getId()
+                    + "] had ["
+                    + policy.getInvocationsSinceLastSuccess()
+                    + "] repeated failures without successful execution"
+                    + (policy.getLastSuccess() != null && policy.getLastSuccess().getSnapshotStartTimestamp() != null
+                        ? " since [" + FORMATTER.formatMillis(policy.getLastSuccess().getSnapshotStartTimestamp()) + "]"
+                        : "")
+            )
+            .collect(Collectors.joining("\n"));
+        String cause = (unhealthyPolicies.size() > 1
+            ? "Several automated snapshot policies are unhealthy:\n"
+            : "An automated snapshot policy is unhealthy:\n") + unhealthyPolicyCauses;
+
+        String unhealthyPolicyActions = unhealthyPolicies.stream()
+            .map(policy -> "- GET /_slm/policy/" + policy.getId() + "?human")
+            .collect(Collectors.joining("\n"));
+        String action = "Check the snapshot lifecycle "
+            + (unhealthyPolicies.size() > 1 ? "policies" : "policy")
+            + " for detailed failure info:\n"
+            + unhealthyPolicyActions;
+
+        return createIndicator(
+            YELLOW,
+            "Encountered [" + unhealthyPolicies.size() + "] unhealthy snapshot lifecycle management policies",
+            createDetails(verbose, unhealthyPolicies, slmMetadata, currentMode),
+            impacts,
+            verbose
+                ? List.of(
+                    new Diagnosis(
+                        checkRecentlyFailedSnapshots(cause, action),
+                        List.of(
+                            new Diagnosis.Resource(
+                                Diagnosis.Resource.Type.SLM_POLICY,
+                                unhealthyPolicies.stream()
+                                    .map(SnapshotLifecyclePolicyMetadata::getId)
+                                    .limit(Math.min(unhealthyPolicies.size(), maxAffectedResourcesCount))
+                                    .toList()
+                            )
+                        )
+                    )
+                )
+                : List.of()
+        );
+    }
+
+    private HealthIndicatorResult createMissingSnapshotIndicator(
+        List<SnapshotLifecyclePolicyMetadata> unhealthyPolicies,
+        boolean verbose,
+        int maxAffectedResourcesCount,
+        SnapshotLifecycleMetadata slmMetadata,
+        OperationMode currentMode
+    ) {
+        List<HealthIndicatorImpact> impacts = Collections.singletonList(
+            new HealthIndicatorImpact(
+                NAME,
+                MISSING_SNAPSHOT_IMPACT_ID,
+                2,
+                "Some snapshot lifecycle policies have not had a snapshot for some time",
+                List.of(ImpactArea.BACKUP)
+            )
+        );
+
+        String unhealthyPolicyCauses = unhealthyPolicies.stream().map(policy -> {
+            Long missingStartTime = getMissingSnapshotPeriodStartTime(policy);
+            TimeValue unhealthyIfNoSnapshotWithin = policy.getPolicy().getUnhealthyIfNoSnapshotWithin();
+            // missingStartTime and unhealthyIfNoSnapshotWithin should be non-null due to above filtering with missingSnapshotTimeExceeded
+            assert missingStartTime != null;
+            assert unhealthyIfNoSnapshotWithin != null;
+            return "- ["
+                + policy.getId()
+                + "] has not had a snapshot for "
+                + (unhealthyIfNoSnapshotWithin != null ? unhealthyIfNoSnapshotWithin.toHumanReadableString(2) : "some time")
+                + (missingStartTime != null ? ", since [" + FORMATTER.formatMillis(missingStartTime) + "]" : "");
+        }).collect(Collectors.joining("\n"));
+        String cause = (unhealthyPolicies.size() > 1
+            ? "Several automated snapshot policies are unhealthy:\n"
+            : "An automated snapshot policy is unhealthy:\n") + unhealthyPolicyCauses;
+
+        String unhealthyPolicyActions = unhealthyPolicies.stream()
+            .map(policy -> "- GET /_slm/policy/" + policy.getId() + "?human")
+            .collect(Collectors.joining("\n"));
+        String action = "Check the snapshot lifecycle "
+            + (unhealthyPolicies.size() > 1 ? "policies" : "policy")
+            + " for detailed failure info:\n"
+            + unhealthyPolicyActions;
+
+        return createIndicator(
+            YELLOW,
+            "Encountered [" + unhealthyPolicies.size() + "] unhealthy snapshot lifecycle management policies",
+            createDetails(verbose, unhealthyPolicies, slmMetadata, currentMode),
+            impacts,
+            verbose
+                ? List.of(
+                    new Diagnosis(
+                        contactSupport(cause, action),
+                        List.of(
+                            new Diagnosis.Resource(
+                                Diagnosis.Resource.Type.SLM_POLICY,
+                                unhealthyPolicies.stream()
+                                    .map(SnapshotLifecyclePolicyMetadata::getId)
+                                    .limit(Math.min(unhealthyPolicies.size(), maxAffectedResourcesCount))
+                                    .toList()
+                            )
+                        )
+                    )
+                )
+                : List.of()
+        );
+    }
+
+    private static Long getMissingSnapshotPeriodStartTime(SnapshotLifecyclePolicyMetadata policy) {
+        if (policy.getLastSuccess() != null) {
+            // prefer snapshotStartTimestamp over snapshotFinishTimestamp in case of a very long-running snapshot
+            // that started a long time ago
+            SnapshotInvocationRecord lastSuccess = policy.getLastSuccess();
+            return lastSuccess.getSnapshotStartTimestamp() != null
+                ? lastSuccess.getSnapshotStartTimestamp()
+                : lastSuccess.getSnapshotFinishTimestamp();
+        }
+        // TODO: handle first snapshot (i.e. no prior success of failure), maybe record the policy first trigger timestamp
+
+        // SLM has not been triggered yet
+        return null;
     }
 }

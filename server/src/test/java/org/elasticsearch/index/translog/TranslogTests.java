@@ -290,8 +290,8 @@ public class TranslogTests extends ESTestCase {
     private TranslogConfig getTranslogConfig(final Path path, final Settings settings, OperationListener listener) {
         final ByteSizeValue bufferSize = randomFrom(
             TranslogConfig.DEFAULT_BUFFER_SIZE,
-            new ByteSizeValue(8, ByteSizeUnit.KB),
-            new ByteSizeValue(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES)
+            ByteSizeValue.of(8, ByteSizeUnit.KB),
+            ByteSizeValue.of(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES)
         );
 
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
@@ -1395,7 +1395,7 @@ public class TranslogTests extends ESTestCase {
             temp.getTranslogPath(),
             temp.getIndexSettings(),
             temp.getBigArrays(),
-            new ByteSizeValue(1, ByteSizeUnit.KB),
+            ByteSizeValue.of(1, ByteSizeUnit.KB),
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
             TranslogConfig.NOOP_OPERATION_LISTENER,
             true
@@ -4080,7 +4080,7 @@ public class TranslogTests extends ESTestCase {
             translogDir,
             IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY),
             NON_RECYCLING_INSTANCE,
-            new ByteSizeValue(1, ByteSizeUnit.KB),
+            ByteSizeValue.of(1, ByteSizeUnit.KB),
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
             TranslogConfig.NOOP_OPERATION_LISTENER,
             false

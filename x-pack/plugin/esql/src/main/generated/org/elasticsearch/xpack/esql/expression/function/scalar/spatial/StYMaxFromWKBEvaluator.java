@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StYMax}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class StYMaxFromWKBEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   public StYMaxFromWKBEvaluator(EvalOperator.ExpressionEvaluator field, Source source,

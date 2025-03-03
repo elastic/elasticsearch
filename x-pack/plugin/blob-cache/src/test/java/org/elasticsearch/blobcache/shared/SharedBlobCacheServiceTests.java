@@ -813,7 +813,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     public void testCacheSizeChanges() throws IOException {
-        ByteSizeValue val1 = new ByteSizeValue(randomIntBetween(1, 5), ByteSizeUnit.MB);
+        ByteSizeValue val1 = ByteSizeValue.of(randomIntBetween(1, 5), ByteSizeUnit.MB);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), val1.getStringRep())
@@ -834,7 +834,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertEquals(val1.getBytes(), cacheService.getStats().size());
         }
 
-        ByteSizeValue val2 = new ByteSizeValue(randomIntBetween(1, 5), ByteSizeUnit.MB);
+        ByteSizeValue val2 = ByteSizeValue.of(randomIntBetween(1, 5), ByteSizeUnit.MB);
         settings = Settings.builder()
             .put(settings)
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), val2.getStringRep())

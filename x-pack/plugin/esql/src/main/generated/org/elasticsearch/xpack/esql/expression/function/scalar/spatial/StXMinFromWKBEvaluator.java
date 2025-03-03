@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StXMin}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class StXMinFromWKBEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   public StXMinFromWKBEvaluator(EvalOperator.ExpressionEvaluator field, Source source,

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -25,15 +26,21 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseService.FALLBACK_SETTING;
+import static org.elasticsearch.xpack.logsdb.LogsdbLicenseService.FALLBACK_SETTING;
 
 public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     private final Settings settings;
-    private final SyntheticSourceLicenseService licenseService;
+    private final LogsdbLicenseService licenseService;
+    private static final Setting<Boolean> LOGSDB_PRIOR_LOGS_USAGE = Setting.boolSetting(
+        "logsdb.prior_logs_usage",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
         "cluster.logsdb.enabled",
-        false,
+        settings -> Boolean.toString(LOGSDB_PRIOR_LOGS_USAGE.get(settings) == false),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -42,7 +49,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     public LogsDBPlugin(Settings settings) {
         this.settings = settings;
-        this.licenseService = new SyntheticSourceLicenseService(settings);
+        this.licenseService = new LogsdbLicenseService(settings);
         this.logsdbIndexModeSettingsProvider = new LogsdbIndexModeSettingsProvider(licenseService, settings);
     }
 
@@ -69,7 +76,12 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         logsdbIndexModeSettingsProvider.init(
             parameters.mapperServiceFactory(),
-            () -> parameters.clusterService().state().nodes().getMinSupportedIndexVersion(),
+            () -> IndexVersion.min(
+                IndexVersion.current(),
+                parameters.clusterService().state().nodes().getMaxDataNodeCompatibleIndexVersion()
+            ),
+            () -> parameters.clusterService().state().nodes().getMinNodeVersion(),
+            DiscoveryNode.isStateless(settings) == false,
             DiscoveryNode.isStateless(settings) == false
         );
         return List.of(logsdbIndexModeSettingsProvider);
@@ -77,7 +89,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED);
+        return List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED, LOGSDB_PRIOR_LOGS_USAGE);
     }
 
     @Override

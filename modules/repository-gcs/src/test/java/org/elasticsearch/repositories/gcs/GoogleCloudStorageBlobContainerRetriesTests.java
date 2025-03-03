@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import fixture.gcs.FakeOAuth2HttpHandler;
+import fixture.gcs.GoogleCloudStorageHttpHandler;
 
 import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;
@@ -18,10 +19,13 @@ import com.google.cloud.storage.StorageRetryStrategy;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -37,6 +41,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.http.ResponseInjectingHttpHandler;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
@@ -55,6 +60,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -158,7 +165,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             "repo",
             service,
             BigArrays.NON_RECYCLING_INSTANCE,
-            randomIntBetween(1, 8) * 1024
+            randomIntBetween(1, 8) * 1024,
+            BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(1), 3, TimeValue.timeValueSeconds(1))
         );
 
         return new GoogleCloudStorageBlobContainer(randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo"), blobStore);
@@ -461,6 +469,41 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
             assertThat(pendingDeletes.get(), is(lessThanOrEqualTo(MAX_DELETES_PER_BATCH)));
         }
+    }
+
+    public void testCompareAndExchangeWhenThrottled() throws IOException {
+        final Queue<ResponseInjectingHttpHandler.RequestHandler> requestHandlers = new ConcurrentLinkedQueue<>();
+        httpServer.createContext("/", new ResponseInjectingHttpHandler(requestHandlers, new GoogleCloudStorageHttpHandler("bucket")));
+
+        final int maxRetries = randomIntBetween(1, 3);
+        final BlobContainer container = createBlobContainer(maxRetries, null, null, null);
+        final byte[] data = randomBytes(randomIntBetween(1, BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH));
+        final String key = randomIdentifier();
+
+        final OptionalBytesReference createResult = safeAwait(
+            l -> container.compareAndExchangeRegister(randomPurpose(), key, BytesArray.EMPTY, new BytesArray(data), l)
+        );
+        assertEquals(createResult, OptionalBytesReference.EMPTY);
+
+        final byte[] updatedData = randomBytes(randomIntBetween(1, BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH));
+        final int failuresToExhaustAttempts = maxRetries + 1;
+        final int numberOfThrottles = randomIntBetween(failuresToExhaustAttempts, (4 * failuresToExhaustAttempts) - 1);
+        for (int i = 0; i < numberOfThrottles; i++) {
+            requestHandlers.offer(
+                new ResponseInjectingHttpHandler.FixedRequestHandler(
+                    RestStatus.TOO_MANY_REQUESTS,
+                    null,
+                    ex -> ex.getRequestURI().getPath().equals("/upload/storage/v1/b/bucket/o") && ex.getRequestMethod().equals("POST")
+                )
+            );
+        }
+        final OptionalBytesReference updateResult = safeAwait(
+            l -> container.compareAndExchangeRegister(randomPurpose(), key, new BytesArray(data), new BytesArray(updatedData), l)
+        );
+        assertEquals(new BytesArray(data), updateResult.bytesReference());
+
+        assertEquals(0, requestHandlers.size());
+        container.delete(randomPurpose());
     }
 
     private HttpHandler safeHandler(HttpHandler handler) {

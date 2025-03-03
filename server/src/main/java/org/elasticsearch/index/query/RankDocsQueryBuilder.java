@@ -70,7 +70,9 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
                 changed |= newQueryBuilders[i] != queryBuilders[i];
             }
             if (changed) {
-                return new RankDocsQueryBuilder(rankDocs, newQueryBuilders, onlyRankDocs);
+                RankDocsQueryBuilder clone = new RankDocsQueryBuilder(rankDocs, newQueryBuilders, onlyRankDocs);
+                clone.queryName(queryName());
+                return clone;
             }
         }
         return super.doRewrite(queryRewriteContext);

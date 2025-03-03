@@ -71,7 +71,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         CreateIndexRequest request = new CreateIndexRequest(PRIMARY_INDEX_NAME);
         client().execute(AutoCreateAction.INSTANCE, request).get();
 
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices(PRIMARY_INDEX_NAME).get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(PRIMARY_INDEX_NAME).get();
         assertThat(response.indices().length, is(1));
         assertThat(response.aliases().size(), is(1));
         assertThat(response.aliases().get(PRIMARY_INDEX_NAME).size(), is(1));
@@ -85,7 +85,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME);
         client().execute(AutoCreateAction.INSTANCE, request).get();
 
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices(PRIMARY_INDEX_NAME).get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(PRIMARY_INDEX_NAME).get();
         assertThat(response.indices().length, is(1));
         assertThat(response.aliases().size(), is(1));
         assertThat(response.aliases().get(PRIMARY_INDEX_NAME).size(), is(1));
@@ -99,7 +99,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME + "-2");
         client().execute(AutoCreateAction.INSTANCE, request).get();
 
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices(INDEX_NAME + "-2").get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(INDEX_NAME + "-2").get();
         assertThat(response.indices().length, is(1));
         assertThat(response.aliases().size(), is(1));
         assertThat(response.aliases().get(INDEX_NAME + "-2").size(), is(1));
@@ -144,7 +144,9 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         CreateIndexRequest request = new CreateIndexRequest(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
         client().execute(AutoCreateAction.INSTANCE, request).get();
 
-        GetIndexResponse response = indicesAdmin().prepareGetIndex().addIndices(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME).get();
+        GetIndexResponse response = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .addIndices(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME)
+            .get();
         assertThat(response.indices().length, is(1));
         Settings settings = response.settings().get(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
         assertThat(settings, notNullValue());

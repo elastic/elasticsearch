@@ -57,6 +57,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                             .allowClosedIndices(true)
                             .ignoreThrottled(false)
                             .allowSelectors(false)
+                            .includeFailureIndices(true)
                             .build()
                     )
                     .build()

@@ -1,0 +1,12 @@
+pr: 119072
+summary: Turn `_source` meta fieldmapper's mode attribute into a no-op
+area: Mapping
+type: breaking
+issues:
+ - 118596
+breaking:
+  title: Turn `_source` meta fieldmapper's mode attribute into a no-op
+  area: Mapping
+  details: The `mode` mapping attribute of `_source` metadata field mapper has been turned into a no-op. Instead the `index.mapping.source.mode` index setting should be used to configure source mode.
+  impact: Configuring the `mode` attribute for the `_source` meta field mapper will have no effect on indices created with Elasticsearch 9.0.0 or later. Note that `_source.mode` configured on indices before upgrading to 9.0.0 or later will remain efficive after upgrading.
+  notable: false

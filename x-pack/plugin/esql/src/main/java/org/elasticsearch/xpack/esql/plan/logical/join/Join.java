@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,10 +29,11 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
-public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
+public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
 
     private final JoinConfig config;
@@ -62,7 +64,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        source().writeTo(out);
         out.writeNamedWriteable(left());
         out.writeNamedWriteable(right());
         config.writeTo(out);
@@ -189,11 +191,6 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
     }
 
     @Override
-    public String commandName() {
-        return "JOIN";
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(config, left(), right());
     }
@@ -216,7 +213,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
         for (int i = 0; i < config.leftFields().size(); i++) {
             Attribute leftField = config.leftFields().get(i);
             Attribute rightField = config.rightFields().get(i);
-            if (leftField.dataType() != rightField.dataType()) {
+            if (leftField.dataType().noText() != rightField.dataType().noText()) {
                 failures.add(
                     fail(
                         leftField,
@@ -226,6 +223,11 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
                         rightField.name(),
                         rightField.dataType()
                     )
+                );
+            }
+            if (rightField.dataType().equals(TEXT)) {
+                failures.add(
+                    fail(leftField, "JOIN with right field [{}] of type [{}] is not supported", rightField.name(), rightField.dataType())
                 );
             }
         }

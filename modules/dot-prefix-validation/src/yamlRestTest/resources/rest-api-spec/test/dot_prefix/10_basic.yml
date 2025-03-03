@@ -2,7 +2,7 @@
 teardown:
   - do:
       indices.delete:
-        index: .*
+        index: .*,-.security-*
 
 ---
 "Index creation with a dot-prefix is deprecated unless x-elastic-product-origin set":

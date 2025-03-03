@@ -18,7 +18,7 @@ import java.io.IOException;
 
 /**
  * Vector that stores BytesRef values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
     OrdinalBytesRefVector {

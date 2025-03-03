@@ -39,7 +39,7 @@ public abstract class SpatialAggregateFunction extends AggregateFunction impleme
         this.fieldExtractPreference = fieldExtractPreference;
     }
 
-    public abstract SpatialAggregateFunction withDocValues();
+    public abstract SpatialAggregateFunction withFieldExtractPreference(FieldExtractPreference preference);
 
     @Override
     public boolean licenseCheck(XPackLicenseState state) {

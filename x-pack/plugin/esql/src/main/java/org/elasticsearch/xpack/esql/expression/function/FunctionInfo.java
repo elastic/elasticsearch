@@ -19,6 +19,17 @@ import java.lang.annotation.Target;
 @Target(ElementType.CONSTRUCTOR)
 public @interface FunctionInfo {
     /**
+     * If this function implements an operator, what is its symbol?
+     * <p>
+     *     This exists entirely to add to the Kibana function definition
+     *     json files. Kibana thinks of something as an operator if the
+     *     text that triggers it is not the name of the function. So {@code +}
+     *     is an operator but {@code IS NULL} doesn't count.
+     * </p>
+     */
+    String operator() default "";
+
+    /**
      * The type(s) this function returns.
      */
     String[] returnType();
@@ -55,9 +66,9 @@ public @interface FunctionInfo {
     String appendix() default "";
 
     /**
-     * Is this an aggregation (true) or a scalar function (false).
+     * The position the function can appear in the language.
      */
-    boolean isAggregation() default false;
+    FunctionType type() default FunctionType.SCALAR;
 
     /**
      * Examples of using this function that are rendered in the docs.

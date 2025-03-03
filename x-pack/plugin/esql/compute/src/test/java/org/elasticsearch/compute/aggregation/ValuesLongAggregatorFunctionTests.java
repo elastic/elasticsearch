@@ -10,8 +10,8 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 
 import java.util.Arrays;
 import java.util.List;
@@ -28,8 +28,8 @@ public class ValuesLongAggregatorFunctionTests extends AggregatorFunctionTestCas
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new ValuesLongAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new ValuesLongAggregatorFunctionSupplier();
     }
 
     @Override

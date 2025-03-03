@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.util.List;
@@ -106,7 +105,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoring() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var query = """
             FROM test
             METADATA _score
@@ -123,7 +121,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoringDifferentSort() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var query = """
             FROM test
             METADATA _score
@@ -140,7 +137,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoringNoSort() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var query = """
             FROM test
             METADATA _score
@@ -206,20 +202,19 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("Unknown column [content]"));
     }
 
-    public void testWhereMatchWithFunctions() {
+    public void testWhereMatchNotPushedDown() {
         var query = """
             FROM test
-            | WHERE content:"fox" OR to_upper(content) == "FOX"
+            | WHERE content:"fox" OR length(content) < 20
+            | KEEP id
+            | SORT id
             """;
-        var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString(
-                "Invalid condition [content:\"fox\" OR to_upper(content) == \"FOX\"]. "
-                    + "Full text functions can be used in an OR condition, "
-                    + "but only if just full text functions are used in the OR condition"
-            )
-        );
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
+        }
     }
 
     public void testWhereMatchWithRow() {
@@ -231,7 +226,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(ElasticsearchException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("[:] operator cannot operate on [\"a brown fox\"], which is not a field from an index mapping")
+            containsString("line 2:9: [:] operator cannot operate on [content], which is not a field from an index mapping")
         );
     }
 

@@ -158,6 +158,7 @@ testClusters.configureEach {
   keystore 'bootstrap.password', 'x-pack-test-password'
   user username: "x_pack_rest_user", password: "x-pack-test-password"
   requiresFeature 'es.failure_store_feature_flag_enabled', Version.fromString("8.15.0")
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
 }
 
 if (buildParams.isSnapshotBuild() == false) {

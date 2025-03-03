@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -96,8 +95,7 @@ public class UpdateIndexMigrationVersionAction extends ActionType<UpdateIndexMig
             TransportService transportService,
             ClusterService clusterService,
             ThreadPool threadPool,
-            ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            ActionFilters actionFilters
         ) {
             super(
                 UpdateIndexMigrationVersionAction.NAME,
@@ -106,7 +104,6 @@ public class UpdateIndexMigrationVersionAction extends ActionType<UpdateIndexMig
                 threadPool,
                 actionFilters,
                 Request::new,
-                indexNameExpressionResolver,
                 UpdateIndexMigrationVersionResponse::new,
                 threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
@@ -142,7 +139,9 @@ public class UpdateIndexMigrationVersionAction extends ActionType<UpdateIndexMig
             }
 
             ClusterState execute(ClusterState currentState) {
-                IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(currentState.metadata().getIndices().get(indexName));
+                IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(
+                    currentState.metadata().getProject().indices().get(indexName)
+                );
                 indexMetadataBuilder.putCustom(
                     MIGRATION_VERSION_CUSTOM_KEY,
                     Map.of(MIGRATION_VERSION_CUSTOM_DATA_KEY, Integer.toString(indexMigrationVersion))
@@ -150,7 +149,7 @@ public class UpdateIndexMigrationVersionAction extends ActionType<UpdateIndexMig
                 indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
 
                 final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(
-                    currentState.metadata().getIndices()
+                    currentState.metadata().getProject().indices()
                 );
                 builder.put(indexName, indexMetadataBuilder.build());
 

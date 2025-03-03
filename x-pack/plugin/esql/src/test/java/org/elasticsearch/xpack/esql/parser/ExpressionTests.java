@@ -14,12 +14,12 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -209,15 +209,17 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testCommandNamesAsIdentifiers() {
-        Expression expr = whereExpression("from and limit");
-        assertThat(expr, instanceOf(And.class));
-        And and = (And) expr;
+        for (var commandName : List.of("dissect", "drop", "enrich", "eval", "keep", "limit", "sort")) {
+            Expression expr = whereExpression("from and " + commandName);
+            assertThat(expr, instanceOf(And.class));
+            And and = (And) expr;
 
-        assertThat(and.left(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) and.left()).name(), equalTo("from"));
+            assertThat(and.left(), instanceOf(UnresolvedAttribute.class));
+            assertThat(((UnresolvedAttribute) and.left()).name(), equalTo("from"));
 
-        assertThat(and.right(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) and.right()).name(), equalTo("limit"));
+            assertThat(and.right(), instanceOf(UnresolvedAttribute.class));
+            assertThat(((UnresolvedAttribute) and.right()).name(), equalTo(commandName));
+        }
     }
 
     public void testIdentifiersCaseSensitive() {

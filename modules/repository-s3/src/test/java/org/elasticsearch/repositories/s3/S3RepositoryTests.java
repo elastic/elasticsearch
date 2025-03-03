@@ -93,8 +93,8 @@ public class S3RepositoryTests extends ESTestCase {
     private Settings bufferAndChunkSettings(long buffer, long chunk) {
         return Settings.builder()
             .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
-            .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(buffer, ByteSizeUnit.MB).getStringRep())
-            .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunk, ByteSizeUnit.MB).getStringRep())
+            .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), ByteSizeValue.of(buffer, ByteSizeUnit.MB).getStringRep())
+            .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), ByteSizeValue.of(chunk, ByteSizeUnit.MB).getStringRep())
             .build();
     }
 

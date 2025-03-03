@@ -167,7 +167,7 @@ public class DateDiff extends EsqlScalarFunction {
             """, file = "date", tag = "evalDateDiffYearForDocs"), @Example(description = """
             If any column is multivalued, this will return a `null` result.
             """, file = "date", tag = "date-diff-mv") }
-    )
+    ) // NOCOMMIT can we reserve the right to change the null-and-warn behavior?
     public DateDiff(
         Source source,
         @Param(name = "unit", type = { "keyword", "text" }, description = "Time difference unit") Expression unit,

@@ -713,7 +713,7 @@ class NodeConstruction {
         clusterService.addStateApplier(scriptService);
 
         var executor = threadPool.executor(ThreadPool.Names.SEARCH);
-        if (executor instanceof  TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor perIndexExecutor) {
+        if (executor instanceof TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor perIndexExecutor) {
             clusterService.addListener(new SearchIndexTimeTrackingCleanupService(perIndexExecutor));
         }
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);

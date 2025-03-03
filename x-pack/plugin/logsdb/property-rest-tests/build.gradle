@@ -1,26 +1,35 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
-  javaRestTestImplementation("org.junit.jupiter:junit-jupiter-api:5.12.0")
-  javaRestTestImplementation("org.junit.jupiter:junit-jupiter-params:5.12.0")
-  javaRestTestRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.12.0")
-  javaRestTestRuntimeOnly("org.junit.platform:junit-platform-launcher:1.12.0")
-  javaRestTestRuntimeOnly("org.junit.platform:junit-platform-commons:1.12.0")
-  javaRestTestRuntimeOnly("org.junit.platform:junit-platform-reporting:1.12.0")
+  // https://junit.org/junit5/docs/current/user-guide/#dependency-metadata
+  javaRestTestImplementation("org.junit.jupiter:junit-jupiter-api:5.11.3")
+  javaRestTestImplementation("org.junit.jupiter:junit-jupiter-params:5.11.3")
+  javaRestTestImplementation("org.junit.jupiter:junit-jupiter-engine:5.11.3")
+  javaRestTestRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.3")
+  javaRestTestRuntimeOnly("org.junit.platform:junit-platform-engine:1.11.3")
+  javaRestTestRuntimeOnly("org.junit.platform:junit-platform-commons:1.11.3")
+  javaRestTestRuntimeOnly("org.junit.platform:junit-platform-reporting:1.11.3")
+  javaRestTestRuntimeOnly("org.junit.platform:junit-platform-suite-api:1.11.3")
+  javaRestTestRuntimeOnly("org.junit.platform:junit-platform-suite-commons:1.11.3")
+  javaRestTestRuntimeOnly("org.junit.platform:junit-platform-suite-engine:1.11.3")
+  javaRestTestRuntimeOnly("org.opentest4j:opentest4j:1.3.0")
 
   javaRestTestImplementation("net.jqwik:jqwik-api:1.9.2")
-  javaRestTestCompileOnly("org.apiguardian:apiguardian-api:1.0.0")
-  javaRestTestRuntimeOnly("net.jqwik:jqwik-engine:1.9.2")
+  javaRestTestCompileOnly("org.apiguardian:apiguardian-api:1.1.2")
+  javaRestTestImplementation("net.jqwik:jqwik-engine:1.9.2")
 }
 
 tasks.named("javaRestTest").configure {
+  usesDefaultDistribution()
+
   useJUnitPlatform {
-    includeEngines 'jqwik'
+    includeEngines("junit-jupiter")
+    includeEngines('jqwik')
   }
 
   include '**/*Properties.class'
   include '**/*Test.class'
   include '**/*Tests.class'
-
-  usesDefaultDistribution()
+  // explicitly declaring the tasks classpath here. should work out of the box though
+  classpath = sourceSets.javaRestTest.runtimeClasspath
 }

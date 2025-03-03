@@ -1693,6 +1693,104 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
     }
 
+    public void testBuildRoleWithReadOnRestrictedAndNonRestrictedIndices() {
+        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
+        String indexPattern = randomAlphanumericOfLength(10);
+        List<Role> roles = List.of(
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "read_failure_store")
+                            .allowRestrictedIndices(true)
+                            .build(),
+                        IndicesPrivileges.builder().indices(indexPattern).privileges("read").allowRestrictedIndices(false).build() }
+                )
+            ),
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "read_failure_store")
+                            .allowRestrictedIndices(true)
+                            .build() }
+                ),
+                roleDescriptorWithIndicesPrivileges(
+                    "r2",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder().indices(indexPattern).privileges("read").allowRestrictedIndices(false).build() }
+                )
+            )
+        );
+        // the roles are different "format" but the same so should produce the same index groups
+        for (var role : roles) {
+            IndicesPermission indices = role.indices();
+            assertHasIndexGroups(
+                indices,
+                indexGroup(IndexPrivilege.get("read"), false, indexPattern),
+                indexGroup(IndexPrivilege.get("read"), true, indexPattern),
+                indexGroup(IndexPrivilege.get("read_failure_store"), true, indexPattern)
+            );
+        }
+    }
+
+    public void testBuildRoleWithReadFailureStoreOnRestrictedAndNonRestrictedIndices() {
+        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
+        String indexPattern = randomAlphanumericOfLength(10);
+        List<Role> roles = List.of(
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "read_failure_store")
+                            .allowRestrictedIndices(true)
+                            .build(),
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(false)
+                            .build() }
+                )
+            ),
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "read_failure_store")
+                            .allowRestrictedIndices(true)
+                            .build() }
+                ),
+                roleDescriptorWithIndicesPrivileges(
+                    "r2",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(false)
+                            .build() }
+                )
+            )
+        );
+        // the roles are different "format" but the same so should produce the same index groups
+        for (var role : roles) {
+            IndicesPermission indices = role.indices();
+            assertHasIndexGroups(
+                indices,
+                indexGroup(IndexPrivilege.get("read_failure_store"), false, indexPattern),
+                indexGroup(IndexPrivilege.get("read"), true, indexPattern),
+                indexGroup(IndexPrivilege.get("read_failure_store"), true, indexPattern)
+            );
+        }
+    }
+
     public void testBuildRoleWithMultipleReadFailureStoreAndReadPrivilegeSplit() {
         assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);

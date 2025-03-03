@@ -24,8 +24,6 @@ import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInfere
 import org.elasticsearch.xpack.inference.services.elastic.DefaultModelConfig;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.junit.Before;
@@ -121,7 +119,7 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
         latch.await(Utils.TIMEOUT.getSeconds(), TimeUnit.SECONDS);
         // this should be after we've received both authorization responses
 
-        assertThat(handler.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
+        assertThat(handler.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
         assertThat(
             handler.defaultConfigIds(),
             is(List.of(new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", MinimalServiceSettings.chatCompletion(), null)))
@@ -167,19 +165,6 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
                     ElasticInferenceServiceComponents.EMPTY_INSTANCE
                 ),
                 MinimalServiceSettings.chatCompletion()
-            ),
-            "elser-v2",
-            new DefaultModelConfig(
-                new ElasticInferenceServiceSparseEmbeddingsModel(
-                    defaultEndpointId("elser-v2"),
-                    TaskType.SPARSE_EMBEDDING,
-                    "test",
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser-v2", null, null),
-                    EmptyTaskSettings.INSTANCE,
-                    EmptySecretSettings.INSTANCE,
-                    ElasticInferenceServiceComponents.EMPTY_INSTANCE
-                ),
-                MinimalServiceSettings.sparseEmbedding()
             )
         );
     }

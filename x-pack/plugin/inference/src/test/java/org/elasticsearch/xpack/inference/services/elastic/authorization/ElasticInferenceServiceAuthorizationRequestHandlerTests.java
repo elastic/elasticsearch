@@ -85,7 +85,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger, times(2)).debug(loggerArgsCaptor.capture());
             var messages = loggerArgsCaptor.getAllValues();
-            assertThat(messages.getFirst(), is("Retrieving authorization information from the Elastic Inference Service."));
+            assertThat(messages.get(0), is("Retrieving authorization information from the Elastic Inference Service."));
             assertThat(messages.get(1), is("The base URL for the authorization service is not valid, rejecting authorization."));
         }
     }
@@ -107,7 +107,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandlerTests extends EST
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger, times(2)).debug(loggerArgsCaptor.capture());
             var messages = loggerArgsCaptor.getAllValues();
-            assertThat(messages.getFirst(), is("Retrieving authorization information from the Elastic Inference Service."));
+            assertThat(messages.get(0), is("Retrieving authorization information from the Elastic Inference Service."));
             assertThat(messages.get(1), is("The base URL for the authorization service is not valid, rejecting authorization."));
         }
     }

@@ -347,6 +347,12 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canWrite(path("a")), is(false));
     }
 
+    public void testDuplicatePrunedPaths() {
+        List<String> paths = List.of("/a", "/a", "/a/b", "/a/b", "/b/c", "b/c/d", "b/c/d", "b/c/d", "e/f", "e/f");
+        paths = FileAccessTree.pruneSortedPaths(paths);
+        assertEquals(List.of("/a", "/b/c", "b/c/d", "e/f"), paths);
+    }
+
     public void testWindowsAbsolutPathAccess() {
         assumeTrue("Specific to windows for paths with a root (DOS or UNC)", Platform.WINDOWS.isCurrent());
 

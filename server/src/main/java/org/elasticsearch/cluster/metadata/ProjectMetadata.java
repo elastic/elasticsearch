@@ -1775,51 +1775,53 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             // for much faster O(1) lookups in large clusters.
             return new SortedMap<>() {
 
-                private final SortedMap<String, IndexAbstraction> map = new TreeMap<>(indicesLookup);
+                private final SortedMap<String, IndexAbstraction> sortedMap = Collections.unmodifiableSortedMap(
+                    new TreeMap<>(indicesLookup)
+                );
 
                 @Override
                 public Comparator<? super String> comparator() {
-                    return map.comparator();
+                    return sortedMap.comparator();
                 }
 
                 @Override
                 public SortedMap<String, IndexAbstraction> subMap(String fromKey, String toKey) {
-                    return Collections.unmodifiableSortedMap(map.subMap(fromKey, toKey));
+                    return sortedMap.subMap(fromKey, toKey);
                 }
 
                 @Override
                 public SortedMap<String, IndexAbstraction> headMap(String toKey) {
-                    return Collections.unmodifiableSortedMap(map.headMap(toKey));
+                    return sortedMap.headMap(toKey);
                 }
 
                 @Override
                 public SortedMap<String, IndexAbstraction> tailMap(String fromKey) {
-                    return Collections.unmodifiableSortedMap(map.tailMap(fromKey));
+                    return sortedMap.tailMap(fromKey);
                 }
 
                 @Override
                 public String firstKey() {
-                    return map.firstKey();
+                    return sortedMap.firstKey();
                 }
 
                 @Override
                 public String lastKey() {
-                    return map.lastKey();
+                    return sortedMap.lastKey();
                 }
 
                 @Override
                 public Set<String> keySet() {
-                    return Collections.unmodifiableSet(map.keySet());
+                    return sortedMap.keySet();
                 }
 
                 @Override
                 public Collection<IndexAbstraction> values() {
-                    return Collections.unmodifiableCollection(map.values());
+                    return sortedMap.values();
                 }
 
                 @Override
                 public Set<Entry<String, IndexAbstraction>> entrySet() {
-                    return Collections.unmodifiableSortedMap(map).entrySet();
+                    return sortedMap.entrySet();
                 }
 
                 @Override
@@ -1869,6 +1871,12 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
                 @Override
                 public boolean equals(Object obj) {
+                    if (obj == null) {
+                        return false;
+                    }
+                    if (getClass() != obj.getClass()) {
+                        return false;
+                    }
                     return indicesLookup.equals(obj);
                 }
 

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test.rest;
 
+import io.netty.handler.codec.http.HttpMethod;
+
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -144,8 +146,6 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.notNullValue;
-
-import io.netty.handler.codec.http.HttpMethod;
 
 /**
  * Superclass for tests that interact with an external test cluster using Elasticsearch's {@link RestClient}.

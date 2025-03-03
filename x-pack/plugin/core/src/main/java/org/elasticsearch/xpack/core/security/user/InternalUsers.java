@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAct
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
@@ -213,6 +214,7 @@ public class InternalUsers {
                         TransportCloseIndexAction.NAME,
                         TransportCreateIndexAction.TYPE.name(),
                         TransportClusterSearchShardsAction.TYPE.name(),
+                        GetSettingsAction.NAME,
                         TransportUpdateSettingsAction.TYPE.name(),
                         RefreshAction.NAME,
                         ReindexAction.NAME,

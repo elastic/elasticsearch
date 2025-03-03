@@ -14,14 +14,11 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static java.util.Map.entry;
-import static java.util.stream.Stream.concat;
 
 public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDuration) {
 
@@ -46,48 +43,34 @@ public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDu
     }
 
     public static Map<String, Object> modelAttributes(Model model) {
-        return toMap(modelAttributeEntries(model));
-    }
+        var modelAttributesMap = new HashMap<String, Object>();
+        modelAttributesMap.put("service", model.getConfigurations().getService());
+        modelAttributesMap.put("task_type", model.getTaskType().toString());
 
-    private static Stream<Map.Entry<String, Object>> modelAttributeEntries(Model model) {
-        var stream = Stream.<Map.Entry<String, Object>>builder()
-            .add(entry("service", model.getConfigurations().getService()))
-            .add(entry("task_type", model.getTaskType().toString()));
-        if (model.getServiceSettings().modelId() != null) {
-            stream.add(entry("model_id", model.getServiceSettings().modelId()));
+        if (Objects.nonNull(model.getServiceSettings().modelId())) {
+            modelAttributesMap.put("model_id", model.getServiceSettings().modelId());
         }
-        return stream.build();
+
+        return modelAttributesMap;
     }
 
-    private static Map<String, Object> toMap(Stream<Map.Entry<String, Object>> stream) {
-        return stream.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    public static Map<String, Object> routingAttributes(BaseInferenceActionRequest request, String nodeIdHandlingRequest) {
+        return Map.of("rerouted", request.hasBeenRerouted(), "node_id", nodeIdHandlingRequest);
     }
 
-    public static Map<String, Object> responseAttributes(Model model, @Nullable Throwable t) {
-        return toMap(concat(modelAttributeEntries(model), errorAttributes(t)));
+    public static Map<String, Object> modelAttributes(UnparsedModel model) {
+        return Map.of("service", model.service(), "task_type", model.taskType().toString());
     }
 
-    public static Map<String, Object> responseAttributes(UnparsedModel model, @Nullable Throwable t) {
-        var unknownModelAttributes = Stream.<Map.Entry<String, Object>>builder()
-            .add(entry("service", model.service()))
-            .add(entry("task_type", model.taskType().toString()))
-            .build();
+    public static Map<String, Object> responseAttributes(@Nullable Throwable throwable) {
+        if (Objects.isNull(throwable)) {
+            return Map.of("status_code", 200);
+        }
 
-        return toMap(concat(unknownModelAttributes, errorAttributes(t)));
-    }
+        if (throwable instanceof ElasticsearchStatusException ese) {
+            return Map.of("status_code", ese.status().getStatus(), "error.type", String.valueOf(ese.status().getStatus()));
+        }
 
-    public static Map<String, Object> responseAttributes(@Nullable Throwable t) {
-        return toMap(errorAttributes(t));
-    }
-
-    private static Stream<Map.Entry<String, Object>> errorAttributes(@Nullable Throwable t) {
-        return switch (t) {
-            case null -> Stream.of(entry("status_code", 200));
-            case ElasticsearchStatusException ese -> Stream.<Map.Entry<String, Object>>builder()
-                .add(entry("status_code", ese.status().getStatus()))
-                .add(entry("error.type", String.valueOf(ese.status().getStatus())))
-                .build();
-            default -> Stream.of(entry("error.type", t.getClass().getSimpleName()));
-        };
+        return Map.of("error.type", throwable.getClass().getSimpleName());
     }
 }

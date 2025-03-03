@@ -25,6 +25,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.test.ESTestCase;
@@ -351,22 +352,7 @@ public class PivotTests extends ESTestCase {
     }
 
     private static SearchResponse searchResponseFromAggs(InternalAggregations aggs) {
-        return new SearchResponse(
-            SearchHits.EMPTY_WITH_TOTAL_HITS,
-            aggs,
-            null,
-            false,
-            null,
-            null,
-            1,
-            null,
-            10,
-            5,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            null
-        );
+        return SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(aggs).shards(10, 5, 0).build();
     }
 
     private class MyMockClient extends NoOpClient {
@@ -397,22 +383,10 @@ public class PivotTests extends ESTestCase {
                 }
                 ActionListener.respondAndRelease(
                     listener,
-                    (Response) new SearchResponse(
-                        SearchHits.EMPTY_WITH_TOTAL_HITS,
-                        null,
-                        null,
-                        false,
-                        null,
-                        null,
-                        1,
-                        null,
-                        10,
-                        searchFailures.size() > 0 ? 0 : 5,
-                        0,
-                        0,
-                        searchFailures.toArray(new ShardSearchFailure[searchFailures.size()]),
-                        null
-                    )
+                    (Response) SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                        .shards(10, searchFailures.isEmpty() ? 5 : 0, 0)
+                        .shardFailures(searchFailures)
+                        .build()
                 );
                 return;
             }

@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -93,7 +92,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         final ActionFilters actionFilters,
         final Client client,
         final ClusterService clusterService,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final PersistentTasksService persistentTasksService,
         final IndicesService indicesService,
         final CcrLicenseChecker ccrLicenseChecker
@@ -132,7 +130,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        final IndexMetadata followerIndexMetadata = state.getMetadata().index(request.getFollowerIndex());
+        final IndexMetadata followerIndexMetadata = state.getMetadata().getProject().index(request.getFollowerIndex());
         if (followerIndexMetadata == null) {
             listener.onFailure(new IndexNotFoundException(request.getFollowerIndex()));
             return;

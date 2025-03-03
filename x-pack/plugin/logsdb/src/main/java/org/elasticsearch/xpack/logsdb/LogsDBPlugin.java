@@ -7,38 +7,24 @@
 
 package org.elasticsearch.xpack.logsdb;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.logsdb.seqno.RestAddRetentionLeaseAction;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.logsdb.LogsdbLicenseService.FALLBACK_SETTING;
 
@@ -94,6 +80,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
                 IndexVersion.current(),
                 parameters.clusterService().state().nodes().getMaxDataNodeCompatibleIndexVersion()
             ),
+            () -> parameters.clusterService().state().nodes().getMinNodeVersion(),
             DiscoveryNode.isStateless(settings) == false,
             DiscoveryNode.isStateless(settings) == false
         );
@@ -111,24 +98,6 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
         actions.add(new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.LOGSDB, LogsDBUsageTransportAction.class));
         actions.add(new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.LOGSDB, LogsDBInfoTransportAction.class));
         return actions;
-    }
-
-    @Override
-    public Collection<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature
-    ) {
-        if (Build.current().isSnapshot()) {
-            return List.of(new RestAddRetentionLeaseAction());
-        }
-        return Collections.emptyList();
     }
 
     protected XPackLicenseState getLicenseState() {

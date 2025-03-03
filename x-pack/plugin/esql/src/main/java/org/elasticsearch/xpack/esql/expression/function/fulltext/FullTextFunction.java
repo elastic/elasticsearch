@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -50,6 +49,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.planner.mapper.MapperUtils.hasScoreAttribute;
 
 /**
  * Base class for full-text functions that use ES queries to match documents.
@@ -205,10 +205,7 @@ public abstract class FullTextFunction extends Function implements TranslationAw
             );
             checkFullTextFunctionsParents(condition, failures);
 
-            boolean usesScore = plan.output()
-                .stream()
-                .anyMatch(attr -> attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
-            if (usesScore) {
+            if (hasScoreAttribute(plan.output())) {
                 checkFullTextSearchDisjunctions(condition, failures);
             }
         } else {

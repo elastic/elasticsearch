@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.RandomSample;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -87,6 +88,7 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToDouble;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
 /**
@@ -685,5 +687,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         PlanFactory lowerPlan = ParserUtils.typedParsing(this, ctx.forkSubQueryCommand(), PlanFactory.class);
         PlanFactory makePlan = typedParsing(this, ctx.forkSubQueryProcessingCommand(), PlanFactory.class);
         return input -> makePlan.apply(lowerPlan.apply(input));
+    }
+
+    @Override
+    public PlanFactory visitRandomSampleCommand(EsqlBaseParser.RandomSampleCommandContext ctx) {
+        Source source = source(ctx);
+        var p = stringToDouble(ctx.DECIMAL_LITERAL().getText());
+        var probability = new Literal(source, p, DataType.DOUBLE);
+        var s = ctx.INTEGER_LITERAL() != null ? stringToInt(ctx.INTEGER_LITERAL().getText()) : null;
+        var seed = s != null ? new Literal(source, s, DataType.INTEGER) : null;
+        return plan -> new RandomSample(source, probability, seed, plan);
     }
 }

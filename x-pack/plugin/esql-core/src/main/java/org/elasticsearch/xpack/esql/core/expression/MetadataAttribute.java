@@ -172,6 +172,10 @@ public class MetadataAttribute extends TypedAttribute {
         return ATTRIBUTES_MAP.containsKey(name);
     }
 
+    public static boolean isScoreAttribute(Expression a) {
+        return a instanceof MetadataAttribute ma && ma.name().equals(SCORE);
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (false == super.equals(obj)) {

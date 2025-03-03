@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
@@ -33,6 +34,7 @@ import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
+import org.elasticsearch.compute.operator.RandomSampleOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.ShowOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
@@ -61,6 +63,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -97,6 +100,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RandomSampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
@@ -238,6 +242,8 @@ public class LocalExecutionPlanner {
             return planMvExpand(mvExpand, context);
         } else if (node instanceof ChangePointExec changePoint) {
             return planChangePoint(changePoint, context);
+        } else if (node instanceof RandomSampleExec randomSample) {
+            return planRandomSample(randomSample, context);
         }
         // source nodes
         else if (node instanceof EsQueryExec esQuery) {
@@ -729,6 +735,13 @@ public class LocalExecutionPlanner {
             ),
             layout
         );
+    }
+
+    private PhysicalOperation planRandomSample(RandomSampleExec rsx, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(rsx.child(), context);
+        var probability = (double) Foldables.valueOf(context.foldCtx(), rsx.probability());
+        var seed = rsx.seed() != null ? (int) Foldables.valueOf(context.foldCtx(), rsx.seed()) : Randomness.get().nextInt();
+        return source.with(new RandomSampleOperator.Factory(probability, seed), source.layout);
     }
 
     private PhysicalOperation planMerge(MergeExec mergeExec, LocalExecutionPlannerContext context) {

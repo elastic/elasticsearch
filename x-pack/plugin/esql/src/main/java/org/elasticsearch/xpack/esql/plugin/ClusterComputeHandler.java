@@ -249,6 +249,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             return new ComputeResponse(profiles, took, r.totalShards, r.successfulShards, r.skippedShards, r.failedShards);
         }))) {
             var exchangeSource = new ExchangeSourceHandler(
+                globalSessionId,
                 configuration.pragmas().exchangeBufferSize(),
                 transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
             );

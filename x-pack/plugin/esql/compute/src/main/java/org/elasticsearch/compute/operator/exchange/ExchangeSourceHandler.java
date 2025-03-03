@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @see #addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)
  */
 public final class ExchangeSourceHandler {
+    private final String exchangeId;
     private final ExchangeBuffer buffer;
     private final Executor fetchExecutor;
 
@@ -49,7 +50,8 @@ public final class ExchangeSourceHandler {
      *                           which could otherwise be allocated for other purposes.
      * @param fetchExecutor      the executor used to fetch pages.
      */
-    public ExchangeSourceHandler(int maxBufferSize, Executor fetchExecutor) {
+    public ExchangeSourceHandler(String exchangeId, int maxBufferSize, Executor fetchExecutor) {
+        this.exchangeId = exchangeId;
         this.buffer = new ExchangeBuffer(maxBufferSize);
         this.fetchExecutor = fetchExecutor;
         this.outstandingSinks = new PendingInstances(() -> buffer.finish(false));
@@ -63,9 +65,11 @@ public final class ExchangeSourceHandler {
     }
 
     private class ExchangeSourceImpl implements ExchangeSource {
+        private final String exchangeId1;
         private boolean finished;
 
-        ExchangeSourceImpl() {
+        ExchangeSourceImpl(String exchangeId) {
+            exchangeId1 = exchangeId;
             outstandingSources.trackNewInstance();
         }
 
@@ -84,6 +88,11 @@ public final class ExchangeSourceHandler {
         @Override
         public IsBlockedResult waitForReading() {
             return buffer.waitForReading();
+        }
+
+        @Override
+        public String exchangeId() {
+            return exchangeId1;
         }
 
         @Override
@@ -106,7 +115,7 @@ public final class ExchangeSourceHandler {
      * @see ExchangeSinkOperator
      */
     public ExchangeSource createExchangeSource() {
-        return new ExchangeSourceImpl();
+        return new ExchangeSourceImpl(exchangeId);
     }
 
     /**

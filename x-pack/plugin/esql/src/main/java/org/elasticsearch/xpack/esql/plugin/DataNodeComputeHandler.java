@@ -407,7 +407,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 task.addListener(
                     () -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()))
                 );
-                var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
+                var exchangeSource = new ExchangeSourceHandler(externalId, 1, esqlExecutor);
                 exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
                 var reductionListener = computeListener.acquireCompute();
                 computeService.runCompute(

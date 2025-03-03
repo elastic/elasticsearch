@@ -40,9 +40,11 @@ public final class ExchangeSinkHandler {
     private final SubscribableListener<Void> completionFuture;
     private final LongSupplier nowInMillis;
     private final AtomicLong lastUpdatedInMillis;
+    private final String exchangeId;
     private final BlockFactory blockFactory;
 
-    public ExchangeSinkHandler(BlockFactory blockFactory, int maxBufferSize, LongSupplier nowInMillis) {
+    public ExchangeSinkHandler(String exchangeId, BlockFactory blockFactory, int maxBufferSize, LongSupplier nowInMillis) {
+        this.exchangeId = exchangeId;
         this.blockFactory = blockFactory;
         this.buffer = new ExchangeBuffer(maxBufferSize);
         this.completionFuture = SubscribableListener.newForked(buffer::addCompletionListener);
@@ -51,11 +53,13 @@ public final class ExchangeSinkHandler {
     }
 
     private class ExchangeSinkImpl implements ExchangeSink {
+        private final String exchangeId;
         boolean finished;
         private final Runnable onPageFetched;
         private final SubscribableListener<Void> onFinished = new SubscribableListener<>();
 
-        ExchangeSinkImpl(Runnable onPageFetched) {
+        ExchangeSinkImpl(String exchangeId, Runnable onPageFetched) {
+            this.exchangeId = exchangeId;
             this.onPageFetched = onPageFetched;
             onChanged();
             buffer.addCompletionListener(onFinished);
@@ -95,6 +99,11 @@ public final class ExchangeSinkHandler {
         @Override
         public IsBlockedResult waitForWriting() {
             return buffer.waitForWriting();
+        }
+
+        @Override
+        public String exchangeId() {
+            return exchangeId;
         }
     }
 
@@ -168,7 +177,7 @@ public final class ExchangeSinkHandler {
      * @see ExchangeSinkOperator
      */
     public ExchangeSink createExchangeSink(Runnable onPageFetched) {
-        return new ExchangeSinkImpl(onPageFetched);
+        return new ExchangeSinkImpl(exchangeId, onPageFetched);
     }
 
     /**

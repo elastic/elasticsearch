@@ -196,6 +196,7 @@ public class ComputeService {
          */
         List<Attribute> outputAttributes = physicalPlan.output();
         var exchangeSource = new ExchangeSourceHandler(
+            sessionId,
             queryPragmas.exchangeBufferSize(),
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
         );

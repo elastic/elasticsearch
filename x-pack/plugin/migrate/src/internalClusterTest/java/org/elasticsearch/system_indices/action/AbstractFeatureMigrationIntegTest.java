@@ -87,6 +87,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     public static final IndexVersion NEEDS_UPGRADE_INDEX_VERSION = IndexVersionUtils.getPreviousMajorVersion(
         SystemIndices.NO_UPGRADE_REQUIRED_INDEX_VERSION
     );
+    protected static final int UPGRADED_TO_VERSION = SystemIndices.NO_UPGRADE_REQUIRED_VERSION.major + 1;
 
     static final SystemIndexDescriptor EXTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
         .setIndexPattern(".ext-unman-*")

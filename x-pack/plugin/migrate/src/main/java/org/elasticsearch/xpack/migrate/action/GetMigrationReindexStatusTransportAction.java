@@ -145,7 +145,7 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
     }
 
     /*
-     * This method feches doc counts for all indices in inProgressIndices (and the indices they are being reindexed into). After
+     * This method fetches doc counts for all indices in inProgressIndices (and the indices they are being reindexed into). After
      * successfully fetching those, reportStatus is called.
      */
     private void fetchInProgressStatsAndReportStatus(

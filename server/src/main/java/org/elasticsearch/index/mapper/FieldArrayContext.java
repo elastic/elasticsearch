@@ -63,7 +63,8 @@ public class FieldArrayContext {
                 offsetToOrd[nullOffset] = -1;
             }
 
-            try (var streamOutput = new BytesStreamOutput()) {
+            int expectedSize = offsetToOrd.length + 1; // Initialize buffer to avoid unnecessary resizing, assume 1 byte per offset + size.
+            try (var streamOutput = new BytesStreamOutput(expectedSize)) {
                 // Could just use vint for array length, but this allows for decoding my_field: null as -1
                 streamOutput.writeVInt(BitUtil.zigZagEncode(offsetToOrd.length));
                 for (int ord : offsetToOrd) {

@@ -296,7 +296,7 @@ public class OpenAiService extends SenderService {
 
         var overriddenModel = OpenAiChatCompletionModel.of(openAiModel, inputs.getRequest());
         var requestCreator = OpenAiUnifiedCompletionRequestManager.of(overriddenModel, getServiceComponents().threadPool());
-        var errorMessage = constructFailedToSendRequestMessage(overriddenModel.getServiceSettings().uri(), COMPLETION_ERROR_PREFIX);
+        var errorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
         var action = new SenderExecutableAction(getSender(), requestCreator, errorMessage);
 
         action.execute(inputs, timeout, listener);

@@ -359,7 +359,6 @@ public class ElasticInferenceService extends SenderService {
         var completionModel = (ElasticInferenceServiceCompletionModel) model;
         var overriddenModel = ElasticInferenceServiceCompletionModel.of(completionModel, inputs.getRequest());
         var errorMessage = constructFailedToSendRequestMessage(
-            overriddenModel.uri(),
             String.format(Locale.ROOT, "%s completions", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
         );
 

@@ -133,8 +133,9 @@ class Elasticsearch {
             }
 
             private void appendIndentation(StringBuilder builder, int depth) {
+                builder.append("|");
                 for (int i = 0; i < depth; i++) {
-                    builder.append("    ");
+                    builder.append("> ");
                 }
             }
         });

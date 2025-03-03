@@ -17,6 +17,7 @@ import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -230,6 +231,16 @@ public class ThreadPoolMergeExecutorService {
                 newTargetIORateBytesPerSec = currentTargetIORateBytesPerSec;
             }
         return newTargetIORateBytesPerSec;
+    }
+
+    // exposed for tests
+    Set<MergeTask> getCurrentlyRunningMergeTasks() {
+        return currentlyRunningMergeTasks;
+    }
+
+    // exposed for tests
+    PriorityBlockingQueue<MergeTask> getQueuedMergeTasks() {
+        return queuedMergeTasks;
     }
 
     // exposed for tests and stats

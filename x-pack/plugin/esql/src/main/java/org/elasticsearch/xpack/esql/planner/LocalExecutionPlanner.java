@@ -190,14 +190,7 @@ public class LocalExecutionPlanner {
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
         context.addDriverFactory(
             new DriverFactory(
-                new DriverSupplier(
-                    description,
-                    context.bigArrays,
-                    context.blockFactory,
-                    physicalOperation,
-                    statusInterval,
-                    settings
-                ),
+                new DriverSupplier(description, context.bigArrays, context.blockFactory, physicalOperation, statusInterval, settings),
                 context.driverParallelism().get()
             )
         );

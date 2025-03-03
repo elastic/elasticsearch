@@ -135,16 +135,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
             case 7 -> sleeps = randomValueOtherThan(sleeps, DriverSleepsTests::randomDriverSleeps);
             default -> throw new UnsupportedOperationException();
         }
-        return new DriverProfile(
-            shortDescription,
-            startMillis,
-            stopMillis,
-            tookNanos,
-            cpuNanos,
-            iterations,
-            operators,
-            sleeps
-        );
+        return new DriverProfile(shortDescription, startMillis, stopMillis, tookNanos, cpuNanos, iterations, operators, sleeps);
     }
 
     @Override

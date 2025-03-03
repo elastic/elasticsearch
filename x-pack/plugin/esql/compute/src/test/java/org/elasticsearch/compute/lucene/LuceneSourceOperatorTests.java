@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
@@ -32,6 +33,7 @@ import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -144,7 +146,19 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
                 receivedRows.addAndGet(p.getPositionCount());
                 p.releaseBlocks();
             });
-            Driver driver = new Driver("driver" + i, driverContext, sourceOperator, List.of(), sinkOperator, () -> {});
+            Driver driver = new Driver(
+                "driver" + i,
+                "test",
+                0,
+                0,
+                driverContext,
+                () -> "test",
+                sourceOperator,
+                List.of(),
+                sinkOperator,
+                TimeValue.timeValueNanos(1),
+                () -> {}
+            );
             drivers.add(driver);
         }
         OperatorTestCase.runDriver(drivers);

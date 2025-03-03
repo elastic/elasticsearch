@@ -21,9 +21,4 @@ public class MvAvgSerializationTests extends AbstractExpressionSerializationTest
     protected MvAvg mutateInstance(MvAvg instance) throws IOException {
         return new MvAvg(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

@@ -300,40 +300,24 @@ public class ExchangeServiceTests extends ESTestCase {
         int numSources = randomIntBetween(1, 8);
         List<Driver> drivers = new ArrayList<>(numSinks + numSources);
         for (int i = 0; i < numSinks; i++) {
-            String description = "sink-" + i;
-            ExchangeSinkOperator sinkOperator = new ExchangeSinkOperator(exchangeSink.get(), Function.identity());
             DriverContext dc = driverContext();
-            Driver d = new Driver(
+            Driver d = createDriver(
                 "test-session:1",
-                "test",
-                0,
-                0,
+                "sink-" + i,
                 dc,
-                () -> description,
                 seqNoGenerator.get(dc),
-                List.of(),
-                sinkOperator,
-                Driver.DEFAULT_STATUS_INTERVAL,
-                () -> {}
+                new ExchangeSinkOperator(exchangeSink.get(), Function.identity())
             );
             drivers.add(d);
         }
         for (int i = 0; i < numSources; i++) {
-            String description = "source-" + i;
-            ExchangeSourceOperator sourceOperator = new ExchangeSourceOperator(exchangeSource.get());
             DriverContext dc = driverContext();
-            Driver d = new Driver(
+            Driver d = createDriver(
                 "test-session:2",
-                "test",
-                0,
-                0,
+                "source-" + i,
                 dc,
-                () -> description,
-                sourceOperator,
-                List.of(),
-                seqNoCollector.get(dc),
-                Driver.DEFAULT_STATUS_INTERVAL,
-                () -> {}
+                new ExchangeSourceOperator(exchangeSource.get()),
+                seqNoCollector.get(dc)
             );
             drivers.add(d);
         }
@@ -346,6 +330,30 @@ public class ExchangeServiceTests extends ESTestCase {
         }.runToCompletion(drivers, future);
         future.actionGet(TimeValue.timeValueMinutes(1));
         return seqNoCollector.receivedSeqNos;
+    }
+
+    private static Driver createDriver(
+        String sessionId,
+        String description,
+        DriverContext dc,
+        SourceOperator sourceOperator,
+        SinkOperator sinkOperator
+    ) {
+        return new Driver(
+            sessionId,
+            "test",
+            "unset",
+            "unset",
+            0,
+            0,
+            dc,
+            () -> description,
+            sourceOperator,
+            List.of(),
+            sinkOperator,
+            Driver.DEFAULT_STATUS_INTERVAL,
+            () -> {}
+        );
     }
 
     public void testConcurrentWithHandlers() {

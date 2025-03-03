@@ -23,6 +23,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -103,6 +104,7 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
+    private final long memoryAccountingBufferSize;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
     private RankFeatureResult rankFeatureResult;
@@ -168,7 +170,8 @@ final class DefaultSearchContext extends SearchContext {
         Executor executor,
         SearchService.ResultsType resultsType,
         boolean enableQueryPhaseParallelCollection,
-        int minimumDocsPerSlice
+        int minimumDocsPerSlice,
+        long memoryAccountingBufferSize
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -179,6 +182,7 @@ final class DefaultSearchContext extends SearchContext {
             this.shardTarget = shardTarget;
             this.indexService = readerContext.indexService();
             this.indexShard = readerContext.indexShard();
+            this.memoryAccountingBufferSize = memoryAccountingBufferSize;
 
             Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
             int maximumNumberOfSlices = determineMaximumNumberOfSlices(
@@ -900,6 +904,16 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Profilers getProfilers() {
         return profilers;
+    }
+
+    @Override
+    public CircuitBreaker circuitBreaker() {
+        return indexService.breakerService().getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    @Override
+    public long memAccountingBufferSize() {
+        return memoryAccountingBufferSize;
     }
 
     public void setProfilers(Profilers profilers) {

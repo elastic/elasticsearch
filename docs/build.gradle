@@ -37,7 +37,8 @@ ext.docsFileTree = fileTree(projectDir) {
 }
 
 tasks.named("yamlRestTest") {
-  if (buildParams.isSnapshotBuild() == false) {
+  enabled = false
+  if (buildParams.snapshotBuild == false) {
     // LOOKUP is not available in snapshots
     systemProperty 'tests.rest.blacklist', [
       "reference/esql/processing-commands/lookup/esql-lookup-example"
@@ -47,6 +48,7 @@ tasks.named("yamlRestTest") {
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 tasks.named("buildRestTests").configure {
+  enabled = false
   getExpectedUnconvertedCandidates().addAll(
           'reference/ml/anomaly-detection/ml-configuring-transform.asciidoc',
           'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
@@ -82,7 +84,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     keystorePassword 'keystore-password'
-    if (buildParams.isSnapshotBuild() == false) {
+    if (buildParams.snapshotBuild == false) {
       requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
     }
   }

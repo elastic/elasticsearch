@@ -67,7 +67,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         Map<String, List<String>> indexToTransformIds = indexToTransformIds(precomputedData.transformConfigs());
         for (String concreteIndex : concreteIndexNames) {
-            IndexMetadata indexMetadata = clusterState.getMetadata().index(concreteIndex);
+            IndexMetadata indexMetadata = clusterState.getMetadata().getProject().index(concreteIndex);
             List<DeprecationIssue> singleIndexIssues = checks.stream()
                 .map(c -> c.apply(indexMetadata, clusterState, indexToTransformIds))
                 .filter(Objects::nonNull)
@@ -173,7 +173,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
     }
 
     private boolean isNotDataStreamIndex(IndexMetadata indexMetadata, ClusterState clusterState) {
-        return clusterState.metadata().findDataStreams(indexMetadata.getIndex().getName()).isEmpty();
+        return clusterState.metadata().getProject().findDataStreams(indexMetadata.getIndex().getName()).isEmpty();
     }
 
     private DeprecationIssue translogRetentionSettingCheck(

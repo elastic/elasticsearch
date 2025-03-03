@@ -1770,6 +1770,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             collectIndices(indices, indexToDataStreamLookup, indicesLookup, aliasToIndices);
             collectAliases(aliasToIndices, indicesLookup);
 
+            // We do a ton of lookups on this map but also need its sorted properties at times.
+            // Using this hybrid of a sorted and a hash-map trades some heap overhead relative to just using a TreeMap
+            // for much faster O(1) lookups in large clusters.
             return new SortedMap<>() {
 
                 private final SortedMap<String, IndexAbstraction> map = new TreeMap<>(indicesLookup);
@@ -1816,7 +1819,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
                 @Override
                 public Set<Entry<String, IndexAbstraction>> entrySet() {
-                    return Collections.unmodifiableSet(map.entrySet());
+                    return Collections.unmodifiableSortedMap(map).entrySet();
                 }
 
                 @Override

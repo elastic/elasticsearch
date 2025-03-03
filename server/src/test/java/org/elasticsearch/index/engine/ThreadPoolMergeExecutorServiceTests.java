@@ -167,12 +167,12 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         // at least 2 merges allowed to run concurrently
         int mergeExecutorThreadCount = randomIntBetween(2, 5);
         Settings settings = Settings.builder()
-                .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
-                .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
-                .build();
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            .build();
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-                    .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
+                .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
             assertNotNull(threadPoolMergeExecutorService);
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             // more merge tasks than max concurrent merges allowed to run concurrently
@@ -201,21 +201,21 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 threadPoolMergeExecutorService.submitMergeTask(mergeTask);
             }
             for (int completedTasksCount = 0; completedTasksCount < totalMergeTasksCount
-                    - mergeExecutorThreadCount; completedTasksCount++) {
+                - mergeExecutorThreadCount; completedTasksCount++) {
                 int finalCompletedTasksCount = completedTasksCount;
                 assertBusy(() -> {
                     // assert that there are merge tasks running concurrently at the max allowed concurrency rate
                     assertThat(threadPoolMergeExecutorService.getCurrentlyRunningMergeTasks().size(), is(mergeExecutorThreadCount));
                     // with the other merge tasks enqueued
                     assertThat(
-                            threadPoolMergeExecutorService.getQueuedMergeTasks().size(),
-                            is(totalMergeTasksCount - mergeExecutorThreadCount - finalCompletedTasksCount)
+                        threadPoolMergeExecutorService.getQueuedMergeTasks().size(),
+                        is(totalMergeTasksCount - mergeExecutorThreadCount - finalCompletedTasksCount)
                     );
                     // also check thread-pool stats for the same
                     assertThat(threadPoolExecutor.getActiveCount(), is(mergeExecutorThreadCount));
                     assertThat(
-                            threadPoolExecutor.getQueue().size(),
-                            is(totalMergeTasksCount - mergeExecutorThreadCount - finalCompletedTasksCount)
+                        threadPoolExecutor.getQueue().size(),
+                        is(totalMergeTasksCount - mergeExecutorThreadCount - finalCompletedTasksCount)
                     );
                 });
                 // let one merge task finish running

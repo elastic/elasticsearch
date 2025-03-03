@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockChatCompletionEntityFactory;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.inference.external.response.amazonbedrock.complet
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 
 import java.util.function.Supplier;
+
+import static org.elasticsearch.inference.TaskType.COMPLETION;
 
 public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequestManager {
     private static final Logger logger = LogManager.getLogger(AmazonBedrockChatCompletionRequestManager.class);
@@ -61,5 +64,10 @@ public class AmazonBedrockChatCompletionRequestManager extends AmazonBedrockRequ
             logger.warn(errorMessage, e);
             listener.onFailure(new ElasticsearchException(errorMessage, e));
         }
+    }
+
+    @Override
+    public TaskType taskType() {
+        return COMPLETION;
     }
 }

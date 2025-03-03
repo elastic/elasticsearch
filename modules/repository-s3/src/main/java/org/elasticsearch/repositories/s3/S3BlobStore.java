@@ -342,7 +342,7 @@ class S3BlobStore implements BlobStore {
     }
 
     private static class DeletionExceptions {
-        private Exception exception = null;
+        Exception exception = null;
         private int count = 0;
 
         void useOrMaybeSuppress(Exception e) {

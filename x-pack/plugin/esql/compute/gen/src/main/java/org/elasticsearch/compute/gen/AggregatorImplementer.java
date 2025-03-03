@@ -54,6 +54,8 @@ import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
+import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
+import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
@@ -73,9 +75,10 @@ public class AggregatorImplementer {
     private final List<TypeMirror> warnExceptions;
     private final ExecutableElement init;
     private final ExecutableElement combine;
+    private final List<Parameter> createParameters;
     private final ClassName implementation;
     private final List<IntermediateStateDesc> intermediateState;
-    private final List<Parameter> createParameters;
+    private final boolean includeTimestampVector;
 
     private final AggregationState aggState;
     private final AggregationParameter aggParam;
@@ -84,15 +87,15 @@ public class AggregatorImplementer {
         Elements elements,
         TypeElement declarationType,
         IntermediateState[] interStateAnno,
-        List<TypeMirror> warnExceptions
+        List<TypeMirror> warnExceptions,
+        boolean includeTimestampVector
     ) {
         this.declarationType = declarationType;
         this.warnExceptions = warnExceptions;
 
         this.init = requireStaticMethod(
             declarationType,
-            // This should be more restrictive and require org.elasticsearch.compute.aggregation.AggregatorState
-            requirePrimitiveOrImplements(elements, Types.RELEASABLE),
+            requirePrimitiveOrImplements(elements, Types.AGGREGATOR_STATE),
             requireName("init", "initSingle"),
             requireAnyArgs("<arbitrary init arguments>")
         );
@@ -102,10 +105,10 @@ public class AggregatorImplementer {
             declarationType,
             aggState.declaredType().isPrimitive() ? requireType(aggState.declaredType()) : requireVoidType(),
             requireName("combine"),
-            requireArgs(requireType(aggState.declaredType()), requireAnyType("<aggregation input column type>"))
+            combineArgs(aggState, includeTimestampVector)
         );
         // TODO support multiple parameters
-        this.aggParam = AggregationParameter.create(combine.getParameters().get(1).asType());
+        this.aggParam = AggregationParameter.create(combine.getParameters().getLast().asType());
 
         this.createParameters = init.getParameters()
             .stream()
@@ -117,7 +120,20 @@ public class AggregatorImplementer {
             elements.getPackageOf(declarationType).toString(),
             (declarationType.getSimpleName() + "AggregatorFunction").replace("AggregatorAggregator", "Aggregator")
         );
-        intermediateState = Arrays.stream(interStateAnno).map(IntermediateStateDesc::newIntermediateStateDesc).toList();
+        this.intermediateState = Arrays.stream(interStateAnno).map(IntermediateStateDesc::newIntermediateStateDesc).toList();
+        this.includeTimestampVector = includeTimestampVector;
+    }
+
+    private static Methods.ArgumentMatcher combineArgs(AggregationState aggState, boolean includeTimestampVector) {
+        if (includeTimestampVector) {
+            return requireArgs(
+                requireType(aggState.declaredType()),
+                requireType(TypeName.LONG), // @timestamp
+                requireAnyType("<aggregation input column type>")
+            );
+        } else {
+            return requireArgs(requireType(aggState.declaredType()), requireAnyType("<aggregation input column type>"));
+        }
     }
 
     ClassName implementation() {
@@ -295,10 +311,18 @@ public class AggregatorImplementer {
             builder.addComment("No masking");
             builder.addStatement("$T block = page.getBlock(channels.get(0))", blockType(aggParam.type()));
             builder.addStatement("$T vector = block.asVector()", vectorType(aggParam.type()));
+            if (includeTimestampVector) {
+                builder.addStatement("$T timestampsBlock = page.getBlock(channels.get(1))", LONG_BLOCK);
+                builder.addStatement("$T timestampsVector = timestampsBlock.asVector()", LONG_VECTOR);
+
+                builder.beginControlFlow("if (timestampsVector == null) ");
+                builder.addStatement("throw new IllegalStateException($S)", "expected @timestamp vector; but got a block");
+                builder.endControlFlow();
+            }
             builder.beginControlFlow("if (vector != null)");
-            builder.addStatement("addRawVector(vector)");
+            builder.addStatement(includeTimestampVector ? "addRawVector(vector, timestampsVector)" : "addRawVector(vector)");
             builder.nextControlFlow("else");
-            builder.addStatement("addRawBlock(block)");
+            builder.addStatement(includeTimestampVector ? "addRawBlock(block, timestampsVector)" : "addRawBlock(block)");
             builder.endControlFlow();
             builder.addStatement("return");
         }
@@ -307,10 +331,18 @@ public class AggregatorImplementer {
         builder.addComment("Some positions masked away, others kept");
         builder.addStatement("$T block = page.getBlock(channels.get(0))", blockType(aggParam.type()));
         builder.addStatement("$T vector = block.asVector()", vectorType(aggParam.type()));
+        if (includeTimestampVector) {
+            builder.addStatement("$T timestampsBlock = page.getBlock(channels.get(1))", LONG_BLOCK);
+            builder.addStatement("$T timestampsVector = timestampsBlock.asVector()", LONG_VECTOR);
+
+            builder.beginControlFlow("if (timestampsVector == null) ");
+            builder.addStatement("throw new IllegalStateException($S)", "expected @timestamp vector; but got a block");
+            builder.endControlFlow();
+        }
         builder.beginControlFlow("if (vector != null)");
-        builder.addStatement("addRawVector(vector, mask)");
+        builder.addStatement(includeTimestampVector ? "addRawVector(vector, timestampsVector, mask)" : "addRawVector(vector, mask)");
         builder.nextControlFlow("else");
-        builder.addStatement("addRawBlock(block, mask)");
+        builder.addStatement(includeTimestampVector ? "addRawBlock(block, timestampsVector, mask)" : "addRawBlock(block, mask)");
         builder.endControlFlow();
         return builder.build();
     }
@@ -318,6 +350,9 @@ public class AggregatorImplementer {
     private MethodSpec addRawVector(boolean masked) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawVector");
         builder.addModifiers(Modifier.PRIVATE).addParameter(vectorType(aggParam.type()), "vector");
+        if (includeTimestampVector) {
+            builder.addParameter(LONG_VECTOR, "timestamps");
+        }
         if (masked) {
             builder.addParameter(BOOLEAN_VECTOR, "mask");
         }
@@ -348,6 +383,9 @@ public class AggregatorImplementer {
     private MethodSpec addRawBlock(boolean masked) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawBlock");
         builder.addModifiers(Modifier.PRIVATE).addParameter(blockType(aggParam.type()), "block");
+        if (includeTimestampVector) {
+            builder.addParameter(LONG_VECTOR, "timestamps");
+        }
         if (masked) {
             builder.addParameter(BOOLEAN_VECTOR, "mask");
         }
@@ -401,33 +439,57 @@ public class AggregatorImplementer {
         });
     }
 
+    private void combineRawInputForBytesRef(MethodSpec.Builder builder, String blockVariable) {
+        // scratch is a BytesRef var that must have been defined before the iteration starts
+        if (includeTimestampVector) {
+            builder.addStatement("$T.combine(state, timestamps.getLong(i), $L.getBytesRef(i, scratch))", declarationType, blockVariable);
+        } else {
+            builder.addStatement("$T.combine(state, $L.getBytesRef(i, scratch))", declarationType, blockVariable);
+        }
+    }
+
     private void combineRawInputForPrimitive(TypeName returnType, MethodSpec.Builder builder, String blockVariable) {
-        builder.addStatement(
-            "state.$TValue($T.combine(state.$TValue(), $L.get$L(i)))",
-            returnType,
-            declarationType,
-            returnType,
-            blockVariable,
-            capitalize(combine.getParameters().get(1).asType().toString())
-        );
+        if (includeTimestampVector) {
+            builder.addStatement(
+                "state.$TValue($T.combine(state.$TValue(), timestamps.getLong(i), $L.get$L(i)))",
+                returnType,
+                declarationType,
+                returnType,
+                blockVariable,
+                capitalize(combine.getParameters().get(1).asType().toString())
+            );
+        } else {
+            builder.addStatement(
+                "state.$TValue($T.combine(state.$TValue(), $L.get$L(i)))",
+                returnType,
+                declarationType,
+                returnType,
+                blockVariable,
+                capitalize(combine.getParameters().get(1).asType().toString())
+            );
+        }
+    }
+
+    private void combineRawInputForVoid(MethodSpec.Builder builder, String blockVariable) {
+        if (includeTimestampVector) {
+            builder.addStatement(
+                "$T.combine(state, timestamps.getLong(i), $L.get$L(i))",
+                declarationType,
+                blockVariable,
+                capitalize(combine.getParameters().get(1).asType().toString())
+            );
+        } else {
+            builder.addStatement(
+                "$T.combine(state, $L.get$L(i))",
+                declarationType,
+                blockVariable,
+                capitalize(combine.getParameters().get(1).asType().toString())
+            );
+        }
     }
 
     private void combineRawInputForArray(MethodSpec.Builder builder, String arrayVariable) {
         warningsBlock(builder, () -> builder.addStatement("$T.combine(state, $L)", declarationType, arrayVariable));
-    }
-
-    private void combineRawInputForVoid(MethodSpec.Builder builder, String blockVariable) {
-        builder.addStatement(
-            "$T.combine(state, $L.get$L(i))",
-            declarationType,
-            blockVariable,
-            capitalize(combine.getParameters().get(1).asType().toString())
-        );
-    }
-
-    private void combineRawInputForBytesRef(MethodSpec.Builder builder, String blockVariable) {
-        // scratch is a BytesRef var that must have been defined before the iteration starts
-        builder.addStatement("$T.combine(state, $L.getBytesRef(i, scratch))", declarationType, blockVariable);
     }
 
     private void warningsBlock(MethodSpec.Builder builder, Runnable block) {

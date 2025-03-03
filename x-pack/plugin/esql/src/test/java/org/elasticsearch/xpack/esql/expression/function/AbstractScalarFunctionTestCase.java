@@ -401,8 +401,8 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 evaluator + "[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 dataType,
                 is(nullValue())
-            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.lang.ArithmeticException: " + typeNameOverflow)
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.ArithmeticException: " + typeNameOverflow)
         );
     }
 }

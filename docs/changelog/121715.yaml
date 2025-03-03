@@ -1,5 +1,0 @@
-pr: 121715
-summary: Fix synthetic source issue with deeply nested ignored source fields
-area: Mapping
-type: bug
-issues: []

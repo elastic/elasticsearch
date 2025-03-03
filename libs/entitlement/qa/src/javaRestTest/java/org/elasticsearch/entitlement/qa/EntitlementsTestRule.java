@@ -33,12 +33,13 @@ class EntitlementsTestRule implements TestRule {
 
     // entitlements that test methods may use, see EntitledActions
     private static final PolicyBuilder ENTITLED_POLICY = (builder, tempDir) -> {
-        builder.value(Map.of("write_system_properties", Map.of("properties", List.of("org.elasticsearch.entitlement.qa.selfTest"))));
+        builder.value("manage_threads");
+        builder.value("outbound_network");
         builder.value(
             Map.of(
                 "files",
                 List.of(
-                    Map.of("path", tempDir.resolve("read_dir"), "mode", "read"),
+                    Map.of("path", tempDir.resolve("read_dir"), "mode", "read_write"),
                     Map.of("path", tempDir.resolve("read_write_dir"), "mode", "read_write"),
                     Map.of("path", tempDir.resolve("read_file"), "mode", "read"),
                     Map.of("path", tempDir.resolve("read_write_file"), "mode", "read_write")
@@ -74,6 +75,8 @@ class EntitlementsTestRule implements TestRule {
             .systemProperty("es.entitlements.enabled", "true")
             .systemProperty("es.entitlements.testdir", () -> testDir.getRoot().getAbsolutePath())
             .setting("xpack.security.enabled", "false")
+            // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsXXX.xml
+            // .setting("logger.org.elasticsearch.entitlement", "DEBUG")
             .build();
         ruleChain = RuleChain.outerRule(testDir).around(tempDirSetup).around(cluster);
     }

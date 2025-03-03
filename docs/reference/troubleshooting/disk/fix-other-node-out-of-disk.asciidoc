@@ -1,9 +1,0 @@
-[[fix-other-node-out-of-disk]]
-== Fix other role nodes out of disk
-
-{es} can use dedicated nodes to execute other functions apart from storing data or coordinating the cluster,
-for example machine learning. If one or more of these nodes are running out of space, you need to ensure that they have
-enough disk space to function. If the <<health-api, health API>> reports that a node that is not a master and does not
-contain data is out of space you need to increase the disk capacity of this node.
-
-include::{es-ref-dir}/tab-widgets/troubleshooting/disk/increase-other-node-capacity-widget.asciidoc[]

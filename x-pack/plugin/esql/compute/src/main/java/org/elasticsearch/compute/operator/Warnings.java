@@ -102,12 +102,23 @@ public class Warnings {
     }
 
     public void registerException(Exception exception) {
+        registerException(exception.getClass(), exception.getMessage());
+    }
+
+    /**
+     * Register an exception to be included in the warnings.
+     * <p>
+     *     This overload avoids the need to instantiate the exception, which can be expensive.
+     *     Instead, it asks only the required pieces to build the warning.
+     * </p>
+     */
+    public void registerException(Class<? extends Exception> exceptionClass, String message) {
         if (addedWarnings < MAX_ADDED_WARNINGS) {
             if (addedWarnings == 0) {
                 addWarning(first);
             }
             // location needs to be added to the exception too, since the headers are deduplicated
-            addWarning(location + exception.getClass().getName() + ": " + exception.getMessage());
+            addWarning(location + exceptionClass.getName() + ": " + message);
             addedWarnings++;
         }
     }

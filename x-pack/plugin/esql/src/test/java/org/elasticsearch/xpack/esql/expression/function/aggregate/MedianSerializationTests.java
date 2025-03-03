@@ -21,9 +21,4 @@ public class MedianSerializationTests extends AbstractExpressionSerializationTes
     protected Median mutateInstance(Median instance) throws IOException {
         return new Median(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

@@ -35,7 +35,7 @@ public class AzureAiStudioActionCreator implements AzureAiStudioActionVisitor {
     public ExecutableAction create(AzureAiStudioChatCompletionModel completionModel, Map<String, Object> taskSettings) {
         var overriddenModel = AzureAiStudioChatCompletionModel.of(completionModel, taskSettings);
         var requestManager = new AzureAiStudioChatCompletionRequestManager(overriddenModel, serviceComponents.threadPool());
-        var errorMessage = constructFailedToSendRequestMessage(completionModel.uri(), "Azure AI Studio completion");
+        var errorMessage = constructFailedToSendRequestMessage("Azure AI Studio completion");
         return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 
@@ -47,7 +47,7 @@ public class AzureAiStudioActionCreator implements AzureAiStudioActionVisitor {
             serviceComponents.truncator(),
             serviceComponents.threadPool()
         );
-        var errorMessage = constructFailedToSendRequestMessage(embeddingsModel.uri(), "Azure AI Studio embeddings");
+        var errorMessage = constructFailedToSendRequestMessage("Azure AI Studio embeddings");
         return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 }

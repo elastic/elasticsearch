@@ -69,6 +69,19 @@ a:null | b:keyword | COALESCE(a, b):keyword
 // end::coalesce-result[]
 ;
 
+coalesceMv#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
+// tag::coalesce-mv[]
+ROW a=null, b=["1", "2"]
+| EVAL COALESCE(a, b)
+// end::coalesce-mv[]
+;
+
+// tag::coalesce-mv-result[]
+a:null | b:keyword | COALESCE(a, b):keyword
+  null |["1", "2"] | ["1", "2"]
+// end::coalesce-mv-result[]
+;
+
 coalesce
 FROM employees
 | EVAL first_name = COALESCE(first_name, "X")

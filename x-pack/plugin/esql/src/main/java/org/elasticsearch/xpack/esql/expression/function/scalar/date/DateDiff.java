@@ -164,7 +164,9 @@ public class DateDiff extends EsqlScalarFunction {
         examples = { @Example(file = "date", tag = "docsDateDiff"), @Example(description = """
             When subtracting in calendar units - like year, month a.s.o. - only the fully elapsed units are counted.
             To avoid this and obtain also remainders, simply switch to the next smaller unit and do the date math accordingly.
-            """, file = "date", tag = "evalDateDiffYearForDocs") }
+            """, file = "date", tag = "evalDateDiffYearForDocs"), @Example(description = """
+            If any column is multivalued, this will return a `null` result.
+            """, file = "date", tag = "date-diff-mv") }
     )
     public DateDiff(
         Source source,

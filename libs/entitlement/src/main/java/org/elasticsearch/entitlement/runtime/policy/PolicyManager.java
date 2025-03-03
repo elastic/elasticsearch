@@ -335,13 +335,14 @@ public class PolicyManager {
 
         ModuleEntitlements entitlements = getEntitlements(requestingClass);
         if (entitlements.fileAccess().canRead(path) == false) {
+            logger.info(entitlements.fileAccess().toDebugString());
             notEntitled(
                 Strings.format(
                     "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
                     entitlements.componentName(),
                     requestingClass.getModule().getName(),
                     requestingClass,
-                    path
+                    FileAccessTree.normalizePath(path)
                 ),
                 callerClass
             );
@@ -364,13 +365,14 @@ public class PolicyManager {
 
         ModuleEntitlements entitlements = getEntitlements(requestingClass);
         if (entitlements.fileAccess().canWrite(path) == false) {
+            logger.info(entitlements.fileAccess().toDebugString());
             notEntitled(
                 Strings.format(
                     "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [write], path [%s]",
                     entitlements.componentName(),
                     requestingClass.getModule().getName(),
                     requestingClass,
-                    path
+                    FileAccessTree.normalizePath(path)
                 ),
                 callerClass
             );

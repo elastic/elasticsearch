@@ -290,12 +290,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                         request.field
                                     );
                                 } else {
-                                    failure = new ElasticsearchException(
-                                        "Error loading inference for inference id [{}] on field [{}]",
-                                        exc,
-                                        inferenceId,
-                                        request.field
-                                    );
+                                    failure = exc instanceof ElasticsearchException
+                                        ? exc
+                                        : new ElasticsearchException(
+                                            "Error loading inference for inference id [{}] on field [{}]",
+                                            exc,
+                                            inferenceId,
+                                            request.field
+                                        );
                                 }
                                 inferenceResults.get(request.index).failures.add(failure);
                             }
@@ -319,12 +321,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             var acc = inferenceResults.get(request.index);
                             if (result instanceof ChunkedInferenceError error) {
                                 acc.addFailure(
-                                    new ElasticsearchException(
-                                        "Exception when running inference id [{}] on field [{}]",
-                                        error.exception(),
-                                        inferenceProvider.model.getInferenceEntityId(),
-                                        request.field
-                                    )
+                                    error.exception() instanceof ElasticsearchException
+                                        ? error.exception()
+                                        : new ElasticsearchException(
+                                            "Exception when running inference id [{}] on field [{}]",
+                                            error.exception(),
+                                            inferenceProvider.model.getInferenceEntityId(),
+                                            request.field
+                                        )
                                 );
                             } else {
                                 acc.addOrUpdateResponse(
@@ -351,12 +355,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         for (FieldInferenceRequest request : requests) {
                             addInferenceResponseFailure(
                                 request.index,
-                                new ElasticsearchException(
-                                    "Exception when running inference id [{}] on field [{}]",
-                                    exc,
-                                    inferenceProvider.model.getInferenceEntityId(),
-                                    request.field
-                                )
+                                exc instanceof ElasticsearchException
+                                    ? exc
+                                    : new ElasticsearchException(
+                                        "Exception when running inference id [{}] on field [{}]",
+                                        exc,
+                                        inferenceProvider.model.getInferenceEntityId(),
+                                        request.field
+                                    )
                             );
                         }
                     } finally {

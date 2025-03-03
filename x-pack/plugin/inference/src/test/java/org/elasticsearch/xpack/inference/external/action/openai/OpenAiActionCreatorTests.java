@@ -273,9 +273,13 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
+            var failureCauseMessage = "Failed to find required field [data] in OpenAI embeddings response";
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(thrownException.getMessage(), is(format("Failed to send OpenAI embeddings request to [%s]", getUrl(webServer))));
-            assertThat(thrownException.getCause().getMessage(), is("Failed to find required field [data] in OpenAI embeddings response"));
+            assertThat(
+                thrownException.getMessage(),
+                is(format("Failed to send OpenAI embeddings request. Cause: %s", failureCauseMessage))
+            );
+            assertThat(thrownException.getCause().getMessage(), is(failureCauseMessage));
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
@@ -529,15 +533,13 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
+            var failureCauseMessage = "Failed to find required field [choices] in OpenAI chat completions response";
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
-                is(format("Failed to send OpenAI chat completions request to [%s]", getUrl(webServer)))
+                is(format("Failed to send OpenAI chat completions request. Cause: %s", failureCauseMessage))
             );
-            assertThat(
-                thrownException.getCause().getMessage(),
-                is("Failed to find required field [choices] in OpenAI chat completions response")
-            );
+            assertThat(thrownException.getCause().getMessage(), is(failureCauseMessage));
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());

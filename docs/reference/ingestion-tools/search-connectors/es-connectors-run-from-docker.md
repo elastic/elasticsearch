@@ -7,9 +7,7 @@ mapped_pages:
 
 ::::{tip}
 Use our [Docker Compose quickstart](/reference/ingestion-tools/search-connectors/es-connectors-docker-compose-quickstart.md) to quickly get started with a full Elastic Stack deployment using Connectors.
-
 ::::
-
 
 Instead of running the Connectors Service from source, you can use the official Docker image to run the service in a container.
 
@@ -45,7 +43,7 @@ elasticsearch.api_key: <ELASTICSEARCH_API_KEY>
 connectors:
   -
     connector_id: <CONNECTOR_ID_FROM_KIBANA>
-    service_type: Zoom # sharepoint_online (example)
+    service_type: sharepoint_online # Example value — update this for service type you are connecting to
     api_key: <CONNECTOR_API_KEY_FROM_KIBANA> # Optional. If not provided, the connector will use the elasticsearch.api_key instead
 ```
 
@@ -59,13 +57,13 @@ docker run \
 --rm \
 --tty -i \
 --network host \
-docker.elastic.co/integrations/elastic-connectors:9.0.0-beta1.0 \
+docker.elastic.co/integrations/elastic-connectors:9.0.0 \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
 
 ::::{tip}
-For unreleased versions, append the `-SNAPSHOT` suffix to the version number. For example, `docker.elastic.co/integrations/elastic-connectors:8.14.0.0-SNAPSHOT`.
+For unreleased versions, append the `-SNAPSHOT` suffix to the version number. For example, `docker.elastic.co/integrations/elastic-connectors:9.0.0-SNAPSHOT`.
 
 ::::
 

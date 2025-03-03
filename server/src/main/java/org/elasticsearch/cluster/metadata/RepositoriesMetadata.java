@@ -15,7 +15,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,7 +37,7 @@ import java.util.function.UnaryOperator;
 /**
  * Contains metadata about registered snapshot repositories
  */
-public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implements Custom {
+public class RepositoriesMetadata extends AbstractNamedDiffable<Metadata.ClusterCustom> implements Metadata.ClusterCustom {
 
     public static final String TYPE = "repositories";
 
@@ -183,8 +182,8 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
         this.repositories = in.readCollectionAsImmutableList(RepositoryMetadata::new);
     }
 
-    public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(Custom.class, TYPE, in);
+    public static NamedDiff<Metadata.ClusterCustom> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(Metadata.ClusterCustom.class, TYPE, in);
     }
 
     /**

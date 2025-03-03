@@ -14,7 +14,9 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -35,7 +37,6 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -43,7 +44,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
-import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -52,12 +52,11 @@ import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
@@ -112,7 +111,7 @@ public class PlannerUtils {
             return Set.of();
         }
         var indices = new LinkedHashSet<String>();
-        forEachFromRelation(plan, relation -> indices.addAll(relation.concreteIndices()));
+        forEachRelation(plan, relation -> indices.addAll(relation.concreteIndices()));
         return indices;
     }
 
@@ -124,42 +123,16 @@ public class PlannerUtils {
             return Strings.EMPTY_ARRAY;
         }
         var indices = new LinkedHashSet<String>();
-        forEachFromRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.indexPattern()))));
+        forEachRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.indexPattern()))));
         return indices.toArray(String[]::new);
     }
 
-    /**
-     * Iterates over the plan and applies the action to each {@link EsRelation} node.
-     * <p>
-     *     This method ignores the right side of joins.
-     * </p>
-     */
-    private static void forEachFromRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
-        // Take the non-join-side fragments
-        forEachUpWithChildren(plan, FragmentExec.class, fragment -> {
-            // Take the non-join-side relations
-            forEachUpWithChildren(
-                fragment.fragment(),
-                EsRelation.class,
-                action,
-                node -> node instanceof Join join ? List.of(join.left()) : node.children()
-            );
-        }, node -> node instanceof LookupJoinExec join ? List.of(join.left()) : node.children());
-    }
-
-    /**
-     * Similar to {@link Node#forEachUp(Class, Consumer)}, but with a custom callback to get the node children.
-     */
-    private static <T extends Node<T>, E extends T> void forEachUpWithChildren(
-        T node,
-        Class<E> typeToken,
-        Consumer<? super E> action,
-        Function<? super T, Collection<T>> childrenGetter
-    ) {
-        childrenGetter.apply(node).forEach(c -> forEachUpWithChildren(c, typeToken, action, childrenGetter));
-        if (typeToken.isInstance(node)) {
-            action.accept(typeToken.cast(node));
-        }
+    private static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
+        plan.forEachDown(FragmentExec.class, f -> f.fragment().forEachDown(EsRelation.class, r -> {
+            if (r.indexMode() != IndexMode.LOOKUP) {
+                action.accept(r);
+            }
+        }));
     }
 
     public static PhysicalPlan localPlan(
@@ -211,10 +184,10 @@ public class PlannerUtils {
     }
 
     /**
-     * Extracts the ES query for the <code>@timestamp</code> field for the passed plan.
+     * Extracts a filter that can be used to skip unmatched shards on the coordinator.
      */
-    public static QueryBuilder requestTimestampFilter(PhysicalPlan plan) {
-        return detectFilter(plan, "@timestamp");
+    public static QueryBuilder canMatchFilter(PhysicalPlan plan) {
+        return detectFilter(plan, CoordinatorRewriteContext.SUPPORTED_FIELDS::contains);
     }
 
     /**
@@ -222,12 +195,11 @@ public class PlannerUtils {
      * We currently only use this filter for the @timestamp field, which is always a date field. Any tests that wish to use this should
      * take care to not use it with TEXT fields.
      */
-    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName) {
+    static QueryBuilder detectFilter(PhysicalPlan plan, Predicate<String> fieldName) {
         // first position is the REST filter, the second the query filter
-        var requestFilter = new QueryBuilder[] { null, null };
-
+        final List<QueryBuilder> requestFilters = new ArrayList<>();
         plan.forEachDown(FragmentExec.class, fe -> {
-            requestFilter[0] = fe.esFilter();
+            requestFilters.add(fe.esFilter());
             // detect filter inside the query
             fe.fragment().forEachUp(Filter.class, f -> {
                 // the only filter that can be pushed down is that on top of the relation
@@ -240,7 +212,7 @@ public class PlannerUtils {
                     for (var exp : conjunctions) {
                         var refs = new AttributeSet(exp.references());
                         // remove literals or attributes that match by name
-                        boolean matchesField = refs.removeIf(e -> fieldName.equals(e.name()));
+                        boolean matchesField = refs.removeIf(e -> fieldName.test(e.name()));
                         // the expression only contains the target reference
                         // and the expression is pushable (functions can be fully translated)
                         if (matchesField && refs.isEmpty() && canPushToSource(exp)) {
@@ -248,13 +220,13 @@ public class PlannerUtils {
                         }
                     }
                 }
-                if (matches.size() > 0) {
-                    requestFilter[1] = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(matches)).asBuilder();
+                if (matches.isEmpty() == false) {
+                    requestFilters.add(TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(matches)).asBuilder());
                 }
             });
         });
 
-        return Queries.combine(FILTER, asList(requestFilter));
+        return Queries.combine(FILTER, requestFilters);
     }
 
     /**

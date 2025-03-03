@@ -107,31 +107,24 @@ public abstract class BaseResponseHandler implements ResponseHandler {
 
     protected Exception buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
         var responseStatusCode = result.response().getStatusLine().getStatusCode();
-
-        if (errorResponse == null
-            || errorResponse.errorStructureFound() == false
-            || Strings.isNullOrEmpty(errorResponse.getErrorMessage())) {
-            return new ElasticsearchStatusException(
-                format(
-                    "%s for request from inference entity id [%s] status [%s]",
-                    message,
-                    request.getInferenceEntityId(),
-                    responseStatusCode
-                ),
-                toRestStatus(responseStatusCode)
-            );
-        }
-
         return new ElasticsearchStatusException(
-            format(
-                "%s for request from inference entity id [%s] status [%s]. Error message: [%s]",
-                message,
-                request.getInferenceEntityId(),
-                responseStatusCode,
-                errorResponse.getErrorMessage()
-            ),
+            errorMessage(message, request, result, errorResponse, responseStatusCode),
             toRestStatus(responseStatusCode)
         );
+    }
+
+    protected String errorMessage(String message, Request request, HttpResult result, ErrorResponse errorResponse, int statusCode) {
+        return (errorResponse == null
+            || errorResponse.errorStructureFound() == false
+            || Strings.isNullOrEmpty(errorResponse.getErrorMessage()))
+                ? format("%s for request from inference entity id [%s] status [%s]", message, request.getInferenceEntityId(), statusCode)
+                : format(
+                    "%s for request from inference entity id [%s] status [%s]. Error message: [%s]",
+                    message,
+                    request.getInferenceEntityId(),
+                    statusCode,
+                    errorResponse.getErrorMessage()
+                );
     }
 
     public static RestStatus toRestStatus(int statusCode) {

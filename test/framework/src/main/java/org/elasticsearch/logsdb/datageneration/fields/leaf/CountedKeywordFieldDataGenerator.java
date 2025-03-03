@@ -14,6 +14,7 @@ import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -31,7 +32,7 @@ public class CountedKeywordFieldDataGenerator implements FieldDataGenerator {
     }
 
     @Override
-    public Object generateValue() {
+    public Object generateValue(Map<String, Object> fieldMapping) {
         return valueGenerator.get();
     }
 }

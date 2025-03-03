@@ -18,4 +18,6 @@ public interface ESVectorUtilSupport {
     int ipByteBit(byte[] q, byte[] d);
 
     float ipFloatBit(float[] q, byte[] d);
+
+    float ipFloatByte(float[] q, byte[] d);
 }

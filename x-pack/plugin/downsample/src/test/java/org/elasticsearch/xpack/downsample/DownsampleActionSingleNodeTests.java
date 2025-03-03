@@ -1194,6 +1194,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .get()
             .getState()
             .getMetadata()
+            .getProject()
             .index(sourceIndex);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
@@ -1760,7 +1761,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         new Thread(() -> {
             try {
                 downsample(sourceIndex, targetIndex, config);
-            } catch (ResourceAlreadyExistsException e) {
+            } catch (ElasticsearchException e) {
                 firstFailed.set(true);
             } finally {
                 downsampleComplete.countDown();
@@ -1770,7 +1771,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         new Thread(() -> {
             try {
                 downsample(sourceIndex, targetIndex, config);
-            } catch (ResourceAlreadyExistsException e) {
+            } catch (ElasticsearchException e) {
                 secondFailed.set(true);
             } finally {
                 downsampleComplete.countDown();

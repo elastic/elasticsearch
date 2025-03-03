@@ -583,7 +583,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             .state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
             .actionGet();
         ClusterState state = clusterStateResponse.getState();
-        return state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        return state.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
     }
 
     private RegisteredPolicySnapshots getRegisteredSnapshots() {
@@ -592,7 +592,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
             .state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
             .actionGet();
         ClusterState state = clusterStateResponse.getState();
-        return state.metadata().custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
+        return state.metadata().getProject().custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY);
     }
 
     private SnapshotInfo getSnapshotInfo(String repository, String snapshot) {

@@ -15,6 +15,7 @@ import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 
 import java.util.Set;
+import java.util.function.Supplier;
 
 public interface DataSourceRequest<TResponse extends DataSourceResponse> {
     TResponse accept(DataSourceHandler handler);
@@ -87,6 +88,12 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
 
     record RepeatingWrapper() implements DataSourceRequest<DataSourceResponse.RepeatingWrapper> {
         public DataSourceResponse.RepeatingWrapper accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record MalformedWrapper(Supplier<Object> malformedValues) implements DataSourceRequest<DataSourceResponse.MalformedWrapper> {
+        public DataSourceResponse.MalformedWrapper accept(DataSourceHandler handler) {
             return handler.handle(this);
         }
     }

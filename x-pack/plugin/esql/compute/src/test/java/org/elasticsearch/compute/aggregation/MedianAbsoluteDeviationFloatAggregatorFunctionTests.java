@@ -29,8 +29,8 @@ public class MedianAbsoluteDeviationFloatAggregatorFunctionTests extends Aggrega
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationFloatAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MedianAbsoluteDeviationFloatAggregatorFunctionSupplier();
     }
 
     @Override

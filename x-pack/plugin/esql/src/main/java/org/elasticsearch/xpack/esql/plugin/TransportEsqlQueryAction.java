@@ -13,16 +13,14 @@ import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
@@ -82,8 +80,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final RemoteClusterService remoteClusterService;
     private final UsageService usageService;
     private final TransportActionServices services;
-    // Listeners for active async queries, key being the async task execution ID
-    private final Map<String, EsqlQueryListener> asyncListeners = ConcurrentCollections.newConcurrentMap();
 
     @Inject
     @SuppressWarnings("this-escape")
@@ -96,7 +92,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ClusterService clusterService,
         ThreadPool threadPool,
         BigArrays bigArrays,
-        BlockFactory blockFactory,
+        BlockFactoryProvider blockFactoryProvider,
         Client client,
         NamedWriteableRegistry registry,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -118,14 +114,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             lookupLookupShardContextFactory,
             transportService,
             bigArrays,
-            blockFactory
+            blockFactoryProvider.blockFactory()
         );
         this.lookupFromIndexService = new LookupFromIndexService(
             clusterService,
             lookupLookupShardContextFactory,
             transportService,
             bigArrays,
-            blockFactory
+            blockFactoryProvider.blockFactory()
         );
         this.computeService = new ComputeService(
             searchService,
@@ -136,7 +132,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             clusterService,
             threadPool,
             bigArrays,
-            blockFactory
+            blockFactoryProvider.blockFactory()
         );
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,
@@ -190,41 +186,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         }
     }
 
-    // Subscribable listener that can keep track of the EsqlExecutionInfo
-    // Used to mark an async query as partial if it is stopped
-    public static class EsqlQueryListener extends SubscribableListener<EsqlQueryResponse> {
-        private EsqlExecutionInfo executionInfo;
-
-        public EsqlQueryListener(EsqlExecutionInfo executionInfo) {
-            this.executionInfo = executionInfo;
-        }
-
-        public EsqlExecutionInfo getExecutionInfo() {
-            return executionInfo;
-        }
-
-        public void markAsPartial() {
-            if (executionInfo != null) {
-                executionInfo.markAsPartial();
-            }
-        }
-    }
-
     @Override
     public void execute(EsqlQueryRequest request, EsqlQueryTask task, ActionListener<EsqlQueryResponse> listener) {
         // set EsqlExecutionInfo on async-search task so that it is accessible to GET _query/async while the query is still running
         task.setExecutionInfo(createEsqlExecutionInfo(request));
-        // Since the request is async here, we need to wrap the listener in a SubscribableListener so that we can collect the results from
-        // other endpoints, such as _query/async/stop
-        EsqlQueryListener subListener = new EsqlQueryListener(task.executionInfo());
-        String asyncExecutionId = task.getExecutionId().getEncoded();
-        subListener.addListener(ActionListener.runAfter(listener, () -> asyncListeners.remove(asyncExecutionId)));
-        asyncListeners.put(asyncExecutionId, subListener);
-        ActionListener.run(subListener, l -> innerExecute(task, request, l));
-    }
-
-    public EsqlQueryListener getAsyncListener(String executionId) {
-        return asyncListeners.get(executionId);
+        ActionListener.run(listener, l -> innerExecute(task, request, l));
     }
 
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
@@ -240,7 +206,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.query(),
             request.profile(),
             request.tables(),
-            System.nanoTime()
+            System.nanoTime(),
+            request.allowPartialResults()
         );
         String sessionId = sessionID(task);
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
@@ -267,16 +234,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             planRunner,
             services,
             ActionListener.wrap(result -> {
-                // If we had any skipped or partial clusters, the result is partial
-                if (executionInfo.getClusters()
-                    .values()
-                    .stream()
-                    .anyMatch(
-                        c -> c.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED
-                            || c.getStatus() == EsqlExecutionInfo.Cluster.Status.PARTIAL
-                    )) {
-                    executionInfo.markAsPartial();
-                }
                 recordCCSTelemetry(task, executionInfo, request, null);
                 listener.onResponse(toResponse(task, request, configuration, result));
             }, ex -> {

@@ -15,7 +15,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -31,11 +33,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -59,6 +62,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_INDEX_VERSION;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
 import static org.elasticsearch.core.Strings.format;
 
@@ -130,7 +134,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 return;
             }
 
-            if (stateIndexName != null && clusterState.metadata().hasIndex(stateIndexName) == false) {
+            if (stateIndexName != null && clusterState.metadata().getProject().hasIndex(stateIndexName) == false) {
                 markAsFailed(new IndexNotFoundException(stateIndexName, "cannot migrate because that index does not exist"));
                 return;
             }
@@ -149,7 +153,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             systemIndices.getFeatures()
                 .stream()
                 .flatMap(feature -> SystemIndexMigrationInfo.fromFeature(feature, clusterState.metadata(), indexScopedSettings))
-                .filter(migrationInfo -> needsToBeMigrated(clusterState.metadata().index(migrationInfo.getCurrentIndexName())))
+                .filter(migrationInfo -> needsToBeMigrated(clusterState.metadata().getProject().index(migrationInfo.getCurrentIndexName())))
                 .sorted() // Stable order between nodes
                 .collect(Collectors.toCollection(() -> migrationQueue));
 
@@ -182,7 +186,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         + nextMigrationInfo.getFeatureName()
                         + "] of locally computed queue, see logs";
                 if (nextMigrationInfo.getCurrentIndexName().equals(stateIndexName) == false) {
-                    if (clusterState.metadata().hasIndex(stateIndexName) == false) {
+                    if (clusterState.metadata().getProject().hasIndex(stateIndexName) == false) {
                         // If we don't have that index at all, and also don't have the next one
                         markAsFailed(
                             new IllegalStateException(
@@ -205,49 +209,14 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         }
 
         // Kick off our callback "loop" - finishIndexAndLoop calls back into prepareNextIndex
-        cleanUpPreviousMigration(
-            taskState,
-            clusterState,
-            state -> prepareNextIndex(state, state2 -> migrateSingleIndex(state2, this::finishIndexAndLoop), stateFeatureName)
-        );
-    }
-
-    private void cleanUpPreviousMigration(
-        SystemIndexMigrationTaskState taskState,
-        ClusterState currentState,
-        Consumer<ClusterState> listener
-    ) {
         logger.debug("cleaning up previous migration, task state: [{}]", taskState == null ? "null" : Strings.toString(taskState));
-        if (taskState != null && taskState.getCurrentIndex() != null) {
-            SystemIndexMigrationInfo migrationInfo;
-            try {
-                migrationInfo = SystemIndexMigrationInfo.fromTaskState(
-                    taskState,
-                    systemIndices,
-                    currentState.metadata(),
-                    indexScopedSettings
-                );
-            } catch (Exception e) {
-                markAsFailed(e);
-                return;
-            }
-            final String newIndexName = migrationInfo.getNextIndexName();
-            logger.info("removing index [{}] from previous incomplete migration", newIndexName);
-
-            migrationInfo.createClient(baseClient)
-                .admin()
-                .indices()
-                .prepareDelete(newIndexName)
-                .execute(ActionListener.wrap(ackedResponse -> {
-                    if (ackedResponse.isAcknowledged()) {
-                        logger.debug("successfully removed index [{}]", newIndexName);
-                        clearResults(clusterService, ActionListener.wrap(listener::accept, this::markAsFailed));
-                    }
-                }, this::markAsFailed));
-        } else {
-            logger.debug("no incomplete index to remove");
-            clearResults(clusterService, ActionListener.wrap(listener::accept, this::markAsFailed));
-        }
+        clearResults(
+            clusterService,
+            ActionListener.wrap(
+                state -> prepareNextIndex(state2 -> migrateSingleIndex(state2, this::finishIndexAndLoop), stateFeatureName),
+                this::markAsFailed
+            )
+        );
     }
 
     private void finishIndexAndLoop(BulkByScrollResponse bulkResponse) {
@@ -287,11 +256,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 }, this::markAsFailed)
             );
         } else {
-            prepareNextIndex(
-                clusterService.state(),
-                state2 -> migrateSingleIndex(state2, this::finishIndexAndLoop),
-                lastMigrationInfo.getFeatureName()
-            );
+            prepareNextIndex(state2 -> migrateSingleIndex(state2, this::finishIndexAndLoop), lastMigrationInfo.getFeatureName());
         }
     }
 
@@ -301,7 +266,6 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             SingleFeatureMigrationResult.success(),
             ActionListener.wrap(state -> {
                 prepareNextIndex(
-                    state,
                     clusterState -> migrateSingleIndex(clusterState, this::finishIndexAndLoop),
                     lastMigrationInfo.getFeatureName()
                 );
@@ -310,7 +274,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         updateTask.submit(clusterService);
     }
 
-    private void prepareNextIndex(ClusterState clusterState, Consumer<ClusterState> listener, String lastFeatureName) {
+    private void prepareNextIndex(Consumer<ClusterState> listener, String lastFeatureName) {
         synchronized (migrationQueue) {
             assert migrationQueue != null;
             if (migrationQueue.isEmpty()) {
@@ -366,7 +330,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     private void migrateSingleIndex(ClusterState clusterState, Consumer<BulkByScrollResponse> listener) {
         final SystemIndexMigrationInfo migrationInfo = currentMigrationInfo();
         String oldIndexName = migrationInfo.getCurrentIndexName();
-        final IndexMetadata imd = clusterState.metadata().index(oldIndexName);
+        final ProjectMetadata projectMetadata = clusterState.metadata().getProject();
+        final IndexMetadata imd = projectMetadata.index(oldIndexName);
         if (imd.getState().equals(CLOSE)) {
             logger.error(
                 "unable to migrate index [{}] from feature [{}] because it is closed",
@@ -383,7 +348,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
          * This should be on for all System indices except for .kibana_ indices. See allowsTemplates in KibanaPlugin.java for more info.
          */
         if (migrationInfo.allowsTemplates() == false) {
-            final String v2template = MetadataIndexTemplateService.findV2Template(clusterState.metadata(), newIndexName, false);
+            final String v2template = MetadataIndexTemplateService.findV2Template(projectMetadata, newIndexName, false);
             if (Objects.nonNull(v2template)) {
                 logger.error(
                     "unable to create new index [{}] from feature [{}] because it would match composable template [{}]",
@@ -399,7 +364,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 return;
             }
             final List<IndexTemplateMetadata> v1templates = MetadataIndexTemplateService.findV1Templates(
-                clusterState.metadata(),
+                projectMetadata,
                 newIndexName,
                 false
             );
@@ -422,7 +387,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         logger.info("migrating index [{}] from feature [{}] to new index [{}]", oldIndexName, migrationInfo.getFeatureName(), newIndexName);
         ActionListener<BulkByScrollResponse> innerListener = ActionListener.wrap(listener::accept, this::markAsFailed);
         try {
-            createIndex(migrationInfo, innerListener.delegateFailureAndWrap((delegate, shardsAcknowledgedResponse) -> {
+            createIndexRetryOnFailure(migrationInfo, innerListener.delegateFailureAndWrap((delegate, shardsAcknowledgedResponse) -> {
                 logger.debug(
                     "while migrating [{}] , got create index response: [{}]",
                     oldIndexName,
@@ -448,12 +413,33 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                                     logAndThrowExceptionForFailures(bulkByScrollResponse)
                                 );
                             } else {
-                                // Successful completion of reindexing - remove read only and delete old index
-                                setWriteBlock(
-                                    oldIndex,
-                                    false,
-                                    delegate2.delegateFailureAndWrap(setAliasAndRemoveOldIndex(migrationInfo, bulkByScrollResponse))
-                                );
+                                // Successful completion of reindexing. Now we need to set the alias and remove the old index.
+                                setAliasAndRemoveOldIndex(migrationInfo, ActionListener.wrap(aliasesResponse -> {
+                                    if (aliasesResponse.hasErrors()) {
+                                        var e = new ElasticsearchException("Aliases request had errors");
+                                        for (var error : aliasesResponse.getErrors()) {
+                                            e.addSuppressed(error);
+                                        }
+                                        throw e;
+                                    }
+                                    logger.info(
+                                        "Successfully migrated old index [{}] to new index [{}] from feature [{}]",
+                                        oldIndexName,
+                                        migrationInfo.getNextIndexName(),
+                                        migrationInfo.getFeatureName()
+                                    );
+                                    delegate2.onResponse(bulkByScrollResponse);
+                                }, e -> {
+                                    logger.error(
+                                        () -> format(
+                                            "An error occurred while changing aliases and removing the old index [%s] from feature [%s]",
+                                            oldIndexName,
+                                            migrationInfo.getFeatureName()
+                                        ),
+                                        e
+                                    );
+                                    removeReadOnlyBlockOnReindexFailure(oldIndex, delegate2, e);
+                                }));
                             }
                         }, e -> {
                             logger.error(
@@ -486,6 +472,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     }
 
     private void createIndex(SystemIndexMigrationInfo migrationInfo, ActionListener<ShardsAcknowledgedResponse> listener) {
+        logger.info("creating new system index [{}] from feature [{}]", migrationInfo.getNextIndexName(), migrationInfo.getFeatureName());
+
         final CreateIndexClusterStateUpdateRequest createRequest = new CreateIndexClusterStateUpdateRequest(
             "migrate-system-index",
             migrationInfo.getNextIndexName(),
@@ -511,16 +499,42 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         );
     }
 
-    private CheckedBiConsumer<ActionListener<BulkByScrollResponse>, AcknowledgedResponse, Exception> setAliasAndRemoveOldIndex(
-        SystemIndexMigrationInfo migrationInfo,
-        BulkByScrollResponse bulkByScrollResponse
-    ) {
+    private void createIndexRetryOnFailure(SystemIndexMigrationInfo migrationInfo, ActionListener<ShardsAcknowledgedResponse> listener) {
+        createIndex(migrationInfo, listener.delegateResponse((l, e) -> {
+            logger.warn("createIndex failed, retrying after removing index [{}] from previous attempt", migrationInfo.getNextIndexName());
+            deleteIndex(migrationInfo, ActionListener.wrap(cleanupResponse -> createIndex(migrationInfo, l.delegateResponse((l3, e3) -> {
+                logger.error(
+                    "createIndex failed after retrying, aborting system index migration. index: " + migrationInfo.getNextIndexName(),
+                    e3
+                );
+                l.onFailure(e3);
+            })), e2 -> {
+                logger.error("deleteIndex failed, aborting system index migration. index: " + migrationInfo.getNextIndexName(), e2);
+                l.onFailure(e2);
+            }));
+        }));
+    }
+
+    private <T> void deleteIndex(SystemIndexMigrationInfo migrationInfo, ActionListener<AcknowledgedResponse> listener) {
+        logger.info("removing index [{}] from feature [{}]", migrationInfo.getNextIndexName(), migrationInfo.getFeatureName());
+        String newIndexName = migrationInfo.getNextIndexName();
+        baseClient.admin().indices().prepareDelete(newIndexName).execute(ActionListener.wrap(ackedResponse -> {
+            if (ackedResponse.isAcknowledged()) {
+                logger.info("successfully removed index [{}]", newIndexName);
+                listener.onResponse(ackedResponse);
+            } else {
+                listener.onFailure(new ElasticsearchException("Failed to acknowledge index deletion for [" + newIndexName + "]"));
+            }
+        }, listener::onFailure));
+    }
+
+    private void setAliasAndRemoveOldIndex(SystemIndexMigrationInfo migrationInfo, ActionListener<IndicesAliasesResponse> listener) {
         final IndicesAliasesRequestBuilder aliasesRequest = migrationInfo.createClient(baseClient).admin().indices().prepareAliases();
         aliasesRequest.removeIndex(migrationInfo.getCurrentIndexName());
         aliasesRequest.addAlias(migrationInfo.getNextIndexName(), migrationInfo.getCurrentIndexName());
 
         // Copy all the aliases from the old index
-        IndexMetadata imd = clusterService.state().metadata().index(migrationInfo.getCurrentIndexName());
+        IndexMetadata imd = clusterService.state().metadata().getProject().index(migrationInfo.getCurrentIndexName());
         imd.getAliases().values().forEach(aliasToAdd -> {
             aliasesRequest.addAliasAction(
                 IndicesAliasesRequest.AliasActions.add()
@@ -533,30 +547,44 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             );
         });
 
-        // Technically this callback might have a different cluster state, but it shouldn't matter - these indices shouldn't be changing
-        // while we're trying to migrate them.
-        return (listener, unsetReadOnlyResponse) -> aliasesRequest.execute(
-            listener.delegateFailureAndWrap((l, deleteIndexResponse) -> l.onResponse(bulkByScrollResponse))
-        );
+        aliasesRequest.execute(listener);
     }
 
     /**
-     * Makes the index readonly if it's not set as a readonly yet
+     * Sets the write block on the index to the given value.
      */
+    @FixForMultiProject(description = "Don't use default project id to update settings")
     private void setWriteBlock(Index index, boolean readOnlyValue, ActionListener<AcknowledgedResponse> listener) {
-        final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), readOnlyValue).build();
-
-        metadataUpdateSettingsService.updateSettings(
-            new UpdateSettingsClusterStateUpdateRequest(
-                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-                TimeValue.ZERO,
-                readOnlySettings,
-                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
-                UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
-                index
-            ),
-            listener
-        );
+        if (readOnlyValue) {
+            // Setting the Block with an AddIndexBlockRequest ensures all shards have accounted for the block and all
+            // in-flight writes are completed before returning.
+            baseClient.admin()
+                .indices()
+                .addBlock(
+                    new AddIndexBlockRequest(WRITE, index.getName()).masterNodeTimeout(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT),
+                    listener.delegateFailureAndWrap((l, response) -> {
+                        if (response.isAcknowledged() == false) {
+                            throw new ElasticsearchException("Failed to acknowledge read-only block index request");
+                        }
+                        l.onResponse(response);
+                    })
+                );
+        } else {
+            // The only way to remove a Block is via a settings update.
+            final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false).build();
+            metadataUpdateSettingsService.updateSettings(
+                new UpdateSettingsClusterStateUpdateRequest(
+                    Metadata.DEFAULT_PROJECT_ID,
+                    MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                    TimeValue.ZERO,
+                    readOnlySettings,
+                    UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                    UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                    index
+                ),
+                listener
+            );
+        }
     }
 
     private void reindex(SystemIndexMigrationInfo migrationInfo, ActionListener<BulkByScrollResponse> listener) {
@@ -623,9 +651,9 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         submitUnbatchedTask(clusterService, "clear migration results", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                if (currentState.metadata().custom(FeatureMigrationResults.TYPE) != null) {
+                if (currentState.metadata().getProject().custom(FeatureMigrationResults.TYPE) != null) {
                     return ClusterState.builder(currentState)
-                        .metadata(Metadata.builder(currentState.metadata()).removeCustom(FeatureMigrationResults.TYPE))
+                        .metadata(Metadata.builder(currentState.metadata()).removeProjectCustom(FeatureMigrationResults.TYPE))
                         .build();
                 }
                 return currentState;

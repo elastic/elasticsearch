@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.qa;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.entitlement.qa.EntitlementsTestRule.PolicyBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -22,23 +23,30 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractEntitlementsIT extends ESRestTestCase {
 
-    static final EntitlementsTestRule.PolicyBuilder ALLOWED_TEST_ENTITLEMENTS = (builder, tempDir) -> {
+    static final PolicyBuilder ALLOWED_TEST_ENTITLEMENTS = (builder, tempDir) -> {
         builder.value("create_class_loader");
         builder.value("set_https_connection_properties");
         builder.value("inbound_network");
         builder.value("outbound_network");
         builder.value("load_native_libraries");
+        builder.value("manage_threads");
         builder.value(
             Map.of(
                 "write_system_properties",
                 Map.of("properties", List.of("es.entitlements.checkSetSystemProperty", "es.entitlements.checkClearSystemProperty"))
             )
         );
-
-        builder.value(Map.of("file", Map.of("path", tempDir.resolve("read_dir"), "mode", "read")));
-        builder.value(Map.of("file", Map.of("path", tempDir.resolve("read_write_dir"), "mode", "read_write")));
-        builder.value(Map.of("file", Map.of("path", tempDir.resolve("read_file"), "mode", "read")));
-        builder.value(Map.of("file", Map.of("path", tempDir.resolve("read_write_file"), "mode", "read_write")));
+        builder.value(
+            Map.of(
+                "files",
+                List.of(
+                    Map.of("path", tempDir.resolve("read_dir"), "mode", "read"),
+                    Map.of("path", tempDir.resolve("read_write_dir"), "mode", "read_write"),
+                    Map.of("path", tempDir.resolve("read_file"), "mode", "read"),
+                    Map.of("path", tempDir.resolve("read_write_file"), "mode", "read_write")
+                )
+            )
+        );
     };
 
     private final String actionName;

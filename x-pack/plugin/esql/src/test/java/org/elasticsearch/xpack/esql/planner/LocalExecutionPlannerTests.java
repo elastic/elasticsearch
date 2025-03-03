@@ -17,6 +17,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
@@ -29,6 +30,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -84,6 +86,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     public void testLuceneSourceOperatorHugeRowSize() throws IOException {
         int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
             FoldContext.small(),
             new EsQueryExec(
                 Source.EMPTY,
@@ -110,6 +113,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         EsQueryExec.FieldSort sort = new EsQueryExec.FieldSort(sortField, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
             FoldContext.small(),
             new EsQueryExec(
                 Source.EMPTY,
@@ -136,6 +140,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         EsQueryExec.GeoDistanceSort sort = new EsQueryExec.GeoDistanceSort(sortField, Order.OrderDirection.ASC, 1, -1);
         Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
             FoldContext.small(),
             new EsQueryExec(
                 Source.EMPTY,
@@ -154,6 +159,29 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         var factory = (LuceneTopNSourceOperator.Factory) supplier.physicalOperation().sourceOperatorFactory;
         assertThat(factory.maxPageSize(), maxPageSizeMatcher(estimatedRowSizeIsHuge, estimatedRowSize));
         assertThat(factory.limit(), equalTo(10));
+    }
+
+    public void testDriverClusterAndNodeName() throws IOException {
+        int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            new EsQueryExec(
+                Source.EMPTY,
+                index().name(),
+                IndexMode.STANDARD,
+                index().indexNameWithModes(),
+                List.of(),
+                null,
+                null,
+                null,
+                estimatedRowSize
+            )
+        );
+        assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
+        LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
+        assertThat(supplier.clusterName(), equalTo("dev-cluster"));
+        assertThat(supplier.nodeName(), equalTo("node-1"));
     }
 
     private int randomEstimatedRowSize(boolean huge) {
@@ -176,7 +204,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             BigArrays.NON_RECYCLING_INSTANCE,
             TestBlockFactory.getNonBreakingInstance(),
-            Settings.EMPTY,
+            Settings.builder()
+                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "dev-cluster")
+                .put(Node.NODE_NAME_SETTING.getKey(), "node-1")
+                .build(),
             config(),
             null,
             null,
@@ -199,7 +230,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             StringUtils.EMPTY,
             false,
             Map.of(),
-            System.nanoTime()
+            System.nanoTime(),
+            randomBoolean()
         );
     }
 

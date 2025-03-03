@@ -60,8 +60,8 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
      * @return the name of the data streams that have violated the checks with their respective warnings.
      */
     Map<String, List<DeprecationIssue>> check(ClusterState clusterState) {
-        var indexTemplates = clusterState.metadata().templatesV2().entrySet();
-        var componentTemplates = clusterState.metadata().componentTemplates().entrySet();
+        var indexTemplates = clusterState.metadata().getProject().templatesV2().entrySet();
+        var componentTemplates = clusterState.metadata().getProject().componentTemplates().entrySet();
         if (indexTemplates.isEmpty() && componentTemplates.isEmpty()) {
             return Map.of();
         }
@@ -122,9 +122,9 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
                     if (sourceMap.containsKey("mode")) {
                         return new DeprecationIssue(
                             DeprecationIssue.Level.CRITICAL,
+                            SourceFieldMapper.DEPRECATION_WARNING_TITLE,
+                            "https://ela.st/migrate-source-mode",
                             SourceFieldMapper.DEPRECATION_WARNING,
-                            "https://github.com/elastic/elasticsearch/pull/117172",
-                            null,
                             false,
                             null
                         );

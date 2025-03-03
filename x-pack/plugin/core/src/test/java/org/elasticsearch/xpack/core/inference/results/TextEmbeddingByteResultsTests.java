@@ -105,10 +105,12 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
     }
 
     public void testGetFirstEmbeddingSize() {
-        var firstEmbeddingSize = new TextEmbeddingByteResults(List.of(
-            new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 23, (byte) 24 }),
-            new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 25, (byte) 26 })
-        )).getFirstEmbeddingSize();
+        var firstEmbeddingSize = new TextEmbeddingByteResults(
+            List.of(
+                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 23, (byte) 24 }),
+                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 25, (byte) 26 })
+            )
+        ).getFirstEmbeddingSize();
 
         assertThat(firstEmbeddingSize, is(2));
     }

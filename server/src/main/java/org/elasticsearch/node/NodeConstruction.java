@@ -712,9 +712,10 @@ class NodeConstruction {
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
-        var executor = (TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
-        clusterService.addListener(new SearchIndexTimeTrackingCleanupService(executor));
-
+        var executor = threadPool.executor(ThreadPool.Names.SEARCH);
+        if (executor instanceof  TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor perIndexExecutor) {
+            clusterService.addListener(new SearchIndexTimeTrackingCleanupService(perIndexExecutor));
+        }
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());

@@ -15,12 +15,10 @@ import net.jqwik.api.ShrinkingMode;
 import net.jqwik.api.lifecycle.AfterContainer;
 import net.jqwik.api.lifecycle.AfterProperty;
 import net.jqwik.api.lifecycle.BeforeContainer;
-
 import net.jqwik.api.lifecycle.BeforeProperty;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
@@ -31,7 +29,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.HashSet;
 
 public class StandardVsLogsDbRestTest extends ESRestTestCase {
     public static OnDemandLocalCluster cluster = OnDemandClusterBuilder.create()
@@ -92,8 +89,7 @@ public class StandardVsLogsDbRestTest extends ESRestTestCase {
         return template.map(t -> new TestInput(t, Mapping.generate(t)));
     }
 
-    record TestInput(Template template, Mapping mapping) {
-    }
+    record TestInput(Template template, Mapping mapping) {}
 
     private void createTemplates(XContentBuilder mapping) throws IOException {
         final Response createBaselineTemplateResponse = createTemplates(
@@ -107,9 +103,7 @@ public class StandardVsLogsDbRestTest extends ESRestTestCase {
     }
 
     private void createDataStreams() throws IOException {
-        final Response craeteDataStreamResponse = client().performRequest(
-            new Request("PUT", "_data_stream/my-datastream")
-        );
+        final Response craeteDataStreamResponse = client().performRequest(new Request("PUT", "_data_stream/my-datastream"));
         assert craeteDataStreamResponse.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
     }
 
@@ -139,16 +133,12 @@ public class StandardVsLogsDbRestTest extends ESRestTestCase {
     }
 
     private void deleteDataStreams() throws IOException {
-        final Response deleteBaselineDataStream = client().performRequest(
-            new Request("DELETE", "/_data_stream/my-datastream")
-        );
+        final Response deleteBaselineDataStream = client().performRequest(new Request("DELETE", "/_data_stream/my-datastream"));
         assert deleteBaselineDataStream.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
     }
 
     private void deleteTemplates() throws IOException {
-        final Response deleteBaselineTemplate = client().performRequest(
-            new Request("DELETE", "/_index_template/my-datastream-template")
-        );
+        final Response deleteBaselineTemplate = client().performRequest(new Request("DELETE", "/_index_template/my-datastream-template"));
         assert deleteBaselineTemplate.getStatusLine().getStatusCode() == RestStatus.OK.getStatus();
     }
 }

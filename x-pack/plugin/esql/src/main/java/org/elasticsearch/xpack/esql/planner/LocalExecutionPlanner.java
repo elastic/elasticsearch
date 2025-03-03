@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
@@ -51,6 +52,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -161,19 +163,19 @@ public class LocalExecutionPlanner {
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
         this.settings = settings;
+        this.configuration = configuration;
         this.exchangeSourceSupplier = exchangeSourceSupplier;
         this.exchangeSinkSupplier = exchangeSinkSupplier;
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.physicalOperationProviders = physicalOperationProviders;
-        this.configuration = configuration;
         this.shardContexts = shardContexts;
     }
 
     /**
      * turn the given plan into a list of drivers to execute
      */
-    public LocalExecutionPlan plan(String taskDescription, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
+    public LocalExecutionPlan plan(String description, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
@@ -194,7 +196,16 @@ public class LocalExecutionPlanner {
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
         context.addDriverFactory(
             new DriverFactory(
-                new DriverSupplier(taskDescription, context.bigArrays, context.blockFactory, physicalOperation, statusInterval, settings),
+                new DriverSupplier(
+                    description,
+                    ClusterName.CLUSTER_NAME_SETTING.get(settings).value(),
+                    Node.NODE_NAME_SETTING.get(settings),
+                    context.bigArrays,
+                    context.blockFactory,
+                    physicalOperation,
+                    statusInterval,
+                    settings
+                ),
                 context.driverParallelism().get()
             )
         );
@@ -860,7 +871,9 @@ public class LocalExecutionPlanner {
     }
 
     record DriverSupplier(
-        String taskDescription,
+        String description,
+        String clusterName,
+        String nodeName,
         BigArrays bigArrays,
         BlockFactory blockFactory,
         PhysicalOperation physicalOperation,
@@ -887,7 +900,9 @@ public class LocalExecutionPlanner {
                 success = true;
                 return new Driver(
                     sessionId,
-                    taskDescription,
+                    description,
+                    clusterName,
+                    nodeName,
                     System.currentTimeMillis(),
                     System.nanoTime(),
                     driverContext,

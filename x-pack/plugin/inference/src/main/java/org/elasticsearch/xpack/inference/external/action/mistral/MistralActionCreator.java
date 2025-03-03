@@ -35,7 +35,7 @@ public class MistralActionCreator implements MistralActionVisitor {
             serviceComponents.truncator(),
             serviceComponents.threadPool()
         );
-        var errorMessage = constructFailedToSendRequestMessage(embeddingsModel.uri(), "Mistral embeddings");
+        var errorMessage = constructFailedToSendRequestMessage("Mistral embeddings");
         return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 }

@@ -677,6 +677,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                             final String taskName = line.split("\\s+")[0];
                             if (taskName.startsWith(TransportListTasksAction.TYPE.name())
                                 || taskName.startsWith(HealthNode.TASK_NAME)
+                                || taskName.startsWith("internal:coordination/fault_detection/leader_check")
+                                || taskName.startsWith("internal:coordination/fault_detection/follower_check")
                                 || taskFilter.test(taskName)) {
                                 continue;
                             }

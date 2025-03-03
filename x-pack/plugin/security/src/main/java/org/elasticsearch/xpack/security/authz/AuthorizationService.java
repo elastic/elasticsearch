@@ -631,30 +631,26 @@ public class AuthorizationService {
         AuthorizationEngine authorizationEngine,
         ActionListener<Void> listener
     ) {
-        if (requestInterceptors.isEmpty()) {
-            listener.onResponse(null);
-        } else {
-            final Iterator<RequestInterceptor> requestInterceptorIterator = requestInterceptors.iterator();
-            while (requestInterceptorIterator.hasNext()) {
-                var res = requestInterceptorIterator.next().intercept(requestInfo, authorizationEngine, authorizationInfo);
-                if (res.isSuccess() == false) {
-                    res.addListener(new DelegatingActionListener<>(listener) {
-                        @Override
-                        public void onResponse(Void unused) {
-                            if (requestInterceptorIterator.hasNext()) {
-                                requestInterceptorIterator.next()
-                                    .intercept(requestInfo, authorizationEngine, authorizationInfo)
-                                    .addListener(this);
-                            } else {
-                                delegate.onResponse(null);
-                            }
+        final Iterator<RequestInterceptor> requestInterceptorIterator = requestInterceptors.iterator();
+        while (requestInterceptorIterator.hasNext()) {
+            var res = requestInterceptorIterator.next().intercept(requestInfo, authorizationEngine, authorizationInfo);
+            if (res.isSuccess() == false) {
+                res.addListener(new DelegatingActionListener<>(listener) {
+                    @Override
+                    public void onResponse(Void unused) {
+                        if (requestInterceptorIterator.hasNext()) {
+                            requestInterceptorIterator.next()
+                                .intercept(requestInfo, authorizationEngine, authorizationInfo)
+                                .addListener(this);
+                        } else {
+                            delegate.onResponse(null);
                         }
-                    });
-                    return;
-                }
+                    }
+                });
+                return;
             }
-            listener.onResponse(null);
         }
+        listener.onResponse(null);
     }
 
     // pkg-private for testing

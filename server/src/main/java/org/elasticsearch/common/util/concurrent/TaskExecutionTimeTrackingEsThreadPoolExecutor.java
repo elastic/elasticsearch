@@ -12,6 +12,9 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.DoubleHistogram;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -27,15 +30,18 @@ import java.util.function.Function;
  */
 public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
+    public static final String THREAD_POOL_METRIC_NAME_QUEUE_TIME = ".threads.queue.latency.histogram";
+
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
     private final LongAdder totalExecutionTime = new LongAdder();
     private final boolean trackOngoingTasks;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
+    private final DoubleHistogram queueWaitTimes;
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
-        String name,
+        EsExecutors.QualifiedName name,
         int corePoolSize,
         int maximumPoolSize,
         long keepAliveTime,
@@ -45,12 +51,28 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         ThreadFactory threadFactory,
         RejectedExecutionHandler handler,
         ThreadContext contextHolder,
-        TaskTrackingConfig trackingConfig
+        TaskTrackingConfig trackingConfig,
+        MeterRegistry meterRegistry
     ) {
-        super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
+        super(
+            name.toCompositeString(),
+            corePoolSize,
+            maximumPoolSize,
+            keepAliveTime,
+            unit,
+            workQueue,
+            threadFactory,
+            handler,
+            contextHolder
+        );
         this.runnableWrapper = runnableWrapper;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getEwmaAlpha(), 0);
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
+        this.queueWaitTimes = meterRegistry.registerDoubleHistogram(
+            ThreadPool.THREAD_POOL_METRIC_PREFIX + name.threadPoolName() + THREAD_POOL_METRIC_NAME_QUEUE_TIME,
+            "Distribution of time spent in " + name.threadPoolName() + " thread pool queue",
+            "seconds"
+        );
     }
 
     @Override
@@ -117,6 +139,15 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 // taskExecutionNanos may be -1 if the task threw an exception
                 executionEWMA.addValue(taskExecutionNanos);
                 totalExecutionTime.add(taskExecutionNanos);
+            }
+            final long taskQueueLatency = timedRunnable.getQueueTimeNanos();
+            assert taskQueueLatency >= 0 || (failedOrRejected && taskQueueLatency == -1)
+                : "queue latency should always be non-negative or `-1` to indicate rejection, got: "
+                    + taskQueueLatency
+                    + ", failedOrRejected: "
+                    + failedOrRejected;
+            if (taskQueueLatency != -1) {
+                queueWaitTimes.record(TimeValue.timeValueNanos(taskQueueLatency).secondsFrac());
             }
         } finally {
             // if trackOngoingTasks is false -> ongoingTasks must be empty

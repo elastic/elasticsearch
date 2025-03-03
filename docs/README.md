@@ -11,7 +11,7 @@ This is a guide for writing, editing, and building the Elasticsearch docs.
 
 ## Where do the docs source files live?
 
-As of 9.0.0, the Elasticsearch docs have been redistributed as part of the Elastic docs migration, with the aim of telling a more cohesive story across Elastic products, features, and tools.
+As of 9.0.0, the Elasticsearch docs have been redistributed as part of the [Elastic docs migration](https://elastic.github.io/docs-builder/migration/), with the aim of telling a more cohesive story across Elastic products, features, and tools.
 
 Docs live in **three places**:
 

@@ -189,8 +189,9 @@ book_no:keyword
 2714
 ;
 
-qstrWithField1
+qstrWithFieldAndOptions
 required_capability: qstr_function
+required_capability: query_string_function_options
 
 FROM books 
 | WHERE QSTR("title: Hobbjt~", {"fuzziness": 2})

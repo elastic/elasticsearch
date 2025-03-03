@@ -138,10 +138,14 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             }
 
             // Check if "tests.asserts" is false or "tests.jvm.argline" contains the "-da" flag.
-            boolean enableAssertions = Util.getBooleanProperty("tests.asserts", true)
-                && (argline == null || argline.contains("-da") == false || argline.contains("-disableassertions") == false);
+            boolean disableAssertions = Util.getBooleanProperty("tests.asserts", true) == false
+                || (argline != null && (argline.contains("-da")))
+                || (argline != null && (argline.contains("-disableassertions")));
 
-            test.setEnableAssertions(enableAssertions);
+            if (disableAssertions) {
+                System.out.println("disable assertions");
+                test.setEnableAssertions(false);
+            }
             Map<String, String> sysprops = Map.of(
                 "java.awt.headless",
                 "true",

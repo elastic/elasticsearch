@@ -1,0 +1,5 @@
+pr: 123384
+summary: Fixing serialization of `ScriptStats` `cache_evictions_history`
+area: Stats
+type: bug
+issues: []

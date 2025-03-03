@@ -141,7 +141,7 @@ GET /_analyze
 The filter produces the following flattened token graph, which is suitable for
 indexing.
 
-image::images/analysis/token-graph-dns-flattened-ex2.svg[align="center"]
+image::images/analysis/token-graph-dns-synonym-flattened-ex2.svg[align="center"]
 
 ////
 [source,console-result]

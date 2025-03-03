@@ -370,6 +370,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
             Set<String> versions = new HashSet<>();
             boolean serverless = false;
+            String multiProjectPluginVariant = null;
 
             for (Map<?, ?> nodeInfo : getNodesInfo(adminClient).values()) {
                 var nodeVersion = nodeInfo.get("version").toString();
@@ -399,8 +400,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                     if (moduleName.startsWith("serverless-")) {
                         serverless = true;
                     }
-                    if (moduleName.contains("multi-project")) {
-                        multiProjectEnabled = true;
+                    if (moduleName.contains("test-multi-project")) {
+                        multiProjectPluginVariant = "test";
+                    } else if (moduleName.contains("serverless-multi-project")) {
+                        multiProjectPluginVariant = "serverless";
                     }
                 }
                 if (serverless) {
@@ -422,6 +425,18 @@ public abstract class ESRestTestCase extends ESTestCase {
                 .flatMap(Optional::stream)
                 .collect(Collectors.toSet());
             assert semanticNodeVersions.isEmpty() == false || serverless;
+
+            final var response = entityAsMap(
+                adminClient.performRequest(
+                    new Request(
+                        "GET",
+                        "/_cluster/settings?include_defaults&filter_path=*." + multiProjectPluginVariant + ".multi_project.enabled"
+                    )
+                )
+            );
+            multiProjectEnabled = Boolean.parseBoolean(
+                ObjectPath.evaluate(response, "defaults." + multiProjectPluginVariant + ".multi_project.enabled")
+            );
 
             testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
         }

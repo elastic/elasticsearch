@@ -155,8 +155,12 @@ public final class FileAccessTree {
     }
 
     public String toDebugString() {
-        return Strings.format("FileAccessTree[readPaths: [%s], writePaths: [%s], exclusivePaths: [%s]]",
-            String.join(",", readPaths), String.join(",", writePaths), String.join(",", exclusivePaths));
+        return Strings.format(
+            "FileAccessTree[readPaths: [%s], writePaths: [%s], exclusivePaths: [%s]]",
+            String.join(",", readPaths),
+            String.join(",", writePaths),
+            String.join(",", exclusivePaths)
+        );
     }
 
     private static List<String> pruneSortedPaths(List<String> paths) {

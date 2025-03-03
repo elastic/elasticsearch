@@ -116,7 +116,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     public void testEarlyTermination() {
         int size = between(1_000, 20_000);
         int limit = between(10, size);
-        LuceneSourceOperator.Factory factory = simple(randomFrom(DataPartitioning.values()), size, limit, scoring);
+        LuceneSourceOperator.Factory factory = simple(randomFrom(DataPartitioning.values()), size, limit);
         try (SourceOperator sourceOperator = factory.get(driverContext())) {
             assertFalse(sourceOperator.isFinished());
             int collected = 0;

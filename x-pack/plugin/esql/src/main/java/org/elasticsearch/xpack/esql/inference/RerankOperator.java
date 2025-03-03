@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.physical.inference;
+package org.elasticsearch.xpack.esql.inference;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
-import org.elasticsearch.xpack.esql.inference.InferenceService;
 
 import java.io.IOException;
 import java.util.HashMap;

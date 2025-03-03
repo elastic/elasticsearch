@@ -163,11 +163,13 @@ public class ElasticInferenceService extends SenderService {
     }
 
     /**
+     * Only use this in tests.
+     *
      * Waits the specified amount of time for the authorization call to complete. This is mainly to make testing easier.
      * @param waitTime the max time to wait
      * @throws IllegalStateException if the wait time is exceeded or the call receives an {@link InterruptedException}
      */
-    void waitForAuthorizationToComplete(TimeValue waitTime) {
+    public void waitForFirstAuthorizationToComplete(TimeValue waitTime) {
         authorizationHandler.waitForAuthorizationToComplete(waitTime);
     }
 

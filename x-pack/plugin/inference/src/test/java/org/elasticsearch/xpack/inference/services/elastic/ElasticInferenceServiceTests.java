@@ -1100,7 +1100,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     private void ensureAuthorizationCallFinished(ElasticInferenceService service) {
         service.onNodeStarted();
-        service.waitForAuthorizationToComplete(TIMEOUT);
+        service.waitForFirstAuthorizationToComplete(TIMEOUT);
     }
 
     private ElasticInferenceService createServiceWithMockSender() {

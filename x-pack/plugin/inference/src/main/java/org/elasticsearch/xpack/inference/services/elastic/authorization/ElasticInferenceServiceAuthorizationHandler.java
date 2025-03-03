@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -39,6 +40,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
@@ -227,7 +229,6 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
                 if (callback != null) {
                     callback.run();
                 }
-                firstAuthorizationCompletedLatch.countDown();
             }, e -> {
                 // we don't need to do anything if there was a failure, everything is disabled by default
                 firstAuthorizationCompletedLatch.countDown();
@@ -258,6 +259,7 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
         configuration.set(new ElasticInferenceService.Configuration(authorizedContent.get().taskTypesAndModels.getAuthorizedTaskTypes()));
 
         authorizedContent.get().configIds().forEach(modelRegistry::putDefaultIdIfAbsent);
+        handleRevokedDefaultConfigs(authorizedDefaultModelIds);
     }
 
     private Set<String> getAuthorizedDefaultModelIds(ElasticInferenceServiceAuthorizationModel auth) {
@@ -311,5 +313,31 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
 
         authorizedModels.sort(Comparator.comparing(modelConfig -> modelConfig.model().getInferenceEntityId()));
         return authorizedModels;
+    }
+
+    private void handleRevokedDefaultConfigs(Set<String> authorizedDefaultModelIds) {
+        // if a model was initially returned in the authorization response but is absent, then we'll assume authorization was revoked
+        var unauthorizedDefaultModelIds = new HashSet<>(defaultModelsConfigs.keySet());
+        unauthorizedDefaultModelIds.removeAll(authorizedDefaultModelIds);
+
+        // get all the default inference endpoint ids for the unauthorized model ids
+        var unauthorizedDefaultInferenceEndpointIds = unauthorizedDefaultModelIds.stream()
+            .map(defaultModelsConfigs::get) // get all the model configs
+            .filter(Objects::nonNull) // limit to only non-null
+            .map(modelConfig -> modelConfig.model().getInferenceEntityId()) // get the inference ids
+            .collect(Collectors.toSet());
+
+        var deleteInferenceEndpointsListener = ActionListener.<Boolean>wrap(result -> {
+            logger.debug(Strings.format("Successfully revoked access to default inference endpoint IDs: %s", unauthorizedDefaultModelIds));
+            firstAuthorizationCompletedLatch.countDown();
+        }, e -> {
+            logger.warn(
+                Strings.format("Failed to revoke access to default inference endpoint IDs: %s, error: %s", unauthorizedDefaultModelIds, e)
+            );
+            firstAuthorizationCompletedLatch.countDown();
+        });
+
+        logger.debug("Synchronizing default inference endpoints");
+        modelRegistry.removeDefaultConfigs(unauthorizedDefaultInferenceEndpointIds, deleteInferenceEndpointsListener);
     }
 }

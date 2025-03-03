@@ -183,7 +183,6 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                         List.of(
                             new TextEmbeddingFloatResults.Chunk(
                                 nonChunkedResults.embeddings().get(i).values(),
-                                input.get(i),
                                 new ChunkedInference.TextOffset(0, input.get(i).length())
                             )
                         )

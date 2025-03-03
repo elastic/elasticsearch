@@ -24,12 +24,10 @@ public interface EmbeddingResults<C extends EmbeddingResults.Chunk, E extends Em
         InferenceServiceResults {
 
     /**
-     * A resulting embedding together with its input text.
+     * A resulting embedding together with the offset into the input text.
      */
     interface Chunk {
         ChunkedInference.Chunk toChunk(XContent xcontent) throws IOException;
-
-        String matchedText();
 
         ChunkedInference.TextOffset offset();
     }
@@ -39,9 +37,9 @@ public interface EmbeddingResults<C extends EmbeddingResults.Chunk, E extends Em
      */
     interface Embedding<C extends Chunk> {
         /**
-         * Combines the resulting embedding with the input into a chunk.
+         * Combines the resulting embedding with the offset into the input text into a chunk.
          */
-        C toChunk(String text, ChunkedInference.TextOffset offset);
+        C toChunk(ChunkedInference.TextOffset offset);
     }
 
     /**

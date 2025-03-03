@@ -111,7 +111,6 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
                     List.of(
                         new SparseEmbeddingResults.Chunk(
                             List.of(new WeightedToken(".", 0.13315596f)),
-                            "abc",
                             new ChunkedInference.TextOffset(0, "abc".length())
                         )
                     )

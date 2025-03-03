@@ -206,6 +206,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = def(9_016_0_00);
     public static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = def(9_017_0_00);
     public static final TransportVersion MULTI_PROJECT = def(9_018_0_00);
+    public static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH = def(9_019_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

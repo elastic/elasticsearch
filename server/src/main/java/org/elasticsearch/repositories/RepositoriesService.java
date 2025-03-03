@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -908,15 +909,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private static void ensureNoSearchableSnapshotsIndicesInUse(ClusterState clusterState, RepositoryMetadata repositoryMetadata) {
         long count = 0L;
         List<Index> indices = null;
-        for (IndexMetadata indexMetadata : clusterState.metadata()) {
-            if (indexSettingsMatchRepositoryMetadata(indexMetadata, repositoryMetadata)) {
-                if (indices == null) {
-                    indices = new ArrayList<>();
+        for (ProjectMetadata project : clusterState.metadata().projects().values()) {
+            for (IndexMetadata indexMetadata : project) {
+                if (indexSettingsMatchRepositoryMetadata(indexMetadata, repositoryMetadata)) {
+                    if (indices == null) {
+                        indices = new ArrayList<>();
+                    }
+                    if (indices.size() < 5) {
+                        indices.add(indexMetadata.getIndex());
+                    }
+                    count += 1L;
                 }
-                if (indices.size() < 5) {
-                    indices.add(indexMetadata.getIndex());
-                }
-                count += 1L;
             }
         }
         if (indices != null && indices.isEmpty() == false) {

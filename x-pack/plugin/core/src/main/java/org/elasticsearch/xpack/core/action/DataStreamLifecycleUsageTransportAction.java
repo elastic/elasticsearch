@@ -47,13 +47,13 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        final Collection<DataStream> dataStreams = state.metadata().dataStreams().values();
+        final Collection<DataStream> dataStreams = state.metadata().getProject().dataStreams().values();
         DataStreamLifecycleFeatureSetUsage.LifecycleStats lifecycleStats = calculateStats(
             dataStreams,
             clusterService.getClusterSettings().get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),

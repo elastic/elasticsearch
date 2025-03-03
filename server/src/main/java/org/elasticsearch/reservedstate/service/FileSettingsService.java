@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateExceptio
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.file.MasterNodeFileWatchingService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -31,11 +32,14 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -65,6 +69,8 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
     public static final String SETTINGS_FILE_NAME = "settings.json";
     public static final String NAMESPACE = "file_settings";
     public static final String OPERATOR_DIRECTORY = "operator";
+
+    private final Path watchedFile;
     private final ReservedClusterStateService stateService;
     private final FileSettingsHealthIndicatorService healthIndicatorService;
 
@@ -76,15 +82,25 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      * @param environment we need the environment to pull the location of the config and operator directories
      * @param healthIndicatorService tracks the success or failure of file-based settings
      */
+    @SuppressWarnings("this-escape")
     public FileSettingsService(
         ClusterService clusterService,
         ReservedClusterStateService stateService,
         Environment environment,
         FileSettingsHealthIndicatorService healthIndicatorService
     ) {
-        super(clusterService, environment.configDir().toAbsolutePath().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME));
+        super(clusterService, environment.configDir().toAbsolutePath().resolve(OPERATOR_DIRECTORY));
+        this.watchedFile = watchedFileDir().resolve(SETTINGS_FILE_NAME);
         this.stateService = stateService;
         this.healthIndicatorService = healthIndicatorService;
+    }
+
+    protected Logger logger() {
+        return logger;
+    }
+
+    public Path watchedFile() {
+        return watchedFile;
     }
 
     public FileSettingsHealthIndicatorService healthIndicatorService() {
@@ -112,7 +128,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         // since we don't know the current operator configuration, e.g. file settings could be disabled
         // on the target cluster. If file settings exist and the cluster state has lost it's reserved
         // state for the "file_settings" namespace, we touch our file settings file to cause it to re-process the file.
-        if (watching() && Files.exists(watchedFile())) {
+        if (watching() && Files.exists(watchedFile)) {
             if (fileSettingsMetadata != null) {
                 ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
                 mdBuilder.put(withResetVersion);
@@ -156,10 +172,8 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      * @throws InterruptedException if the file processing is interrupted by another thread.
      */
     @Override
-    protected void processFileChanges() throws ExecutionException, InterruptedException, IOException {
-        logger.info("processing path [{}] for [{}]", watchedFile(), NAMESPACE);
-        healthIndicatorService.changeOccurred();
-        processFileChanges(HIGHER_VERSION_ONLY);
+    protected final void processFileChanges(Path file) throws ExecutionException, InterruptedException, IOException {
+        processFile(file, false);
     }
 
     /**
@@ -167,25 +181,33 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      * Settings will be reprocessed even if the cluster-state version equals that found in the settings file.
      */
     @Override
-    protected void processFileOnServiceStart() throws IOException, ExecutionException, InterruptedException {
-        logger.info("processing path [{}] for [{}] on service start", watchedFile(), NAMESPACE);
-        healthIndicatorService.changeOccurred();
-        processFileChanges(HIGHER_OR_SAME_VERSION);
+    protected final void processFileOnServiceStart(Path file) throws IOException, ExecutionException, InterruptedException {
+        processFile(file, true);
+    }
+
+    protected void processFile(Path file, boolean startup) throws IOException, ExecutionException, InterruptedException {
+        if (watchedFile.equals(file) == false) {
+            logger().debug("Received notification for unknown file {}", file);
+        } else {
+            logger().info("processing path [{}] for [{}]{}", watchedFile, NAMESPACE, startup ? " on service start" : "");
+            healthIndicatorService.changeOccurred();
+            processFileChanges(startup ? HIGHER_OR_SAME_VERSION : HIGHER_VERSION_ONLY);
+        }
+    }
+
+    protected XContentParser createParser(InputStream stream) throws IOException {
+        return JSON.xContent().createParser(XContentParserConfiguration.EMPTY, stream);
     }
 
     private void processFileChanges(ReservedStateVersionCheck versionCheck) throws IOException, InterruptedException, ExecutionException {
         PlainActionFuture<Void> completion = new PlainActionFuture<>();
-        try (
-            var fis = Files.newInputStream(watchedFile());
-            var bis = new BufferedInputStream(fis);
-            var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
-        ) {
+        try (var bis = new BufferedInputStream(Files.newInputStream(watchedFile)); var parser = createParser(bis)) {
             stateService.process(NAMESPACE, parser, versionCheck, (e) -> completeProcessing(e, completion));
         }
         completion.get();
     }
 
-    private void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
+    protected void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
         if (e != null) {
             healthIndicatorService.failureOccurred(e.toString());
             completion.onFailure(e);
@@ -196,27 +218,28 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
     }
 
     @Override
-    protected void onProcessFileChangesException(Exception e) {
+    protected void onProcessFileChangesException(Path file, Exception e) {
         if (e instanceof ExecutionException) {
             var cause = e.getCause();
             if (cause instanceof FailedToCommitClusterStateException) {
-                logger.error("Unable to commit cluster state", e);
+                logger().error(Strings.format("Unable to commit cluster state while processing file [%s]", file), e);
                 return;
             } else if (cause instanceof XContentParseException) {
-                logger.error("Unable to parse settings", e);
+                logger().error(Strings.format("Unable to parse settings from file [%s]", file), e);
                 return;
             } else if (cause instanceof NotMasterException) {
-                logger.error("Node is no longer master", e);
+                logger().error(Strings.format("Node is no longer master while processing file [%s]", file), e);
                 return;
             }
         }
-        super.onProcessFileChangesException(e);
+
+        super.onProcessFileChangesException(file, e);
     }
 
     @Override
-    protected void processInitialFileMissing() throws ExecutionException, InterruptedException {
+    protected void processInitialFilesMissing() throws ExecutionException, InterruptedException {
         PlainActionFuture<ActionResponse.Empty> completion = new PlainActionFuture<>();
-        logger.info("setting file [{}] not found, initializing [{}] as empty", watchedFile(), NAMESPACE);
+        logger().info("setting file [{}] not found, initializing [{}] as empty", watchedFile, NAMESPACE);
         stateService.initEmpty(NAMESPACE, completion);
         completion.get();
     }

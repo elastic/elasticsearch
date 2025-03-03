@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.WarningFailureException;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -81,20 +80,15 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
         indexDocument(client(), dataStream, true);
 
-        assertBusy(() -> assertTrue(indexExists(DataStream.getDefaultBackingIndexName(dataStream, 2))));
-        assertBusy(
-            () -> assertTrue(
-                Boolean.parseBoolean(
-                    (String) getIndexSettingsAsMap(DataStream.getDefaultBackingIndexName(dataStream, 2)).get("index.hidden")
-                )
-            )
-        );
-        assertBusy(
-            () -> assertThat(
-                getStepKeyForIndex(client(), DataStream.getDefaultBackingIndexName(dataStream, 1)),
-                equalTo(PhaseCompleteStep.finalStep("hot").getKey())
-            )
-        );
+        assertBusy(() -> {
+            final var backingIndices = getBackingIndices(client(), dataStream);
+            assertEquals(2, backingIndices.size());
+            assertTrue(Boolean.parseBoolean((String) getIndexSettingsAsMap(backingIndices.getLast()).get("index.hidden")));
+        });
+        assertBusy(() -> {
+            final var backingIndices = getBackingIndices(client(), dataStream);
+            assertEquals(PhaseCompleteStep.finalStep("hot").getKey(), getStepKeyForIndex(client(), backingIndices.getFirst()));
+        });
     }
 
     public void testRolloverIsSkippedOnManualDataStreamRollover() throws Exception {
@@ -104,7 +98,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
         indexDocument(client(), dataStream, true);
 
-        String firstGenerationIndex = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        String firstGenerationIndex = getBackingIndices(client(), dataStream).getFirst();
         assertBusy(
             () -> assertThat(getStepKeyForIndex(client(), firstGenerationIndex).name(), equalTo(WaitForRolloverReadyStep.NAME)),
             30,
@@ -112,7 +106,10 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         );
 
         rolloverMaxOneDocCondition(client(), dataStream);
-        assertBusy(() -> assertThat(indexExists(DataStream.getDefaultBackingIndexName(dataStream, 2)), is(true)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> {
+            final var backingIndices = getBackingIndices(client(), dataStream);
+            assertEquals(2, backingIndices.size());
+        }, 30, TimeUnit.SECONDS);
 
         // even though the first index doesn't have 2 documents to fulfill the rollover condition, it should complete the rollover action
         // because it's not the write index anymore
@@ -123,13 +120,12 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70595")
     public void testShrinkActionInPolicyWithoutHotPhase() throws Exception {
         createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1, null, false));
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        String backingIndexName = getBackingIndices(client(), dataStream).getFirst();
         assertBusy(
             () -> assertThat(
                 "original index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
@@ -143,8 +139,11 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
         // Wait for rollover to happen
-        String rolloverIndex = DataStream.getDefaultBackingIndexName(dataStream, 2);
-        assertBusy(() -> assertTrue("the rollover action created the rollover index", indexExists(rolloverIndex)), 30, TimeUnit.SECONDS);
+        assertBusy(
+            () -> assertEquals("the rollover action created the rollover index", 2, getBackingIndices(client(), dataStream).size()),
+            30,
+            TimeUnit.SECONDS
+        );
 
         String shrunkenIndex = waitAndGetShrinkIndexName(client(), backingIndexName);
         assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
@@ -160,7 +159,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        String backingIndexName = getBackingIndices(client(), dataStream).getFirst();
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
 
         assertBusy(
@@ -191,7 +190,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        String backingIndexName = getBackingIndices(client(), dataStream).getFirst();
         assertBusy(
             () -> assertThat(
                 "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
@@ -226,7 +225,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         indexDocument(client(), dataStream, true);
 
         // The freeze action is a noop action with only noop steps and should pass through to complete the phase asap.
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        String backingIndexName = getBackingIndices(client(), dataStream).getFirst();
         assertBusy(() -> {
             try {
                 assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME));
@@ -248,7 +247,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        String backingIndexName = getBackingIndices(client(), dataStream).getFirst();
         assertBusy(
             () -> assertThat(
                 "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",

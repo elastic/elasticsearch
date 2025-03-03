@@ -1847,12 +1847,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeOptionalDouble(writeLoadForecast);
             out.writeOptionalLong(shardSizeInBytesForecast);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            eventIngestedRange.writeTo(out);
-        } else {
-            assert eventIngestedRange == IndexLongFieldRange.UNKNOWN
-                : "eventIngestedRange should be UNKNOWN until all nodes are on the new version but is " + eventIngestedRange;
-        }
+        eventIngestedRange.writeTo(out);
     }
 
     @Override

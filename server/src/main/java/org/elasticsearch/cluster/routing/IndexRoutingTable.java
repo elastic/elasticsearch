@@ -12,7 +12,7 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
@@ -93,7 +93,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         return index;
     }
 
-    boolean validate(Metadata metadata) {
+    boolean validate(ProjectMetadata metadata) {
         // check index exists
         if (metadata.hasIndex(index.getName()) == false) {
             throw new IllegalStateException(index + " exists in routing does not exists in metadata");

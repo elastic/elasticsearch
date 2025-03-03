@@ -354,7 +354,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
 
         public Profile(StreamInput in) throws IOException {
-            this.drivers = in.readCollectionAsImmutableList(DriverProfile::new);
+            this.drivers = in.readCollectionAsImmutableList(DriverProfile::readFrom);
         }
 
         @Override

@@ -13,6 +13,9 @@ mapped_pages:
 $$$es-connectors-native$$$
 
 
+:::{include} docs-content://deploy-manage/_snippets/field-doc-sec-limitations.md
+:::
+
 :::{note}
 This page is about Search connectors that synchronize third-party data into {{es}}. If you’re looking for Kibana connectors to integrate with services like generative AI model providers, refer to [Kibana Connectors](docs-content://deploy-manage/manage-connectors.md).
 :::

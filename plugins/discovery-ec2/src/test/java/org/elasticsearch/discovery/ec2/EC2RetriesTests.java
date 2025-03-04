@@ -9,6 +9,7 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.services.ec2.model.Instance;
 
 import org.apache.http.HttpStatus;
@@ -71,7 +72,7 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
         // retry the same request 5 times at most
         final int maxRetries = randomIntBetween(1, 5);
         httpServer.createContext("/", exchange -> {
-            if ("POST".equals(exchange.getRequestMethod())) {
+            if (SdkHttpMethod.POST.name().equals(exchange.getRequestMethod())) {
                 final String request = new String(exchange.getRequestBody().readAllBytes(), UTF_8);
                 final String userAgent = exchange.getRequestHeaders().getFirst("User-Agent");
                 if (userAgent != null && userAgent.startsWith("aws-sdk-java")) {

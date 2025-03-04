@@ -483,6 +483,20 @@ public final class IndicesPermission {
         public boolean canHaveBackingIndices() {
             return indexAbstraction != null && indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            IndexResource that = (IndexResource) o;
+            return name.equals(that.name)
+                && Objects.equals(selector, that.selector)
+                && Objects.equals(indexAbstraction, that.indexAbstraction);
+        }
+
+        public int hashCode() {
+            return Objects.hash(name, selector, indexAbstraction);
+        }
     }
 
     /**
@@ -501,7 +515,7 @@ public final class IndicesPermission {
             }
         }
 
-        final Map<String, IndexResource> resources = Maps.newMapWithExpectedSize(requestedIndicesOrAliases.size());
+        final Set<IndexResource> resources = Sets.newHashSetWithExpectedSize(requestedIndicesOrAliases.size());
         int totalResourceCount = 0;
         Map<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         for (String indexOrAlias : requestedIndicesOrAliases) {
@@ -513,7 +527,7 @@ public final class IndicesPermission {
                 ? null
                 : IndexComponentSelector.getByKey(expressionAndSelector.v2());
             final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias), selector);
-            resources.put(resource.name, resource);
+            resources.add(resource);
             totalResourceCount += resource.size(lookup);
         }
 
@@ -532,7 +546,7 @@ public final class IndicesPermission {
 
     private Map<String, IndicesAccessControl.IndexAccessControl> buildIndicesAccessControl(
         final String action,
-        final Map<String, IndexResource> requestedResources,
+        final Set<IndexResource> requestedResources,
         final int totalResourceCount,
         final FieldPermissionsCache fieldPermissionsCache,
         final ProjectMetadata metadata
@@ -546,7 +560,7 @@ public final class IndicesPermission {
 
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
-        for (IndexResource resource : requestedResources.values()) {
+        for (IndexResource resource : requestedResources) {
             // true if ANY group covers the given index AND the given action
             boolean granted = false;
 
@@ -610,7 +624,8 @@ public final class IndicesPermission {
                 if (resource.canHaveBackingIndices()) {
                     for (String concreteIndex : concreteIndices) {
                         // If the name appear directly as part of the requested indices, it takes precedence over implicit access
-                        if (false == requestedResources.containsKey(concreteIndex)) {
+                        // TODO inefficient
+                        if (false == requestedResources.stream().anyMatch(r -> r.name.equals(concreteIndex))) {
                             grantedResources.add(concreteIndex);
                         }
                     }
@@ -618,6 +633,7 @@ public final class IndicesPermission {
             }
         }
 
+        // TODO handle failures selector for DLS/FLS
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = Maps.newMapWithExpectedSize(grantedResources.size());
         for (String index : grantedResources) {
             final DocumentLevelPermissions permissions = roleQueriesByIndex.get(index);
@@ -645,11 +661,11 @@ public final class IndicesPermission {
      * Returns {@code true} if action is granted for all {@code requestedResources}.
      * If action is not granted for at least one resource, this method will return {@code false}.
      */
-    private boolean isActionGranted(final String action, final Map<String, IndexResource> requestedResources) {
+    private boolean isActionGranted(final String action, final Collection<IndexResource> requestedResources) {
 
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
-        for (IndexResource resource : requestedResources.values()) {
+        for (IndexResource resource : requestedResources) {
             // true if ANY group covers the given index AND the given action
             boolean granted = false;
             // true if ANY group, which contains certain ingest privileges, covers the given index AND the action is a mapping update for

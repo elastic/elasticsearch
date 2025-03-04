@@ -8,6 +8,9 @@
  */
 package org.elasticsearch.repositories.gcs;
 
+import fixture.gcs.FakeOAuth2HttpHandler;
+import fixture.gcs.GoogleCloudStorageHttpHandler;
+
 import com.google.api.client.http.HttpExecuteInterceptor;
 import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.gax.retrying.RetrySettings;
@@ -86,9 +89,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
-
-import fixture.gcs.FakeOAuth2HttpHandler;
-import fixture.gcs.GoogleCloudStorageHttpHandler;
 
 @SuppressForbidden(reason = "use a http server")
 public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase {

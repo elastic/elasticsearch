@@ -1,6 +1,0 @@
-pr: 120343
-summary: Support some stats on aggregate_metric_double
-area: "ES|QL"
-type: enhancement
-issues:
- - 110649

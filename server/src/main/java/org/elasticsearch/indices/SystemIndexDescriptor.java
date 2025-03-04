@@ -494,6 +494,11 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, SystemResourc
         return this.indexFormat;
     }
 
+    public Version getMinimumNodeVersion() {
+        assert isAutomaticallyManaged() : "Do not request version minimum node version for unmanaged system indices";
+        return minimumNodeVersion;
+    }
+
     @Override
     public boolean isAutomaticallyManaged() {
         return type.isManaged();

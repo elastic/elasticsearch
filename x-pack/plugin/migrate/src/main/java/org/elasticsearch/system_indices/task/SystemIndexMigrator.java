@@ -340,15 +340,13 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     }
 
     private static boolean needToBeMigrated(Stream<IndexMetadata> indicesMetadata) {
-        return indicesMetadata.anyMatch(SystemIndexMigrator::needsToBeMigrated);
-    }
-
-    private static boolean needsToBeMigrated(IndexMetadata indexMetadata) {
-        assert indexMetadata != null : "null IndexMetadata should be impossible, we're not consistently using the same cluster state";
-        if (indexMetadata == null) {
-            return false;
-        }
-        return indexMetadata.isSystem() && indexMetadata.getCreationVersion().before(NO_UPGRADE_REQUIRED_INDEX_VERSION);
+        return indicesMetadata.anyMatch(indexMetadata -> {
+            assert indexMetadata != null : "null IndexMetadata should be impossible, we're not consistently using the same cluster state";
+            if (indexMetadata == null) {
+                return false;
+            }
+            return indexMetadata.isSystem() && indexMetadata.getCreationVersion().before(NO_UPGRADE_REQUIRED_INDEX_VERSION);
+        });
     }
 
     private void migrateSingleIndex(

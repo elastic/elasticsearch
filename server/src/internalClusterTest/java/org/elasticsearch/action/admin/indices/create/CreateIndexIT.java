@@ -98,7 +98,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertThat(state, notNullValue());
         Metadata metadata = state.getMetadata();
         assertThat(metadata, notNullValue());
-        Map<String, IndexMetadata> indices = metadata.getIndices();
+        Map<String, IndexMetadata> indices = metadata.getProject().indices();
         assertThat(indices, notNullValue());
         assertThat(indices.size(), equalTo(1));
         IndexMetadata index = indices.get("test");
@@ -199,7 +199,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testCreateIndexWithMetadataBlocks() {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_METADATA, true)));
-        assertBlocked(indicesAdmin().prepareGetSettings("test"), IndexMetadata.INDEX_METADATA_BLOCK);
+        assertBlocked(indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test"), IndexMetadata.INDEX_METADATA_BLOCK);
         disableIndexBlock("test", IndexMetadata.SETTING_BLOCKS_METADATA);
     }
 

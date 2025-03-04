@@ -60,6 +60,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+/**
+ * Benchmark for many different kinds of aggregator and groupings.
+ */
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)
 @BenchmarkMode(Mode.AverageTime)

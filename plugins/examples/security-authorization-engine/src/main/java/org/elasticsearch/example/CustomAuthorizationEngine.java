@@ -11,7 +11,7 @@ package org.elasticsearch.example;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse.Indices;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -90,7 +90,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-        Metadata metadata,
+        ProjectMetadata project,
         ActionListener<IndexAuthorizationResult> listener
     ) {
         if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {

@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -195,7 +196,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 scalingFactor.getValue(),
                 nullValue.getValue(),
                 metric.getValue(),
-                indexMode
+                indexMode,
+                coerce.getValue().value(),
+                context.isSourceSynthetic()
             );
             return new ScaledFloatFieldMapper(leafName(), type, builderParams(this, context), context.isSourceSynthetic(), this);
         }
@@ -209,6 +212,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private final Double nullValue;
         private final TimeSeriesParams.MetricType metricType;
         private final IndexMode indexMode;
+        private final boolean coerce;
+        private final boolean isSyntheticSource;
 
         public ScaledFloatFieldType(
             String name,
@@ -219,13 +224,17 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             double scalingFactor,
             Double nullValue,
             TimeSeriesParams.MetricType metricType,
-            IndexMode indexMode
+            IndexMode indexMode,
+            boolean coerce,
+            boolean isSyntheticSource
         ) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.scalingFactor = scalingFactor;
             this.nullValue = nullValue;
             this.metricType = metricType;
             this.indexMode = indexMode;
+            this.coerce = coerce;
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor) {
@@ -233,7 +242,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor, boolean indexed) {
-            this(name, indexed, false, true, Collections.emptyMap(), scalingFactor, null, null, null);
+            this(name, indexed, false, true, Collections.emptyMap(), scalingFactor, null, null, null, false, false);
         }
 
         public double getScalingFactor() {
@@ -312,14 +321,73 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 return BlockLoader.CONSTANT_NULLS;
             }
             if (hasDocValues()) {
-                double scalingFactorInverse = 1d / scalingFactor;
-                return new BlockDocValuesReader.DoublesBlockLoader(name(), l -> l * scalingFactorInverse);
+                return new BlockDocValuesReader.DoublesBlockLoader(name(), l -> l / scalingFactor);
             }
+            if (isSyntheticSource) {
+                return new FallbackSyntheticSourceBlockLoader(fallbackSyntheticSourceBlockLoaderReader(), name()) {
+                    @Override
+                    public Builder builder(BlockFactory factory, int expectedCount) {
+                        return factory.doubles(expectedCount);
+                    }
+                };
+            }
+
             ValueFetcher valueFetcher = sourceValueFetcher(blContext.sourcePaths(name()));
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.DoublesBlockLoader(valueFetcher, lookup);
+        }
+
+        private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
+            var nullValueAdjusted = nullValue != null ? adjustSourceValue(nullValue, scalingFactor) : null;
+
+            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<>(nullValue) {
+                @Override
+                public void convertValue(Object value, List<Double> accumulator) {
+                    if (coerce && value.equals("")) {
+                        if (nullValueAdjusted != null) {
+                            accumulator.add(nullValueAdjusted);
+                        }
+                    }
+
+                    try {
+                        // Convert to doc_values format
+                        var converted = adjustSourceValue(NumberFieldMapper.NumberType.objectToDouble(value), scalingFactor);
+                        accumulator.add(converted);
+                    } catch (Exception e) {
+                        // Malformed value, skip it
+                    }
+                }
+
+                @Override
+                protected void parseNonNullValue(XContentParser parser, List<Double> accumulator) throws IOException {
+                    // Aligned with implementation of `parseCreateField(XContentParser)`
+                    if (coerce && parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0) {
+                        if (nullValueAdjusted != null) {
+                            accumulator.add(nullValueAdjusted);
+                        }
+                    }
+
+                    try {
+                        double value = parser.doubleValue(coerce);
+                        // Convert to doc_values format
+                        var converted = adjustSourceValue(value, scalingFactor);
+                        accumulator.add(converted);
+                    } catch (Exception e) {
+                        // Malformed value, skip it
+                    }
+                }
+
+                @Override
+                public void writeToBlock(List<Double> values, BlockLoader.Builder blockBuilder) {
+                    var longBuilder = (BlockLoader.DoubleBuilder) blockBuilder;
+
+                    for (var value : values) {
+                        longBuilder.appendDouble(value);
+                    }
+                }
+            };
         }
 
         @Override
@@ -386,10 +454,14 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                         doubleValue = NumberFieldMapper.NumberType.objectToDouble(value);
                     }
 
-                    double factor = getScalingFactor();
-                    return Math.round(doubleValue * factor) / factor;
+                    return adjustSourceValue(doubleValue, getScalingFactor());
                 }
             };
+        }
+
+        // Adjusts precision of a double value so that it looks like it came from doc_values.
+        private static Double adjustSourceValue(double value, double scalingFactor) {
+            return Math.round(value * scalingFactor) / scalingFactor;
         }
 
         @Override

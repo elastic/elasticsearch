@@ -46,7 +46,8 @@ public class KvIndexResolverTests extends ESTestCase {
     public void testResolveSingleIndex() {
         String indexPattern = "profiling-stacktraces";
         Index[] concreteIndices = new Index[] { idx(".profiling-stacktraces-v001-000001") };
-        when(mockIndexResolver.concreteIndices(any(), eq(IndicesOptions.STRICT_EXPAND_OPEN), eq(indexPattern))).thenReturn(concreteIndices);
+        when(mockIndexResolver.concreteIndices(any(ClusterState.class), eq(IndicesOptions.STRICT_EXPAND_OPEN), eq(indexPattern)))
+            .thenReturn(concreteIndices);
 
         List<Index> resolvedIndices = resolver.resolve(ClusterState.EMPTY_STATE, indexPattern, Instant.MIN, Instant.MAX);
         assertEquals(1, resolvedIndices.size());
@@ -59,7 +60,8 @@ public class KvIndexResolverTests extends ESTestCase {
         Index stGen2 = idx(".profiling-stacktraces-v001-000002");
         Index stGen3 = idx(".profiling-stacktraces-v001-000003");
         Index[] concreteIndices = new Index[] { stGen1, stGen2, stGen3 };
-        when(mockIndexResolver.concreteIndices(any(), eq(IndicesOptions.STRICT_EXPAND_OPEN), eq(indexPattern))).thenReturn(concreteIndices);
+        when(mockIndexResolver.concreteIndices(any(ClusterState.class), eq(IndicesOptions.STRICT_EXPAND_OPEN), eq(indexPattern)))
+            .thenReturn(concreteIndices);
 
         Metadata.Builder metaBuilder = new Metadata.Builder();
         metaBuilder.indices(
@@ -97,7 +99,8 @@ public class KvIndexResolverTests extends ESTestCase {
         Index stGen2 = idx(".profiling-stacktraces-v001-000002");
         Index stGen3 = idx(".profiling-stacktraces-v001-000003");
         Index[] concreteIndices = new Index[] { stGen1, stGen2, stGen3 };
-        when(mockIndexResolver.concreteIndices(any(), eq(IndicesOptions.STRICT_EXPAND_OPEN), eq(indexPattern))).thenReturn(concreteIndices);
+        when(mockIndexResolver.concreteIndices(any(ClusterState.class), eq(IndicesOptions.STRICT_EXPAND_OPEN), eq(indexPattern)))
+            .thenReturn(concreteIndices);
 
         Metadata.Builder metaBuilder = new Metadata.Builder();
         metaBuilder.indices(
@@ -148,7 +151,8 @@ public class KvIndexResolverTests extends ESTestCase {
         Index stV1 = idx(".profiling-stacktraces-v001-000001");
         Index stV2 = idx(".profiling-stacktraces-v002-000001");
         Index[] concreteIndices = new Index[] { stV1, stV2 };
-        when(mockIndexResolver.concreteIndices(any(), eq(IndicesOptions.STRICT_EXPAND_OPEN), eq(indexPattern))).thenReturn(concreteIndices);
+        when(mockIndexResolver.concreteIndices(any(ClusterState.class), eq(IndicesOptions.STRICT_EXPAND_OPEN), eq(indexPattern)))
+            .thenReturn(concreteIndices);
 
         Metadata.Builder metaBuilder = new Metadata.Builder();
         metaBuilder.indices(

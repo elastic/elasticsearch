@@ -78,11 +78,12 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
     }
 
     public void testInvalidateTokensWhenIndexUnavailable() throws Exception {
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
 
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false);
-        when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
-        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false);
+        when(projectIndex.indexExists()).thenReturn(true);
+        when(projectIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(
             new ElasticsearchException("simulated")
         );
         final TokenService tokenService = new TokenService(
@@ -128,10 +129,11 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
     }
 
     public void testInvalidateTokensWhenIndexClosed() throws Exception {
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
-        when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
-        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
+        when(projectIndex.indexExists()).thenReturn(true);
+        when(projectIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(
             new IndexClosedException(new Index(INTERNAL_SECURITY_TOKENS_INDEX_7, ClusterState.UNKNOWN_UUID))
         );
         final TokenService tokenService = new TokenService(

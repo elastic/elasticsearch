@@ -68,6 +68,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -574,22 +575,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             0
         );
-        SearchResponse searchResponse = new SearchResponse(
-            hits,
-            null,
-            null,
-            false,
-            false,
-            null,
-            1,
-            scrollId(),
-            5,
-            4,
-            0,
-            randomLong(),
-            null,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse searchResponse = SearchResponseUtils.response(hits).scrollId(scrollId()).shards(5, 4, 0).build();
         try {
             client.lastSearch.get().listener.onResponse(searchResponse);
 

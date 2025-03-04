@@ -141,6 +141,8 @@ setup:
           - '{"@timestamp": "2021-04-28T19:50:24.467Z", "agg_metric": {"max": 10, "min": 3}, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507"}}}'
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T19:50:44.467Z", "agg_metric": {"max": 17, "min": 2}, "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9"}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:51:04.467Z", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9"}}}'
 
   - do:
       indices.create:
@@ -446,6 +448,77 @@ stats on aggregate_metric_double missing min and max:
   - match: {values.0.3: 10}
 
 ---
+render aggregate_metric_double when missing min and max:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ aggregate_metric_double_rendering ]
+      reason: "Support for rendering aggregate_metric_doubles"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test4 | KEEP agg_metric'
+
+  - length: {values: 1}
+  - length: {values.0: 1}
+  - match: {columns.0.name: "agg_metric"}
+  - match: {columns.0.type: "aggregate_metric_double"}
+  - match: {values.0.0: '{"sum":1.0,"value_count":10}'}
+
+
+---
+render aggregate_metric_double when missing value:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ aggregate_metric_double_rendering ]
+      reason: "Support for rendering aggregate_metric_doubles"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test3 | WHERE @timestamp == "2021-04-28T19:51:04.467Z" | KEEP agg_metric'
+
+  - length: {values: 1}
+  - length: {values.0: 1}
+  - match: {columns.0.name: "agg_metric"}
+  - match: {columns.0.type: "aggregate_metric_double"}
+  - match: {values.0.0: null}
+
+
+---
+to_string aggregate_metric_double:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ aggregate_metric_double_rendering ]
+      reason: "Support for rendering aggregate_metric_doubles"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test4 | EVAL agg = to_string(agg_metric) | KEEP agg'
+
+  - length: {values: 1}
+  - length: {values.0: 1}
+  - match: {columns.0.name: "agg"}
+  - match: {columns.0.type: "keyword"}
+  - match: {values.0.0: '{"sum":1.0,"value_count":10}'}
+
+---
 from index pattern unsupported counter:
   - requires:
       test_runner_features: [capabilities]
@@ -480,7 +553,7 @@ from index pattern unsupported counter:
   - match: {columns.7.type: "keyword"}
   - match: {columns.8.name: "metricset"}
   - match: {columns.8.type: "keyword"}
-  - length: {values: 15}
+  - length: {values: 16}
 
 ---
 from index pattern explicit counter use:
@@ -501,7 +574,7 @@ from index pattern explicit counter use:
           query: 'FROM test* | keep *.tx'
   - match: {columns.0.name: "k8s.pod.network.tx"}
   - match: {columns.0.type: "unsupported"}
-  - length: {values: 15}
+  - length: {values: 16}
 
 ---
 _source:

@@ -63,10 +63,10 @@ public final class ShardFollowTaskCleaner implements ClusterStateListener {
             return;
         }
         final Metadata metadata = event.state().metadata();
-        final PersistentTasksCustomMetadata persistentTasksMetadata = metadata.custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksCustomMetadata persistentTasksMetadata = metadata.getProject().custom(PersistentTasksCustomMetadata.TYPE);
         final Metadata previousMetadata = event.previousState().metadata();
-        if (metadata.indices() == event.previousState().getMetadata().indices()
-            && persistentTasksMetadata == previousMetadata.custom(PersistentTasksCustomMetadata.TYPE)
+        if (metadata.getProject().indices() == event.previousState().getMetadata().getProject().indices()
+            && persistentTasksMetadata == previousMetadata.getProject().custom(PersistentTasksCustomMetadata.TYPE)
             && event.previousState().nodes().isLocalNodeElectedMaster()
             && event.blocksChanged() == false) {
             // nothing of relevance changed
@@ -83,7 +83,7 @@ public final class ShardFollowTaskCleaner implements ClusterStateListener {
             }
             ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
             Index followerIndex = shardFollowTask.getFollowShardId().getIndex();
-            if (metadata.index(followerIndex) != null) {
+            if (metadata.getProject().index(followerIndex) != null) {
                 // the index exists, do not clean this persistent task
                 continue;
             }

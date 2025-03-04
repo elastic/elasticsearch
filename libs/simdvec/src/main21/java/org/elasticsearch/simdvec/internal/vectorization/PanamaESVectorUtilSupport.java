@@ -10,6 +10,7 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import jdk.incubator.vector.ByteVector;
+import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
 import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.VectorOperators;
@@ -60,6 +61,9 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float ipFloatByte(float[] q, byte[] d) {
+        if (BYTE_FOR_FLOAT_SPECIES != null && q.length >= FLOAT_SPECIES.length()) {
+            return ipFloatByteImpl(q, d);
+        }
         return DefaultESVectorUtilSupport.ipFloatByteImpl(q, d);
     }
 
@@ -164,5 +168,41 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             subRet3 += Integer.bitCount((dValue & q[i + 3 * d.length]) & 0xFF);
         }
         return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
+    }
+
+    private static final VectorSpecies<Float> FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;
+    private static final VectorSpecies<Byte> BYTE_FOR_FLOAT_SPECIES;
+
+    static {
+        VectorSpecies<Byte> byteForFloat;
+        try {
+            // calculate vector size to convert from single bytes to 4-byte floats
+            byteForFloat = VectorSpecies.of(byte.class, VectorShape.forBitSize(FLOAT_SPECIES.vectorBitSize() / 4));
+        } catch (IllegalArgumentException e) {
+            // can't get a byte vector size small enough, just use default impl
+            byteForFloat = null;
+        }
+        BYTE_FOR_FLOAT_SPECIES = byteForFloat;
+    }
+
+    public static float ipFloatByteImpl(float[] q, byte[] d) {
+        assert BYTE_FOR_FLOAT_SPECIES != null;
+        float sum = 0;
+        int i = 0;
+
+        int limit = FLOAT_SPECIES.loopBound(q.length);
+        for (; i < limit; i += FLOAT_SPECIES.length()) {
+            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, q, i);
+            ByteVector bv = ByteVector.fromArray(BYTE_FOR_FLOAT_SPECIES, d, i);
+            // no separate parts needed for the cast, as we've used a byte vector size 1/4th the float vector size
+            sum += qv.mul(bv.castShape(qv.species(), 0)).reduceLanes(VectorOperators.ADD);
+        }
+
+        // handle the tail
+        for (; i < q.length; i++) {
+            sum += q[i] * d[i];
+        }
+
+        return sum;
     }
 }

@@ -38,11 +38,27 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     protected final String requestType;
     private final ResponseParser parseFunction;
     private final Function<HttpResult, ErrorResponse> errorParseFunction;
+    private final boolean canHandleStreamingResponses;
 
     public BaseResponseHandler(String requestType, ResponseParser parseFunction, Function<HttpResult, ErrorResponse> errorParseFunction) {
+        this(requestType, parseFunction, errorParseFunction, false);
+    }
+
+    public BaseResponseHandler(
+        String requestType,
+        ResponseParser parseFunction,
+        Function<HttpResult, ErrorResponse> errorParseFunction,
+        boolean canHandleStreamingResponses
+    ) {
         this.requestType = Objects.requireNonNull(requestType);
         this.parseFunction = Objects.requireNonNull(parseFunction);
         this.errorParseFunction = Objects.requireNonNull(errorParseFunction);
+        this.canHandleStreamingResponses = canHandleStreamingResponses;
+    }
+
+    @Override
+    public boolean canHandleStreamingResponses() {
+        return canHandleStreamingResponses;
     }
 
     @Override

@@ -321,10 +321,6 @@ public class ElasticInferenceService extends SenderService {
         var authorizedStreamingTaskTypes = EnumSet.of(TaskType.CHAT_COMPLETION);
         authorizedStreamingTaskTypes.retainAll(authRef.get().taskTypesAndModels.getAuthorizedTaskTypes());
 
-        if (authorizedStreamingTaskTypes.isEmpty() == false) {
-            authorizedStreamingTaskTypes.add(TaskType.ANY);
-        }
-
         return authorizedStreamingTaskTypes;
     }
 

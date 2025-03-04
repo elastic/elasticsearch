@@ -38,7 +38,7 @@ An {{esql}} source command produces a table, typically with data from {{es}}. An
 * [`GROK`](#esql-grok)
 * [`KEEP`](#esql-keep)
 * [`LIMIT`](#esql-limit)
-* [`LOOKUP JOIN`](#esql-lookup-join)
+* [preview] [`LOOKUP JOIN`](#esql-lookup-join)
 * [preview] [`MV_EXPAND`](#esql-mv_expand)
 * [`RENAME`](#esql-rename)
 * [`SORT`](#esql-sort)
@@ -672,6 +672,7 @@ FROM employees
 ```esql
 FROM firewall_logs
 | LOOKUP JOIN threat_list ON source.IP
+| WHERE threat_level IS NOT NULL
 ```
 
 **Parameters**
@@ -706,8 +707,19 @@ FROM app_logs
 | LOOKUP JOIN service_owners ON service_id
 ```
 
-
 In case of name collisions, the newly created columns will override existing columns.
+
+```eqsl
+FROM Left
+| WHERE Language IS NOT NULL // works and filter TLD UK
+| LOOKUP JOIN Right ON Key
+
+// same semantics and result when moving the WHERE clause after the filter
+// in fact the optimizer will move the filter before the lookup
+FROM Left
+| LOOKUP JOIN Right ON Key
+| WHERE Language IS NOT NULL 
+```
 
 ## `MV_EXPAND` [esql-mv_expand]
 

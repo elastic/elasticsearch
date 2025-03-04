@@ -363,6 +363,7 @@ public class FileAccessTreeTests extends ESTestCase {
     public void testDuplicateExclusivePaths() {
         // Bunch o' handy definitions
         var originalFileData = FileData.ofPath(path("/a/b"), READ).withExclusive(true);
+        var fileDataWithWriteMode = FileData.ofPath(path("/a/b"), READ_WRITE).withExclusive(true);
         var original = new ExclusiveFileEntitlement("component1", "module1", new FilesEntitlement(List.of(originalFileData)));
         var differentComponent = new ExclusiveFileEntitlement("component2", original.moduleName(), original.filesEntitlement());
         var differentModule = new ExclusiveFileEntitlement(original.componentName(), "module2", original.filesEntitlement());
@@ -376,7 +377,7 @@ public class FileAccessTreeTests extends ESTestCase {
         var differentMode = new ExclusiveFileEntitlement(
             original.componentName(),
             original.moduleName(),
-            new FilesEntitlement(List.of(originalFileData.withMode(READ_WRITE)))
+            new FilesEntitlement(List.of(fileDataWithWriteMode))
         );
         var differentPlatform = new ExclusiveFileEntitlement(
             original.componentName(),

@@ -142,7 +142,7 @@ public class SimulateBulkRequest extends BulkRequest {
             componentTemplateSubstitutions = Map.of();
             indexTemplateSubstitutions = Map.of();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_MAPPING_ADDITION)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
             this.mappingAddition = (Map<String, Object>) in.readGenericValue();
         } else {
             mappingAddition = Map.of();
@@ -157,7 +157,7 @@ public class SimulateBulkRequest extends BulkRequest {
             out.writeGenericValue(componentTemplateSubstitutions);
             out.writeGenericValue(indexTemplateSubstitutions);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_MAPPING_ADDITION)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
             out.writeGenericValue(mappingAddition);
         }
     }

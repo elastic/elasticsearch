@@ -69,7 +69,7 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
         }
         TransportVersion streamTransportVersion = in.getTransportVersion();
         if (streamTransportVersion.isPatchFrom(TransportVersions.QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_16)
-            || streamTransportVersion.onOrAfter(TransportVersions.QUERY_RULES_LIST_INCLUDES_TYPES)) {
+            || streamTransportVersion.onOrAfter(TransportVersions.V_8_17_0)) {
             this.ruleTypeToCountMap = in.readMap(m -> in.readEnum(QueryRule.QueryRuleType.class), StreamInput::readInt);
         } else {
             this.ruleTypeToCountMap = Map.of();
@@ -104,7 +104,7 @@ public class QueryRulesetListItem implements Writeable, ToXContentObject {
         }
         TransportVersion streamTransportVersion = out.getTransportVersion();
         if (streamTransportVersion.isPatchFrom(TransportVersions.QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_16)
-            || streamTransportVersion.onOrAfter(TransportVersions.QUERY_RULES_LIST_INCLUDES_TYPES)) {
+            || streamTransportVersion.onOrAfter(TransportVersions.V_8_17_0)) {
             out.writeMap(ruleTypeToCountMap, StreamOutput::writeEnum, StreamOutput::writeInt);
         }
     }

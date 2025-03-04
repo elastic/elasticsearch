@@ -60,7 +60,7 @@ public class ListQueryRulesetsActionResponseBWCSerializingTests extends Abstract
         TransportVersion version
     ) {
         if (version.isPatchFrom(TransportVersions.QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_16)
-            || version.onOrAfter(TransportVersions.QUERY_RULES_LIST_INCLUDES_TYPES)) {
+            || version.onOrAfter(TransportVersions.V_8_17_0)) {
             return instance;
         } else if (version.onOrAfter(QueryRulesetListItem.EXPANDED_RULESET_COUNT_TRANSPORT_VERSION)) {
             List<QueryRulesetListItem> updatedResults = new ArrayList<>();

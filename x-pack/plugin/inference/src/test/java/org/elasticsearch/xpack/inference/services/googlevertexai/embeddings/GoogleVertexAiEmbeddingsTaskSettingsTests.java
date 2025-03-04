@@ -256,7 +256,7 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
         GoogleVertexAiEmbeddingsTaskSettings instance,
         TransportVersion version
     ) {
-        if (version.before(TransportVersions.VERTEX_AI_INPUT_TYPE_ADDED)) {
+        if (version.before(TransportVersions.V_8_17_0)) {
             // default to null input type if node is on a version before input type was introduced
             return new GoogleVertexAiEmbeddingsTaskSettings(instance.autoTruncate(), null);
         }

@@ -209,9 +209,7 @@ public class TransportVersions {
     public static final TransportVersion MULTI_PROJECT = def(9_018_0_00);
     public static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH = def(9_019_0_00);
     public static final TransportVersion JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_020_0_00);
-
-    // making this large for now to avoid merge conflicts
-    public static final TransportVersion UNASSIGENEDINFO_RESHARD_ADDED = def(9_020_0_00);
+    public static final TransportVersion UNASSIGENEDINFO_RESHARD_ADDED = def(9_021_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

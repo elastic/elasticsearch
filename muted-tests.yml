@@ -336,6 +336,9 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.vectors/41_knn_search_bbq_hnsw/Vector rescoring has same scoring as exact search for kNN section}
   issue: https://github.com/elastic/elasticsearch/issues/124052
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
+  issue: https://github.com/elastic/elasticsearch/issues/120814
 
 # Examples:
 #

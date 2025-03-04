@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.openai;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -61,5 +62,5 @@ public abstract class OpenAiModel extends Model {
         return rateLimitServiceSettings;
     }
 
-    public abstract ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings);
+    public abstract ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.action.mistral;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.MistralEmbeddingsRequestManager;
@@ -29,9 +30,10 @@ public class MistralActionCreator implements MistralActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(MistralEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings) {
+    public ExecutableAction create(MistralEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings, InputType inputType) {
+        var overriddenModel = MistralEmbeddingsModel.of(embeddingsModel, taskSettings, inputType);
         var requestManager = new MistralEmbeddingsRequestManager(
-            embeddingsModel,
+            overriddenModel,
             serviceComponents.truncator(),
             serviceComponents.threadPool()
         );

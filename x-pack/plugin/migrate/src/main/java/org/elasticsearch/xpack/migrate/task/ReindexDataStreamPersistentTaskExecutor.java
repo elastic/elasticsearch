@@ -116,7 +116,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = response.getDataStreams();
             if (dataStreamInfos.size() == 1) {
                 DataStream dataStream = dataStreamInfos.get(0).getDataStream();
-                if (getReindexRequiredPredicate(clusterService.state().metadata(), false).test(dataStream.getWriteIndex())) {
+                if (getReindexRequiredPredicate(clusterService.state().metadata(), false, true).test(dataStream.getWriteIndex())) {
                     RolloverRequest rolloverRequest = new RolloverRequest(sourceDataStream, null);
                     rolloverRequest.setParentTask(taskId);
                     client.execute(
@@ -163,7 +163,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     ) {
         List<Index> indices = dataStream.getIndices();
         List<Index> indicesToBeReindexed = indices.stream()
-            .filter(getReindexRequiredPredicate(clusterService.state().metadata(), false))
+            .filter(getReindexRequiredPredicate(clusterService.state().metadata(), false, true))
             .toList();
         final ReindexDataStreamPersistentTaskState updatedState;
         if (params.totalIndices() != totalIndicesInDataStream

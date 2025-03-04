@@ -323,6 +323,7 @@ public class SystemDataStreamIT extends ESIntegTestCase {
                             .build(),
                         Map.of(),
                         List.of("product"),
+                        "product",
                         ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
                     )
                 );

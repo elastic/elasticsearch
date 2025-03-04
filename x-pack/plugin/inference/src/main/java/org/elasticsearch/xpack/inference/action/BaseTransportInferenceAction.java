@@ -310,7 +310,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     }
 
     private void inferOnService(Model model, Request request, InferenceService service, ActionListener<InferenceServiceResults> listener) {
-        if (request.isStreaming() == false || service.canStream(request.getTaskType())) {
+        if (request.isStreaming() == false || service.canStream(model.getTaskType())) {
             doInference(model, request, service, listener);
         } else {
             listener.onFailure(unsupportedStreamingTaskException(request, service));

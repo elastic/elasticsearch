@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -77,6 +78,7 @@ import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInference
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.getIndexRequestOrNull;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingSparse;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
@@ -380,7 +382,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         for (int i = 0; i < numInferenceFields; i++) {
             String field = randomAlphaOfLengthBetween(5, 10);
             String inferenceId = randomFrom(inferenceModelMap.keySet());
-            inferenceFieldMap.put(field, new InferenceFieldMetadata(field, inferenceId, new String[] { field }, null));
+            Map<String, Object> chunkingSettingsMap = Optional.ofNullable(generateRandomChunkingSettings())
+                .map(ChunkingSettings::asMap)
+                .orElse(null);
+            inferenceFieldMap.put(field, new InferenceFieldMetadata(field, inferenceId, new String[] { field }, chunkingSettingsMap));
         }
 
         int numRequests = atLeast(100);

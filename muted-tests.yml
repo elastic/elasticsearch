@@ -351,6 +351,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testSetUpgradeMode_ExistingTaskGetsUnassigned
   issue: https://github.com/elastic/elasticsearch/issues/122692
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: supports linux aarch distributions
+  issue: https://github.com/elastic/elasticsearch/issues/119868
 
 # Examples:
 #

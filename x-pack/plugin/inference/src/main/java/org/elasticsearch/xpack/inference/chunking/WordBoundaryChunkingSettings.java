@@ -58,6 +58,14 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
         return map;
     }
 
+    public int maxChunkSize() {
+        return maxChunkSize;
+    }
+
+    public int overlap() {
+        return overlap;
+    }
+
     public static WordBoundaryChunkingSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 

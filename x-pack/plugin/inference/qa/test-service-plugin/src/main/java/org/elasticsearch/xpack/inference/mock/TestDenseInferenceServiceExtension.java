@@ -155,7 +155,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             switch (model.getConfigurations().getTaskType()) {
                 case ANY, TEXT_EMBEDDING -> {
                     ServiceSettings modelServiceSettings = model.getServiceSettings();
-                    listener.onResponse(makeChunkedResults(input, modelServiceSettings.dimensions()));
+                    listener.onResponse(makeChunkedResults(input, modelServiceSettings.dimensions(), chunkingSettings));
                 }
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
@@ -173,6 +173,11 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                 embeddings.add(TextEmbeddingFloatResults.Embedding.of(floatEmbeddings));
             }
             return new TextEmbeddingFloatResults(embeddings);
+        }
+
+        private List<ChunkedInference> makeChunkedResults(List<String> input, int dimensions, ChunkingSettings chunkingSettings) {
+            List<String> chunkedInputs = chunkInputs(input, chunkingSettings);
+            return makeChunkedResults(chunkedInputs, dimensions);
         }
 
         private List<ChunkedInference> makeChunkedResults(List<String> input, int dimensions) {

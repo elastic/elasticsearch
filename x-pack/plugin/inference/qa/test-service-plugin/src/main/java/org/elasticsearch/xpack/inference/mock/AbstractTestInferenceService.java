@@ -13,6 +13,8 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -22,9 +24,13 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunker;
+import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -104,6 +110,33 @@ public abstract class AbstractTestInferenceService implements InferenceService {
 
     @Override
     public void close() throws IOException {}
+
+    protected List<String> chunkInputs(List<String> input, ChunkingSettings chunkingSettings) {
+        if (chunkingSettings == null) {
+            return input;
+        }
+        List<String> chunkedInputs = new ArrayList<>();
+        ChunkingStrategy chunkingStrategy = chunkingSettings.getChunkingStrategy();
+        if (chunkingStrategy == ChunkingStrategy.WORD) {
+            WordBoundaryChunker chunker = new WordBoundaryChunker();
+            for (String inputString : input) {
+                WordBoundaryChunkingSettings wordBoundaryChunkingSettings = (WordBoundaryChunkingSettings) chunkingSettings;
+                List<WordBoundaryChunker.ChunkOffset> offsets = chunker.chunk(
+                    inputString,
+                    wordBoundaryChunkingSettings.maxChunkSize(),
+                    wordBoundaryChunkingSettings.overlap()
+                );
+                for (WordBoundaryChunker.ChunkOffset offset : offsets) {
+                    chunkedInputs.add(inputString.substring(offset.start(), offset.end()));
+                }
+            }
+        } else {
+            // Won't implement till we need it
+            throw new UnsupportedOperationException("Test inference service only supports word chunking strategies");
+        }
+
+        return chunkedInputs;
+    }
 
     public static class TestServiceModel extends Model {
 

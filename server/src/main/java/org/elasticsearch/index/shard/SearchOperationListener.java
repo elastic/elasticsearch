@@ -185,6 +185,17 @@ public interface SearchOperationListener {
         }
 
         @Override
+        public void onDfsPhase(SearchContext context, long tookInNanos) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onDfsPhase(context, tookInNanos);
+                } catch (Exception e) {
+                    logger.warn(() -> "onDfsPhase listener [" + listener + "] failed", e);
+                }
+            }
+        }
+
+        @Override
         public void onNewReaderContext(ReaderContext readerContext) {
             for (SearchOperationListener listener : listeners) {
                 try {

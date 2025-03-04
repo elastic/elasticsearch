@@ -190,16 +190,16 @@ public final class SearchSlowLog implements SearchOperationListener {
 
         indexSettings.getScopedSettings()
             .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_WARN_SETTING, this::setDfsWarnThreshold);
-        this.fetchWarnThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING).nanos();
+        this.dfsWarnThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_WARN_SETTING).nanos();
         indexSettings.getScopedSettings()
             .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_INFO_SETTING, this::setDfsInfoThreshold);
-        this.fetchInfoThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING).nanos();
+        this.dfsInfoThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_INFO_SETTING).nanos();
         indexSettings.getScopedSettings()
             .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_DEBUG_SETTING, this::setDfsDebugThreshold);
-        this.fetchDebugThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING).nanos();
+        this.dfsDebugThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_DEBUG_SETTING).nanos();
         indexSettings.getScopedSettings()
             .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_TRACE_SETTING, this::setDfsTraceThreshold);
-        this.fetchTraceThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING).nanos();
+        this.dfsTraceThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_TRACE_SETTING).nanos();
     }
 
     @Override
@@ -232,14 +232,11 @@ public final class SearchSlowLog implements SearchOperationListener {
     public void onDfsPhase(SearchContext context, long tookInNanos) {
         if (dfsWarnThreshold >= 0 && tookInNanos > dfsWarnThreshold) {
             dfsLogger.warn(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
-        }
-        if (dfsInfoThreshold >= 0 && tookInNanos > dfsInfoThreshold) {
+        } else if (dfsInfoThreshold >= 0 && tookInNanos > dfsInfoThreshold) {
             dfsLogger.info(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
-        }
-        if (dfsDebugThreshold >= 0 && tookInNanos > dfsDebugThreshold) {
+        } else if (dfsDebugThreshold >= 0 && tookInNanos > dfsDebugThreshold) {
             dfsLogger.debug(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
-        }
-        if (dfsTraceThreshold >= 0 && tookInNanos > dfsTraceThreshold) {
+        } else if (dfsTraceThreshold >= 0 && tookInNanos > dfsTraceThreshold) {
             dfsLogger.trace(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
         }
     }

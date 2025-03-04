@@ -577,7 +577,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Releasable scope = tracer.withScope(task);
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false);
-            SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)
+            SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, false, true, System.nanoTime())
         ) {
             DfsPhase.execute(context);
             executor.success();

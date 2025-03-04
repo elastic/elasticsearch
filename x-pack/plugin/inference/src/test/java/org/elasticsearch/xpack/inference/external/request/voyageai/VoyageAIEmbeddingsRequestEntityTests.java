@@ -163,6 +163,38 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
             {"input":["abc"],"model":"model"}"""));
     }
 
+    public void testXContent_InputTypeInternalSearch() throws IOException {
+        var entity = new VoyageAIEmbeddingsRequestEntity(
+            List.of("abc"),
+            VoyageAIEmbeddingsServiceSettings.EMPTY_SETTINGS,
+            new VoyageAIEmbeddingsTaskSettings(InputType.INTERNAL_SEARCH, Boolean.FALSE),
+            "model"
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"model":"model","input_type":"query"}"""));
+    }
+
+    public void testXContent_InputTypeInternalIngest() throws IOException {
+        var entity = new VoyageAIEmbeddingsRequestEntity(
+            List.of("abc"),
+            VoyageAIEmbeddingsServiceSettings.EMPTY_SETTINGS,
+            new VoyageAIEmbeddingsTaskSettings(InputType.INTERNAL_INGEST, Boolean.FALSE),
+            "model"
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"model":"model","input_type":"document"}"""));
+    }
+
     public void testConvertToString_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
         var thrownException = expectThrows(
             AssertionError.class,

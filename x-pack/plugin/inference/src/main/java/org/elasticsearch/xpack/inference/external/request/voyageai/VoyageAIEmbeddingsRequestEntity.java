@@ -72,8 +72,8 @@ public record VoyageAIEmbeddingsRequestEntity(
     static String convertToString(InputType inputType) {
         return switch (inputType) {
             case null -> null;
-            case INGEST -> DOCUMENT;
-            case SEARCH -> QUERY;
+            case INGEST, INTERNAL_INGEST -> DOCUMENT;
+            case SEARCH, INTERNAL_SEARCH -> QUERY;
             default -> {
                 assert false : invalidInputTypeMessage(inputType);
                 yield null;

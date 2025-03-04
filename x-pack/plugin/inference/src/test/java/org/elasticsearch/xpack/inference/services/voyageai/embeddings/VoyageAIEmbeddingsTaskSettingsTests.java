@@ -181,10 +181,10 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
         var overriddenTaskSettings = VoyageAIEmbeddingsTaskSettings.of(
             taskSettings,
             new VoyageAIEmbeddingsTaskSettings((InputType) null, null),
-            InputType.INGEST
+            InputType.INTERNAL_INGEST
         );
 
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, true)));
+        MatcherAssert.assertThat(overriddenTaskSettings, is(new VoyageAIEmbeddingsTaskSettings(InputType.INTERNAL_INGEST, true)));
     }
 
     @Override

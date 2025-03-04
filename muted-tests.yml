@@ -336,6 +336,9 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/data_frame_analytics_crud/Test get stats given multiple analytics}
   issue: https://github.com/elastic/elasticsearch/issues/123034
+- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
+  method: testSourceThrottling
+  issue: https://github.com/elastic/elasticsearch/issues/123680
 
 # Examples:
 #

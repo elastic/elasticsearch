@@ -6,7 +6,7 @@ mapped_pages:
 
 # LOOKUP JOIN [esql-lookup-join]
 
-The {{esql}} [`LOOKUP join`](/reference/query-languages/esql/esql-commands.md#esql-lookup-join) processing command combines, at query-time, data from one or more source indexes with field-value combinations found in an input table. Teams often have data scattered across multiple indices – like logs, IPs, user IDs, hosts, employees etc. Without a direct way to enrich or correlate each event with reference data, root-cause analysis, security checks, and operational insights become time-consuming.
+The {{esql}} [`LOOKUP join`](/reference/query-languages/esql/esql-commands.md#esql-lookup-join) processing command combines, at query-time, data from one or more source indexes with correlated information found in an input table. Teams often have data scattered across multiple indices – like logs, IPs, user IDs, hosts, employees etc. Without a direct way to enrich or correlate each event with reference data, root-cause analysis, security checks, and operational insights become time-consuming.
 
 For example, you can use `LOOKUP JOIN` to:
 
@@ -21,6 +21,7 @@ For example, you can use `LOOKUP JOIN` to:
 * Working with regular indices
 * Need to preserve distinct matches
 * Need to match on any field in a lookup index
+* You use document or field level security
 
 ## How the `LOOKUP JOIN` command works [esql-how-lookup-join-works]
 
@@ -87,7 +88,7 @@ FROM Left
 
 To use `LOOKUP JOIN`, you must have:
 
-* Data types of join key and join field in the lookup index need to generally be the same - up to widening of data types, where e.g. `short,byte` are considered equal to `integer`. Also, text fields can be used on the left hand side if and only if there is an exact subfield whose name is suffixed with `.keyword`.
+* Data types of join key and join field in the lookup index need to generally be the same. As long as the field data type is structurally capable of handling the data that you are passing through. For example `short,byte` is considered equal to `integer`. Also, text fields can be used on the left hand side if and only if there is an exact subfield whose name is suffixed with `.keyword`.
 
 ## Limitations
 
@@ -96,7 +97,7 @@ The following are the current limitations with `LOOKUP JOIN`
 * `LOOKUP JOIN` will be sucessfull if both left and right type of the join are both `KEYWORD` types or if the left type is of `TEXT` and the right type is `KEYWORD`.
 * Indices in [lookup](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) mode are always single-sharded.
 * Cross cluster search is unsupported. Both source and lookup indicies must be local.
-* `LOOKUP JOIN` can only use a single match field, and can only use a single index. Wildcards, aliases, and datastreams are not supported.
+* `LOOKUP JOIN` can only use a single match field, and can only use a single index. Wildcards, aliases, datemath, and datastreams are not supported.
 * The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require renames or evals to achieve.
 * The query will circuit break if many documents from the lookup index have the same key. A large heap is needed to manage results of multiple megabytes per key.
   * This limit is per page of data which is about about 10,000 rows.

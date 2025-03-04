@@ -22,6 +22,7 @@ For example, you can use `ENRICH` to:
 * You are working with structured enrichment patterns
 * You can accept having multiple matches combined into multi-values
 * You can accept being limited to predefined match fields
+* `ENRICH` has a simplified security model. There are no restirctions to specific enrich policies or document and field level security.
 
 ### How the `ENRICH` command works [esql-how-enrich-works]
 

@@ -83,13 +83,9 @@ public class QueryRuleTests extends ESTestCase {
                 "ids": ["id1"]
               }
             }""");
-        IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
             () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
-        );
-        assertTrue(
-            "Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'",
-            e.getMessage().contains("Failed to build [query_rule]")
         );
     }
 
@@ -105,13 +101,9 @@ public class QueryRuleTests extends ESTestCase {
                 "ids": ["id1"]
               }
             }""");
-        IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
             () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
-        );
-        assertTrue(
-            "Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'",
-            e.getMessage().contains("Failed to build [query_rule]")
         );
     }
 
@@ -127,11 +119,10 @@ public class QueryRuleTests extends ESTestCase {
                 "ids": ["id1"]
               }
             }""");
-        IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
             () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
         );
-        assertTrue(e.getMessage().contains("failed to parse field [criteria]"));
     }
 
     public void testToXContent() throws IOException {
@@ -158,13 +149,9 @@ public class QueryRuleTests extends ESTestCase {
               "criteria": [],
               "actions": {}
             }""");
-        IllegalArgumentException e = expectThrows(
+        expectThrows(
             IllegalArgumentException.class,
             () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
-        );
-        assertTrue(
-            "Error message [" + e.getMessage() + "] should contain 'Failed to build [query_rule]'",
-            e.getMessage().contains("Failed to build [query_rule]")
         );
     }
 

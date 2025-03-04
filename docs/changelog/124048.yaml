@@ -1,0 +1,6 @@
+pr: 124048
+summary: Handle long overflow in dates
+area: "Mapping, Mapping"
+type: bug
+issues:
+ - 112483

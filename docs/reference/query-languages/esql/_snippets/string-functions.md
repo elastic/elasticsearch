@@ -6,81 +6,81 @@
 :::
 
 
-:::{include} functions/bit_length.md
+:::{include} functions/layout/bit_length.md
 :::
 
-:::{include} functions/byte_length.md
+:::{include} functions/layout/byte_length.md
 :::
 
-:::{include} functions/concat.md
+:::{include} functions/layout/concat.md
 :::
 
-:::{include} functions/ends_with.md
+:::{include} functions/layout/ends_with.md
 :::
 
-:::{include} functions/from_base64.md
+:::{include} functions/layout/from_base64.md
 :::
 
-:::{include} functions/hash.md
+:::{include} functions/layout/hash.md
 :::
 
-:::{include} functions/left.md
+:::{include} functions/layout/left.md
 :::
 
-:::{include} functions/length.md
+:::{include} functions/layout/length.md
 :::
 
-:::{include} functions/locate.md
+:::{include} functions/layout/locate.md
 :::
 
-:::{include} functions/ltrim.md
+:::{include} functions/layout/ltrim.md
 :::
 
-:::{include} functions/md5.md
+:::{include} functions/layout/md5.md
 :::
 
-:::{include} functions/repeat.md
+:::{include} functions/layout/repeat.md
 :::
 
-:::{include} functions/replace.md
+:::{include} functions/layout/replace.md
 :::
 
-:::{include} functions/reverse.md
+:::{include} functions/layout/reverse.md
 :::
 
-:::{include} functions/right.md
+:::{include} functions/layout/right.md
 :::
 
-:::{include} functions/rtrim.md
+:::{include} functions/layout/rtrim.md
 :::
 
-:::{include} functions/sha1.md
+:::{include} functions/layout/sha1.md
 :::
 
-:::{include} functions/sha256.md
+:::{include} functions/layout/sha256.md
 :::
 
-:::{include} functions/space.md
+:::{include} functions/layout/space.md
 :::
 
-:::{include} functions/split.md
+:::{include} functions/layout/split.md
 :::
 
-:::{include} functions/starts_with.md
+:::{include} functions/layout/starts_with.md
 :::
 
-:::{include} functions/substring.md
+:::{include} functions/layout/substring.md
 :::
 
-:::{include} functions/to_base64.md
+:::{include} functions/layout/to_base64.md
 :::
 
-:::{include} functions/to_lower.md
+:::{include} functions/layout/to_lower.md
 :::
 
-:::{include} functions/to_upper.md
+:::{include} functions/layout/to_upper.md
 :::
 
-:::{include} functions/trim.md
+:::{include} functions/layout/trim.md
 :::
 

@@ -264,14 +264,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     public void onResponse(UnparsedModel unparsedModel) {
                         var service = inferenceServiceRegistry.getService(unparsedModel.service());
                         if (service.isEmpty() == false) {
-                            // InferenceService inferenceService = service.get();
-                            // Model model = inferenceService.parsePersistedConfigWithSecrets(
-                            // inferenceId,
-                            // unparsedModel.taskType(),
-                            // unparsedModel.settings(),
-                            // unparsedModel.secrets()
-                            // );
-                            // var provider = new InferenceProvider(inferenceService, model);
                             var provider = new InferenceProvider(
                                 service.get(),
                                 service.get()
@@ -492,7 +484,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     ),
                     indexRequest.getContentType(),
                     inferenceFieldMetadata.getChunkingSettings() != null
-                        ? ChunkingSettingsBuilder.fromMap(new HashMap<>(new HashMap<>(inferenceFieldMetadata.getChunkingSettings())))
+                        ? ChunkingSettingsBuilder.fromMap(new HashMap<>(inferenceFieldMetadata.getChunkingSettings()))
                         : null
                 );
 

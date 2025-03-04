@@ -1,6 +1,0 @@
-pr: 118968
-summary: Configure index sorting through index settings for logsdb
-area: Logs
-type: enhancement
-issues:
- - 118686

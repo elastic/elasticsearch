@@ -18,7 +18,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -161,6 +164,7 @@ final class TransportHandshaker {
      */
 
     private static final Logger logger = LogManager.getLogger(TransportHandshaker.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     static final TransportVersion V7_HANDSHAKE_VERSION = TransportVersion.fromId(6_08_00_99);
     static final TransportVersion V8_HANDSHAKE_VERSION = TransportVersion.fromId(7_17_00_99);
@@ -172,6 +176,7 @@ final class TransportHandshaker {
     );
 
     static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
+    static final TransportVersion V8_19_FIRST_VERSION = TransportVersions.INITIAL_ELASTICSEARCH_8_19;
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
     private final CounterMetric numHandshakes = new CounterMetric();
 
@@ -249,7 +254,13 @@ final class TransportHandshaker {
         }
         channel.sendResponse(
             new HandshakeResponse(
-                ensureCompatibleVersion(version, handshakeRequest.transportVersion, handshakeRequest.releaseVersion, channel),
+                ensureCompatibleVersion(
+                    version,
+                    handshakeRequest.transportVersion,
+                    handshakeRequest.releaseVersion,
+                    channel,
+                    threadPool.getThreadContext()
+                ),
                 Build.current().version()
             )
         );
@@ -258,10 +269,21 @@ final class TransportHandshaker {
     private static TransportVersion ensureCompatibleVersion(
         TransportVersion localTransportVersion,
         TransportVersion remoteTransportVersion,
-        String releaseVersion,
-        Object channel
+        String remoteReleaseVersion,
+        Object channel,
+        ThreadContext threadContext
     ) {
         if (TransportVersion.isCompatible(remoteTransportVersion)) {
+            // Prevent log message headers from being added to the handshake response.
+            try (var ignored = threadContext.stashContext()) {
+                if (remoteTransportVersion.before(V8_19_FIRST_VERSION)) {
+                    deprecationLogger.warn(
+                        DeprecationCategory.OTHER,
+                        "handshake_version",
+                        getDeprecationMessage(localTransportVersion, remoteTransportVersion, remoteReleaseVersion, channel)
+                    );
+                }
+            }
             if (remoteTransportVersion.onOrAfter(localTransportVersion)) {
                 // Remote is semantically newer than us (i.e. has a greater transport protocol version), so we propose using our current
                 // transport protocol version. If we're initiating the connection then that's the version we'll use; if the other end is
@@ -282,7 +304,7 @@ final class TransportHandshaker {
                             from a chronologically-older release with a numerically-newer version compared to this node's version [{}/{}]. \
                             Upgrading to a chronologically-older release may not work reliably and is not recommended. \
                             Falling back to transport protocol version [{}].""",
-                        releaseVersion,
+                        remoteReleaseVersion,
                         remoteTransportVersion,
                         channel,
                         Build.current().version(),
@@ -298,7 +320,7 @@ final class TransportHandshaker {
             """
                 Rejecting unreadable transport handshake from remote node with version [%s/%s] received on [%s] since this node has \
                 version [%s/%s] which has an incompatible wire format.""",
-            releaseVersion,
+            remoteReleaseVersion,
             remoteTransportVersion,
             channel,
             Build.current().version(),
@@ -307,6 +329,24 @@ final class TransportHandshaker {
         logger.warn(message);
         throw new IllegalStateException(message);
 
+    }
+
+    // Non-private for testing
+    static String getDeprecationMessage(
+        TransportVersion localTransportVersion,
+        TransportVersion remoteTransportVersion,
+        String remoteReleaseVersion,
+        Object channel
+    ) {
+        return Strings.format(
+            "Performed a handshake with a remote node with version [%s/%s] received on [%s] which "
+                + "will be incompatible after this node on version [%s/%s] is upgraded to >= 9.1.",
+            remoteReleaseVersion,
+            remoteTransportVersion,
+            channel,
+            Build.current().version(),
+            localTransportVersion
+        );
     }
 
     TransportResponseHandler<HandshakeResponse> removeHandlerForHandshake(long requestId) {
@@ -352,7 +392,8 @@ final class TransportHandshaker {
                         version,
                         response.getTransportVersion(),
                         response.getReleaseVersion(),
-                        channel
+                        channel,
+                        threadPool.getThreadContext()
                     );
                     assert TransportVersion.current().before(version) // simulating a newer-version transport service for test purposes
                         || resultVersion.isKnown() : "negotiated unknown version " + resultVersion;

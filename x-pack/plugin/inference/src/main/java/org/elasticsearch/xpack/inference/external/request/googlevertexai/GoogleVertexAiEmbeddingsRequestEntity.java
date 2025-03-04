@@ -71,8 +71,8 @@ public record GoogleVertexAiEmbeddingsRequestEntity(List<String> inputs, GoogleV
 
     static String convertToString(InputType inputType) {
         return switch (inputType) {
-            case INGEST -> RETRIEVAL_DOCUMENT_TASK_TYPE;
-            case SEARCH -> RETRIEVAL_QUERY_TASK_TYPE;
+            case INGEST, INTERNAL_INGEST -> RETRIEVAL_DOCUMENT_TASK_TYPE;
+            case SEARCH, INTERNAL_SEARCH -> RETRIEVAL_QUERY_TASK_TYPE;
             case CLASSIFICATION -> CLASSIFICATION_TASK_TYPE;
             case CLUSTERING -> CLUSTERING_TASK_TYPE;
             default -> {

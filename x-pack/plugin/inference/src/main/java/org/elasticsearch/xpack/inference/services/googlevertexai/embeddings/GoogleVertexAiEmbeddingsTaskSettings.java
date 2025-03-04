@@ -40,7 +40,9 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
         InputType.INGEST,
         InputType.SEARCH,
         InputType.CLASSIFICATION,
-        InputType.CLUSTERING
+        InputType.CLUSTERING,
+        InputType.INTERNAL_INGEST,
+        InputType.INTERNAL_SEARCH
     );
 
     public static final GoogleVertexAiEmbeddingsTaskSettings EMPTY_SETTINGS = new GoogleVertexAiEmbeddingsTaskSettings(null, null);

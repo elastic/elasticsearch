@@ -156,10 +156,10 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         var overriddenTaskSettings = JinaAIEmbeddingsTaskSettings.of(
             taskSettings,
             new JinaAIEmbeddingsTaskSettings((InputType) null),
-            InputType.INGEST
+            InputType.INTERNAL_INGEST
         );
 
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new JinaAIEmbeddingsTaskSettings(InputType.INGEST)));
+        MatcherAssert.assertThat(overriddenTaskSettings, is(new JinaAIEmbeddingsTaskSettings(InputType.INTERNAL_INGEST)));
     }
 
     @Override

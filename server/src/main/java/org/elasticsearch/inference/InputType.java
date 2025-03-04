@@ -11,6 +11,8 @@ package org.elasticsearch.inference;
 
 import java.util.Locale;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * Defines the type of request, whether the request is to ingest a document or search for a document.
  */
@@ -19,7 +21,9 @@ public enum InputType {
     SEARCH,
     UNSPECIFIED,
     CLASSIFICATION,
-    CLUSTERING;
+    CLUSTERING,
+    INTERNAL_SEARCH,
+    INTERNAL_INGEST;
 
     @Override
     public String toString() {
@@ -28,5 +32,13 @@ public enum InputType {
 
     public static InputType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
+    }
+
+    public static InputType fromRestString(String name) {
+        var inputType = InputType.fromString(name);
+        if (inputType == InputType.INTERNAL_INGEST || inputType == InputType.INTERNAL_SEARCH) {
+            throw new IllegalArgumentException(format("Unrecognized input_type [%s]", inputType));
+        }
+        return inputType;
     }
 }

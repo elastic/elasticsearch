@@ -45,7 +45,9 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
         InputType.INGEST,
         InputType.SEARCH,
         InputType.CLASSIFICATION,
-        InputType.CLUSTERING
+        InputType.CLUSTERING,
+        InputType.INTERNAL_INGEST,
+        InputType.INTERNAL_SEARCH
     );
 
     public static CohereEmbeddingsTaskSettings fromMap(Map<String, Object> map) {

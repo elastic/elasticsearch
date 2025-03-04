@@ -166,8 +166,8 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
         var requestTaskSettings = new GoogleVertexAiEmbeddingsRequestTaskSettings(requestAutoTruncate, null);
 
         assertThat(
-            GoogleVertexAiEmbeddingsTaskSettings.of(originalSettings, requestTaskSettings, InputType.INGEST).getInputType(),
-            is(InputType.INGEST)
+            GoogleVertexAiEmbeddingsTaskSettings.of(originalSettings, requestTaskSettings, InputType.INTERNAL_INGEST).getInputType(),
+            is(InputType.INTERNAL_INGEST)
         );
     }
 

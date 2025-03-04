@@ -40,7 +40,9 @@ public class JinaAIEmbeddingsTaskSettings implements TaskSettings {
         InputType.INGEST,
         InputType.SEARCH,
         InputType.CLASSIFICATION,
-        InputType.CLUSTERING
+        InputType.CLUSTERING,
+        InputType.INTERNAL_INGEST,
+        InputType.INTERNAL_SEARCH
     );
 
     public static JinaAIEmbeddingsTaskSettings fromMap(Map<String, Object> map) {

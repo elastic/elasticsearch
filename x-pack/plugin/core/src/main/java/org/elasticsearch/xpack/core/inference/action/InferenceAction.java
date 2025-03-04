@@ -199,6 +199,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 }
             }
 
+            if (taskType.equals(TaskType.TEXT_EMBEDDING) == false && inputType != null) {
+                var e = new ActionRequestValidationException();
+                e.addValidationError(format("Field [input_type] cannot be specified for task type [%s]", taskType));
+                return e;
+            }
+
             return null;
         }
 
@@ -295,7 +301,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             }
 
             public Builder setInputType(String inputType) {
-                this.inputType = InputType.fromString(inputType);
+                this.inputType = InputType.fromRestString(inputType);
                 return this;
             }
 

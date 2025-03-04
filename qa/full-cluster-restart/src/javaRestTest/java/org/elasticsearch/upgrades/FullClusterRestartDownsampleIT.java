@@ -44,16 +44,26 @@ public class FullClusterRestartDownsampleIT extends ParameterizedFullClusterRest
 
     protected static LocalClusterConfigProvider clusterConfig = c -> {};
 
-    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .version(Version.fromString(OLD_CLUSTER_VERSION))
-        .nodes(2)
-        .setting("xpack.security.enabled", "false")
-        .setting("indices.lifecycle.poll_interval", "5s")
-        .apply(() -> clusterConfig)
-        .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
-        .build();
+    private static ElasticsearchCluster cluster = buildCluster();
+
+    private static ElasticsearchCluster buildCluster() {
+        Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
+        var cluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .version(Version.fromString(OLD_CLUSTER_VERSION))
+            .nodes(2)
+            .setting("xpack.security.enabled", "false")
+            .setting("indices.lifecycle.poll_interval", "5s")
+            .apply(() -> clusterConfig)
+            .feature(FeatureFlag.TIME_SERIES_MODE)
+            .feature(FeatureFlag.FAILURE_STORE_ENABLED);
+
+        if (oldVersion.before(Version.fromString("9.1.0"))) {
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+        return cluster.build();
+    }
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);

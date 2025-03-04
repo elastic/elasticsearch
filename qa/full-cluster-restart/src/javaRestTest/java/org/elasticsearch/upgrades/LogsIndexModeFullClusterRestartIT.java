@@ -33,17 +33,27 @@ import java.util.function.Supplier;
 public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
 
     @ClassRule
-    public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .version(Version.fromString(OLD_CLUSTER_VERSION))
-        .module("constant-keyword")
-        .module("data-streams")
-        .module("mapper-extras")
-        .module("x-pack-aggregate-metric")
-        .module("x-pack-stack")
-        .setting("xpack.security.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
-        .build();
+    public static final ElasticsearchCluster cluster = buildCluster();
+
+    private static ElasticsearchCluster buildCluster() {
+        Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
+        var cluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .version(Version.fromString(OLD_CLUSTER_VERSION))
+            .module("constant-keyword")
+            .module("data-streams")
+            .module("mapper-extras")
+            .module("x-pack-aggregate-metric")
+            .module("x-pack-stack")
+            .setting("xpack.security.enabled", "false")
+            .setting("xpack.license.self_generated.type", "trial");
+
+        if (oldVersion.before(Version.fromString("9.1.0"))) {
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+        return cluster.build();
+    }
 
     public LogsIndexModeFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);

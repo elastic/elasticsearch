@@ -217,7 +217,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 Map<String, Object> oldIndexMetadata = oldIndicesMetadata.get(oldIndexName);
                 Map<String, Object> upgradedIndexMetadata = upgradedIndexEntry.getValue();
                 compareSettings(oldIndexMetadata, upgradedIndexMetadata);
-                assertThat("Mappings did not match", upgradedIndexMetadata.get("mappings"), equalTo(oldIndexMetadata.get("mappings")));
+                compareMappings((Map<?, ?>) oldIndexMetadata.get("mappings"), (Map<?, ?>) upgradedIndexMetadata.get("mappings"));
                 assertThat("ILM states did not match", upgradedIndexMetadata.get("ilm"), equalTo(oldIndexMetadata.get("ilm")));
                 if (oldIndexName.equals(oldWriteIndex) == false) { // the old write index will have been rolled over by upgrade
                     assertThat(
@@ -266,6 +266,21 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 equalTo(oldIndexSettings.get(setting))
             );
         }
+    }
+
+    private void compareMappings(Map<?, ?> oldMappings, Map<?, ?> upgradedMappings) {
+        boolean ignoreSource = Version.fromString(UPGRADE_FROM_VERSION).before(Version.V_9_0_0);
+        if (ignoreSource) {
+            Map<?, ?> doc = (Map<?, ?>) oldMappings.get("_doc");
+            if (doc != null) {
+                Map<?, ?> sourceEntry = (Map<?, ?>) doc.get("_source");
+                if (sourceEntry != null && sourceEntry.isEmpty()) {
+                    doc.remove("_source");
+                }
+                assert doc.containsKey("_source") == false;
+            }
+        }
+        assertThat("Mappings did not match", upgradedMappings, equalTo(oldMappings));
     }
 
     @SuppressWarnings("unchecked")

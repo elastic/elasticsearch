@@ -91,6 +91,10 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
         setting 'health.master_history.no_master_transitions_threshold', '10'
       }
       requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+      if (bwcVersion.before(Version.fromString("9.1.0"))) {
+        jvmArgs '-da:org.elasticsearch.index.mapper.DocumentMapper'
+        jvmArgs '-da:org.elasticsearch.index.mapper.MapperService'
+      }
     }
 
     tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {

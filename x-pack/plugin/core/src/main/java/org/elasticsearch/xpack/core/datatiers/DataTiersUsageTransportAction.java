@@ -57,7 +57,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
@@ -91,7 +91,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
             .collect(Collectors.toSet());
         Map<String, Set<String>> indicesByTierPreference = new HashMap<>();
         for (String indexName : indices) {
-            IndexMetadata indexMetadata = state.metadata().index(indexName);
+            IndexMetadata indexMetadata = state.metadata().getProject().index(indexName);
             // If the index was deleted in the meantime, skip
             if (indexMetadata == null) {
                 continue;

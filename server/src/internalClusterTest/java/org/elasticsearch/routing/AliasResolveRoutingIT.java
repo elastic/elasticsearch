@@ -34,7 +34,10 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         createIndex("test-0");
         createIndex("test-1");
         ensureGreen();
-        indicesAdmin().prepareAliases().addAlias("test-0", "alias-0").addAlias("test-1", "alias-1").get();
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("test-0", "alias-0")
+            .addAlias("test-1", "alias-1")
+            .get();
         indicesAdmin().prepareClose("test-1").get();
         indexRandom(
             true,
@@ -54,7 +57,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         createIndex("test2");
         clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        indicesAdmin().prepareAliases()
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .addAliasAction(AliasActions.add().index("test1").alias("alias"))
             .addAliasAction(AliasActions.add().index("test1").alias("alias10").routing("0"))
             .addAliasAction(AliasActions.add().index("test1").alias("alias110").searchRouting("1,0"))
@@ -96,7 +99,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         createIndex("test3");
         clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        indicesAdmin().prepareAliases()
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .addAliasAction(AliasActions.add().index("test1").alias("alias"))
             .addAliasAction(AliasActions.add().index("test1").alias("alias10").routing("0"))
             .addAliasAction(AliasActions.add().index("test2").alias("alias20").routing("0"))

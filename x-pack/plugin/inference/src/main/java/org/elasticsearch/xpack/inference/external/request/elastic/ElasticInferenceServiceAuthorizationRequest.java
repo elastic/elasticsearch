@@ -25,7 +25,11 @@ public class ElasticInferenceServiceAuthorizationRequest extends ElasticInferenc
     private final URI uri;
     private final TraceContextHandler traceContextHandler;
 
-    public ElasticInferenceServiceAuthorizationRequest(String url, TraceContext traceContext, ElasticInferenceServiceRequestMetadata requestMetadata) {
+    public ElasticInferenceServiceAuthorizationRequest(
+        String url,
+        TraceContext traceContext,
+        ElasticInferenceServiceRequestMetadata requestMetadata
+    ) {
         super(requestMetadata);
         this.uri = createUri(Objects.requireNonNull(url));
         this.traceContextHandler = new TraceContextHandler(traceContext);

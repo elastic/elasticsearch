@@ -38,7 +38,7 @@ public abstract class ElasticInferenceServiceRequest implements Request {
 
     protected abstract HttpRequestBase createHttpRequestBase();
 
-    public static ElasticInferenceServiceRequestMetadata extractRequestMetadataFromThreadContext(ThreadContext context){
+    public static ElasticInferenceServiceRequestMetadata extractRequestMetadataFromThreadContext(ThreadContext context) {
         return new ElasticInferenceServiceRequestMetadata(
             context.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER),
             context.getHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER)

@@ -22,7 +22,9 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
 
     public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithProductOrigin() {
         var productOrigin = "elastic";
-        var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(new ElasticInferenceServiceRequestMetadata(productOrigin, null));
+        var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
+            new ElasticInferenceServiceRequestMetadata(productOrigin, null)
+        );
         var httpRequest = elasticInferenceServiceRequestWrapper.createHttpRequest();
         var productOriginHeader = httpRequest.httpRequestBase().getFirstHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
 
@@ -31,9 +33,11 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         assertThat(productOriginHeader.getValue(), equalTo(productOrigin));
     }
 
-    public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithProductUseCase(){
+    public void testElasticInferenceServiceRequestSubclasses_Decorate_HttpRequest_WithProductUseCase() {
         var productUseCase = "ai assistant";
-        var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(new ElasticInferenceServiceRequestMetadata(null, productUseCase));
+        var elasticInferenceServiceRequestWrapper = getDummyElasticInferenceServiceRequest(
+            new ElasticInferenceServiceRequestMetadata(null, productUseCase)
+        );
         var httpRequest = elasticInferenceServiceRequestWrapper.createHttpRequest();
         var productUseCaseHeader = httpRequest.httpRequestBase().getFirstHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
 
@@ -42,7 +46,9 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         assertThat(productUseCaseHeader.getValue(), equalTo(productUseCase));
     }
 
-    private static ElasticInferenceServiceRequest getDummyElasticInferenceServiceRequest(ElasticInferenceServiceRequestMetadata requestMetadata) {
+    private static ElasticInferenceServiceRequest getDummyElasticInferenceServiceRequest(
+        ElasticInferenceServiceRequestMetadata requestMetadata
+    ) {
         return new ElasticInferenceServiceRequest(requestMetadata) {
             @Override
             protected HttpRequestBase createHttpRequestBase() {
@@ -71,7 +77,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         };
     }
 
-    public static ElasticInferenceServiceRequestMetadata randomElasticInferenceServiceRequestMetadata(){
+    public static ElasticInferenceServiceRequestMetadata randomElasticInferenceServiceRequestMetadata() {
         return new ElasticInferenceServiceRequestMetadata(
             randomFrom(null, randomAlphaOfLength(10)),
             randomFrom(null, randomAlphaOfLength(10))

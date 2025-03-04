@@ -126,6 +126,9 @@ setup:
 
 ---
 "test bad dates in range - past":
+  - requires:
+      cluster_features: [ "mapper.range.invalid_date_fix" ]
+      reason: "Fix for invalid date required"
   - do:
       catch: /illegal_argument_exception/
       search:
@@ -141,6 +144,9 @@ setup:
 
 ---
 "test bad dates in range - future":
+  - requires:
+      cluster_features: [ "mapper.range.invalid_date_fix" ]
+      reason: "Fix for invalid date required"
   - do:
       catch: /illegal_argument_exception/
       search:

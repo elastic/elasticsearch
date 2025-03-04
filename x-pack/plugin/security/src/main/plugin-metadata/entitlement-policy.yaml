@@ -50,21 +50,6 @@ org.opensaml.xmlsec.impl:
         - org.apache.xml.security.ignoreLineBreaks
 org.opensaml.saml.impl:
   - files:
-    - relative_path: idp-docs-metadata.xml
-      relative_to: config
-      mode: read
-    - relative_path: idp-metadata.xml
-      relative_to: config
-      mode: read
-    - relative_path: saml-metadata.xml
-      relative_to: config
-      mode: read
-    - relative_path: metadata.xml
-      relative_to: config
-      mode: read
-    - relative_path: "saml/"
-      relative_to: config
-      mode: read
     - path_setting: xpack.security.authc.realms.saml.*.idp.metadata.path
       basedir_if_relative: config
       mode: read

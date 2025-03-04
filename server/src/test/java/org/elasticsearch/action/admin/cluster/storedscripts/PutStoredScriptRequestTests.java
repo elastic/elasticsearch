@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,6 +21,8 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class PutStoredScriptRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
@@ -30,18 +31,15 @@ public class PutStoredScriptRequestTests extends ESTestCase {
             TEST_REQUEST_TIMEOUT,
             "bar",
             "context",
-            new BytesArray("{}"),
-            XContentType.JSON,
+            0,
             new StoredScriptSource("foo", "bar", Collections.emptyMap())
         );
 
-        assertEquals(XContentType.JSON, storedScriptRequest.xContentType());
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             storedScriptRequest.writeTo(output);
 
             try (StreamInput in = output.bytes().streamInput()) {
                 PutStoredScriptRequest serialized = new PutStoredScriptRequest(in);
-                assertEquals(XContentType.JSON, serialized.xContentType());
                 assertEquals(storedScriptRequest.id(), serialized.id());
                 assertEquals(storedScriptRequest.context(), serialized.context());
             }
@@ -62,8 +60,7 @@ public class PutStoredScriptRequestTests extends ESTestCase {
             TEST_REQUEST_TIMEOUT,
             "test1",
             null,
-            expectedRequestBody,
-            xContentType,
+            expectedRequestBody.length(),
             StoredScriptSource.parse(expectedRequestBody, xContentType)
         );
 
@@ -73,7 +70,6 @@ public class PutStoredScriptRequestTests extends ESTestCase {
         requestBuilder.endObject();
 
         BytesReference actualRequestBody = BytesReference.bytes(requestBuilder);
-
-        assertEquals(expectedRequestBody, actualRequestBody);
+        assertThat(actualRequestBody.length(), equalTo(expectedRequestBody.length()));
     }
 }

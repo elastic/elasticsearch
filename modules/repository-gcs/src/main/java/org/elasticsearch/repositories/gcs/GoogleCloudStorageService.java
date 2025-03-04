@@ -14,8 +14,6 @@ import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.util.SecurityUtils;
-import com.google.api.gax.retrying.ResultRetryAlgorithm;
-import com.google.api.gax.retrying.TimedAttemptSettings;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ServiceOptions;
@@ -260,45 +258,19 @@ public class GoogleCloudStorageService {
     }
 
     protected StorageRetryStrategy getRetryStrategy() {
-        return new RetryOnNetworkOutageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy());
-    }
-
-    private static class RetryOnNetworkOutageRetryStrategy implements StorageRetryStrategy {
-
-        private final ResultRetryAlgorithm<?> idempotentRetryAlgorithm;
-        private final ResultRetryAlgorithm<?> nonIdempotentRetryAlgorithm;
-
-        private RetryOnNetworkOutageRetryStrategy(StorageRetryStrategy delegate) {
-            this.idempotentRetryAlgorithm = new DelegatingResultRetryAlgorithm<>(delegate.getIdempotentHandler());
-            this.nonIdempotentRetryAlgorithm = new DelegatingResultRetryAlgorithm<>(delegate.getIdempotentHandler());
-        }
-
-        @Override
-        public ResultRetryAlgorithm<?> getIdempotentHandler() {
-            return idempotentRetryAlgorithm;
-        }
-
-        @Override
-        public ResultRetryAlgorithm<?> getNonidempotentHandler() {
-            return nonIdempotentRetryAlgorithm;
-        }
-
-        private record DelegatingResultRetryAlgorithm<T>(ResultRetryAlgorithm<T> delegate) implements ResultRetryAlgorithm<T> {
-
-            @Override
-            public TimedAttemptSettings createNextAttempt(Throwable prevThrowable, T prevResponse, TimedAttemptSettings prevSettings) {
-                return delegate.createNextAttempt(prevThrowable, prevResponse, prevSettings);
-            }
-
-            @Override
-            public boolean shouldRetry(Throwable prevThrowable, T prevResponse) throws CancellationException {
-                // Retry in the event of an unknown host exception
-                if (ExceptionsHelper.unwrap(prevThrowable, UnknownHostException.class) != null) {
-                    return true;
+        return new DelegatingStorageRetryStrategy<>(
+            StorageRetryStrategy.getLegacyStorageRetryStrategy(),
+            d -> new DelegatingStorageRetryStrategy.DelegatingResultRetryAlgorithm<>(d) {
+                @Override
+                public boolean shouldRetry(Throwable prevThrowable, Object prevResponse) throws CancellationException {
+                    // Retry in the event of an unknown host exception
+                    if (ExceptionsHelper.unwrap(prevThrowable, UnknownHostException.class) != null) {
+                        return true;
+                    }
+                    return delegate.shouldRetry(prevThrowable, prevResponse);
                 }
-                return delegate.shouldRetry(prevThrowable, prevResponse);
             }
-        }
+        );
     }
 
     /**

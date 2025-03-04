@@ -1,5 +1,5 @@
 pr: 121787
-summary: Initial commit
+summary: Added optional parameters to QSTR ES|QL function
 area: Search
 type: feature
 issues: []

@@ -18,7 +18,6 @@ import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 
 import java.io.IOException;
@@ -34,8 +33,21 @@ public final class QueryPragmas implements Writeable {
 
     private static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
         "task_concurrency",
-        ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY))
+        allocatedProcessorsMinusOneMaxTen(EsExecutors.allocatedProcessors(Settings.EMPTY))
     );
+
+    /**
+     * Returns the number of processors to be used for driver data-parallelism, starting with Lucene operators and loading values.
+     * One processor is reserved for node-level reduction. Concurrency is capped at 10 because drivers handle both I/O-bound and
+     * CPU-bound tasks, preventing thread pool blocking from I/O waits, reducing memory usage, and minimizing the cost of
+     * node-level reduction.
+     *
+     * @param allocatedProcessors the total number of available processors
+     * @return the number of processors allocated for data-parallelism, between 2 and 10
+     */
+    static int allocatedProcessorsMinusOneMaxTen(final int allocatedProcessors) {
+        return Math.min(Math.max(allocatedProcessors - 1, 2), 10);
+    }
 
     public static final Setting<DataPartitioning> DATA_PARTITIONING = Setting.enumSetting(
         DataPartitioning.class,

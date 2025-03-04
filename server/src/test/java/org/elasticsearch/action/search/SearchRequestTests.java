@@ -172,10 +172,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         TransportVersion version = TransportVersionUtils.randomVersion(random());
-        if (version.before(TransportVersions.V_7_11_0) && searchRequest.source() != null) {
-            // Versions before 7.11.0 don't support runtime mappings
-            searchRequest.source().runtimeMappings(emptyMap());
-        }
         if (version.before(TransportVersions.V_8_4_0)) {
             // Versions before 8.4.0 don't support force_synthetic_source
             searchRequest.setForceSyntheticSource(false);

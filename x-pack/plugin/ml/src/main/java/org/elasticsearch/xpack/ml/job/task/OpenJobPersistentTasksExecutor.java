@@ -12,8 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
@@ -81,10 +79,6 @@ import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIG
 public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksExecutor<OpenJobAction.JobParams> {
 
     private static final Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutor.class);
-
-    // Resuming a job with a running datafeed from its current snapshot was added in 7.11 and
-    // can only be done if the master node is on or after that version.
-    private static final TransportVersion MIN_TRANSPORT_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT = TransportVersions.V_7_11_0;
 
     public static String[] indicesOfInterest(String resultsIndex) {
         if (resultsIndex == null) {
@@ -308,14 +302,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         }
 
         ActionListener<String> getRunningDatafeedListener = ActionListener.wrap(runningDatafeedId -> {
-            if (runningDatafeedId != null
-                // If the minimum TransportVersion is on or above MIN_TRANSPORT_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT then so must be
-                // the version associated with the master node, which is what is required to perform this action
-                && TransportVersionUtils.isMinTransportVersionOnOrAfter(
-                    clusterState,
-                    MIN_TRANSPORT_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT
-                )) {
-
+            if (runningDatafeedId != null) {
                 // This job has a running datafeed attached to it.
                 // In order to prevent gaps in the model we revert to the current snapshot deleting intervening results.
                 RevertToCurrentSnapshotAction revertToCurrentSnapshotAction = new RevertToCurrentSnapshotAction(

@@ -46,7 +46,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Streams;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
@@ -337,9 +336,10 @@ public class SearchApplicationIndexService {
     }
 
     private void removeAlias(String searchAliasName, ActionListener<AcknowledgedResponse> listener) {
-        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS).addAliasAction(
-            IndicesAliasesRequest.AliasActions.remove().aliases(searchAliasName).indices("*")
-        );
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest(
+            HARD_CODED_ENTERPRISE_SEARCH_MASTER_NODE_TIMEOUT,
+            HARD_CODED_ENTERPRISE_SEARCH_MASTER_NODE_TIMEOUT
+        ).addAliasAction(IndicesAliasesRequest.AliasActions.remove().aliases(searchAliasName).indices("*"));
         client.admin().indices().aliases(aliasesRequest, new ActionListener<>() {
             @Override
             public void onResponse(IndicesAliasesResponse response) {

@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -1290,7 +1291,7 @@ public class RBACEngineTests extends ESTestCase {
             {"term":{"public":true}}""");
         final Role role = Role.builder(RESTRICTED_INDICES, "test", "role")
             .cluster(Sets.newHashSet("monitor", "manage_watcher"), Collections.singleton(manageApplicationPrivileges))
-            .add(IndexPrivilege.get(Sets.newHashSet("read", "write")), "index-1")
+            .add(IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(Sets.newHashSet("read", "write")), "index-1")
             .add(IndexPrivilege.ALL, "index-2", "index-3")
             .add(
                 new FieldPermissions(new FieldPermissionsDefinition(new String[] { "public.*" }, new String[0])),
@@ -1614,23 +1615,34 @@ public class RBACEngineTests extends ESTestCase {
         final RemoteIndicesPermission.Builder remoteIndicesBuilder = RemoteIndicesPermission.builder();
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final int numGroups = randomIntBetween(2, 5);
+        int extraGroups = 0;
         for (int i = 0; i < numGroups; i++) {
-            remoteIndicesBuilder.addGroup(
-                Set.copyOf(randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*"))),
-                IndexPrivilege.get(Set.copyOf(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))),
-                new FieldPermissions(
-                    new FieldPermissionsDefinition(
-                        Set.of(
-                            randomBoolean()
-                                ? randomFieldGrantExcludeGroup()
-                                : new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null)
-                        )
-                    )
-                ),
-                randomBoolean() ? Set.of(randomDlsQuery()) : null,
-                randomBoolean(),
-                generateRandomStringArray(3, 10, false, false)
+            Set<IndexPrivilege> splitBySelector = IndexPrivilege.resolveBySelectorAccess(
+                Set.copyOf(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
             );
+            // If we end up with failure and data access, we will split and end up with extra groups. Need to account for this for the
+            // final assertion
+            if (splitBySelector.size() == 2) {
+                extraGroups++;
+            }
+            for (var privilege : splitBySelector) {
+                remoteIndicesBuilder.addGroup(
+                    Set.copyOf(randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*"))),
+                    privilege,
+                    new FieldPermissions(
+                        new FieldPermissionsDefinition(
+                            Set.of(
+                                randomBoolean()
+                                    ? randomFieldGrantExcludeGroup()
+                                    : new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null)
+                            )
+                        )
+                    ),
+                    randomBoolean() ? Set.of(randomDlsQuery()) : null,
+                    randomBoolean(),
+                    generateRandomStringArray(3, 10, false, false)
+                );
+            }
         }
         final RemoteIndicesPermission permissions = remoteIndicesBuilder.build();
         List<RemoteIndicesPermission.RemoteIndicesGroup> remoteIndicesGroups = permissions.remoteIndicesGroups();
@@ -1672,7 +1684,10 @@ public class RBACEngineTests extends ESTestCase {
         final RoleDescriptorsIntersection actual2 = future2.get();
 
         assertThat(actual1, equalTo(actual2));
-        assertThat(actual1.roleDescriptorsList().iterator().next().iterator().next().getIndicesPrivileges().length, equalTo(numGroups));
+        assertThat(
+            actual1.roleDescriptorsList().iterator().next().iterator().next().getIndicesPrivileges().length,
+            equalTo(numGroups + extraGroups)
+        );
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterWithoutMatchingGroups() throws ExecutionException, InterruptedException {

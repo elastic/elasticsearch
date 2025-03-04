@@ -651,9 +651,9 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                     checkDataStreamMigrationStatus(migrationInfo, completionListener, false);
                 }, e -> {
                     if (e instanceof ResourceAlreadyExistsException) {
-                        // This might happen if the task has been migrated to another node
+                        // This might happen if the task has been migrated to another node,
                         // in this case we can just wait for the data stream migration task to finish.
-                        // But, there is a possibility that previously started task has failed
+                        // But, there is a possibility that previously started data stream migration task has failed,
                         // in this case we need to cancel it and restart migration of the data stream.
                         logger.debug("data stream [{}] migration is already in progress", dataStreamName);
                         checkDataStreamMigrationStatus(migrationInfo, completionListener, true);
@@ -693,6 +693,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 );
 
                 if (status.complete() == false) {
+                    // data stream migration task is running, schedule another check without need to cancel-restart
                     threadPool.schedule(
                         () -> checkDataStreamMigrationStatus(migrationInfo, completionListener, false),
                         TimeValue.timeValueSeconds(1),
@@ -770,6 +771,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             },
             this::markAsFailed
         );
+
         cancelDataStreamMigration(migrationInfo, listener);
     }
 
@@ -785,6 +787,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             exception.addSuppressed(ex);
             markAsFailed(exception);
         });
+
         cancelDataStreamMigration(migrationInfo, listener);
     }
 

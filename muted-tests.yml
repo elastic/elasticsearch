@@ -266,15 +266,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_488}
   issue: https://github.com/elastic/elasticsearch/issues/121611
-- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
-  method: testSnapshotRecovery {p0=false p1=false}
-  issue: https://github.com/elastic/elasticsearch/issues/122549
-- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
-  method: testSnapshotRecovery {p0=true p1=false}
-  issue: https://github.com/elastic/elasticsearch/issues/122550
-- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
-  method: testSnapshotRecovery {p0=false p1=true}
-  issue: https://github.com/elastic/elasticsearch/issues/122551
 - class: org.elasticsearch.index.mapper.ShapeGeometryFieldMapperTests
   method: testCartesianBoundsBlockLoader
   issue: https://github.com/elastic/elasticsearch/issues/122661
@@ -308,9 +299,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testHistoryIsWrittenWithFailure
   issue: https://github.com/elastic/elasticsearch/issues/123203
-- class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
-  method: testSearchableSnapshotAction
-  issue: https://github.com/elastic/elasticsearch/issues/123214
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testCompletionField
   issue: https://github.com/elastic/elasticsearch/issues/123269
@@ -336,6 +324,12 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/data_frame_analytics_crud/Test get stats given multiple analytics}
   issue: https://github.com/elastic/elasticsearch/issues/123034
+- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
+  method: testSourceThrottling
+  issue: https://github.com/elastic/elasticsearch/issues/123680
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+  method: testLookupExplosionNoFetch
+  issue: https://github.com/elastic/elasticsearch/issues/123432
 
 # Examples:
 #

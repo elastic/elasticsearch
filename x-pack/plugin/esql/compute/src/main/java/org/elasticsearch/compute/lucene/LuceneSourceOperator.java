@@ -100,7 +100,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @Override
     public boolean isFinished() {
-        return doneCollecting;
+        return doneCollecting || remainingDocs <= 0;
     }
 
     @Override

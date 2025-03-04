@@ -309,7 +309,7 @@ $$$email-account-attributes$$$
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Set to `false` to completely disable HTML sanitation. Not recommended. Defaults to `true`.
 
 `xpack.notification.reporting.warning.kbn-csv-contains-formulas.text`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Specifies a custom message, which is sent if the formula verification criteria for CSV files from {{kib}}'s [`xpack.reporting.csv.checkForFormulas`](kibana://docs/reference/configuration-reference/reporting-settings.md#reporting-csv-settings) is `true`. Use `%s` in the message as a placeholder for the filename. Defaults to `Warning: The attachment [%s] contains characters which spreadsheet applications may interpret as formulas. Please ensure that the attachment is safe prior to opening.`
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Specifies a custom message, which is sent if the formula verification criteria for CSV files from {{kib}}'s [`xpack.reporting.csv.checkForFormulas`](kibana://reference/configuration-reference/reporting-settings.md#reporting-csv-settings) is `true`. Use `%s` in the message as a placeholder for the filename. Defaults to `Warning: The attachment [%s] contains characters which spreadsheet applications may interpret as formulas. Please ensure that the attachment is safe prior to opening.`
 
 
 ## {{watcher}} Email TLS/SSL settings [ssl-notification-smtp-settings]

@@ -4592,8 +4592,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     }
 
                     @Override
-                    public void afterReset() throws IOException {
-                    }
+                    public void afterReset() throws IOException {}
                 };
             } finally {
                 newEngineCreated.countDown();

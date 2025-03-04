@@ -562,14 +562,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 && currentRouting.relocating()
                 && replicationTracker.isRelocated()
                 && (newRouting.relocating() == false || newRouting.equalsIgnoringMetadata(currentRouting) == false)) {
-                // if the shard is not in primary mode anymore (after primary relocation) we have to fail when any changes in shard
-                // routing occur (e.g. due to recovery failure / cancellation). The reason is that at the moment we cannot safely
-                // reactivate primary mode without risking two active primaries.
-                throw new IndexShardRelocatedException(
-                    shardId(),
-                    "Shard is marked as relocated, cannot safely move to state " + newRouting.state()
-                );
-            }
+                    // if the shard is not in primary mode anymore (after primary relocation) we have to fail when any changes in shard
+                    // routing occur (e.g. due to recovery failure / cancellation). The reason is that at the moment we cannot safely
+                    // reactivate primary mode without risking two active primaries.
+                    throw new IndexShardRelocatedException(
+                        shardId(),
+                        "Shard is marked as relocated, cannot safely move to state " + newRouting.state()
+                    );
+                }
 
             if (newRouting.active() && state != IndexShardState.STARTED && state != IndexShardState.CLOSED) {
                 // If cluster.no_master_block: all then we remove all shards locally whenever there's no master, but there might still be
@@ -611,15 +611,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                      */
                     assert newRouting.initializing() == false
                         : "a started primary shard should never update its term; "
-                        + "shard "
-                        + newRouting
-                        + ", "
-                        + "current term ["
-                        + pendingPrimaryTerm
-                        + "], "
-                        + "new term ["
-                        + newPrimaryTerm
-                        + "]";
+                            + "shard "
+                            + newRouting
+                            + ", "
+                            + "current term ["
+                            + pendingPrimaryTerm
+                            + "], "
+                            + "new term ["
+                            + newPrimaryTerm
+                            + "]";
                     assert newPrimaryTerm > pendingPrimaryTerm
                         : "primary terms can only go up; current term [" + pendingPrimaryTerm + "], new term [" + newPrimaryTerm + "]";
                     /*
@@ -636,14 +636,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         shardStateUpdated.await();
                         assert pendingPrimaryTerm == newPrimaryTerm
                             : "shard term changed on primary. expected ["
-                            + newPrimaryTerm
-                            + "] but was ["
-                            + pendingPrimaryTerm
-                            + "]"
-                            + ", current routing: "
-                            + currentRouting
-                            + ", new routing: "
-                            + newRouting;
+                                + newPrimaryTerm
+                                + "] but was ["
+                                + pendingPrimaryTerm
+                                + "]"
+                                + ", current routing: "
+                                + currentRouting
+                                + ", new routing: "
+                                + newRouting;
                         assert getOperationPrimaryTerm() == newPrimaryTerm;
                         try {
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
@@ -706,7 +706,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             this.shardRouting = newRouting;
 
             assert this.shardRouting.primary() == false || this.shardRouting.started() == false || // note that we use started and not
-                // active to avoid relocating shards
+            // active to avoid relocating shards
                 this.indexShardOperationPermits.isBlocked() || // if permits are blocked, we are still transitioning
                 this.replicationTracker.isPrimaryMode()
                 : "a started primary with non-pending operation term must be in primary mode " + this.shardRouting;
@@ -2179,9 +2179,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         updateRetentionLeasesOnReplica(loadRetentionLeases());
         assert recoveryState.getRecoverySource().expectEmptyRetentionLeases() == false || getRetentionLeases().leases().isEmpty()
             : "expected empty set of retention leases with recovery source ["
-            + recoveryState.getRecoverySource()
-            + "] but got "
-            + getRetentionLeases();
+                + recoveryState.getRecoverySource()
+                + "] but got "
+                + getRetentionLeases();
         engineLock.writeLock().lock();
         try {
             assert this.currentEngine == null : "engine is running";
@@ -2232,10 +2232,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert userData.containsKey(Engine.HISTORY_UUID_KEY) : "commit point doesn't contains a history uuid";
         assert userData.get(Engine.HISTORY_UUID_KEY).equals(getHistoryUUID())
             : "commit point history uuid ["
-            + userData.get(Engine.HISTORY_UUID_KEY)
-            + "] is different than engine ["
-            + getHistoryUUID()
-            + "]";
+                + userData.get(Engine.HISTORY_UUID_KEY)
+                + "] is different than engine ["
+                + getHistoryUUID()
+                + "]";
 
         assert userData.containsKey(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID)
             : "opening index which was created post 5.5.0 but " + Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID + " is not found in commit";
@@ -2248,13 +2248,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final org.apache.lucene.util.Version commitLuceneVersion = segmentCommitInfos.getCommitLuceneVersion();
         assert commitLuceneVersion.onOrAfter(RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion()) == false
             || userData.containsKey(Engine.ES_VERSION)
-            && Engine.readIndexVersion(userData.get(Engine.ES_VERSION)).onOrBefore(IndexVersion.current())
+                && Engine.readIndexVersion(userData.get(Engine.ES_VERSION)).onOrBefore(IndexVersion.current())
             : "commit point has an invalid ES_VERSION value. commit point lucene version ["
-            + commitLuceneVersion
-            + "],"
-            + " ES_VERSION ["
-            + userData.get(Engine.ES_VERSION)
-            + "]";
+                + commitLuceneVersion
+                + "],"
+                + " ES_VERSION ["
+                + userData.get(Engine.ES_VERSION)
+                + "]";
         return true;
     }
 
@@ -3096,11 +3096,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              */
             assert state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED
                 : "supposedly in-sync shard copy received a global checkpoint ["
-                + globalCheckpoint
-                + "] "
-                + "that is higher than its local checkpoint ["
-                + localCheckpoint
-                + "]";
+                    + globalCheckpoint
+                    + "] "
+                    + "that is higher than its local checkpoint ["
+                    + localCheckpoint
+                    + "]";
             return;
         }
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);
@@ -4388,10 +4388,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 assert callingThread != null : "afterRefresh called but not beforeRefresh";
                 assert callingThread == Thread.currentThread()
                     : "beforeRefreshed called by a different thread. current ["
-                    + Thread.currentThread().getName()
-                    + "], thread that called beforeRefresh ["
-                    + callingThread.getName()
-                    + "]";
+                        + Thread.currentThread().getName()
+                        + "], thread that called beforeRefresh ["
+                        + callingThread.getName()
+                        + "]";
                 callingThread = null;
             }
             refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);

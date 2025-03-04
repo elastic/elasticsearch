@@ -96,7 +96,19 @@ public abstract class SslConfigurationLoader {
 
         // PFS, hardware support
         "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
-        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+
+        // AEAD, hardware support
+        "TLS_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_RSA_WITH_AES_128_GCM_SHA256",
+
+        // hardware support
+        "TLS_RSA_WITH_AES_256_CBC_SHA256",
+        "TLS_RSA_WITH_AES_128_CBC_SHA256",
+
+        // hardware support
+        "TLS_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_RSA_WITH_AES_128_CBC_SHA"
     );
 
     private static final List<String> JDK24_CIPHERS = List.of(

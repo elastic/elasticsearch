@@ -70,7 +70,83 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         assertTrue(threadPoolMergeExecutorService.allDone());
     }
 
-    public void testIORateAdjustedForRunningTasks() throws Exception {
+    public void testTargetIORateChangesWhenSubmittingMergeTasks() throws Exception {
+        int mergeExecutorThreadCount = randomIntBetween(1, 5);
+        int mergesStillToSubmit = randomIntBetween(1, 100);
+        int mergesStillToComplete = mergesStillToSubmit;
+        Settings settings = Settings.builder()
+                .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+                .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+                .build();
+        try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
+                    .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
+            assertNotNull(threadPoolMergeExecutorService);
+            assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
+            Semaphore runMergeSemaphore = new Semaphore(0);
+            AtomicInteger submittedIOThrottledMergeTasks = new AtomicInteger();
+            while (mergesStillToComplete > 0) {
+                if (mergesStillToSubmit > 0
+                    && (threadPoolMergeExecutorService.getCurrentlyRunningMergeTasks().isEmpty() || randomBoolean())) {
+                    // submit new merge task
+                    MergeTask mergeTask = mock(MergeTask.class);
+                    boolean supportsIOThrottling = randomBoolean();
+                    when(mergeTask.supportsIOThrottling()).thenReturn(supportsIOThrottling);
+                    doAnswer(mock -> {
+                        // each individual merge task can either "run" or be "backlogged"
+                        boolean runNowOrBacklog = randomBoolean();
+                        if (runNowOrBacklog == false) {
+                            testThreadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                                // reenqueue backlogged merge task
+                                threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(mergeTask);
+                            });
+                        }
+                        return runNowOrBacklog;
+                    }).when(mergeTask).runNowOrBacklog();
+                    doAnswer(mock -> {
+                        // wait to be signalled before completing
+                        runMergeSemaphore.acquire();
+                        if (supportsIOThrottling) {
+                            submittedIOThrottledMergeTasks.decrementAndGet();
+                        }
+                        return null;
+                    }).when(mergeTask).run();
+                    long currentIORate = threadPoolMergeExecutorService.getTargetIORateBytesPerSec();
+                    threadPoolMergeExecutorService.submitMergeTask(mergeTask);
+                    if (supportsIOThrottling) {
+                        submittedIOThrottledMergeTasks.incrementAndGet();
+                    }
+                    long newIORate = threadPoolMergeExecutorService.getTargetIORateBytesPerSec();
+                    if (supportsIOThrottling) {
+                        if (submittedIOThrottledMergeTasks.get() < threadPoolMergeExecutorService.getConcurrentMergesFloorLimitForThrottling()) {
+                            // assert the IO rate decreases, with a floor limit, when there are few merge tasks enqueued
+                            assertThat(newIORate, either(is(MIN_IO_RATE.getBytes())).or(lessThan(currentIORate)));
+                        } else if (submittedIOThrottledMergeTasks.get() > threadPoolMergeExecutorService.getConcurrentMergesCeilLimitForThrottling()) {
+                            // assert the IO rate increases, with a ceiling limit, when there are many merge tasks enqueued
+                            assertThat(newIORate, either(is(MAX_IO_RATE.getBytes())).or(greaterThan(currentIORate)));
+                        } else {
+                            // assert the IO rate does NOT change when there are a couple of merge tasks enqueued
+                            assertThat(newIORate, equalTo(currentIORate));
+                        }
+                    } else {
+                        // assert the IO rate does change, when the merge task doesn't support IO throttling
+                        assertThat(newIORate, equalTo(currentIORate));
+                    }
+                    mergesStillToSubmit--;
+                } else {
+                    ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
+                    long completedMerges = threadPoolExecutor.getCompletedTaskCount();
+                    runMergeSemaphore.release();
+                    // await merge to finish
+                    assertBusy(() -> assertThat(threadPoolExecutor.getCompletedTaskCount(), is(completedMerges + 1)));
+                    mergesStillToComplete--;
+                }
+            }
+            assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
+        }
+    }
+
+    public void testIORateIsAdjustedForRunningMergeTasks() throws Exception {
         int mergeExecutorThreadCount = randomIntBetween(1, 3);
         int mergesStillToSubmit = randomIntBetween(1, 10);
         int mergesStillToComplete = mergesStillToSubmit;
@@ -111,21 +187,10 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                         currentlyRunningMergeTasksSet.remove(mergeTask);
                         return null;
                     }).when(mergeTask).run();
-                    long currentIORate = threadPoolMergeExecutorService.getTargetIORateBytesPerSec();
                     int activeMergeTasksCount = threadPoolExecutor.getActiveCount();
                     threadPoolMergeExecutorService.submitMergeTask(mergeTask);
                     currentlySubmittedTasks.incrementAndGet();
                     long newIORate = threadPoolMergeExecutorService.getTargetIORateBytesPerSec();
-                    if (currentlySubmittedTasks.get() < threadPoolMergeExecutorService.getConcurrentMergesFloorLimitForThrottling()) {
-                        // assert the IO rate decreases, with a floor limit, when there are few merge tasks enqueued
-                        assertThat(newIORate, either(is(MIN_IO_RATE.getBytes())).or(lessThan(currentIORate)));
-                    } else if (currentlySubmittedTasks.get() > threadPoolMergeExecutorService.getConcurrentMergesCeilLimitForThrottling()) {
-                        // assert the IO rate increases, with a ceiling limit, when there are many merge tasks enqueued
-                        assertThat(newIORate, either(is(MAX_IO_RATE.getBytes())).or(greaterThan(currentIORate)));
-                    } else {
-                        // assert the IO rate does change, when there are a couple of merge tasks enqueued
-                        assertThat(newIORate, equalTo(currentIORate));
-                    }
                     // all currently running merge tasks must be IO throttled
                     assertBusy(() -> {
                         // await new merge to start executing

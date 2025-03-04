@@ -135,7 +135,7 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
             }
         }
 
-        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest().addAliasAction(
+        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(
             IndicesAliasesRequest.AliasActions.add().index(".ml-anomalies-7").alias(".ml-anomalies-write").writeIndex(true)
         )
             .addAliasAction(

@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -61,6 +62,7 @@ public abstract class TransportWriteAction<
     protected final IndexingPressure indexingPressure;
     protected final SystemIndices systemIndices;
     protected final ExecutorSelector executorSelector;
+    protected final ProjectResolver projectResolver;
 
     protected final PostWriteRefresh postWriteRefresh;
     private final BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction;
@@ -80,6 +82,7 @@ public abstract class TransportWriteAction<
         PrimaryActionExecution primaryActionExecution,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
+        ProjectResolver projectResolver,
         ReplicaActionExecution replicaActionExecution
     ) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
@@ -104,6 +107,7 @@ public abstract class TransportWriteAction<
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
         this.executorSelector = systemIndices.getExecutorSelector();
+        this.projectResolver = projectResolver;
         this.postWriteRefresh = new PostWriteRefresh(transportService);
     }
 
@@ -121,7 +125,9 @@ public abstract class TransportWriteAction<
     }
 
     protected boolean isSystemShard(ShardId shardId) {
-        final IndexAbstraction abstraction = clusterService.state().metadata().getIndicesLookup().get(shardId.getIndexName());
+        final IndexAbstraction abstraction = projectResolver.getProjectMetadata(clusterService.state())
+            .getIndicesLookup()
+            .get(shardId.getIndexName());
         return abstraction != null ? abstraction.isSystem() : systemIndices.isSystemIndex(shardId.getIndexName());
     }
 

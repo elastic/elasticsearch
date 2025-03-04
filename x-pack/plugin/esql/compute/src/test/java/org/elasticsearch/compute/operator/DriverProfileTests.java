@@ -47,7 +47,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
         );
         assertThat(Strings.toString(status, true, true), equalTo("""
             {
-              "task_description" : "test",
+              "description" : "test",
               "cluster_name" : "elasticsearch",
               "node_name" : "node-1",
               "start" : "1973-11-29T09:27:00.000Z",
@@ -122,7 +122,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
 
     @Override
     protected DriverProfile mutateInstance(DriverProfile instance) throws IOException {
-        String taskDescription = instance.taskDescription();
+        String shortDescription = instance.description();
         String clusterName = instance.clusterName();
         String nodeName = instance.nodeName();
         long startMillis = instance.startMillis();
@@ -133,7 +133,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
         var operators = instance.operators();
         var sleeps = instance.sleeps();
         switch (between(0, 9)) {
-            case 0 -> taskDescription = randomValueOtherThan(taskDescription, DriverStatusTests::randomIdentifier);
+            case 0 -> shortDescription = randomValueOtherThan(shortDescription, DriverStatusTests::randomIdentifier);
             case 1 -> clusterName = randomValueOtherThan(clusterName, DriverStatusTests::randomIdentifier);
             case 2 -> nodeName = randomValueOtherThan(nodeName, DriverStatusTests::randomIdentifier);
             case 3 -> startMillis = randomValueOtherThan(startMillis, ESTestCase::randomNonNegativeLong);
@@ -146,7 +146,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
             default -> throw new UnsupportedOperationException();
         }
         return new DriverProfile(
-            taskDescription,
+            shortDescription,
             clusterName,
             nodeName,
             startMillis,

@@ -22,7 +22,7 @@ import java.io.IOException;
 
 public record ProjectId(String id) implements Writeable, ToXContent {
 
-    public static final Reader<ProjectId> READER = ProjectId::new;
+    public static final Reader<ProjectId> READER = ProjectId::readFrom;
     private static final int MAX_LENGTH = 128;
 
     public ProjectId {
@@ -53,8 +53,9 @@ public record ProjectId(String id) implements Writeable, ToXContent {
         return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_' || c == '-';
     }
 
-    public ProjectId(StreamInput in) throws IOException {
-        this(in.readString());
+    public static ProjectId readFrom(StreamInput in) throws IOException {
+        final var id = in.readString();
+        return Metadata.DEFAULT_PROJECT_ID.id.equals(id) ? Metadata.DEFAULT_PROJECT_ID : new ProjectId(id);
     }
 
     @Override

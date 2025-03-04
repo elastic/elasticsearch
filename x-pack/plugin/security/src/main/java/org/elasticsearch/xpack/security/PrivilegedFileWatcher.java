@@ -34,6 +34,10 @@ public class PrivilegedFileWatcher extends FileWatcher {
         super(path);
     }
 
+    public PrivilegedFileWatcher(Path path, boolean checkFileContents) {
+        super(path, checkFileContents);
+    }
+
     @Override
     protected boolean fileExists(Path path) {
         return doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(path));

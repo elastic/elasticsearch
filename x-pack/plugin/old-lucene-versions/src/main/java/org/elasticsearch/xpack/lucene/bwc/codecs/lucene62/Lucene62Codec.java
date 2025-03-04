@@ -71,12 +71,8 @@ public class Lucene62Codec extends BWCCodec {
     };
 
     public Lucene62Codec() {
-        this(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
-    }
-
-    public Lucene62Codec(Lucene50StoredFieldsFormat.Mode mode) {
         super("Lucene62");
-        this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Objects.requireNonNull(mode));
+        this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
     }
 
     @Override

@@ -18,6 +18,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -78,8 +79,9 @@ public class DateFieldBlockLoaderTests extends BlockLoaderTestCase {
         }
 
         try {
-            return Instant.from(DateTimeFormatter.ofPattern(format).withZone(ZoneId.from(ZoneOffset.UTC)).parse((String) value))
-                .toEpochMilli();
+            return Instant.from(
+                DateTimeFormatter.ofPattern(format, Locale.ROOT).withZone(ZoneId.from(ZoneOffset.UTC)).parse((String) value)
+            ).toEpochMilli();
         } catch (Exception e) {
             // malformed
             return null;

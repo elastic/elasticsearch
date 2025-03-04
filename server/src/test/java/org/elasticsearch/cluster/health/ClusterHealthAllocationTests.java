@@ -35,7 +35,7 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
         clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(routingTable).build();
         MockAllocationService allocation = createAllocationService();
@@ -80,7 +80,11 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
     }
 
     private ClusterHealthStatus getClusterHealthStatus(ClusterState clusterState) {
-        return new ClusterStateHealth(clusterState).getStatus();
+        return new ClusterStateHealth(
+            clusterState,
+            clusterState.metadata().getProject().getConcreteAllIndices(),
+            clusterState.metadata().getProject().id()
+        ).getStatus();
     }
 
 }

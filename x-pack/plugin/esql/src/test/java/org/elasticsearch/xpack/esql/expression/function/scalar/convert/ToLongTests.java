@@ -66,8 +66,8 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
             DataType.LONG,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
                     + bytesRef.utf8ToString()
                     + "]"
             )
@@ -91,8 +91,8 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
             Double.NEGATIVE_INFINITY,
             Long.MIN_VALUE - 1d,
             d -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
             )
         );
         // from doubles outside long's range, positive
@@ -104,8 +104,8 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
             Long.MAX_VALUE + 1d,
             Double.POSITIVE_INFINITY,
             d -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
             )
         );
 
@@ -127,8 +127,8 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
             BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE),
             UNSIGNED_LONG_MAX,
             ul -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + ul + "] out of [long] range"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + ul + "] out of [long] range"
 
             )
         );
@@ -197,8 +197,8 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
             DataType.LONG,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "]"
             )
@@ -220,8 +220,8 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
             DataType.LONG,
             bytesRef -> null,
             bytesRef -> List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number ["
                     + ((BytesRef) bytesRef).utf8ToString()
                     + "]"
             )

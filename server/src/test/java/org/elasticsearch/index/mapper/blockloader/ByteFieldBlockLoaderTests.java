@@ -9,7 +9,10 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
+import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
 import org.elasticsearch.logsdb.datageneration.FieldType;
+
+import java.util.Map;
 
 public class ByteFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Integer> {
     public ByteFieldBlockLoaderTests() {
@@ -17,7 +20,7 @@ public class ByteFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<In
     }
 
     @Override
-    protected Integer convert(Number value) {
+    protected Integer convert(Number value, Map<String, Object> fieldMapping) {
         // All values that fit into int are represented as ints
         return value.intValue();
     }

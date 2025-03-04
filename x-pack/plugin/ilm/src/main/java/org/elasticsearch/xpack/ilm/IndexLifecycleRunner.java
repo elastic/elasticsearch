@@ -461,7 +461,7 @@ class IndexLifecycleRunner {
                 newStepKey
             ),
             new MoveToNextStepUpdateTask(index, policy, currentStepKey, newStepKey, nowSupplier, stepRegistry, clusterState -> {
-                IndexMetadata indexMetadata = clusterState.metadata().index(index);
+                IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
                 registerSuccessfulOperation(indexMetadata);
                 if (newStepKey != null && newStepKey != TerminalPolicyStep.KEY && indexMetadata != null) {
                     maybeRunAsyncAction(clusterState, indexMetadata, policy, newStepKey);
@@ -481,7 +481,7 @@ class IndexLifecycleRunner {
         submitUnlessAlreadyQueued(
             Strings.format("ilm-move-to-error-step {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(), currentStepKey),
             new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, clusterState -> {
-                IndexMetadata indexMetadata = clusterState.metadata().index(index);
+                IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
                 registerFailedOperation(indexMetadata, e);
             })
         );
@@ -676,7 +676,7 @@ class IndexLifecycleRunner {
 
         @Override
         protected void onClusterStateProcessed(ClusterState newState) {
-            IndexMetadata newIndexMeta = newState.metadata().index(index);
+            IndexMetadata newIndexMeta = newState.metadata().getProject().index(index);
             if (newIndexMeta == null) {
                 // index was deleted
                 return;

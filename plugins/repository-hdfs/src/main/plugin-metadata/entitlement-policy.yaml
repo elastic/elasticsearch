@@ -1,5 +1,6 @@
 ALL-UNNAMED:
   - manage_threads
+  - inbound_network # required for kerberos principals which specify a host component
   - outbound_network
   - load_native_libraries
   - write_system_properties:

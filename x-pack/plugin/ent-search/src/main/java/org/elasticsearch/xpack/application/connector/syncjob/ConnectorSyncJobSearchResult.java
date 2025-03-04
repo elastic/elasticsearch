@@ -8,17 +8,11 @@
 package org.elasticsearch.xpack.application.connector.syncjob;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.application.connector.ConnectorsAPISearchResult;
 
-import java.io.IOException;
 import java.util.Map;
 
 public class ConnectorSyncJobSearchResult extends ConnectorsAPISearchResult {
-
-    public ConnectorSyncJobSearchResult(StreamInput in) throws IOException {
-        super(in);
-    }
 
     private ConnectorSyncJobSearchResult(BytesReference resultBytes, Map<String, Object> resultMap, String id) {
         super(resultBytes, resultMap, id);

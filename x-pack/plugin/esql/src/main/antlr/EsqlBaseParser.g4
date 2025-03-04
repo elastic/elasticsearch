@@ -61,6 +61,7 @@ processingCommand
     | {this.isDevVersion()}? changePointCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? forkCommand
+    | {this.isDevVersion()}? unpivotCommand
     ;
 
 whereCommand
@@ -265,4 +266,8 @@ forkSubQueryProcessingCommand
     : whereCommand
     | sortCommand
     | limitCommand
+    ;
+
+unpivotCommand
+    : DEV_UNPIVOT valueColumn=qualifiedNamePattern FOR keyColumn=qualifiedNamePattern IN LP target=qualifiedNamePatterns RP
     ;

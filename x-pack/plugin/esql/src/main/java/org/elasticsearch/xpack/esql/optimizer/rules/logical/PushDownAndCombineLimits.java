@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -17,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Unpivot;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
@@ -45,6 +49,26 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 // (we also have to preserve the LIMIT afterwards)
                 // To avoid repeating this infinitely, we have to set duplicated = true.
                 return duplicateLimitAsFirstGrandchild(limit);
+            } else if (unary instanceof Unpivot unp) {
+                // UNPIVOT will multiply the number of rows by the number of unpivoted fields.
+                // We'll have to preserve the existing limit
+                // and push down a smaller limit, that is the minimum to get all the rows we need to respect the original limit, ie.
+                // ceil(originalLimit / numUnpivotedFields)
+
+                if (limit.duplicated()) {
+                    return limit;
+                }
+
+                var limitVal = (int) limit.limit().fold(ctx.foldCtx());
+
+                var lowerLimitVal = limitVal / unp.sourceColumns().size();
+                if (limitVal % unp.sourceColumns().size() > 0) {
+                    lowerLimitVal++;
+                }
+
+                LogicalPlan lowerLimit = new Limit(Source.EMPTY, new Literal(Source.EMPTY, lowerLimitVal, DataType.INTEGER), unp.child());
+                UnaryPlan unpivot = unp.replaceChild(lowerLimit);
+                return limit.replaceChild(unpivot).withDuplicated(true);
             }
             // check if there's a 'visible' descendant limit lower than the current one
             // and if so, align the current limit since it adds no value

@@ -146,7 +146,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 final GoogleCloudStorageClientSettings gcsClientSettings,
                 final HttpTransportOptions httpTransportOptions
             ) {
-                HttpTransportOptions requestCountingHttpTransportOptions = new HttpTransportOptions(
+                final HttpTransportOptions requestCountingHttpTransportOptions = new HttpTransportOptions(
                     HttpTransportOptions.newBuilder()
                         .setConnectTimeout(httpTransportOptions.getConnectTimeout())
                         .setHttpTransportFactory(httpTransportOptions.getHttpTransportFactory())
@@ -171,8 +171,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                         };
                     }
                 };
-                StorageOptions options = super.createStorageOptions(gcsClientSettings, requestCountingHttpTransportOptions);
-                RetrySettings.Builder retrySettingsBuilder = RetrySettings.newBuilder()
+                final StorageOptions options = super.createStorageOptions(gcsClientSettings, requestCountingHttpTransportOptions);
+                final RetrySettings.Builder retrySettingsBuilder = RetrySettings.newBuilder()
                     .setTotalTimeout(options.getRetrySettings().getTotalTimeout())
                     .setInitialRetryDelay(Duration.ofMillis(10L))
                     .setRetryDelayMultiplier(1.0d)
@@ -210,7 +210,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
     public void testShouldRetryOnNetworkOutage() {
         final int maxRetries = randomIntBetween(3, 5);
-        // We can't connect to the server here
+
         if (randomBoolean()) {
             logger.info("Failing due to connection refused");
             endpointUrlOverride = "http://127.0.0.1:"

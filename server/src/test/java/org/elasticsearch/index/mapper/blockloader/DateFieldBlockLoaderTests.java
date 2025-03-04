@@ -9,5 +9,80 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
-public class DateFieldBlockLoaderTests {
+import org.elasticsearch.index.mapper.BlockLoaderTestCase;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.logsdb.datageneration.FieldType;
+
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+public class DateFieldBlockLoaderTests extends BlockLoaderTestCase {
+    public DateFieldBlockLoaderTests() {
+        super(FieldType.DATE);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    protected Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource) {
+        var format = (String) fieldMapping.get("format");
+        var nullValue = fieldMapping.get("null_value") != null ? format(fieldMapping.get("null_value"), format) : null;
+
+        if (value instanceof List<?> == false) {
+            return convert(value, nullValue, format);
+        }
+
+        if ((boolean) fieldMapping.getOrDefault("doc_values", false)) {
+            // Sorted
+            var resultList = ((List<Object>) value).stream()
+                .map(v -> convert(v, nullValue, format))
+                .filter(Objects::nonNull)
+                .sorted()
+                .toList();
+            return maybeFoldList(resultList);
+        }
+
+        // parsing from source, not sorted
+        var resultList = ((List<Object>) value).stream().map(v -> convert(v, nullValue, format)).filter(Objects::nonNull).toList();
+        return maybeFoldList(resultList);
+    }
+
+    private Long convert(Object value, Long nullValue, String format) {
+        if (value == null) {
+            return nullValue;
+        }
+
+        return format(value, format);
+    }
+
+    private Long format(Object value, String format) {
+        if (format == null) {
+            return switch (value) {
+                case Integer i -> i.longValue();
+                case Long l -> l;
+                case String s -> {
+                    try {
+                        yield Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(s)).toEpochMilli();
+                    } catch (Exception e) {
+                        // malformed
+                        yield null;
+                    }
+                }
+                case null -> null;
+                default -> throw new IllegalStateException("Unexpected value: " + value);
+            };
+        }
+
+        try {
+            return Instant.from(DateTimeFormatter.ofPattern(format).withZone(ZoneId.from(ZoneOffset.UTC)).parse((String) value))
+                .toEpochMilli();
+        } catch (Exception e) {
+            // malformed
+            return null;
+        }
+    }
 }

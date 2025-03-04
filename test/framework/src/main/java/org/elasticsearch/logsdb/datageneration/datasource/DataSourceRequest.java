@@ -81,6 +81,11 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
+    record InstantGenerator() implements DataSourceRequest<DataSourceResponse.InstantGenerator> {
+        public DataSourceResponse.InstantGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 
     record NullWrapper() implements DataSourceRequest<DataSourceResponse.NullWrapper> {
         public DataSourceResponse.NullWrapper accept(DataSourceHandler handler) {
@@ -106,7 +111,9 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
-    record TransformWrapper(double transformedProportion, Function<Object, Object> transformation) implements DataSourceRequest<DataSourceResponse.TransformWrapper> {
+    record TransformWrapper(double transformedProportion, Function<Object, Object> transformation)
+        implements
+            DataSourceRequest<DataSourceResponse.TransformWrapper> {
         public DataSourceResponse.TransformWrapper accept(DataSourceHandler handler) {
             return handler.handle(this);
         }

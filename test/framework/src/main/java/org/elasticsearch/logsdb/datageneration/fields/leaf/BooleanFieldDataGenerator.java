@@ -21,13 +21,15 @@ public class BooleanFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGeneratorWithMalformed;
 
     public BooleanFieldDataGenerator(DataSource dataSource) {
-        // TODO support string literals "true" and "false"
         var booleans = dataSource.get(new DataSourceRequest.BooleanGenerator()).generator();
+        // produces "true" and "false" strings
+        var toStringTransform = dataSource.get(new DataSourceRequest.TransformWrapper(0.5, Object::toString)).wrapper();
+        var booleansWithStrings = toStringTransform.apply(booleans::get);
 
-        this.valueGenerator = Wrappers.defaults(booleans::get, dataSource);
+        this.valueGenerator = Wrappers.defaults(booleansWithStrings, dataSource);
 
         var strings = dataSource.get(new DataSourceRequest.StringGenerator()).generator();
-        this.valueGeneratorWithMalformed = Wrappers.defaultsWithMalformed(booleans::get, strings::get, dataSource);
+        this.valueGeneratorWithMalformed = Wrappers.defaultsWithMalformed(booleansWithStrings, strings::get, dataSource);
     }
 
     @Override

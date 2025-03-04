@@ -37,11 +37,7 @@ public class BooleanFieldBlockLoaderTests extends BlockLoaderTestCase {
 
         if ((boolean) fieldMapping.getOrDefault("doc_values", false)) {
             // Sorted
-            var resultList = ((List<Object>) value).stream()
-                .map(v -> convert(v, nullValue))
-                .filter(Objects::nonNull)
-                .sorted()
-                .toList();
+            var resultList = ((List<Object>) value).stream().map(v -> convert(v, nullValue)).filter(Objects::nonNull).sorted().toList();
             return maybeFoldList(resultList);
         }
 

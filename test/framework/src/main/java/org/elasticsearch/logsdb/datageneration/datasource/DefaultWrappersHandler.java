@@ -77,7 +77,10 @@ public class DefaultWrappersHandler implements DataSourceHandler {
         return transform(0.1, ignored -> malformedValues.get());
     }
 
-    private static Function<Supplier<Object>, Supplier<Object>> transform(double transformedProportion, Function<Object, Object> transformation) {
+    private static Function<Supplier<Object>, Supplier<Object>> transform(
+        double transformedProportion,
+        Function<Object, Object> transformation
+    ) {
         return (values) -> () -> ESTestCase.randomDouble() <= transformedProportion ? transformation.apply(values.get()) : values.get();
     }
 }

@@ -13,38 +13,40 @@ import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
 public class DateFieldDataGenerator implements FieldDataGenerator {
-    private final Supplier<Object> booleanGenerator;
-    private final Supplier<Object> booleanWithBooleanStringsGenerator;
-    private final Supplier<Object> valueGeneratorWithMalformed;
+    private final DataSource dataSource;
+    private final Supplier<Instant> instants;
+    private final Supplier<String> strings;
 
     public DateFieldDataGenerator(DataSource dataSource) {
-        var booleans = dataSource.get(new DataSourceRequest.BooleanGenerator()).generator();
-        this.booleanGenerator = Wrappers.defaults(booleans::get, dataSource);
-
-        var transformation = dataSource.get(new DataSourceRequest.TransformWrapper(0.2, Object::toString));
-        var booleansWithBooleanStrings = transformation.wrapper().apply(booleans::get);
-        this.booleanWithBooleanStringsGenerator = Wrappers.defaults(booleansWithBooleanStrings, dataSource);
-
-        var strings = dataSource.get(new DataSourceRequest.StringGenerator()).generator();
-        this.valueGeneratorWithMalformed = Wrappers.defaultsWithMalformed(booleansWithBooleanStrings, strings::get, dataSource);
+        this.dataSource = dataSource;
+        this.instants = () -> dataSource.get(new DataSourceRequest.InstantGenerator()).generator().get();
+        this.strings = dataSource.get(new DataSourceRequest.StringGenerator()).generator();
     }
 
     @Override
     public Object generateValue(Map<String, Object> fieldMapping) {
-        if (fieldMapping == null) {
-            // This is a dynamic field and returning string values like "true" will lead to mapping conflicts.
-            return booleanGenerator.get();
+        Supplier<Object> supplier = () -> instants.get().toEpochMilli();
+
+        if (fieldMapping != null && fieldMapping.get("format") != null) {
+            String format = (String) fieldMapping.get("format");
+            supplier = () -> DateTimeFormatter.ofPattern(format, Locale.ROOT).withZone(ZoneId.from(ZoneOffset.UTC)).format(instants.get());
         }
 
-        if ((Boolean) fieldMapping.getOrDefault("ignore_malformed", false)) {
-            return valueGeneratorWithMalformed.get();
+        if (fieldMapping != null && (Boolean) fieldMapping.getOrDefault("ignore_malformed", false)) {
+            supplier = Wrappers.defaultsWithMalformed(supplier, strings::get, dataSource);
+        } else {
+            supplier = Wrappers.defaults(supplier, dataSource);
         }
 
-        return booleanWithBooleanStringsGenerator.get();
+        return supplier.get();
     }
 }
-

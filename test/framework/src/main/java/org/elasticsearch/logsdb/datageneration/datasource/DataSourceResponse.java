@@ -11,6 +11,7 @@ package org.elasticsearch.logsdb.datageneration.datasource;
 
 import org.elasticsearch.logsdb.datageneration.FieldType;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -36,6 +37,8 @@ public interface DataSourceResponse {
     record StringGenerator(Supplier<String> generator) implements DataSourceResponse {}
 
     record BooleanGenerator(Supplier<Boolean> generator) implements DataSourceResponse {}
+
+    record InstantGenerator(Supplier<Instant> generator) implements DataSourceResponse {}
 
     record NullWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
 

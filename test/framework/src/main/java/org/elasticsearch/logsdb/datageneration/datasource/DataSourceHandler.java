@@ -50,6 +50,10 @@ public interface DataSourceHandler {
         return null;
     }
 
+    default DataSourceResponse.InstantGenerator handle(DataSourceRequest.InstantGenerator request) {
+        return null;
+    }
+
     default DataSourceResponse.NullWrapper handle(DataSourceRequest.NullWrapper request) {
         return null;
     }

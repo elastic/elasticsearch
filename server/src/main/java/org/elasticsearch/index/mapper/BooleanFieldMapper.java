@@ -256,10 +256,14 @@ public class BooleanFieldMapper extends FieldMapper {
                         return (Boolean) value;
                     } else {
                         String textValue = value.toString();
-                        return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
+                        return parseBoolean(textValue);
                     }
                 }
             };
+        }
+
+        private boolean parseBoolean(String text) {
+            return Booleans.parseBoolean(text.toCharArray(), 0, text.length(), false);
         }
 
         @Override
@@ -336,7 +340,7 @@ public class BooleanFieldMapper extends FieldMapper {
                         } else {
                             String stringValue = value.toString();
                             // Matches logic in parser invoked by `parseCreateField`
-                            accumulator.add(Booleans.parseBoolean(stringValue.toCharArray(), 0, stringValue.length(), false));
+                            accumulator.add(parseBoolean(stringValue));
                         }
                     } catch (Exception e) {
                         // Malformed value, skip it

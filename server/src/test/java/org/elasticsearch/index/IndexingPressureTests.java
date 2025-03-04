@@ -124,7 +124,7 @@ public class IndexingPressureTests extends ESTestCase {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
         try (
             Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, 10, false);
-            Releasable primary = indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(1, 15)
+            Releasable primary = indexingPressure.validateAndMarkPrimaryOperationLocalToCoordinatingNodeStarted(1, 15, 15, true)
         ) {
             IndexingPressureStats stats = indexingPressure.stats();
             assertEquals(10, stats.getCurrentCoordinatingBytes());
@@ -170,7 +170,7 @@ public class IndexingPressureTests extends ESTestCase {
 
             // Local to coordinating node primary actions not rejected
             IndexingPressureStats preLocalStats = indexingPressure.stats();
-            Releasable local = indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(1, 1024 * 2);
+            Releasable local = indexingPressure.validateAndMarkPrimaryOperationLocalToCoordinatingNodeStarted(1, 1024 * 2, 1024 * 2, true);
             assertEquals(preLocalStats.getPrimaryRejections(), indexingPressure.stats().getPrimaryRejections());
             assertEquals(1024 * 6, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(preLocalStats.getCurrentPrimaryBytes() + 1024 * 2, indexingPressure.stats().getCurrentPrimaryBytes());

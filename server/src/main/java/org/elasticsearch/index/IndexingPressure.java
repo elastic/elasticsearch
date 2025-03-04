@@ -193,7 +193,13 @@ public class IndexingPressure {
         });
     }
 
-    public Releasable markPrimaryOperationLocalToCoordinatingNodeStarted(int operations, long bytes) {
+    public Releasable validateAndMarkPrimaryOperationLocalToCoordinatingNodeStarted(
+        int operations,
+        long bytes,
+        long largestOperationSizeInBytes,
+        boolean allowsOperationsBeyondSizeLimit
+    ) {
+        checkLargestPrimaryOperationIsWithinLimits(operations, largestOperationSizeInBytes, allowsOperationsBeyondSizeLimit);
         currentPrimaryBytes.getAndAdd(bytes);
         currentPrimaryOps.getAndAdd(operations);
         totalPrimaryBytes.getAndAdd(bytes);
@@ -204,7 +210,7 @@ public class IndexingPressure {
         });
     }
 
-    public void checkLargestPrimaryOperationIsWithinLimits(
+    void checkLargestPrimaryOperationIsWithinLimits(
         int operations,
         long largestOperationSizeInBytes,
         boolean allowsOperationsBeyondSizeLimit

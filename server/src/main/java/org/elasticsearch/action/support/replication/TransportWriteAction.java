@@ -143,14 +143,11 @@ public abstract class TransportWriteAction<
             // If this primary request was received from a local reroute initiated by the node client, we
             // must mark a new primary operation local to the coordinating node.
             if (localRerouteInitiatedByNodeClient) {
-                indexingPressure.checkLargestPrimaryOperationIsWithinLimits(
+                return indexingPressure.validateAndMarkPrimaryOperationLocalToCoordinatingNodeStarted(
                     primaryOperationCount(request),
+                    primaryOperationSize(request),
                     primaryLargestOperationSize(request),
                     primaryAllowsOperationsBeyondSizeLimit(request)
-                );
-                return indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(
-                    primaryOperationCount(request),
-                    primaryOperationSize(request)
                 );
             } else {
                 return () -> {};

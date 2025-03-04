@@ -598,6 +598,17 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testStatsByNull() {
+        try (EsqlQueryResponse results = run("row a = null | stats by a")) {
+            logger.info(results);
+            assertEquals(1, getValuesList(results).size());
+            int countIndex = results.columns().indexOf(new ColumnInfoImpl("a", "null"));
+            assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
+            assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.NULL));
+            assertNull(getValuesList(results).getFirst().get(countIndex));
+        }
+    }
+
     public void testStringLength() {
         try (EsqlQueryResponse results = run("from test | eval l = length(color)")) {
             logger.info(results);

@@ -81,7 +81,7 @@ public class IndexingPressure {
 
     public static final Setting<ByteSizeValue> MAX_OPERATION_SIZE = Setting.memorySizeSetting(
         "indexing_pressure.memory.max_operation_size",
-        "5%",
+        "10%",
         Setting.Property.NodeScope
     );
 

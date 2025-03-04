@@ -450,9 +450,6 @@ tests:
 - class: org.elasticsearch.index.mapper.ShapeGeometryFieldMapperTests
   method: testCartesianBoundsBlockLoader
   issue: https://github.com/elastic/elasticsearch/issues/122661
-- class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
-  method: testCloseSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/122336
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/troubleshooting/troubleshooting-unbalanced-cluster/line_24}
   issue: https://github.com/elastic/elasticsearch/issues/122983

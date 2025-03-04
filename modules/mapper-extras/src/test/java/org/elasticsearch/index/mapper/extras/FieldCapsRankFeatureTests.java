@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.plugins.Plugin;
@@ -19,7 +20,6 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -59,10 +59,7 @@ public class FieldCapsRankFeatureTests extends ESIntegTestCase {
         Map<String, FieldCapabilities> fooRankField = response.getField("fooRank");
         assertEquals(1, fooRankField.size());
         assertThat(fooRankField, Matchers.hasKey("rank_feature"));
-        assertEquals(
-            new FieldCapabilities("fooRank", "rank_feature", false, true, false, null, null, null, Collections.emptyMap()),
-            fooRankField.get("rank_feature")
-        );
+        assertEquals(fieldCapabilities("fooRank"), fooRankField.get("rank_feature"));
     }
 
     public void testRankFeatureInIndexAfterRestart() throws Exception {
@@ -79,10 +76,7 @@ public class FieldCapsRankFeatureTests extends ESIntegTestCase {
         Map<String, FieldCapabilities> fooRankField = response.getField("fooRank");
         assertEquals(1, fooRankField.size());
         assertThat(fooRankField, Matchers.hasKey("rank_feature"));
-        assertEquals(
-            new FieldCapabilities("fooRank", "rank_feature", false, true, false, null, null, null, Collections.emptyMap()),
-            fooRankField.get("rank_feature")
-        );
+        assertEquals(fieldCapabilities("fooRank"), fooRankField.get("rank_feature"));
     }
 
     public void testAllRankFeatureReturnedIfOneIsPresent() {
@@ -98,18 +92,16 @@ public class FieldCapsRankFeatureTests extends ESIntegTestCase {
         Map<String, FieldCapabilities> fooRankField = response.getField("fooRank");
         assertEquals(1, fooRankField.size());
         assertThat(fooRankField, Matchers.hasKey("rank_feature"));
-        assertEquals(
-            new FieldCapabilities("fooRank", "rank_feature", false, true, false, null, null, null, Collections.emptyMap()),
-            fooRankField.get("rank_feature")
-        );
+        assertEquals(fieldCapabilities("fooRank"), fooRankField.get("rank_feature"));
         assertThat(response.get(), Matchers.hasKey("barRank"));
         // Check the capabilities for the 'barRank' field.
         Map<String, FieldCapabilities> barRankField = response.getField("barRank");
         assertEquals(1, barRankField.size());
         assertThat(barRankField, Matchers.hasKey("rank_feature"));
-        assertEquals(
-            new FieldCapabilities("barRank", "rank_feature", false, true, false, null, null, null, Collections.emptyMap()),
-            barRankField.get("rank_feature")
-        );
+        assertEquals(fieldCapabilities("barRank"), barRankField.get("rank_feature"));
+    }
+
+    private static FieldCapabilities fieldCapabilities(String fieldName) {
+        return new FieldCapabilitiesBuilder(fieldName, "rank_feature").isAggregatable(false).build();
     }
 }

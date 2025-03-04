@@ -195,7 +195,10 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         );
         ActionRequestValidationException queryError = queryRequest.validate();
         assertNotNull(queryError);
-        assertThat(queryError.getMessage(), is("Validation Failed: 1: Field [input_type] cannot be specified for task type [sparse_embedding];"));
+        assertThat(
+            queryError.getMessage(),
+            is("Validation Failed: 1: Field [input_type] cannot be specified for task type [sparse_embedding];")
+        );
     }
 
     public void testValidation_Completion_WithInputType() {
@@ -227,7 +230,10 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         );
         ActionRequestValidationException queryError = queryRequest.validate();
         assertNotNull(queryError);
-        assertThat(queryError.getMessage(), is("Validation Failed: 1: Field [input_type] cannot be specified for task type [chat_completion];"));
+        assertThat(
+            queryError.getMessage(),
+            is("Validation Failed: 1: Field [input_type] cannot be specified for task type [chat_completion];")
+        );
     }
 
     public void testParseRequest_DefaultsInputTypeToIngest() throws IOException {

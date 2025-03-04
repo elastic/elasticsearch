@@ -554,10 +554,11 @@ public class LocalExecutionPlanner {
         source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
 
         // Load the "values" from each match
+        var joinDataOutput = join.joinData().output();
         for (Attribute f : join.addedFields()) {
             Block localField = null;
-            for (int l = 0; l < join.joinData().output().size(); l++) {
-                if (join.joinData().output().get(l).name().equals(f.name())) {
+            for (int l = 0; l < joinDataOutput.size(); l++) {
+                if (joinDataOutput.get(l).name().equals(f.name())) {
                     localField = localData[l];
                 }
             }

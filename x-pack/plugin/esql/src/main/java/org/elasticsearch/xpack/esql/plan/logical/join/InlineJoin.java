@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,6 +26,9 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
 /**
  * Specialized type of join where the source of the left and right plans are the same. The plans themselves can contain different nodes
@@ -128,5 +132,20 @@ public class InlineJoin extends Join {
     @Override
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
         return new InlineJoin(source(), left, right, config());
+    }
+
+    @Override
+    public List<Attribute> computeOutput(List<Attribute> left, List<Attribute> right) {
+        JoinType joinType = config().type();
+        List<Attribute> output;
+        if (LEFT.equals(joinType)) {
+            List<Attribute> leftOutput = new ArrayList<>(left().output());
+            AttributeSet rightKeys = new AttributeSet(config().rightFields());
+            List<Attribute> leftOutputWithoutMatchFields = leftOutput.stream().filter(attr -> rightKeys.contains(attr) == false).toList();
+            output = mergeOutputAttributes(right, leftOutputWithoutMatchFields);
+        } else {
+            throw new IllegalArgumentException(joinType.joinName() + " unsupported");
+        }
+        return output;
     }
 }

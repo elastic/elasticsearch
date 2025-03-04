@@ -110,7 +110,7 @@ public class LocalMapper {
                     config.matchFields(),
                     config.leftFields(),
                     config.rightFields(),
-                    join.output()
+                    join.rightOutputFields()
                 );
             }
             if (right instanceof EsSourceExec source && source.indexMode() == IndexMode.LOOKUP) {

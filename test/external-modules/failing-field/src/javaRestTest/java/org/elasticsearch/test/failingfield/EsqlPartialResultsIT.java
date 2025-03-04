@@ -100,10 +100,10 @@ public class EsqlPartialResultsIT extends ESRestTestCase {
     public void testPartialResult() throws Exception {
         Set<String> okIds = populateIndices();
         String query = """
-                {
-                  "query": "FROM ok-index,failing-index | LIMIT 100 | KEEP fail_me,v"
-                }
-                """;
+            {
+              "query": "FROM ok-index,failing-index | LIMIT 100 | KEEP fail_me,v"
+            }
+            """;
         // allow_partial_results = true
         {
             Request request = new Request("POST", "/_query");
@@ -115,10 +115,7 @@ public class EsqlPartialResultsIT extends ESRestTestCase {
             Map<String, Object> results = entityAsMap(resp);
             assertThat(results.get("is_partial"), equalTo(true));
             List<?> columns = (List<?>) results.get("columns");
-            assertThat(columns, equalTo(List.of(
-                Map.of("name", "fail_me", "type", "long"),
-                Map.of("name", "v", "type", "long")
-            )));
+            assertThat(columns, equalTo(List.of(Map.of("name", "fail_me", "type", "long"), Map.of("name", "v", "type", "long"))));
             List<?> values = (List<?>) results.get("values");
             assertThat(values, hasSize(okIds.size()));
         }

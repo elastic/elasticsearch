@@ -112,6 +112,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 Map<Index, AliasFilter> aliasFilters,
                 NodeListener nodeListener
             ) {
+                if (exchangeSource.isCompleted()) {
+                    nodeListener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                    return;
+                }
+
                 final AtomicLong pagesFetched = new AtomicLong();
                 var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
                 final Transport.Connection connection;

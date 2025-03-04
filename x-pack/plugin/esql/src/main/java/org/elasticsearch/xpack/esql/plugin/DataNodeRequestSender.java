@@ -75,7 +75,7 @@ abstract class DataNodeRequestSender {
         this.esqlExecutor = esqlExecutor;
         this.rootTask = rootTask;
         this.allowPartialResults = allowPartialResults;
-        this.concurrentRequests = concurrentRequests > 1 ? new Semaphore(concurrentRequests) : null;
+        this.concurrentRequests = concurrentRequests > 0 ? new Semaphore(concurrentRequests) : null;
     }
 
     final void startComputeOnDataNodes(

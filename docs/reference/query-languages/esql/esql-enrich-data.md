@@ -15,6 +15,14 @@ For example, you can use `ENRICH` to:
 * Add product information to retail orders based on product IDs
 * Supplement contact information based on an email address
 
+[`ENRICH`](/reference/query-languages/esql/esql-commands.md#esql-enrich) is similar to [`LOOKUP join`](/reference/query-languages/esql/esql-commands.md#esql-lookup-join) in the fact that they both help you join data together. You should use `ENRICH` when:
+
+* Enrichment data doesn't change frequently
+* You can accept index-time overhead
+* You are working with structured enrichment patterns
+* You can accept having multiple matches combined into multi-values
+* You can accept being limited to predefined match fields
+* `ENRICH` has a simplified security model. There are no restirctions to specific enrich policies or document and field level security.
 
 ### How the `ENRICH` command works [esql-how-enrich-works]
 

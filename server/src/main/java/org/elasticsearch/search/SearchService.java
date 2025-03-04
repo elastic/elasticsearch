@@ -576,9 +576,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         try (@SuppressWarnings("unused") // withScope call is necessary to instrument search execution
         Releasable scope = tracer.withScope(task);
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
-            SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false)
+            SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false);
+            SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)
         ) {
             DfsPhase.execute(context);
+            executor.success();
             return context.dfsResult();
         } catch (Exception e) {
             logger.trace("Dfs phase failed", e);
@@ -1982,6 +1984,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         private final SearchContext context;
         private final long time;
         private final boolean fetch;
+        private final boolean dfs;
         private long afterQueryTime = -1;
         private boolean closed = false;
 
@@ -1990,10 +1993,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         SearchOperationListenerExecutor(SearchContext context, boolean fetch, long startTime) {
+            this(context, fetch, false, startTime);
+        }
+
+        SearchOperationListenerExecutor(SearchContext context, boolean fetch, boolean dfs, long startTime) {
             this.listener = context.indexShard().getSearchOperationListener();
             this.context = context;
             time = startTime;
             this.fetch = fetch;
+            this.dfs = dfs;
             if (fetch) {
                 listener.onPreFetchPhase(context);
             } else {
@@ -2013,6 +2021,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (afterQueryTime != -1) {
                     if (fetch) {
                         listener.onFetchPhase(context, afterQueryTime - time);
+                    } else if (dfs) {
+                        listener.onDfsPhase(context, afterQueryTime - time);
                     } else {
                         listener.onQueryPhase(context, afterQueryTime - time);
                     }

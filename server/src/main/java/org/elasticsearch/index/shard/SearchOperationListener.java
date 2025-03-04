@@ -65,6 +65,8 @@ public interface SearchOperationListener {
      */
     default void onFetchPhase(SearchContext searchContext, long tookInNanos) {}
 
+    default void onDfsPhase(SearchContext context, long tookInNanos) {}
+
     /**
      * Executed when a new reader context was created
      * @param readerContext the created context

@@ -63,6 +63,13 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    private static final String DATA_ACCESS_USER = "data_access_user";
+    private static final String STAR_READ_ONLY_USER = "star_read_only_user";
+    private static final String FAILURE_STORE_ACCESS_USER = "failure_store_access_user";
+    private static final String BOTH_ACCESS_USER = "both_access_user";
+    private static final String WRITE_ACCESS_USER = "write_access_user";
+    private static final SecureString PASSWORD = new SecureString("elastic-password");
+
     public void testGetUserPrivileges() throws IOException {
         Request userRequest = new Request("PUT", "/_security/user/user");
         userRequest.setJsonEntity("""
@@ -73,7 +80,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             """);
         assertOK(adminClient().performRequest(userRequest));
 
-        putRole("""
+        upsertRole("""
             {
               "cluster": ["all"],
               "indices": [
@@ -83,7 +90,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 }
               ]
             }
-            """);
+            """, "role");
         expectUserPrivilegesResponse("""
             {
               "cluster": ["all"],
@@ -102,7 +109,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
               "run_as": []
             }""");
 
-        putRole("""
+        upsertRole("""
             {
               "cluster": ["all"],
               "indices": [
@@ -112,7 +119,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 }
               ]
             }
-            """);
+            """, "role");
         expectUserPrivilegesResponse("""
             {
               "cluster": ["all"],
@@ -127,7 +134,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
               "run_as": []
             }""");
 
-        putRole("""
+        upsertRole("""
             {
               "cluster": ["all"],
               "indices": [
@@ -137,7 +144,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 }
               ]
             }
-            """);
+            """, "role");
         expectUserPrivilegesResponse("""
             {
               "cluster": ["all"],
@@ -152,13 +159,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
               "run_as": []
             }""");
     }
-
-    private static final String DATA_ACCESS_USER = "data_access_user";
-    private static final String STAR_READ_ONLY_USER = "star_read_only_user";
-    private static final String FAILURE_STORE_ACCESS_USER = "failure_store_access_user";
-    private static final String BOTH_ACCESS_USER = "both_access_user";
-    private static final String WRITE_ACCESS_USER = "write_access_user";
-    private static final SecureString PASSWORD = new SecureString("elastic-password");
 
     @SuppressWarnings("unchecked")
     public void testFailureStoreAccess() throws IOException {
@@ -247,7 +247,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
         expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test12::failures/_search")));
         expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
-        expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test12::*/_search")));
 
         expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::data/_search")));
         expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1/_search")));
@@ -255,18 +254,21 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2/_search")));
         expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search")));
 
-        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::data/_search?ignore_unavailable=true")));
-        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1/_search?ignore_unavailable=true")));
-        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::data/_search?ignore_unavailable=true")));
-        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2/_search?ignore_unavailable=true")));
-        assertEmpty(
-            performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search?ignore_unavailable=true"))
-        );
-
-        // assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::data/_search")));
-        // assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1/_search")));
         // TODO is this correct?
-        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.ds*/_search")));
+        expectThrows403(
+            () -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::data/_search?ignore_unavailable=true"))
+        );
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1/_search?ignore_unavailable=true")));
+        expectThrows403(
+            () -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::data/_search?ignore_unavailable=true"))
+        );
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2/_search?ignore_unavailable=true")));
+        expectThrows403(
+            () -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search?ignore_unavailable=true"))
+        );
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::data/_search")));
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1/_search")));
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.ds*/_search")));
 
         // user with access to data index
         assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/test1/_search")), successDocId);
@@ -282,14 +284,13 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
         expectThrows404(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test12/_search")));
         expectThrows404(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test2/_search")));
-        expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test12::*/_search")));
 
         expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test1::failures/_search")));
         expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
         expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search")));
         // TODO is this correct?
-        assertEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/.fs*/_search")));
-        // assertEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/*1::failures/_search")));
+        expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/.fs*/_search")));
+        expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/*1::failures/_search")));
 
         // user with access to everything
         assertContainsDocIds(adminClient().performRequest(new Request("GET", "/test1::failures/_search")), failedDocId);
@@ -301,6 +302,9 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrows404(() -> adminClient().performRequest(new Request("GET", "/test12::failures/_search")));
         expectThrows404(() -> adminClient().performRequest(new Request("GET", "/test2::failures/_search")));
 
+        assertEmpty(adminClient().performRequest(new Request("GET", "/test12::failures/_search?ignore_unavailable=true")));
+        assertEmpty(adminClient().performRequest(new Request("GET", "/test2::failures/_search?ignore_unavailable=true")));
+
         assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test1::failures/_search")), failedDocId);
         assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test*::failures/_search")), failedDocId);
         assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*1::failures/_search")), failedDocId);
@@ -310,13 +314,16 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrows404(() -> performRequest(BOTH_ACCESS_USER, new Request("GET", "/test12::failures/_search")));
         expectThrows404(() -> performRequest(BOTH_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
 
+        assertEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test12::failures/_search?ignore_unavailable=true")));
+        assertEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test2::failures/_search?ignore_unavailable=true")));
+
         assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test1/_search")), successDocId);
         assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test*/_search")), successDocId);
         assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*1/_search")), successDocId);
         assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*/_search")), successDocId);
 
-        expectThrows404(() -> performRequest(BOTH_ACCESS_USER, new Request("GET", "/test12/_search")));
-        expectThrows404(() -> performRequest(BOTH_ACCESS_USER, new Request("GET", "/test2/_search")));
+        assertEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test12/_search?ignore_unavailable=true")));
+        assertEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test2/_search?ignore_unavailable=true")));
     }
 
     private static void expectThrows404(ThrowingRunnable get) {
@@ -436,12 +443,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         Response response = client().performRequest(request);
         assertOK(response);
         assertThat(responseAsMap(response), equalTo(mapFromJson(userPrivilegesResponse)));
-    }
-
-    private static void putRole(String rolePayload) throws IOException {
-        Request roleRequest = new Request("PUT", "/_security/role/role");
-        roleRequest.setJsonEntity(rolePayload);
-        assertOK(adminClient().performRequest(roleRequest));
     }
 
     private static Map<String, Object> mapFromJson(String json) {

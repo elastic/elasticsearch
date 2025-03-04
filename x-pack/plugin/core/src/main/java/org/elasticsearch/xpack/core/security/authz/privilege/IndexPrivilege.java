@@ -188,6 +188,11 @@ public final class IndexPrivilege extends Privilege {
         READ_AUTOMATON,
         IndexComponentSelectorPredicate.FAILURES
     );
+    public static final IndexPrivilege MANAGE_FAILURE_STORE = new IndexPrivilege(
+        "manage_failure_store",
+        MANAGE_AUTOMATON,
+        IndexComponentSelectorPredicate.FAILURES
+    );
     public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON);
     public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster", READ_CROSS_CLUSTER_AUTOMATON);
     public static final IndexPrivilege CREATE = new IndexPrivilege("create", CREATE_AUTOMATON);
@@ -246,7 +251,8 @@ public final class IndexPrivilege extends Privilege {
             entry("auto_configure", AUTO_CONFIGURE),
             entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION),
             entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL),
-            DataStream.isFailureStoreFeatureFlagEnabled() ? entry("read_failure_store", READ_FAILURE_STORE) : null
+            DataStream.isFailureStoreFeatureFlagEnabled() ? entry("read_failure_store", READ_FAILURE_STORE) : null,
+            DataStream.isFailureStoreFeatureFlagEnabled() ? entry("manage_failure_store", MANAGE_FAILURE_STORE) : null
         ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
     );
 

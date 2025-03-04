@@ -248,6 +248,12 @@ public class InternalUsers {
                     .indices("*")
                     .privileges(LazyRolloverAction.NAME)
                     .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("*")
+                    // TODO consider a more granular privilege for this
+                    .privileges("manage_failure_store")
+                    .allowRestrictedIndices(true)
                     .build() },
             null,
             null,

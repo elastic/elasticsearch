@@ -118,12 +118,12 @@ public class TransportHandshakerTests extends ESTestCase {
 
             // we fall back to the best known version
             MockLog.assertThatLogger(() -> {
-                    try {
-                        handshaker.handleHandshake(channel, randomNonNegativeLong(), input);
-                    } catch (IOException e) {
-                        throw new AssertionError(e);
-                    }
-                },
+                try {
+                    handshaker.handleHandshake(channel, randomNonNegativeLong(), input);
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            },
                 TransportHandshaker.class,
                 new MockLog.SeenEventExpectation(
                     "warning",
@@ -272,9 +272,9 @@ public class TransportHandshakerTests extends ESTestCase {
             ? new TransportVersion(between(1, TransportVersions.MINIMUM_COMPATIBLE.id() - 1))
             // or between MINIMUM_COMPATIBLE and current but not known
             : randomValueOtherThanMany(
-            TransportVersion::isKnown,
-            () -> new TransportVersion(between(TransportVersions.MINIMUM_COMPATIBLE.id(), TransportVersion.current().id()))
-        );
+                TransportVersion::isKnown,
+                () -> new TransportVersion(between(TransportVersions.MINIMUM_COMPATIBLE.id(), TransportVersion.current().id()))
+            );
     }
 
     public void testHandshakeResponseFromNewerNode() throws Exception {

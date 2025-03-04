@@ -101,7 +101,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         final boolean needsSortedDocIds = output.stream().anyMatch(a -> a.dataType() == DataType.DOC_DATA_TYPE);
         state.add(needsSortedDocIds, output);
         int size = state.consumeAllFields(true);
-        size = size == 0 ? 1 : size;
+        size = Math.max(size, 1);
         return Objects.equals(this.estimatedRowSize, size) ? this : new TopNExec(source(), child(), order, limit, size);
     }
 

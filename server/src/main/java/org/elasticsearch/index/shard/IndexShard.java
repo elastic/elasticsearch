@@ -2615,9 +2615,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void onSettingsChanged() {
-        Engine engineOrNull = getEngineOrNull();
-        if (engineOrNull != null) {
-            engineOrNull.onSettingsChanged();
+        // This method can be called within the cluster state applier thread
+        if (engineLock.readLock().tryLock() == false) {
+            // Attempt to acquire a read lock failed:
+            // - the engine is closing, in which case we don't need to apply the updated index settings
+            // - otherwise the onSettingsChanged() should be called again after the new engine is created and the write lock is released
+            return;
+        }
+        try {
+            var engineOrNull = getCurrentEngine(true);
+            if (engineOrNull != null) {
+                engineOrNull.onSettingsChanged();
+            }
+        } finally {
+            engineLock.readLock().unlock();
         }
     }
 

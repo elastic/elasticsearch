@@ -505,7 +505,8 @@ public final class IndicesPermission {
         int totalResourceCount = 0;
         Map<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         for (String indexOrAlias : requestedIndicesOrAliases) {
-            // Remove any selectors from abstraction name. Discard them for this check as we do not have access control for them (yet)
+            // Remove any selectors from abstraction name. Selector authorization happens in conjunction with the index name, via the
+            // selector check in IndexResource#checkIndex
             Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexOrAlias);
             indexOrAlias = expressionAndSelector.v1();
             IndexComponentSelector selector = expressionAndSelector.v2() == null

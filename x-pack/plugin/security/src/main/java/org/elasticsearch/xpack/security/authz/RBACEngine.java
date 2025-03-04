@@ -882,7 +882,8 @@ public class RBACEngine implements AuthorizationEngine {
                             for (Index index : indexAbstraction.getIndices()) {
                                 indicesAndAliases.add(index.getName());
                             }
-                            // TODO: We need to limit if a data stream's failure indices should return here.
+                            // also add failure indices; if the role doesn't grant access to them via applicable privileges, these will
+                            // be denied later (see `IndicesPermissions#authorize`)
                             for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
                                 indicesAndAliases.add(index.getName());
                             }

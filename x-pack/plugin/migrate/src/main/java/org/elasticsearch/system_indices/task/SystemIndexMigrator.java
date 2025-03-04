@@ -637,32 +637,28 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
 
         try {
             migrationInfo.createClient(baseClient)
-                .execute(
-                    ReindexDataStreamAction.INSTANCE,
-                    reindexRequest,
-                    ActionListener.wrap(startMigrationResponse -> {
-                        if (startMigrationResponse.isAcknowledged() == false) {
-                            logger.error("failed to migrate indices from data stream [{}]", dataStreamName);
-                            throw new ElasticsearchException(
-                                "reindex system data stream ["
-                                    + dataStreamName
-                                    + "] from feature ["
-                                    + migrationInfo.getFeatureName()
-                                    + "] response is not acknowledge"
-                            );
-                        }
+                .execute(ReindexDataStreamAction.INSTANCE, reindexRequest, ActionListener.wrap(startMigrationResponse -> {
+                    if (startMigrationResponse.isAcknowledged() == false) {
+                        logger.error("failed to migrate indices from data stream [{}]", dataStreamName);
+                        throw new ElasticsearchException(
+                            "reindex system data stream ["
+                                + dataStreamName
+                                + "] from feature ["
+                                + migrationInfo.getFeatureName()
+                                + "] response is not acknowledge"
+                        );
+                    }
+                    checkDataStreamMigrationStatus(migrationInfo, completionListener);
+                }, e -> {
+                    if (e instanceof ResourceAlreadyExistsException) {
+                        // this might happen if the task has been migrated to another node
+                        // in this case we can just wait for the data stream migration task to finish
+                        logger.debug("data stream [{}] migration is already in progress", dataStreamName);
                         checkDataStreamMigrationStatus(migrationInfo, completionListener);
-                    }, e -> {
-                        if (e instanceof ResourceAlreadyExistsException) {
-                            // this might happen if the task has been migrated to another node
-                            // in this case we can just wait for the data stream migration task to finish
-                            logger.debug("data stream [{}] migration is already in progress", dataStreamName);
-                            checkDataStreamMigrationStatus(migrationInfo, completionListener);
-                        } else {
-                            markAsFailed(e);
-                        }
-                    })
-                );
+                    } else {
+                        markAsFailed(e);
+                    }
+                }));
         } catch (Exception ex) {
             logger.error(
                 () -> format(
@@ -676,59 +672,51 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         }
     }
 
-    private void checkDataStreamMigrationStatus(SystemDataStreamMigrationInfo migrationInfo,
-                                                Consumer<SystemDataStreamMigrationInfo> completionListener) {
+    private void checkDataStreamMigrationStatus(
+        SystemDataStreamMigrationInfo migrationInfo,
+        Consumer<SystemDataStreamMigrationInfo> completionListener
+    ) {
         String dataStreamName = migrationInfo.getDataStreamName();
         GetMigrationReindexStatusAction.Request getStatusRequest = new GetMigrationReindexStatusAction.Request(dataStreamName);
 
         migrationInfo.createClient(baseClient)
-            .execute(
-                GetMigrationReindexStatusAction.INSTANCE,
-                getStatusRequest,
-                ActionListener.wrap(migrationStatusResponse -> {
-                    ReindexDataStreamEnrichedStatus status = migrationStatusResponse.getEnrichedStatus();
-                    logger.debug(
-                        "data stream [{}] reindexing status: pending {} out of {} indices",
-                        dataStreamName,
-                        status.pending(),
-                        status.totalIndicesToBeUpgraded()
-                    );
+            .execute(GetMigrationReindexStatusAction.INSTANCE, getStatusRequest, ActionListener.wrap(migrationStatusResponse -> {
+                ReindexDataStreamEnrichedStatus status = migrationStatusResponse.getEnrichedStatus();
+                logger.debug(
+                    "data stream [{}] reindexing status: pending {} out of {} indices",
+                    dataStreamName,
+                    status.pending(),
+                    status.totalIndicesToBeUpgraded()
+                );
 
-                    if (status.complete() == false) {
-                        threadPool.schedule(
-                            () -> checkDataStreamMigrationStatus(migrationInfo, completionListener),
-                            TimeValue.timeValueSeconds(1),
-                            threadPool.generic()
-                        );
+                if (status.complete() == false) {
+                    threadPool.schedule(
+                        () -> checkDataStreamMigrationStatus(migrationInfo, completionListener),
+                        TimeValue.timeValueSeconds(1),
+                        threadPool.generic()
+                    );
+                } else {
+                    List<Tuple<String, Exception>> errors = status.errors();
+                    if (errors != null && errors.isEmpty() == false) {
+                        dataStreamMigrationFailed(migrationInfo, errors.stream().map(Tuple::v2).toList());
+                    } else if (status.exception() != null) {
+                        dataStreamMigrationFailed(migrationInfo, Collections.singletonList(status.exception()));
                     } else {
-                        List<Tuple<String, Exception>> errors = status.errors();
-                        if (errors != null && errors.isEmpty() == false) {
-                            dataStreamMigrationFailed(migrationInfo, errors.stream().map(Tuple::v2).toList());
-                        } else if (status.exception() != null) {
-                            dataStreamMigrationFailed(migrationInfo, Collections.singletonList(status.exception()));
-                        } else {
-                            logger.info(
-                                "successfully migrated old indices from data stream [{}] from feature [{}] to new indices",
-                                dataStreamName,
-                                migrationInfo.getFeatureName()
-                            );
-                            completionListener.accept(migrationInfo);
-                        }
+                        logger.info(
+                            "successfully migrated old indices from data stream [{}] from feature [{}] to new indices",
+                            dataStreamName,
+                            migrationInfo.getFeatureName()
+                        );
+                        completionListener.accept(migrationInfo);
                     }
-                }, ex -> cancelDataStreamMigrationAndMarkAsFailed(migrationInfo, ex))
-            );
+                }
+            }, ex -> cancelDataStreamMigrationAndMarkAsFailed(migrationInfo, ex)));
     }
 
     private static void dataStreamMigrationFailed(SystemDataStreamMigrationInfo migrationInfo, Collection<Exception> exceptions) {
-        logger.error(
-            "error occurred while reindexing data stream [{}], failures [{}]",
-            migrationInfo,
-            exceptions
-        );
+        logger.error("error occurred while reindexing data stream [{}], failures [{}]", migrationInfo, exceptions);
 
-        ElasticsearchException ex = new ElasticsearchException(
-            "error occurred while reindexing data stream [" + migrationInfo + "]"
-        );
+        ElasticsearchException ex = new ElasticsearchException("error occurred while reindexing data stream [" + migrationInfo + "]");
         for (Exception exception : exceptions) {
             ex.addSuppressed(exception);
         }
@@ -743,16 +731,16 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     }
 
     private void cancelDataStreamMigrationAndMarkAsFailed(SystemDataStreamMigrationInfo migrationInfo, Exception exception) {
-        logger.info("cancelling migration of old indices from data stream [{}] from feature [{}] to new indices",
-            migrationInfo.getDataStreamName(), migrationInfo.getFeatureName());
-
-        ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(
-            response -> markAsFailed(exception),
-            ex -> {
-                exception.addSuppressed(ex);
-                markAsFailed(exception);
-            }
+        logger.info(
+            "cancelling migration of old indices from data stream [{}] from feature [{}] to new indices",
+            migrationInfo.getDataStreamName(),
+            migrationInfo.getFeatureName()
         );
+
+        ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(response -> markAsFailed(exception), ex -> {
+            exception.addSuppressed(ex);
+            markAsFailed(exception);
+        });
         cancelDataStreamMigration(migrationInfo, listener);
     }
 

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.metadata.IndexReshardingMetadata.SourceShardState;
-import org.elasticsearch.cluster.metadata.IndexReshardingMetadata.TargetShardState;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -22,52 +20,53 @@ public class IndexReshardingMetadataTests extends ESTestCase {
         final var multiple = randomIntBetween(2, 5);
 
         final var metadata = IndexReshardingMetadata.newSplitByMultiple(numShards, multiple);
+        final var split = metadata.getSplit();
 
         // starting state is as expected
-        assert metadata.oldShardCount() == numShards;
-        assert metadata.newShardCount() == numShards * multiple;
+        assert split.oldShardCount() == numShards;
+        assert split.newShardCount() == numShards * multiple;
         for (int i = 0; i < numShards; i++) {
-            assert metadata.getSourceShardState(i) == SourceShardState.SOURCE;
+            assert split.getSourceShardState(i) == IndexReshardingState.Split.SourceShardState.SOURCE;
         }
         for (int i = numShards; i < numShards * multiple; i++) {
-            assert metadata.getTargetShardState(i) == TargetShardState.CLONE;
+            assert split.getTargetShardState(i) == IndexReshardingState.Split.TargetShardState.CLONE;
         }
 
         // advance split state randomly and expect to terminate
-        while (metadata.splitInProgress()) {
+        while (split.inProgress()) {
             // pick a shard at random and see if we can advance it
             int idx = randomIntBetween(0, numShards * multiple - 1);
             if (idx < numShards) {
                 // can we advance source?
-                var sourceState = metadata.getSourceShardState(idx);
-                var nextState = randomFrom(SourceShardState.values());
+                var sourceState = split.getSourceShardState(idx);
+                var nextState = randomFrom(IndexReshardingState.Split.SourceShardState.values());
                 if (nextState.ordinal() == sourceState.ordinal() + 1) {
-                    var targets = metadata.getTargetStatesFor(idx);
-                    if (Arrays.stream(targets).allMatch(target -> target == TargetShardState.DONE)) {
-                        metadata.setSourceShardState(idx, nextState);
+                    var targets = split.getTargetStatesFor(idx);
+                    if (Arrays.stream(targets).allMatch(target -> target == IndexReshardingState.Split.TargetShardState.DONE)) {
+                        split.setSourceShardState(idx, nextState);
                     } else {
-                        assertThrows(AssertionError.class, () -> metadata.setSourceShardState(idx, nextState));
+                        assertThrows(AssertionError.class, () -> split.setSourceShardState(idx, nextState));
                     }
                 } else {
-                    assertThrows(AssertionError.class, () -> metadata.setSourceShardState(idx, nextState));
+                    assertThrows(AssertionError.class, () -> split.setSourceShardState(idx, nextState));
                 }
             } else {
                 // can we advance target?
-                var targetState = metadata.getTargetShardState(idx);
-                var nextState = randomFrom(TargetShardState.values());
+                var targetState = split.getTargetShardState(idx);
+                var nextState = randomFrom(IndexReshardingState.Split.TargetShardState.values());
                 if (nextState.ordinal() == targetState.ordinal() + 1) {
-                    metadata.setTargetShardState(idx, nextState);
+                    split.setTargetShardState(idx, nextState);
                 } else {
-                    assertThrows(AssertionError.class, () -> metadata.setTargetShardState(idx, nextState));
+                    assertThrows(AssertionError.class, () -> split.setTargetShardState(idx, nextState));
                 }
             }
         }
 
         for (int i = 0; i < numShards; i++) {
-            assert metadata.getSourceShardState(i) == SourceShardState.DONE;
+            assert split.getSourceShardState(i) == IndexReshardingState.Split.SourceShardState.DONE;
         }
         for (int i = numShards; i < numShards * multiple; i++) {
-            assert metadata.getTargetShardState(i) == TargetShardState.DONE;
+            assert split.getTargetShardState(i) == IndexReshardingState.Split.TargetShardState.DONE;
         }
     }
 }

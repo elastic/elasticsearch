@@ -47,7 +47,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -61,7 +60,6 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_P
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -711,14 +709,6 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     private IndexReshardingMetadata randomIndexReshardingMetadata(int oldShards) {
-        final int newShards = randomIntBetween(2, 5) * oldShards;
-        final var sourceShardStates = new IndexReshardingMetadata.SourceShardState[oldShards];
-        Arrays.fill(sourceShardStates, IndexReshardingMetadata.SourceShardState.SOURCE);
-        final var targetShardStates = new IndexReshardingMetadata.TargetShardState[newShards - oldShards];
-        for (int i = 0; i < targetShardStates.length; i++) {
-            targetShardStates[i] = randomFrom(IndexReshardingMetadata.TargetShardState.values());
-        }
-
-        return new IndexReshardingMetadata(oldShards, newShards, sourceShardStates, targetShardStates);
+        return IndexReshardingMetadata.newSplitByMultiple(oldShards, randomIntBetween(2, 5));
     }
 }

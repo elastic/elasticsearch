@@ -9,11 +9,11 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.metadata.IndexReshardingMetadata.SourceShardState;
-import org.elasticsearch.cluster.metadata.IndexReshardingMetadata.TargetShardState;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -32,19 +32,22 @@ public class IndexReshardingMetadataSerializationTests extends AbstractXContentS
     protected IndexReshardingMetadata createTestInstance() {
         final int oldShards = randomIntBetween(1, 100);
         final int newShards = randomIntBetween(2, 5) * oldShards;
-        final var sourceShardStates = new SourceShardState[oldShards];
-        final var targetShardStates = new TargetShardState[newShards - oldShards];
+        final var sourceShardStates = new IndexReshardingState.Split.SourceShardState[oldShards];
+        final var targetShardStates = new IndexReshardingState.Split.TargetShardState[newShards - oldShards];
         // Semantically it is illegal for SourceShardState to be DONE before all corresponding target shards are
         // DONE but these tests are exercising equals/hashcode not semantic integrity. Letting the source shard
         // state vary randomly gives better coverage in fewer instances even though it is wrong semantically.
         for (int i = 0; i < oldShards; i++) {
-            sourceShardStates[i] = randomFrom(SourceShardState.values());
+            sourceShardStates[i] = randomFrom(IndexReshardingState.Split.SourceShardState.values());
         }
         for (int i = 0; i < targetShardStates.length; i++) {
-            targetShardStates[i] = randomFrom(TargetShardState.values());
+            targetShardStates[i] = randomFrom(IndexReshardingState.Split.TargetShardState.values());
         }
 
-        return new IndexReshardingMetadata(oldShards, newShards, sourceShardStates, targetShardStates);
+        return new IndexReshardingMetadata(
+            IndexReshardingMetadata.Operation.SPLIT,
+            new IndexReshardingState.Split(sourceShardStates, targetShardStates)
+        );
     }
 
     // To exercise equals() we want to mutate exactly one thing randomly so we know that each component
@@ -53,33 +56,40 @@ public class IndexReshardingMetadataSerializationTests extends AbstractXContentS
     @Override
     protected IndexReshardingMetadata mutateInstance(IndexReshardingMetadata instance) throws IOException {
         enum Mutation {
-            OLD_SHARD_COUNT,
-            NEW_SHARD_COUNT,
             SOURCE_SHARD_STATES,
             TARGET_SHARD_STATES
         }
 
-        var oldShardCount = instance.oldShardCount();
-        var newShardCount = instance.newShardCount();
-        var sourceShardStates = instance.sourceShardStates().clone();
-        var targetShardStates = instance.targetShardStates().clone();
+        var split = instance.getSplit();
+        var sourceShardStates = split.sourceShards().clone();
+        var targetShardStates = split.targetShards().clone();
 
         switch (randomFrom(Mutation.values())) {
-            case OLD_SHARD_COUNT:
-                oldShardCount++;
-                break;
-            case NEW_SHARD_COUNT:
-                newShardCount++;
-                break;
             case SOURCE_SHARD_STATES:
                 var is = randomInt(sourceShardStates.length - 1);
-                sourceShardStates[is] = SourceShardState.values()[(sourceShardStates[is].ordinal() + 1) % SourceShardState.values().length];
+                sourceShardStates[is] = IndexReshardingState.Split.SourceShardState.values()[(sourceShardStates[is].ordinal() + 1)
+                    % IndexReshardingState.Split.SourceShardState.values().length];
                 break;
             case TARGET_SHARD_STATES:
                 var it = randomInt(targetShardStates.length - 1);
-                targetShardStates[it] = TargetShardState.values()[(targetShardStates[it].ordinal() + 1) % TargetShardState.values().length];
+                targetShardStates[it] = IndexReshardingState.Split.TargetShardState.values()[(targetShardStates[it].ordinal() + 1)
+                    % IndexReshardingState.Split.TargetShardState.values().length];
         }
 
-        return new IndexReshardingMetadata(oldShardCount, newShardCount, sourceShardStates, targetShardStates);
+        return new IndexReshardingMetadata(instance.operation, new IndexReshardingState.Split(sourceShardStates, targetShardStates));
+    }
+
+    public void testInvalidSerializedState() throws IOException {
+        // the parser does an unchecked cast on shards so it gets a little extra sanity check
+        String json = """
+            {
+                "operation": "SPLIT",
+                "source_shards": [1],
+                "target_shards": [2]
+            }
+            """;
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            assertThrows(IllegalArgumentException.class, () -> IndexReshardingMetadata.fromXContent(parser));
+        }
     }
 }

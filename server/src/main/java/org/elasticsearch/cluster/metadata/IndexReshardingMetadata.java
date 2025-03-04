@@ -12,15 +12,12 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -88,15 +85,15 @@ import java.util.Objects;
  * We only allow at most a single resharding operation to be in flight for an index, so removing this metadata is a prerequisite
  * to beginning another resharding operation.
  */
-public record IndexReshardingMetadata(
-    int oldShardCount,
-    int newShardCount,
-    SourceShardState[] sourceShardStates,
-    TargetShardState[] targetShardStates
-) implements ToXContentFragment, Writeable {
-    public enum SourceShardState implements Writeable {
-        SOURCE,
-        DONE;
+public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
+    /**
+     * To be able to support persistent state for more than one kind or version of a resharding operation, the actual state is stored
+     * in an abstract IndexReshardingState state field, which has concrete subclasses for the operations that are defined.
+     * The metadata is labelled with an Operation that identifies the subclass so that deserialization and serialization can choose
+     * the correct implementation.
+     */
+    public enum Operation implements Writeable {
+        SPLIT;
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -104,83 +101,66 @@ public record IndexReshardingMetadata(
         }
     }
 
-    public enum TargetShardState implements Writeable {
-        CLONE,
-        HANDOFF,
-        SPLIT,
-        DONE;
+    final Operation operation;
+    final IndexReshardingState state;
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeEnum(this);
-        }
+    public IndexReshardingMetadata(Operation operation, IndexReshardingState state) {
+        this.operation = operation;
+        this.state = state;
     }
 
-    // Copying from IndexMetadataStats here
-    public static final ParseField OLD_SHARD_COUNT_FIELD = new ParseField("old_shard_count");
-    public static final ParseField NEW_SHARD_COUNT_FIELD = new ParseField("new_shard_count");
-    public static final ParseField SOURCE_SHARD_STATES_FIELD = new ParseField("source_shard_states");
-    public static final ParseField TARGET_SHARD_STATES_FIELD = new ParseField("target_shard_states");
-
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<IndexReshardingMetadata, Void> PARSER = new ConstructingObjectParser<>(
-        "index_resharding_metadata_parser",
-        false,
-        (args, unused) -> new IndexReshardingMetadata(
-            (int) args[0],
-            (int) args[1],
-            ((List<SourceShardState>) args[2]).toArray(new SourceShardState[0]),
-            ((List<TargetShardState>) args[3]).toArray(new TargetShardState[0])
-        )
-    );
-
-    static {
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), OLD_SHARD_COUNT_FIELD);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), NEW_SHARD_COUNT_FIELD);
-        // XXX I'm not sure this is the best way to parse an array of enums
-        PARSER.declareObjectArray(
-            ConstructingObjectParser.constructorArg(),
-            (parser, c) -> SourceShardState.valueOf(parser.text()),
-            SOURCE_SHARD_STATES_FIELD
-        );
-        PARSER.declareObjectArray(
-            ConstructingObjectParser.constructorArg(),
-            (parser, c) -> TargetShardState.valueOf(parser.text()),
-            TARGET_SHARD_STATES_FIELD
-        );
-    }
+    public static final ParseField OPERATION = new ParseField("operation");
 
     static IndexReshardingMetadata fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        // in testing, it doesn't appear that field order is reliable, so we parse to a map first, then delegate
+        // state parsing according to the operation field.
+        var fields = parser.map();
+        var operationName = fields.get(OPERATION.getPreferredName());
+        if (operationName == null) {
+            throw new IllegalArgumentException("operation missing");
+        }
+        var operation = Operation.valueOf(operationName.toString());
+        IndexReshardingState state = null;
+        switch (operation) {
+            case SPLIT:
+                state = IndexReshardingState.Split.fromMap(fields);
+        }
+        if (state == null) {
+            throw new IllegalArgumentException("failed to parse state for operation [" + operation + "]");
+        }
+
+        return new IndexReshardingMetadata(operation, state);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(OLD_SHARD_COUNT_FIELD.getPreferredName(), oldShardCount);
-        builder.field(NEW_SHARD_COUNT_FIELD.getPreferredName(), newShardCount);
-        builder.field(SOURCE_SHARD_STATES_FIELD.getPreferredName(), sourceShardStates);
-        builder.field(TARGET_SHARD_STATES_FIELD.getPreferredName(), targetShardStates);
+        builder.field(OPERATION.getPreferredName(), operation);
+        state.toXContent(builder, params);
         return builder;
+    }
+
+    public IndexReshardingMetadata(StreamInput in) throws IOException {
+        this(in.readEnum(Operation.class), in);
+    }
+
+    IndexReshardingMetadata(Operation operation, StreamInput in) throws IOException {
+        this(operation, readIndexReshardingState(operation, in));
+    }
+
+    static IndexReshardingState readIndexReshardingState(Operation operation, StreamInput in) throws IOException {
+        switch (operation) {
+            case SPLIT:
+                return new IndexReshardingState.Split(in);
+        }
+        throw new IllegalArgumentException("unsupported operation [" + operation + "]");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(oldShardCount);
-        out.writeInt(newShardCount);
-        out.writeArray(sourceShardStates);
-        out.writeArray(targetShardStates);
+        out.writeEnum(operation);
+        state.writeTo(out);
     }
 
-    public IndexReshardingMetadata(StreamInput in) throws IOException {
-        this(
-            in.readInt(),
-            in.readInt(),
-            in.readArray(i -> i.readEnum(SourceShardState.class), SourceShardState[]::new),
-            in.readArray(i -> i.readEnum(TargetShardState.class), TargetShardState[]::new)
-        );
-    }
-
-    // the default record implementation compares arrays by pointer not by contents
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -190,15 +170,12 @@ public record IndexReshardingMetadata(
             return false;
         }
         IndexReshardingMetadata otherMetadata = (IndexReshardingMetadata) other;
-        return oldShardCount == otherMetadata.oldShardCount
-            && newShardCount == otherMetadata.newShardCount
-            && Arrays.equals(sourceShardStates, otherMetadata.sourceShardStates)
-            && Arrays.equals(targetShardStates, otherMetadata.targetShardStates);
+        return operation == otherMetadata.operation && Objects.equals(state, otherMetadata.state);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(oldShardCount, newShardCount, Arrays.hashCode(sourceShardStates), Arrays.hashCode(targetShardStates));
+        return Objects.hash(operation, state);
     }
 
     /**
@@ -209,107 +186,12 @@ public record IndexReshardingMetadata(
      * @return resharding metadata representing the start of the requested split
      */
     public static IndexReshardingMetadata newSplitByMultiple(int shardCount, int multiple) {
-        assert multiple > 1 : "multiple must be greater than 1";
-
-        final int newShardCount = shardCount * multiple;
-        final var sourceShardStates = new SourceShardState[shardCount];
-        final var targetShardStates = new TargetShardState[newShardCount - shardCount];
-        Arrays.fill(sourceShardStates, SourceShardState.SOURCE);
-        Arrays.fill(targetShardStates, TargetShardState.CLONE);
-
-        return new IndexReshardingMetadata(shardCount, newShardCount, sourceShardStates, targetShardStates);
+        return new IndexReshardingMetadata(Operation.SPLIT, IndexReshardingState.Split.newSplitByMultiple(shardCount, multiple));
     }
 
-    /**
-     * Get the current shard state of a source shard
-     * @param shardNum an index into the shards which must be no greater than the number of shards before split
-     * @return the source shard state of the shard identified by shardNum
-     */
-    public SourceShardState getSourceShardState(int shardNum) {
-        assert shardNum >= 0 && shardNum < sourceShardStates.length : "source shardNum is out of bounds";
-
-        return sourceShardStates[shardNum];
-    }
-
-    /**
-     * Set the current shard state of a source shard
-     * Currently the only legal transition is from SOURCE to DONE and any other transition will assert.
-     * This could be expressed through a markSourceDone API but this form is the same shape as {@link #setTargetShardState}
-     * and leaves the door open for additional source states.
-     * @param shardNum an index into the shards which must be no greater than the number of shards before split
-     * @param sourceShardState the state to which the shard should be set
-     */
-    public void setSourceShardState(int shardNum, SourceShardState sourceShardState) {
-        assert shardNum >= 0 && shardNum < sourceShardStates.length : "source shardNum is out of bounds";
-        assert sourceShardStates[shardNum].ordinal() + 1 == sourceShardState.ordinal() : "invalid source shard state transition";
-        assert sourceShardState == SourceShardState.DONE : "can only move source shard state to DONE";
-        for (var target : getTargetStatesFor(shardNum)) {
-            assert target == TargetShardState.DONE : "can only move source shard to DONE when all targets are DONE";
-        }
-
-        sourceShardStates[shardNum] = sourceShardState;
-    }
-
-    /**
-     * Get the current target state of a shard
-     * @param shardNum an index into shards greater than or equal to the old shard count and less than the new shard count
-     * @return the target shard state for the shard identified by shardNum
-     */
-    public TargetShardState getTargetShardState(int shardNum) {
-        var targetShardNum = shardNum - oldShardCount;
-
-        assert targetShardNum >= 0 && targetShardNum < targetShardStates.length : "target shardNum is out of bounds";
-
-        return targetShardStates[targetShardNum];
-    }
-
-    /**
-     * Set the target state of a shard
-     * The only legal state in the split state machine is the one following the shard's current state.
-     * The reason for this API rather than an advanceState API is to confirm that the caller knows
-     * what the current state is when setting it.
-     * @param shardNum an index into shards greater than or equal to the old shard count and less than the new shard count
-     * @param targetShardState the state to which the shard should be set
-     */
-    public void setTargetShardState(int shardNum, TargetShardState targetShardState) {
-        var targetShardNum = shardNum - oldShardCount;
-
-        assert targetShardNum >= 0 && targetShardNum < targetShardStates.length : "target shardNum is out of bounds";
-        assert targetShardStates[targetShardNum].ordinal() + 1 == targetShardState.ordinal() : "invalid target shard state transition";
-
-        targetShardStates[targetShardNum] = targetShardState;
-    }
-
-    /**
-     * Get all the target shard states related to the given source shard
-     * @param shardNum a source shard index greater than or equal to 0 and less than the original shard count
-     * @return an array of target shard states in order for the given shard
-     */
-    public TargetShardState[] getTargetStatesFor(int shardNum) {
-        final int numTargets = newShardCount / oldShardCount - 1;
-        // it might be useful to return the target shard's index as well as state, can iterate on this
-        TargetShardState[] targets = new TargetShardState[numTargets];
-
-        int cur = shardNum + oldShardCount;
-        for (int i = 0; i < numTargets; i++) {
-            targets[i] = getTargetShardState(cur);
-            cur += oldShardCount;
-        }
-
-        return targets;
-    }
-
-    /**
-     * Check whether this metadata represents an incomplete split
-     * @return true if the split is incomplete (not all source shards are DONE)
-     */
-    public boolean splitInProgress() {
-        for (int i = 0; i < oldShardCount; i++) {
-            if (sourceShardStates[i] == SourceShardState.SOURCE) {
-                return true;
-            }
-        }
-
-        return false;
+    public IndexReshardingState.Split getSplit() {
+        return switch (state) {
+            case IndexReshardingState.Split s -> s;
+        };
     }
 }

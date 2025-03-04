@@ -1,0 +1,5 @@
+pr: 123852
+summary: Retry when the server can't be resolved
+area: Snapshot/Restore
+type: enhancement
+issues: []

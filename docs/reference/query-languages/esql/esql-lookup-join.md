@@ -64,7 +64,7 @@ Imagine you have the two tables:
 Running the following query would provide the results shown below.
 
 ```esql
-FROM Left
+FROM employees
 | WHERE Language IS NOT NULL // works and filter TLD UK
 | LOOKUP JOIN Right ON Key
 ```
@@ -80,7 +80,7 @@ FROM Left
 |2|B|German|null|
 
 ::::{important}
-`LOOKUP JOIN` currently does not guarantee the output to be in any particular order. If a certain order is required, users should use a [`SORT`](/reference/query-languages/esql/esql-commands.md#esql-sort) somewhere after the `LOOKUP JOIN`.
+`LOOKUP JOIN` does not guarantee the output to be in any particular order. If a certain order is required, users should use a [`SORT`](/reference/query-languages/esql/esql-commands.md#esql-sort) somewhere after the `LOOKUP JOIN`.
 
 ::::
 

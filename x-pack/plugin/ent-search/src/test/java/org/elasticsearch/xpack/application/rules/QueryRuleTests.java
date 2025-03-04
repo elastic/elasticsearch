@@ -83,10 +83,7 @@ public class QueryRuleTests extends ESTestCase {
                 "ids": ["id1"]
               }
             }""");
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
-        );
+        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
     }
 
     public void testNumericValidationWithMixedValues() throws IOException {
@@ -101,10 +98,7 @@ public class QueryRuleTests extends ESTestCase {
                 "ids": ["id1"]
               }
             }""");
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
-        );
+        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
     }
 
     public void testNumericValidationWithEmptyValues() throws IOException {
@@ -119,10 +113,7 @@ public class QueryRuleTests extends ESTestCase {
                 "ids": ["id1"]
               }
             }""");
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
-        );
+        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
     }
 
     public void testToXContent() throws IOException {
@@ -149,10 +140,7 @@ public class QueryRuleTests extends ESTestCase {
               "criteria": [],
               "actions": {}
             }""");
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
-        );
+        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
     }
 
     public void testToXContentValidPinnedRulesWithIds() throws IOException {

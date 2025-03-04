@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode;
 import org.elasticsearch.logging.LogManager;
@@ -21,12 +22,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
+import static org.elasticsearch.entitlement.runtime.policy.FileUtils.PATH_ORDER;
 
 public final class FileAccessTree {
 
@@ -137,8 +138,10 @@ public final class FileAccessTree {
             });
         }
 
-        // everything has access to the temp dir and the jdk
+        // everything has access to the temp dir, config dir and the jdk
         addPathAndMaybeLink.accept(pathLookup.tempDir(), Mode.READ_WRITE);
+        // TODO: this grants read access to the config dir for all modules until explicit read entitlements can be added
+        addPathAndMaybeLink.accept(pathLookup.configDir(), Mode.READ);
 
         // TODO: watcher uses javax.activation which looks for known mime types configuration, should this be global or explicit in watcher?
         Path jdk = Paths.get(System.getProperty("java.home"));
@@ -153,14 +156,15 @@ public final class FileAccessTree {
         this.writePaths = pruneSortedPaths(writePaths).toArray(new String[0]);
     }
 
-    private static List<String> pruneSortedPaths(List<String> paths) {
+    // package private for testing
+    static List<String> pruneSortedPaths(List<String> paths) {
         List<String> prunedReadPaths = new ArrayList<>();
         if (paths.isEmpty() == false) {
             String currentPath = paths.get(0);
             prunedReadPaths.add(currentPath);
             for (int i = 1; i < paths.size(); ++i) {
                 String nextPath = paths.get(i);
-                if (isParent(currentPath, nextPath) == false) {
+                if (currentPath.equals(nextPath) == false && isParent(currentPath, nextPath) == false) {
                     prunedReadPaths.add(nextPath);
                     currentPath = nextPath;
                 }
@@ -202,6 +206,7 @@ public final class FileAccessTree {
     }
 
     private boolean checkPath(String path, String[] paths) {
+        logger.trace(() -> Strings.format("checking [%s] against [%s]", path, String.join(",", paths)));
         if (paths.length == 0) {
             return false;
         }
@@ -219,6 +224,7 @@ public final class FileAccessTree {
     }
 
     private static boolean isParent(String maybeParent, String path) {
+        logger.trace(() -> Strings.format("checking isParent [%s] for [%s]", maybeParent, path));
         return path.startsWith(maybeParent) && path.startsWith(FILE_SEPARATOR, maybeParent.length());
     }
 
@@ -233,30 +239,4 @@ public final class FileAccessTree {
     public int hashCode() {
         return Objects.hash(Arrays.hashCode(readPaths), Arrays.hashCode(writePaths));
     }
-
-    /**
-     * For our lexicographic sort trick to work correctly, we must have path separators sort before
-     * any other character so that files in a directory appear immediately after that directory.
-     * For example, we require [/a, /a/b, /a.xml] rather than the natural order [/a, /a.xml, /a/b].
-     */
-    private static final Comparator<String> PATH_ORDER = (s1, s2) -> {
-        Path p1 = Path.of(s1);
-        Path p2 = Path.of(s2);
-        var i1 = p1.iterator();
-        var i2 = p2.iterator();
-        while (i1.hasNext() && i2.hasNext()) {
-            int cmp = i1.next().compareTo(i2.next());
-            if (cmp != 0) {
-                return cmp;
-            }
-        }
-        if (i1.hasNext()) {
-            return 1;
-        } else if (i2.hasNext()) {
-            return -1;
-        } else {
-            assert p1.equals(p2);
-            return 0;
-        }
-    };
 }

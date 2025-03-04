@@ -78,7 +78,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
@@ -153,7 +153,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
 
         // Step 1: Fetch analytics collections count
         GetAnalyticsCollectionAction.Request analyticsCollectionsCountRequest = new GetAnalyticsCollectionAction.Request(
-            request.masterNodeTimeout(),
+            request.masterTimeout(),
             new String[] { "*" }
         );
 

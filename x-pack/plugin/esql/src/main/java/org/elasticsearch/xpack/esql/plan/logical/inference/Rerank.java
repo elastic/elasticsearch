@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
 
-public class Rerank extends InferencePlan {
+public class Rerank extends InferencePlan implements SortAgnostic {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
     private final Expression queryText;

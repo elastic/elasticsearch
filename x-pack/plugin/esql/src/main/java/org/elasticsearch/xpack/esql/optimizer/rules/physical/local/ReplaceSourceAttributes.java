@@ -43,13 +43,11 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
             if (attr instanceof MetadataAttribute ma) {
                 if (ma.name().equals(MetadataAttribute.SCORE)) {
                     score = attr;
-                } else if (isTimeSeries) {
-                    if (ma.name().equals(MetadataAttribute.TSID_FIELD)) {
-                        tsid = attr;
-                    } else if (ma.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
-                        timestamp = attr;
-                    }
+                } else if (isTimeSeries && ma.name().equals(MetadataAttribute.TSID_FIELD)) {
+                    tsid = attr;
                 }
+            } else if (attr.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
+                timestamp = attr;
             }
             keepIterating = score == null || (isTimeSeries && (tsid == null || timestamp == null));
         }

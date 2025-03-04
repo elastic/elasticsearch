@@ -718,11 +718,14 @@ public class EsqlSession {
         final Holder<Boolean> hasScoring = new Holder<>(false);
 
         if (filter != null) {
+            // a PhysicalPlan completely transformed (no fragments) will have an EsQueryExec in it if the data comes from ES
             physicalPlan.forEachDown(EsQueryExec.class, esQueryExec -> {
                 if (hasScoring.get() == false && esQueryExec.hasScoring()) {
                     hasScoring.set(true);
                 }
             });
+            // if there is no EsQueryExec and still scoring is required, search for fragments as well where EsRelations should
+            // know if there is scoring needed or not
             if (hasScoring.get() == false) {
                 physicalPlan.forEachDown(FragmentExec.class, fragmentExec -> {
                     fragmentExec.fragment().forEachDown(EsRelation.class, esRelation -> {
@@ -744,8 +747,8 @@ public class EsqlSession {
                 QueryBuilder newFilter;
                 if (fragmentFilter != null) {
                     newFilter = hasScoring.get()
-                        ? boolQuery().filter(fragmentFilter).must(filter)
-                        : boolQuery().filter(fragmentFilter).filter(filter);
+                        ? boolQuery().filter(fragmentFilter).must(filter)   // a "bool" "must" does influence scoring
+                        : boolQuery().filter(fragmentFilter).filter(filter);// no scoring? then "filter" to completely disable scoring
                 } else {
                     newFilter = hasScoring.get() ? filter : boolQuery().filter(filter);
                 }

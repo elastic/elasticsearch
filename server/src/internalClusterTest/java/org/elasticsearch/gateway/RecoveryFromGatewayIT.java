@@ -407,7 +407,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        indicesAdmin().prepareAliases().addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value")).get();
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value"))
+            .get();
 
         logger.info("--> stopping the second node");
         internalCluster().stopRandomDataNode();

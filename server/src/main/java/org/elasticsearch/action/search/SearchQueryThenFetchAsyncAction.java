@@ -327,27 +327,23 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
         @Override
         public String[] indices() {
-            return shards.stream().map(s -> s.originalIndices().indices()).flatMap(Arrays::stream).distinct().toArray(String[]::new);
+            return shards.stream().flatMap(s -> Arrays.stream(s.originalIndices())).distinct().toArray(String[]::new);
         }
 
         @Override
         public IndicesOptions indicesOptions() {
-            return shards.getFirst().originalIndices.indicesOptions();
+            return searchRequest.indicesOptions();
         }
     }
 
-    private record ShardToQuery(
-        float boost,
-        OriginalIndices originalIndices,
-        int shardIndex,
-        ShardId shardId,
-        ShardSearchContextId contextId
-    ) implements Writeable {
+    private record ShardToQuery(float boost, String[] originalIndices, int shardIndex, ShardId shardId, ShardSearchContextId contextId)
+        implements
+            Writeable {
 
         static ShardToQuery readFrom(StreamInput in) throws IOException {
             return new ShardToQuery(
                 in.readFloat(),
-                OriginalIndices.readOriginalIndices(in),
+                in.readStringArray(),
                 in.readVInt(),
                 new ShardId(in),
                 in.readOptionalWriteable(ShardSearchContextId::new)
@@ -357,7 +353,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeFloat(boost);
-            OriginalIndices.writeOriginalIndices(originalIndices, out);
+            out.writeStringArray(originalIndices);
             out.writeVInt(shardIndex);
             shardId.writeTo(out);
             out.writeOptionalWriteable(contextId);
@@ -424,7 +420,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     perNodeRequest.shards.add(
                         new ShardToQuery(
                             concreteIndexBoosts.getOrDefault(indexUUID, DEFAULT_INDEX_BOOST),
-                            getOriginalIndices(shardIndex),
+                            getOriginalIndices(shardIndex).indices(),
                             shardIndex,
                             routing.getShardId(),
                             shardRoutings.getSearchContextId()
@@ -655,7 +651,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             request.localClusterAlias,
                             shardToQuery.shardIndex,
                             shardToQuery.contextId,
-                            shardToQuery.originalIndices,
+                            new OriginalIndices(shardToQuery.originalIndices, request.indicesOptions()),
                             request.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
                             pitBuilder == null ? null : pitBuilder.getKeepAlive(),
                             shardToQuery.boost,

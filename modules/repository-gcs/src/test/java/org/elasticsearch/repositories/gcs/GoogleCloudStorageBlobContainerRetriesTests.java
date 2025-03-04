@@ -49,7 +49,6 @@ import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTes
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
-import org.junit.Before;
 import org.threeten.bp.Duration;
 
 import java.io.IOException;
@@ -104,16 +103,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
     private String getEndpointUrl() {
         return endpointUrlOverride != null ? endpointUrlOverride : httpServerUrl();
-    }
-
-    @Before
-    public void clearEndpointOverride() {
-        endpointUrlOverride = null;
-    }
-
-    @Before
-    public void clearRequestCounters() {
-        requestCounters.clear();
     }
 
     @Override

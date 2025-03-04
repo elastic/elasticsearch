@@ -27,6 +27,7 @@ import static org.elasticsearch.common.time.DateUtils.clampToNanosRange;
 import static org.elasticsearch.common.time.DateUtils.compareNanosToMillis;
 import static org.elasticsearch.common.time.DateUtils.toInstant;
 import static org.elasticsearch.common.time.DateUtils.toLong;
+import static org.elasticsearch.common.time.DateUtils.toLongMillis;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.common.time.DateUtils.toNanoSeconds;
 import static org.hamcrest.Matchers.containsString;
@@ -91,6 +92,44 @@ public class DateUtilsTests extends ESTestCase {
         Instant tooLateInstant = ZonedDateTime.parse("2262-04-11T23:47:16.854775808Z").toInstant();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toLong(tooLateInstant));
         assertThat(e.getMessage(), containsString("is after"));
+    }
+
+    public void testInstantToLongMillis() {
+        assertThat(toLongMillis(Instant.EPOCH), is(0L));
+
+        Instant instant = createRandomInstant();
+        long timeSinceEpochInMillis = instant.toEpochMilli();
+        assertThat(toLongMillis(instant), is(timeSinceEpochInMillis));
+
+        Instant maxInstant = Instant.ofEpochSecond(Long.MAX_VALUE / 1000);
+        long maxInstantMillis = maxInstant.toEpochMilli();
+        assertThat(toLongMillis(maxInstant), is(maxInstantMillis));
+
+        Instant minInstant = Instant.ofEpochSecond(Long.MIN_VALUE / 1000);
+        long minInstantMillis = minInstant.toEpochMilli();
+        assertThat(toLongMillis(minInstant), is(minInstantMillis));
+    }
+
+    public void testInstantToLongMillisMin() {
+        /* negative millisecond value of this instant exceeds the maximum value a java long variable can store */
+        Instant tooEarlyInstant = Instant.MIN;
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toLongMillis(tooEarlyInstant));
+        assertThat(e.getMessage(), containsString("too far in the past"));
+
+        Instant tooEarlyInstant2 = Instant.ofEpochSecond(Long.MIN_VALUE / 1000 - 1);
+        e = expectThrows(IllegalArgumentException.class, () -> toLongMillis(tooEarlyInstant2));
+        assertThat(e.getMessage(), containsString("too far in the past"));
+    }
+
+    public void testInstantToLongMillisMax() {
+        /* millisecond value of this instant exceeds the maximum value a java long variable can store */
+        Instant tooLateInstant = Instant.MAX;
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toLongMillis(tooLateInstant));
+        assertThat(e.getMessage(), containsString("too far in the future"));
+
+        Instant tooLateInstant2 = Instant.ofEpochSecond(Long.MAX_VALUE / 1000 + 1);
+        e = expectThrows(IllegalArgumentException.class, () -> toLongMillis(tooLateInstant2));
+        assertThat(e.getMessage(), containsString("too far in the future"));
     }
 
     public void testLongToInstant() {

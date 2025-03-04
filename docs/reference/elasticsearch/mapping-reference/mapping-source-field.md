@@ -48,6 +48,7 @@ For all other field types, the original value of the field is stored as is, in t
 
 Some field types have additional restrictions. These restrictions are documented in the **synthetic `_source`** section of the field type’s [documentation](/reference/elasticsearch/mapping-reference/field-data-types.md).
 
+Synthetic source is not compatible with [source-only](docs-content://deploy-manage/tools/snapshot-and-restore/source-only-repository.md) snapshot repositories. A different repository type needs to be selected to store indexes configured with synthetic source.
 
 ### Synthetic `_source` modifications [synthetic-source-modifications]
 
@@ -316,6 +317,10 @@ Users often disable the `_source` field without thinking about the consequences,
 * The ability to debug queries or aggregations by viewing the original document used at index time.
 * Potentially in the future, the ability to repair index corruption automatically.
 
+::::
+
+::::{warning}
+Disabling the `_source` field is not supported for indexes configured with `logsdb` or `tsdb` [mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
 ::::
 
 

@@ -624,11 +624,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         Consumer<SystemDataStreamMigrationInfo> completionListener
     ) {
         String dataStreamName = migrationInfo.getDataStreamName();
-        logger.info(
-            "migrating data stream [{}] from feature [{}]",
-            dataStreamName,
-            migrationInfo.getFeatureName()
-        );
+        logger.info("migrating data stream [{}] from feature [{}]", dataStreamName, migrationInfo.getFeatureName());
 
         ReindexDataStreamAction.ReindexDataStreamRequest reindexRequest = new ReindexDataStreamAction.ReindexDataStreamRequest(
             ReindexDataStreamAction.Mode.UPGRADE,
@@ -724,8 +720,12 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     }
 
     private void dataStreamMigrationFailed(SystemDataStreamMigrationInfo migrationInfo, Collection<Exception> exceptions) {
-        logger.error("error occurred while reindexing data stream [{}] from feature [{}], failures [{}]",
-            migrationInfo.getDataStreamName(), migrationInfo.getFeatureName(), exceptions);
+        logger.error(
+            "error occurred while reindexing data stream [{}] from feature [{}], failures [{}]",
+            migrationInfo.getDataStreamName(),
+            migrationInfo.getFeatureName(),
+            exceptions
+        );
 
         ElasticsearchException ex = new ElasticsearchException("error occurred while reindexing data stream [" + migrationInfo + "]");
         for (Exception exception : exceptions) {
@@ -741,36 +741,35 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         setWriteBlock(index, false, ActionListener.wrap(unsetReadOnlyResponse -> listener.onFailure(ex), e1 -> listener.onFailure(ex)));
     }
 
-    private void cancelExistingDataStreamMigrationAndRetry(SystemDataStreamMigrationInfo migrationInfo,
-                                                           Consumer<SystemDataStreamMigrationInfo> completionListener) {
+    private void cancelExistingDataStreamMigrationAndRetry(
+        SystemDataStreamMigrationInfo migrationInfo,
+        Consumer<SystemDataStreamMigrationInfo> completionListener
+    ) {
         logger.debug(
             "cancelling migration of data stream [{}] from feature [{}] for retry",
             migrationInfo.getDataStreamName(),
             migrationInfo.getFeatureName()
         );
 
-        ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(
-            response -> {
-                if (response.isAcknowledged()) {
-                    migrateDataStream(migrationInfo, completionListener);
-                } else {
-                    String dataStreamName = migrationInfo.getDataStreamName();
-                    logger.error(
-                        "failed to cancel migration of data stream [{}] from feature [{}] during retry",
-                        dataStreamName,
-                        migrationInfo.getFeatureName()
-                    );
-                    throw new ElasticsearchException(
-                        "failed to cancel migration of data stream ["
-                            + dataStreamName
-                            + "] from feature ["
-                            + migrationInfo.getFeatureName()
-                            + "] response is not acknowledge"
-                    );
-                }
-            },
-            this::markAsFailed
-        );
+        ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(response -> {
+            if (response.isAcknowledged()) {
+                migrateDataStream(migrationInfo, completionListener);
+            } else {
+                String dataStreamName = migrationInfo.getDataStreamName();
+                logger.error(
+                    "failed to cancel migration of data stream [{}] from feature [{}] during retry",
+                    dataStreamName,
+                    migrationInfo.getFeatureName()
+                );
+                throw new ElasticsearchException(
+                    "failed to cancel migration of data stream ["
+                        + dataStreamName
+                        + "] from feature ["
+                        + migrationInfo.getFeatureName()
+                        + "] response is not acknowledge"
+                );
+            }
+        }, this::markAsFailed);
 
         cancelDataStreamMigration(migrationInfo, listener);
     }

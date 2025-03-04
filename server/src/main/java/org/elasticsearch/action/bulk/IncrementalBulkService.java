@@ -158,7 +158,6 @@ public class IncrementalBulkService {
                             }
                         }, () -> {
                             bulkInProgress = false;
-                            coordinating.close();
                             toRelease.forEach(Releasable::close);
                             coordinating.close();
                             nextItems.run();

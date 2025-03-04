@@ -462,3 +462,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=data_stream/140_data_stream_aliases/Create data stream alias}
   issue: https://github.com/elastic/elasticsearch/issues/122226
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/120148

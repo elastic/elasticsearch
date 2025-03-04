@@ -11,11 +11,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.elastic.ElasticInferenceServiceUnifiedChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceRequestMetadata;
 import org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext;
 
 public class ElasticInferenceServiceUnifiedCompletionRequestManager extends ElasticInferenceServiceRequestManager {
 
@@ -44,7 +46,7 @@ public class ElasticInferenceServiceUnifiedCompletionRequestManager extends Elas
 
     private final ElasticInferenceServiceCompletionModel model;
     private final TraceContext traceContext;
-    private final String productOrigin;
+    private final ElasticInferenceServiceRequestMetadata requestMetadata;
 
     private ElasticInferenceServiceUnifiedCompletionRequestManager(
         ElasticInferenceServiceCompletionModel model,
@@ -54,7 +56,7 @@ public class ElasticInferenceServiceUnifiedCompletionRequestManager extends Elas
         super(threadPool, model);
         this.model = model;
         this.traceContext = traceContext;
-        this.productOrigin = threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+        this.requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
     }
 
     @Override
@@ -69,7 +71,7 @@ public class ElasticInferenceServiceUnifiedCompletionRequestManager extends Elas
             inferenceInputs.castTo(UnifiedChatInput.class),
             model,
             traceContext,
-            productOrigin
+            requestMetadata
         );
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));

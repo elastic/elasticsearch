@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
@@ -39,7 +40,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportInferenceActionProxyTests extends ESTestCase {
-    private Client client;
+    private OriginSettingClient client;
     private ThreadPool threadPool;
     private TransportInferenceActionProxy action;
     private ModelRegistry modelRegistry;
@@ -47,7 +48,7 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        client = mock(Client.class);
+        client = mock(OriginSettingClient.class);
         threadPool = new TestThreadPool("test");
         when(client.threadPool()).thenReturn(threadPool);
         modelRegistry = mock(ModelRegistry.class);

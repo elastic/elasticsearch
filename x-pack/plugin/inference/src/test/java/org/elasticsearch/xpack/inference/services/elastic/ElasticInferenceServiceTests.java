@@ -522,6 +522,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             assertNull(request.getUri().getQuery());
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
 
+            // TODO: assert product origin and use case
+
             var requestMap = entityAsMap(request.getBody());
             assertThat(requestMap, is(Map.of("input", List.of("input text"), "model", "my-model-id", "usage_context", "search")));
         }

@@ -51,7 +51,7 @@ public class MutedTestPlugin implements Plugin<Project> {
                 }
 
                 // Don't fail when all tests are ignored when running in CI
-                filter.setFailOnNoMatchingTests(buildParams.isCi() == false);
+                filter.setFailOnNoMatchingTests(buildParams.getCi() == false);
             });
         });
     }

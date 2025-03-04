@@ -79,8 +79,8 @@ FROM Left
 |2|B|German|CH|
 |2|B|German|null|
 
-::::{tip}
-`LOOKUP JOIN` does not guarantee the output to be in any particular order. If a certain order is required, users should use a [`SORT`](/reference/query-languages/esql/esql-commands.md#esql-sort) somewhere after the `LOOKUP JOIN`.
+::::{important}
+`LOOKUP JOIN` currently does not guarantee the output to be in any particular order. If a certain order is required, users should use a [`SORT`](/reference/query-languages/esql/esql-commands.md#esql-sort) somewhere after the `LOOKUP JOIN`.
 
 ::::
 

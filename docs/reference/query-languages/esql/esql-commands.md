@@ -709,7 +709,7 @@ FROM app_logs
 
 In case of name collisions, the newly created columns will override existing columns.
 
-```eqsl
+```esql
 FROM Left
 | WHERE Language IS NOT NULL // works and filter TLD UK
 | LOOKUP JOIN Right ON Key

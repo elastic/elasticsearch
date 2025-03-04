@@ -82,8 +82,8 @@ public class ThreadPoolMergeExecutorService {
     private ThreadPoolMergeExecutorService(ThreadPool threadPool) {
         this.executorService = threadPool.executor(ThreadPool.Names.MERGE);
         this.maxConcurrentMerges = threadPool.info(ThreadPool.Names.MERGE).getMax();
-        this.concurrentMergesFloorLimitForThrottling = maxConcurrentMerges * 2 + 1;
-        this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 4 + 1;
+        this.concurrentMergesFloorLimitForThrottling = maxConcurrentMerges * 2;
+        this.concurrentMergesCeilLimitForThrottling = maxConcurrentMerges * 4;
     }
 
     boolean submitMergeTask(MergeTask mergeTask) {

@@ -63,7 +63,7 @@ class Ec2NameResolver implements CustomNameResolver {
             if (type.configName.equals(value)) {
                 final var metadataPath = "/latest/meta-data/" + type.ec2Name;
                 try {
-                    // only one address: because we explicitly ask for only one via the Ec2HostnameType
+                    // only one address: IMDS returns just one address/name, and if it's a name then it should resolve to one address
                     return new InetAddress[] { InetAddress.getByName(AwsEc2Utils.getInstanceMetadata(metadataPath)) };
                 } catch (Exception e) {
                     throw new IOException("Exception caught when resolving EC2 address from [" + metadataPath + "]", e);

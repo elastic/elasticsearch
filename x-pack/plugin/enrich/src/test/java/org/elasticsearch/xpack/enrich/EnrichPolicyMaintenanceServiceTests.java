@@ -225,7 +225,7 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
             .indices()
             .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT, enrichIndexBase))
             .actionGet();
-        IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();
+        IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         String[] indices = getAliasesResponse.getAliases().keySet().toArray(new String[0]);
         if (indices.length > 0) {
             aliasToggleRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().indices(indices).alias(enrichIndexBase));

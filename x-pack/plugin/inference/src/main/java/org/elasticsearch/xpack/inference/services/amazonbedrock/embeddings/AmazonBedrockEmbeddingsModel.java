@@ -27,7 +27,11 @@ import java.util.Map;
 
 public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
 
-    public static AmazonBedrockEmbeddingsModel of(AmazonBedrockEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings, InputType inputType) {
+    public static AmazonBedrockEmbeddingsModel of(
+        AmazonBedrockEmbeddingsModel embeddingsModel,
+        Map<String, Object> taskSettings,
+        InputType inputType
+    ) {
         if (taskSettings != null && taskSettings.isEmpty() == false) {
             // no task settings allowed
             var validationException = new ValidationException();

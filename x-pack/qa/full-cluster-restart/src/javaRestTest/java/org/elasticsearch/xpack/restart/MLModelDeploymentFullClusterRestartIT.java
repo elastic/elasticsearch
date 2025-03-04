@@ -236,7 +236,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     }
 
     private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
         request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }
             """, input));

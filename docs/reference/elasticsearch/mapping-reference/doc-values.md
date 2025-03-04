@@ -9,7 +9,9 @@ Most fields are [indexed](/reference/elasticsearch/mapping-reference/mapping-ind
 
 Sorting, aggregations, and access to field values in scripts requires a different data access pattern. Instead of looking up the term and finding documents, we need to be able to look up the document and find the terms that it has in a field.
 
-Doc values are the on-disk data structure, built at document index time, which makes this data access pattern possible. They store the same values as the `_source` but in a column-oriented fashion that is way more efficient for sorting and aggregations. Doc values are supported on almost all field types, with the *notable exception of `text` and `annotated_text` fields*.
+The `doc_values` field is an on-disk data structure that is built at document index time and enables efficient data access. It stores the same values as `_source`, but in a columnar format that is more efficient for sorting and aggregation. 
+
+Doc values are supported on most field types, excluding `text` and `annotated_text` fields. See also [Disabling doc values](#_disabling_doc_values).
 
 ## Doc-value-only fields [doc-value-only-fields]
 
@@ -41,7 +43,15 @@ PUT my-index-000001
 
 ## Disabling doc values [_disabling_doc_values]
 
-All fields which support doc values have them enabled by default. If you are sure that you don’t need to sort or aggregate on a field, or access the field value from a script, you can disable doc values in order to save disk space:
+For all fields that support them, `doc_values` are enabled by default. If you're certain you don't need to sort or aggregate on a field, or access its value from a script, you can disable `doc_values` in order to save disk space.
+
+::::{note}
+You cannot disable doc values for [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields.
+
+In some field types, such as [`search_as_you_type`](/reference/elasticsearch/mapping-reference/search-as-you-type.md), doc values appear in API responses but can't be configured. Enabling or disabling `doc_values` for these fields might result in an error or have no effect.
+::::
+
+In the following example, `doc_values` is disabled on one field:
 
 ```console
 PUT my-index-000001
@@ -64,9 +74,7 @@ PUT my-index-000001
 2. The `session_id` has `doc_values` disabled, but can still be queried.
 
 
-::::{note}
-You cannot disable doc values for [`wildcard`](/reference/elasticsearch/mapping-reference/keyword.md#wildcard-field-type) fields.
-::::
+
 
 
 

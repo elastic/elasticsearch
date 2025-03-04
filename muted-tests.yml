@@ -308,9 +308,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
   method: testHistoryIsWrittenWithFailure
   issue: https://github.com/elastic/elasticsearch/issues/123203
-- class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
-  method: testSearchableSnapshotAction
-  issue: https://github.com/elastic/elasticsearch/issues/123214
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testCompletionField
   issue: https://github.com/elastic/elasticsearch/issues/123269

@@ -193,11 +193,13 @@ qstrWithFieldAndOptions
 required_capability: qstr_function
 required_capability: query_string_function_options
 
+// tag::qstr-with-options[]
 FROM books 
 | WHERE QSTR("title: Hobbjt~", {"fuzziness": 2})
 | KEEP book_no, title 
 | SORT book_no 
 | LIMIT 5
+// end::qstr-with-options[]
 ;
 ignoreOrder: true
 

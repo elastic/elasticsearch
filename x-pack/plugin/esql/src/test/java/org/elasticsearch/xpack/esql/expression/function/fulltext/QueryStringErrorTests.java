@@ -64,7 +64,7 @@ public class QueryStringErrorTests extends ErrorsForCasesWithoutExamplesTestCase
             if (validPerPosition.get(i).contains(signature.get(i)) == false) {
                 // Map expressions have different error messages
                 if (i == 1) {
-                    return format(null, "third argument of [{}] must be a map expression, received []", sourceForSignature(signature));
+                    return format(null, "second argument of [{}] must be a map expression, received []", sourceForSignature(signature));
                 }
                 break;
             }

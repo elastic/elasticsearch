@@ -318,7 +318,7 @@ public class RBACEngine implements AuthorizationEngine {
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-        ProjectMetadata metadata,
+        Supplier<ProjectMetadata> projectMetadataSupplier,
         ActionListener<IndexAuthorizationResult> listener
     ) {
         final String action = requestInfo.getAction();
@@ -423,7 +423,12 @@ public class RBACEngine implements AuthorizationEngine {
                                 .allMatch(IndicesAliasesRequest.AliasActions::expandAliasesWildcards))
                         : "expanded wildcards for local indices OR the request should not expand wildcards at all";
 
-                    IndexAuthorizationResult result = buildIndicesAccessControl(action, role, resolvedIndices, metadata);
+                    IndexAuthorizationResult result = buildIndicesAccessControl(
+                        action,
+                        role,
+                        resolvedIndices,
+                        projectMetadataSupplier.get()
+                    );
                     if (requestInfo.getAuthentication().isCrossClusterAccess()
                         && request instanceof IndicesRequest.RemoteClusterShardRequest shardsRequest
                         && shardsRequest.shards() != null) {

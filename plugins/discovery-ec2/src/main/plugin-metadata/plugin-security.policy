@@ -19,4 +19,9 @@ grant {
   permission java.net.SocketPermission "*", "connect";
 
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
+  // The AWS Java SDK v2 always tries to access the credentials and config files, even if we configure otherwise
+  permission java.io.FilePermission "${user.home}/.aws/credentials", "read";
+  permission java.io.FilePermission "${user.home}/.aws/config", "read";
+  permission java.util.PropertyPermission "http.proxyHost", "read";
 };

@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.inference.external.action.huggingface;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
 
 public interface HuggingFaceActionVisitor {
-    ExecutableAction create(HuggingFaceEmbeddingsModel mode);
+    ExecutableAction create(HuggingFaceEmbeddingsModel mode, InputType inputType);
 
     ExecutableAction create(HuggingFaceElserModel mode);
 }

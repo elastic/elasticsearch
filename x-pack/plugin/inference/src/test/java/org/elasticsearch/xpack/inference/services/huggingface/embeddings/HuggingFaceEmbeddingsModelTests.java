@@ -7,13 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.embeddings;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.containsString;
@@ -73,5 +78,27 @@ public class HuggingFaceEmbeddingsModelTests extends ESTestCase {
             null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
+    }
+
+    public void testThrowsError_WhenInputTypeSpecified() {
+        var model = createModel("url", "api_key");
+
+        var thrownException = expectThrows(ValidationException.class, () -> HuggingFaceEmbeddingsModel.of(model, InputType.SEARCH));
+        assertThat(
+            thrownException.getMessage(),
+            CoreMatchers.is("Validation Failed: 1: Invalid value [search] received. [input_type] is not allowed;")
+        );
+    }
+
+    public void testAcceptsInternalInputType() {
+        var model = createModel("url", "api_key");
+        var overriddenModel = HuggingFaceEmbeddingsModel.of(model, InputType.INTERNAL_SEARCH);
+        MatcherAssert.assertThat(overriddenModel, Matchers.is(model));
+    }
+
+    public void testAcceptsNullInputType() {
+        var model = createModel("url", "api_key");
+        var overriddenModel = HuggingFaceEmbeddingsModel.of(model, null);
+        MatcherAssert.assertThat(overriddenModel, Matchers.is(model));
     }
 }

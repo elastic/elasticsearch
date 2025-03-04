@@ -134,7 +134,7 @@ public class HuggingFaceService extends HuggingFaceBaseService {
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
-            var action = huggingFaceModel.accept(actionCreator);
+            var action = huggingFaceModel.accept(actionCreator, inputType);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
         }
     }

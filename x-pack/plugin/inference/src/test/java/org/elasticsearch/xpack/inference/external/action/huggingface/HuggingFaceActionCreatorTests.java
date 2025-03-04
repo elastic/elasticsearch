@@ -205,7 +205,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
             var actionCreator = new HuggingFaceActionCreator(sender, createWithEmptySettings(threadPool));
-            var action = actionCreator.create(model);
+            var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
@@ -263,7 +263,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
                 sender,
                 new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
             );
-            var action = actionCreator.create(model);
+            var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
@@ -318,7 +318,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
             var actionCreator = new HuggingFaceActionCreator(sender, createWithEmptySettings(threadPool));
-            var action = actionCreator.create(model);
+            var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("abcd")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
@@ -376,7 +376,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             // truncated to 1 token = 3 characters
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1);
             var actionCreator = new HuggingFaceActionCreator(sender, createWithEmptySettings(threadPool));
-            var action = actionCreator.create(model);
+            var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("123456")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);

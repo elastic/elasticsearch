@@ -155,7 +155,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         var huggingFaceModel = (HuggingFaceModel) model;
         var actionCreator = new HuggingFaceActionCreator(getSender(), getServiceComponents());
 
-        var action = huggingFaceModel.accept(actionCreator);
+        var action = huggingFaceModel.accept(actionCreator, inputType);
         action.execute(inputs, timeout, listener);
     }
 }

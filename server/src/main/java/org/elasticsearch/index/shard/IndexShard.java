@@ -1283,10 +1283,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
             throw new IllegalStateException("get operations not allowed on a legacy index");
         }
-        if (translogOnly) {
-            return getEngine().getFromTranslog(get, mappingLookup, mapperService.documentParser(), searcherWrapper);
-        }
-        return getEngine().get(get, mappingLookup, mapperService.documentParser(), searcherWrapper);
+        return withMutableEngine(engine -> {
+            if (translogOnly) {
+                return engine.getFromTranslog(get, mappingLookup, mapperService.documentParser(), searcherWrapper);
+            }
+            return engine.get(get, mappingLookup, mapperService.documentParser(), searcherWrapper);
+        });
     }
 
     /**
@@ -3340,16 +3342,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public <R> void withMutableEngine(Function<Engine, R> operation) {
-        withEngine(operation, true, false);
+    public <R> R withMutableEngine(Function<Engine, R> operation) {
+        return withEngine(operation, true, false);
     }
 
-    public <R> void withMutableEngineOrNull(Function<Engine, R> operation) {
-        withEngine(operation, true, true);
+    public <R> R withMutableEngineOrNull(Function<Engine, R> operation) {
+        return withEngine(operation, true, true);
     }
 
-    public <R> void withImmutableEngine(Function<Engine, R> operation) {
-        withEngine(operation, false, false);
+    public <R> R withImmutableEngine(Function<Engine, R> operation) {
+        return withEngine(operation, false, false);
     }
 
     /**

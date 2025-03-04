@@ -293,7 +293,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             });
         }
         indicesAdmin().prepareDelete(originalIndex.get()).get();
-        indicesAdmin().prepareAliases().addAlias(to, originalIndexOrAlias).get();
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(to, originalIndexOrAlias).get();
     }
 
     protected TimeWarp timeWarp() {

@@ -49,6 +49,7 @@ distribution/docker/src @elastic/es-delivery
 # Core/Infra
 distribution/tools @elastic/es-core-infra
 libs/core @elastic/es-core-infra
+libs/entitlement @elastic/es-core-infra
 libs/logging @elastic/es-core-infra
 libs/native @elastic/es-core-infra
 libs/plugin-analysis-api @elastic/es-core-infra

@@ -144,18 +144,30 @@ if (buildParams.isSnapshotBuild() == false) {
 
 tasks.named("test").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
+  filter {
+    excludeTestsMatching("*.TransportServiceHandshakeTests.testAcceptsMismatchedServerlessBuildHash")
+  }
   excludes << '**/IndexSettingsOverrideTests.class'
 }
 
-TaskProvider<Test> indexSettingsOverrideTest = tasks.register("indexSettingsOverrideTest", Test) {
+// There are tests rely on system properties to be configured differently. They must run in a separate test job
+// since the default does not work for them and configuring the system properties inside the test class/method
+// is too late because fields based on the system properties are often initialized statically.
+TaskProvider<Test> systemPropertiesOverrideTest = tasks.register("systemPropertiesOverrideTest", Test) {
   include '**/IndexSettingsOverrideTests.class'
+  include '**/TransportServiceHandshakeTests.class'
+  filter {
+    includeTestsMatching("*.TransportServiceHandshakeTests.testAcceptsMismatchedServerlessBuildHash")
+    includeTestsMatching("*.IndexSettingsOverrideTests.*")
+  }
   systemProperty 'es.stateless.allow.index.refresh_interval.override', 'true'
+  systemProperty 'es.serverless_transport', 'true'
   classpath = sourceSets.test.runtimeClasspath
   testClassesDirs = sourceSets.test.output.classesDirs
 }
 
 tasks.named("check").configure {
-  dependsOn(indexSettingsOverrideTest)
+  dependsOn(systemPropertiesOverrideTest)
 }
 
 tasks.named("thirdPartyAudit").configure {

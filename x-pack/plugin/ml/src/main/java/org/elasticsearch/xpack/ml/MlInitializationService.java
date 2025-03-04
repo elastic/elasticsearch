@@ -249,7 +249,8 @@ public final class MlInitializationService implements ClusterStateListener {
         }, finalListener::onFailure);
 
         // Step 1: Fetch ML internal indices settings to find out whether they are already hidden or not.
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(mlHiddenIndexPatterns)
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT)
+            .indices(mlHiddenIndexPatterns)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
         client.admin().indices().getSettings(getSettingsRequest, getSettingsListener);
     }

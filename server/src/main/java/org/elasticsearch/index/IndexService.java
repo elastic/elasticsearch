@@ -834,6 +834,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return scriptService;
     }
 
+    public CircuitBreakerService breakerService() {
+        return circuitBreakerService;
+    }
+
     List<IndexingOperationListener> getIndexOperationListeners() { // pkg private for testing
         return indexingOperationListeners;
     }

@@ -1,0 +1,5 @@
+pr: 121942
+summary: Allow partial results in ES|QL
+area: ES|QL
+type: enhancement
+issues: []

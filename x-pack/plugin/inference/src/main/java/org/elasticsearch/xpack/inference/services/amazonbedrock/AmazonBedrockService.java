@@ -133,7 +133,6 @@ public class AmazonBedrockService extends SenderService {
             List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
                 inputs.getInputs(),
                 maxBatchSize,
-                EmbeddingRequestChunker.EmbeddingType.FLOAT,
                 chunkingSettings != null ? chunkingSettings : baseAmazonBedrockModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 

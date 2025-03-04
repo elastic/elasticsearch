@@ -25,6 +25,8 @@ public final class SearchCapabilities {
     private static final String BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY = "bit_dense_vector_synthetic_source";
     /** Support Byte and Float with Bit dot product. */
     private static final String BYTE_FLOAT_BIT_DOT_PRODUCT_CAPABILITY = "byte_float_bit_dot_product_with_bugfix";
+    /** Support float query vectors on byte vectors */
+    private static final String BYTE_FLOAT_DOT_PRODUCT_CAPABILITY = "byte_float_dot_product_capability";
     /** Support docvalue_fields parameter for `dense_vector` field. */
     private static final String DENSE_VECTOR_DOCVALUE_FIELDS = "dense_vector_docvalue_fields";
     /** Support transforming rank rrf queries to the corresponding rrf retriever. */
@@ -50,6 +52,7 @@ public final class SearchCapabilities {
         capabilities.add(RANGE_REGEX_INTERVAL_QUERY_CAPABILITY);
         capabilities.add(BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY);
         capabilities.add(BYTE_FLOAT_BIT_DOT_PRODUCT_CAPABILITY);
+        capabilities.add(BYTE_FLOAT_DOT_PRODUCT_CAPABILITY);
         capabilities.add(DENSE_VECTOR_DOCVALUE_FIELDS);
         capabilities.add(TRANSFORM_RANK_RRF_TO_RETRIEVER);
         capabilities.add(NESTED_RETRIEVER_INNER_HITS_SUPPORT);

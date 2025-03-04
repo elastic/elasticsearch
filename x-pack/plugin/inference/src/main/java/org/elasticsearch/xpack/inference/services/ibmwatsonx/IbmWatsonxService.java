@@ -311,7 +311,6 @@ public class IbmWatsonxService extends SenderService {
         var batchedRequests = new EmbeddingRequestChunker(
             input.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            EmbeddingRequestChunker.EmbeddingType.FLOAT,
             chunkingSettings != null ? chunkingSettings : model.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {

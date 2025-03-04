@@ -21,8 +21,12 @@ import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -107,19 +111,20 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     public void testHappyCluster() throws Exception {
         final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
+        final ProjectId projectId = randomProjectIdOrDefault();
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
                 discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
             }
-            Metadata.Builder metadata = Metadata.builder();
+            ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
                 metadata.put(
                     IndexMetadata.builder(index).settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, between(1, 10), between(0, 2)))
                 );
             }
-            clusterState = newClusterState(metadata.build(), discoNodes.build());
+            clusterState = newClusterState(Metadata.builder().put(metadata).build(), discoNodes.build());
         }
         try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
             final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
@@ -129,6 +134,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final RequestDispatcher dispatcher = new RequestDispatcher(
                 mockClusterService(clusterState),
                 transportService,
+                TestProjectResolvers.singleProject(projectId),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -176,19 +182,20 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     public void testRetryThenOk() throws Exception {
         final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
+        final ProjectId projectId = randomProjectIdOrDefault();
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(2, 10);
             for (int i = 0; i < numNodes; i++) {
                 discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
             }
-            Metadata.Builder metadata = Metadata.builder();
+            ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
                 metadata.put(
                     IndexMetadata.builder(index).settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, between(1, 10), between(1, 3)))
                 );
             }
-            clusterState = newClusterState(metadata.build(), discoNodes.build());
+            clusterState = newClusterState(Metadata.builder().put(metadata).build(), discoNodes.build());
         }
         try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
             final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
@@ -198,6 +205,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final RequestDispatcher dispatcher = new RequestDispatcher(
                 mockClusterService(clusterState),
                 transportService,
+                TestProjectResolvers.singleProject(projectId),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -296,19 +304,20 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     public void testRetryButFails() throws Exception {
         final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
+        final ProjectId projectId = randomProjectIdOrDefault();
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
                 discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
             }
-            Metadata.Builder metadata = Metadata.builder();
+            ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
                 metadata.put(
                     IndexMetadata.builder(index).settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, between(1, 10), between(0, 3)))
                 );
             }
-            clusterState = newClusterState(metadata.build(), discoNodes.build());
+            clusterState = newClusterState(Metadata.builder().put(metadata).build(), discoNodes.build());
         }
         try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
             final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
@@ -318,6 +327,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final RequestDispatcher dispatcher = new RequestDispatcher(
                 mockClusterService(clusterState),
                 transportService,
+                TestProjectResolvers.singleProject(projectId),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -418,19 +428,20 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     public void testSuccessWithAnyMatch() throws Exception {
         final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
+        final ProjectId projectId = randomProjectIdOrDefault();
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
                 discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
             }
-            Metadata.Builder metadata = Metadata.builder();
+            ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
                 metadata.put(
                     IndexMetadata.builder(index).settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, between(2, 10), between(0, 2)))
                 );
             }
-            clusterState = newClusterState(metadata.build(), discoNodes.build());
+            clusterState = newClusterState(Metadata.builder().put(metadata).build(), discoNodes.build());
         }
         try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
             final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
@@ -440,6 +451,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final RequestDispatcher dispatcher = new RequestDispatcher(
                 mockClusterService(clusterState),
                 transportService,
+                TestProjectResolvers.singleProject(projectId),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -514,19 +526,20 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     public void testStopAfterAllShardsUnmatched() throws Exception {
         final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
+        final ProjectId projectId = randomProjectIdOrDefault();
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
                 discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
             }
-            Metadata.Builder metadata = Metadata.builder();
+            ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
                 metadata.put(
                     IndexMetadata.builder(index).settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, between(1, 10), between(0, 2)))
                 );
             }
-            clusterState = newClusterState(metadata.build(), discoNodes.build());
+            clusterState = newClusterState(Metadata.builder().put(metadata).build(), discoNodes.build());
         }
         try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
             final List<String> indices = randomSubsetOf(between(1, allIndices.size()), allIndices);
@@ -536,6 +549,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final RequestDispatcher dispatcher = new RequestDispatcher(
                 mockClusterService(clusterState),
                 transportService,
+                TestProjectResolvers.singleProject(projectId),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -605,19 +619,20 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     public void testFailWithSameException() throws Exception {
         final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
         final ClusterState clusterState;
+        final ProjectId projectId = randomProjectIdOrDefault();
         {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
                 discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
             }
-            Metadata.Builder metadata = Metadata.builder();
+            ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
                 metadata.put(
                     IndexMetadata.builder(index).settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, between(1, 10), between(0, 3)))
                 );
             }
-            clusterState = newClusterState(metadata.build(), discoNodes.build());
+            clusterState = newClusterState(Metadata.builder().put(metadata).build(), discoNodes.build());
         }
         try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
             final List<String> targetIndices = randomSubsetOf(between(1, allIndices.size()), allIndices);
@@ -626,6 +641,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final RequestDispatcher dispatcher = new RequestDispatcher(
                 mockClusterService(clusterState),
                 transportService,
+                TestProjectResolvers.singleProject(projectId),
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
                 OriginalIndices.NONE,
@@ -950,14 +966,18 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
     }
 
     private ClusterState newClusterState(Metadata metadata, DiscoveryNodes discoveryNodes) {
-        final RoutingTable.Builder routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        for (IndexMetadata imd : metadata) {
-            routingTable.addAsNew(metadata.index(imd.getIndex()));
+        GlobalRoutingTable.Builder routingTables = GlobalRoutingTable.builder();
+        for (var p : metadata.projects().entrySet()) {
+            RoutingTable.Builder routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+            for (IndexMetadata imd : p.getValue()) {
+                routingTable.addAsNew(p.getValue().index(imd.getIndex()));
+            }
+            routingTables.put(p.getKey(), routingTable.build());
         }
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
             .metadata(metadata)
-            .routingTable(routingTable.build())
+            .routingTable(routingTables.build())
             .build();
         final Settings settings = Settings.EMPTY;
         final ClusterSettings clusterSettings = createBuiltInClusterSettings(settings);

@@ -114,7 +114,6 @@ public class MistralService extends SenderService {
             List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
                 inputs.getInputs(),
                 MistralConstants.MAX_BATCH_SIZE,
-                EmbeddingRequestChunker.EmbeddingType.FLOAT,
                 chunkingSettings != null ? chunkingSettings : mistralEmbeddingsModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 

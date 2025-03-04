@@ -1,4 +1,0 @@
-entitlement-module-name:
-  - files:
-      - path: "/test/path/to/file"
-        mode: "read_write"

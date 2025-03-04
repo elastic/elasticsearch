@@ -38,8 +38,6 @@ import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.BWCLucene50PostingsFor
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene54.Lucene54DocValuesFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60MetadataOnlyPointsFormat;
 
-import java.util.Objects;
-
 /**
  * Implements the Lucene 6.2 index format.
  *

@@ -92,7 +92,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
 
         try (var service = createElasticInferenceService()) {
             ensureAuthorizationCallFinished(service);
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
 
             assertThat(
                 service.defaultConfigIds(),
@@ -128,7 +128,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             try (var service = createElasticInferenceService()) {
                 ensureAuthorizationCallFinished(service);
 
-                assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
+                assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
                 assertThat(
                     service.defaultConfigIds(),
                     is(
@@ -203,7 +203,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             try (var service = createElasticInferenceService()) {
                 ensureAuthorizationCallFinished(service);
 
-                assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
+                assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
                 assertThat(
                     service.defaultConfigIds(),
                     is(

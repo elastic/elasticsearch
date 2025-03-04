@@ -109,7 +109,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
             });
 
             var productOrigin = threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
-            var request = new ElasticInferenceServiceAuthorizationRequest(baseUrl, getCurrentTraceInfo());
+            var request = new ElasticInferenceServiceAuthorizationRequest(baseUrl, getCurrentTraceInfo(), productOrigin);
 
             sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, newListener);
         } catch (Exception e) {

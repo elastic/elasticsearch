@@ -124,6 +124,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
             embeddingsModel,
             new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
+            randomAlphaOfLength(10),
             inputType
         );
     }

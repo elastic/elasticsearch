@@ -28,7 +28,6 @@ import static org.elasticsearch.core.Strings.format;
 public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
 
     static final String GOOGLE_AI_STUDIO_UNAVAILABLE = "The Google AI Studio service may be temporarily overloaded or down";
-    private final boolean canHandleStreamingResponses;
     private final CheckedFunction<XContentParser, String, IOException> content;
 
     public GoogleAiStudioResponseHandler(String requestType, ResponseParser parseFunction) {
@@ -44,8 +43,7 @@ public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
         boolean canHandleStreamingResponses,
         CheckedFunction<XContentParser, String, IOException> content
     ) {
-        super(requestType, parseFunction, GoogleAiStudioErrorResponseEntity::fromResponse);
-        this.canHandleStreamingResponses = canHandleStreamingResponses;
+        super(requestType, parseFunction, GoogleAiStudioErrorResponseEntity::fromResponse, canHandleStreamingResponses);
         this.content = content;
     }
 
@@ -86,11 +84,6 @@ public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
 
     private static String resourceNotFoundError(Request request) {
         return format("Resource not found at [%s]", request.getURI());
-    }
-
-    @Override
-    public boolean canHandleStreamingResponses() {
-        return canHandleStreamingResponses;
     }
 
     @Override

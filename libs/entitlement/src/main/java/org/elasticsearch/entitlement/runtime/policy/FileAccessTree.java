@@ -52,9 +52,12 @@ public final class FileAccessTree {
         for (ExclusiveFileEntitlement efe : exclusiveFileEntitlements) {
             for (FilesEntitlement.FileData fd : efe.filesEntitlement().filesData()) {
                 if (fd.exclusive()) {
+                    logger.info("Adding exclusive entitlement " + fd);
                     List<Path> paths = fd.resolvePaths(pathLookup).toList();
                     for (Path path : paths) {
-                        exclusivePaths.add(new ExclusivePath(efe.componentName(), efe.moduleName(), normalizePath(path)));
+                        var exclusivePath = new ExclusivePath(efe.componentName(), efe.moduleName(), normalizePath(path));
+                        logger.info("Adding exclusive path " + exclusivePath);
+                        exclusivePaths.add(exclusivePath);
                     }
                 }
             }

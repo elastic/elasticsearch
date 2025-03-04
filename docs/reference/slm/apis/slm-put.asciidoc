@@ -89,7 +89,8 @@ Retention rules used to retain and delete snapshots created by the policy.
 (Optional, <<time-units, time units>>)
 Time period after which a snapshot is considered expired and eligible for
 deletion. {slm-init} deletes expired snapshots based on the
-<<slm-retention-schedule,`slm.retention_schedule`>>.
+<<slm-retention-schedule,`slm.retention_schedule`>>. 
+`PARTIAL` snapshots will be removed according to this setting.
 
 `max_count`::
 (Optional, integer)

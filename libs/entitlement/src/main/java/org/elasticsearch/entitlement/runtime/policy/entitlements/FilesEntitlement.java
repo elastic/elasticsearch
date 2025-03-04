@@ -50,6 +50,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
         Mode mode();
 
+        FileData withMode(Mode mode);
+
         boolean exclusive();
 
         FileData withExclusive(boolean exclusive);
@@ -119,6 +121,11 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
 
         @Override
+        public FileData withMode(Mode mode) {
+            return new AbsolutePathFileData(path, mode, platform, exclusive);
+        }
+
+        @Override
         public FileData withPlatform(Platform platform) {
             if (platform == platform()) {
                 return this;
@@ -131,6 +138,11 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         implements
             FileData,
             RelativeFileData {
+
+        @Override
+        public FileData withMode(Mode mode) {
+            return new RelativePathFileData(relativePath, baseDir, mode, platform, exclusive);
+        }
 
         @Override
         public RelativePathFileData withExclusive(boolean exclusive) {
@@ -154,6 +166,11 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
     private record PathSettingFileData(String setting, BaseDir baseDir, Mode mode, Platform platform, boolean exclusive)
         implements
             RelativeFileData {
+
+        @Override
+        public FileData withMode(Mode mode) {
+            return new PathSettingFileData(setting, baseDir, mode, platform, exclusive);
+        }
 
         @Override
         public PathSettingFileData withExclusive(boolean exclusive) {

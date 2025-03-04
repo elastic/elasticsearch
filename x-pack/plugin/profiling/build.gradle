@@ -11,7 +11,11 @@ esplugin {
   name = 'x-pack-profiling'
   description = 'The profiling plugin adds support for retrieving data from Universal Profiling.'
   classname = 'org.elasticsearch.xpack.profiling.ProfilingPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
 }
 
 dependencies {

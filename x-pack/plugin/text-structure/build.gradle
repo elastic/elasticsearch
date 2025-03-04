@@ -3,7 +3,11 @@ esplugin {
   name = 'x-pack-text-structure'
   description = 'Elasticsearch Expanded Pack Plugin - Text Structure'
   classname ='org.elasticsearch.xpack.textstructure.TextStructurePlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
 }
 base {
   archivesName = 'x-pack-text-structure'

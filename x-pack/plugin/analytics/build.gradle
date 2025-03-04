@@ -13,7 +13,11 @@ esplugin {
   name = 'x-pack-analytics'
   description = 'Elasticsearch Expanded Pack Plugin - Analytics'
   classname ='org.elasticsearch.xpack.analytics.AnalyticsPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
 }
 base {
   archivesName = 'x-pack-analytics'

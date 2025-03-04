@@ -4,7 +4,11 @@ esplugin {
   name = 'x-pack-downsample'
   description = 'Elasticsearch Expanded Pack Plugin - Downsample'
   classname ='org.elasticsearch.xpack.downsample.Downsample'
-  extendedPlugins = ['x-pack-aggregate-metric']
+  extendedPluginProjects {
+    "x-pack-aggregate-metric" {
+      path = ':x-pack:plugin:mapper-aggregate-metric'
+    }
+  }
 }
 
 base {

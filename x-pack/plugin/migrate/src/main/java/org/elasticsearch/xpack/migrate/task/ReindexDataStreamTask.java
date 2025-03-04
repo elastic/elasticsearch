@@ -55,6 +55,7 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
         this.persistentTaskStartTime = persistentTaskStartTime;
         this.initialTotalIndices = initialTotalIndices;
         this.initialTotalIndicesToBeUpgraded = initialTotalIndicesToBeUpgraded;
+        this.pending.set(initialTotalIndicesToBeUpgraded);
         this.completeTask = new RunOnce(() -> {
             if (exception == null) {
                 markAsCompleted();

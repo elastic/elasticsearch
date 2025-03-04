@@ -111,7 +111,8 @@ public abstract class JarApiComparisonTask extends PrecommitTask {
         List<String> classNames() throws IOException {
             Pattern classEnding = Pattern.compile(".*\\.class$");
             try (JarFile jf = new JarFile(this.path)) {
-                return jf.stream().map(ZipEntry::getName)
+                return jf.stream()
+                    .map(ZipEntry::getName)
                     .filter(classEnding.asMatchPredicate())
                     .filter(c -> c.startsWith("org/elasticsearch/logging/internal/") == false)
                     .collect(Collectors.toList());

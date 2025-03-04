@@ -331,7 +331,10 @@ public class JobResultsProvider {
         ActionListener<Boolean> indexAndMappingsListener = ActionListener.wrap(success -> {
             final IndicesAliasesRequest request = client.admin()
                 .indices()
-                .prepareAliases()
+                .prepareAliases(
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT
+                )
                 .addAliasAction(
                     IndicesAliasesRequest.AliasActions.add()
                         .index(indexName)

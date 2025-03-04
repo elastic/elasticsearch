@@ -264,6 +264,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             int totalMergeTasksCount = mergeExecutorThreadCount + randomIntBetween(1, 5);
             Semaphore runMergeSemaphore = new Semaphore(0);
             ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
+            // submit all merge tasks
             for (int i = 0; i < totalMergeTasksCount; i++) {
                 MergeTask mergeTask = mock(MergeTask.class);
                 when(mergeTask.supportsIOThrottling()).thenReturn(randomBoolean());
@@ -285,6 +286,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 }).when(mergeTask).run();
                 threadPoolMergeExecutorService.submitMergeTask(mergeTask);
             }
+            // assert stats while merge tasks finish
             for (int completedTasksCount = 0; completedTasksCount < totalMergeTasksCount
                 - mergeExecutorThreadCount; completedTasksCount++) {
                 int finalCompletedTasksCount = completedTasksCount;
@@ -306,7 +308,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 // let one merge task finish running
                 runMergeSemaphore.release();
             }
-            // merge tasks started drying out
+            // there are now fewer merge tasks still running than available threads
             for (int remainingMergeTasksCount = mergeExecutorThreadCount; remainingMergeTasksCount >= 0; remainingMergeTasksCount--) {
                 int finalRemainingMergeTasksCount = remainingMergeTasksCount;
                 assertBusy(() -> {

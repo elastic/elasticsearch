@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -146,6 +147,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             @Nullable String query,
             List<String> input,
             Map<String, Object> taskSettings,
+            ChunkingSettings chunkingSettings,
             InputType inputType,
             TimeValue timeout,
             ActionListener<List<ChunkedInference>> listener
@@ -153,7 +155,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             switch (model.getConfigurations().getTaskType()) {
                 case ANY, TEXT_EMBEDDING -> {
                     ServiceSettings modelServiceSettings = model.getServiceSettings();
-                    listener.onResponse(makeChunkedResults(input, modelServiceSettings.dimensions()));
+                    listener.onResponse(makeChunkedResults(input, modelServiceSettings.dimensions(), chunkingSettings));
                 }
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
@@ -171,6 +173,11 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                 embeddings.add(TextEmbeddingFloatResults.Embedding.of(floatEmbeddings));
             }
             return new TextEmbeddingFloatResults(embeddings);
+        }
+
+        private List<ChunkedInference> makeChunkedResults(List<String> input, int dimensions, ChunkingSettings chunkingSettings) {
+            List<String> chunkedInputs = chunkInputs(input, chunkingSettings);
+            return makeChunkedResults(chunkedInputs, dimensions);
         }
 
         private List<ChunkedInference> makeChunkedResults(List<String> input, int dimensions) {

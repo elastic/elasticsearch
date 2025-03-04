@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 
 public class TestSparseInferenceServiceExtension implements InferenceServiceExtension {
+
     @Override
     public List<Factory> getInferenceServiceFactories() {
         return List.of(TestInferenceService::new);
@@ -136,12 +138,13 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             @Nullable String query,
             List<String> input,
             Map<String, Object> taskSettings,
+            ChunkingSettings chunkingSettings,
             InputType inputType,
             TimeValue timeout,
             ActionListener<List<ChunkedInference>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input));
+                case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input, chunkingSettings));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -161,6 +164,11 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
                 embeddings.add(new SparseEmbeddingResults.Embedding(tokens, false));
             }
             return new SparseEmbeddingResults(embeddings);
+        }
+
+        private List<ChunkedInference> makeChunkedResults(List<String> input, ChunkingSettings chunkingSettings) {
+            List<String> chunkedInputs = chunkInputs(input, chunkingSettings);
+            return makeChunkedResults(chunkedInputs);
         }
 
         private List<ChunkedInference> makeChunkedResults(List<String> input) {

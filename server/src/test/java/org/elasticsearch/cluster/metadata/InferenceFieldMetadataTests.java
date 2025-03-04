@@ -15,7 +15,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.function.Predicate;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -38,11 +38,6 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
     }
 
     @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return p -> p.equals(""); // do not add elements at the top-level as any element at this level is parsed as a new inference field
-    }
-
-    @Override
     protected InferenceFieldMetadata doParseInstance(XContentParser parser) throws IOException {
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
             parser.nextToken();
@@ -55,7 +50,7 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
+        return false;
     }
 
     private static InferenceFieldMetadata createTestItem() {
@@ -63,13 +58,45 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
         String inferenceId = randomIdentifier();
         String searchInferenceId = randomIdentifier();
         String[] inputFields = generateRandomStringArray(5, 10, false, false);
-        return new InferenceFieldMetadata(name, inferenceId, searchInferenceId, inputFields);
+        Map<String, Object> chunkingSettings = generateRandomChunkingSettings();
+        return new InferenceFieldMetadata(name, inferenceId, searchInferenceId, inputFields, chunkingSettings);
+    }
+
+    public static Map<String, Object> generateRandomChunkingSettings() {
+        if (randomBoolean()) {
+            return null; // Defaults to model chunking settings
+        }
+        return randomBoolean() ? generateRandomWordBoundaryChunkingSettings() : generateRandomSentenceBoundaryChunkingSettings();
+    }
+
+    private static Map<String, Object> generateRandomWordBoundaryChunkingSettings() {
+        return Map.of("strategy", "word_boundary", "max_chunk_size", randomIntBetween(20, 100), "overlap", randomIntBetween(0, 50));
+    }
+
+    private static Map<String, Object> generateRandomSentenceBoundaryChunkingSettings() {
+        return Map.of(
+            "strategy",
+            "sentence_boundary",
+            "max_chunk_size",
+            randomIntBetween(20, 100),
+            "sentence_overlap",
+            randomIntBetween(0, 1)
+        );
     }
 
     public void testNullCtorArgsThrowException() {
-        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata(null, "inferenceId", "searchInferenceId", new String[0]));
-        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", null, "searchInferenceId", new String[0]));
-        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", "inferenceId", null, new String[0]));
-        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", "inferenceId", "searchInferenceId", null));
+        assertThrows(
+            NullPointerException.class,
+            () -> new InferenceFieldMetadata(null, "inferenceId", "searchInferenceId", new String[0], Map.of())
+        );
+        assertThrows(
+            NullPointerException.class,
+            () -> new InferenceFieldMetadata("name", null, "searchInferenceId", new String[0], Map.of())
+        );
+        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", "inferenceId", null, new String[0], Map.of()));
+        assertThrows(
+            NullPointerException.class,
+            () -> new InferenceFieldMetadata("name", "inferenceId", "searchInferenceId", null, Map.of())
+        );
     }
 }

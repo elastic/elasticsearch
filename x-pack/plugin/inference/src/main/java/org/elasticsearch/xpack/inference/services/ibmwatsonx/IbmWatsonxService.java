@@ -301,6 +301,7 @@ public class IbmWatsonxService extends SenderService {
         Model model,
         DocumentsOnlyInput input,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
@@ -310,7 +311,7 @@ public class IbmWatsonxService extends SenderService {
         var batchedRequests = new EmbeddingRequestChunker(
             input.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            model.getConfigurations().getChunkingSettings()
+            chunkingSettings != null ? chunkingSettings : model.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {
             var action = ibmWatsonxModel.accept(getActionCreator(getSender(), getServiceComponents()), taskSettings, inputType);

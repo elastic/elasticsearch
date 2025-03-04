@@ -54,7 +54,7 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
     public void testSparseVectorQueryOnInferenceFieldIsInterceptedAndRewritten() throws IOException {
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
             FIELD_NAME,
-            new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME })
+            new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME }, null)
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
         QueryBuilder original = new SparseVectorQueryBuilder(FIELD_NAME, INFERENCE_ID, QUERY);
@@ -78,7 +78,7 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
     public void testSparseVectorQueryOnInferenceFieldWithoutInferenceIdIsInterceptedAndRewritten() throws IOException {
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
             FIELD_NAME,
-            new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME })
+            new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME }, null)
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
         QueryBuilder original = new SparseVectorQueryBuilder(FIELD_NAME, null, QUERY);

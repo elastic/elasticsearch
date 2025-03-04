@@ -173,7 +173,10 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             InputType.INTERNAL_INGEST
         );
 
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new CohereEmbeddingsTaskSettings(InputType.INTERNAL_INGEST, CohereTruncation.END)));
+        MatcherAssert.assertThat(
+            overriddenTaskSettings,
+            is(new CohereEmbeddingsTaskSettings(InputType.INTERNAL_INGEST, CohereTruncation.END))
+        );
     }
 
     @Override

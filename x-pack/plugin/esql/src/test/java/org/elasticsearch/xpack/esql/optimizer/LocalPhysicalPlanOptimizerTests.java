@@ -87,6 +87,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -1609,6 +1610,43 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             .prefixLength(3)
             .lenient(true);
         assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
+    }
+
+    public void testQStrOptionsPushDown() {
+        String query = """
+            from test
+            | where QSTR("first_name: Anna", {"allow_leading_wildcard": "true", "analyze_wildcard": "true",
+            "analyzer": "auto", "auto_generate_synonyms_phrase_query": "false", "default_field": "test", "default_operator": "AND",
+            "enable_position_increments": "true", "fuzziness": "auto", "fuzzy_max_expansions": 4, "fuzzy_prefix_length": 3,
+            "fuzzy_transpositions": "true", "lenient": "false", "max_determinized_states": 10, "minimum_should_match": 3,
+            "quote_analyzer": "q_analyzer", "quote_field_suffix": "q_field_suffix", "phrase_slop": 20, "rewrite": "fuzzy",
+            "time_zone": "America/Los_Angeles"})
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        AtomicReference<String> planStr = new AtomicReference<>();
+        plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
+
+        var expectedQStrQuery = new QueryStringQueryBuilder("first_name: Anna").allowLeadingWildcard(true)
+            .analyzeWildcard(true)
+            .analyzer("auto")
+            .autoGenerateSynonymsPhraseQuery(false)
+            .defaultField("test")
+            .defaultOperator(Operator.fromString("AND"))
+            .enablePositionIncrements(true)
+            .fuzziness(Fuzziness.fromString("auto"))
+            .fuzzyPrefixLength(3)
+            .fuzzyMaxExpansions(4)
+            .fuzzyTranspositions(true)
+            .lenient(false)
+            .maxDeterminizedStates(10)
+            .minimumShouldMatch("3")
+            .quoteAnalyzer("q_analyzer")
+            .quoteFieldSuffix("q_field_suffix")
+            .phraseSlop(20)
+            .rewrite("fuzzy")
+            .timeZone("America/Los_Angeles");
+        assertThat(expectedQStrQuery.toString(), is(planStr.get()));
     }
 
     /**

@@ -150,6 +150,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return reduced;
     }
 
+    /**
+     * See {@link #isPartiallyReduced()}, calling this method marks this hit as having undergone partial reduction on the data node.
+     */
     public void markAsPartiallyReduced() {
         assert (hasConsumedTopDocs() || topDocsAndMaxScore.topDocs.scoreDocs.length == 0) && aggregations == null
             : "result not yet partially reduced [" + topDocsAndMaxScore + "][" + aggregations + "]";

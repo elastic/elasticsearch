@@ -545,7 +545,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
     }
 
-    public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
+    private static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
 
     private static final CircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("request");
 

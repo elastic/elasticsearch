@@ -73,7 +73,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final Consumer<Exception> onPartialMergeFailure;
 
     private final int batchReduceSize;
-    List<QuerySearchResult> buffer = new ArrayList<>();
+    private List<QuerySearchResult> buffer = new ArrayList<>();
     private List<SearchShard> emptyResults = new ArrayList<>();
     // the memory that is accounted in the circuit breaker for this consumer
     private volatile long circuitBreakerBytes;

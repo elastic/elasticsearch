@@ -279,13 +279,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements Chunke
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
 
-            failures.isEmpty()
-                ? Collections.emptyIterator()
-                : Iterators.concat(
-                    ChunkedToXContentHelper.startArray(Fields.FAILURES),
-                    failures.iterator(),
-                    ChunkedToXContentHelper.endArray()
-                ),
+            failures.isEmpty() ? Collections.emptyIterator() : ChunkedToXContentHelper.array(Fields.FAILURES, failures.iterator()),
 
             ChunkedToXContentHelper.startObject(Fields.INDICES),
 

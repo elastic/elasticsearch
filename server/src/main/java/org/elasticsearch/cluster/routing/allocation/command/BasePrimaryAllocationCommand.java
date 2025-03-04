@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -24,16 +25,16 @@ public abstract class BasePrimaryAllocationCommand extends AbstractAllocateAlloc
 
     private static final String ACCEPT_DATA_LOSS_FIELD = "accept_data_loss";
 
-    protected static <T extends Builder<?>> ObjectParser<T, Void> createAllocatePrimaryParser(String command) {
-        ObjectParser<T, Void> parser = AbstractAllocateAllocationCommand.createAllocateParser(command);
+    protected static <T extends Builder<?>> ObjectParser<T, ProjectId> createAllocatePrimaryParser(String command) {
+        ObjectParser<T, ProjectId> parser = AbstractAllocateAllocationCommand.createAllocateParser(command);
         parser.declareBoolean(Builder::setAcceptDataLoss, new ParseField(ACCEPT_DATA_LOSS_FIELD));
         return parser;
     }
 
     protected final boolean acceptDataLoss;
 
-    protected BasePrimaryAllocationCommand(String index, int shardId, String node, boolean acceptDataLoss) {
-        super(index, shardId, node);
+    protected BasePrimaryAllocationCommand(String index, int shardId, String node, boolean acceptDataLoss, ProjectId projectId) {
+        super(index, shardId, node, projectId);
         this.acceptDataLoss = acceptDataLoss;
     }
 
@@ -62,6 +63,10 @@ public abstract class BasePrimaryAllocationCommand extends AbstractAllocateAlloc
 
     protected abstract static class Builder<T extends BasePrimaryAllocationCommand> extends AbstractAllocateAllocationCommand.Builder<T> {
         protected boolean acceptDataLoss;
+
+        Builder(ProjectId projectId) {
+            super(projectId);
+        }
 
         public void setAcceptDataLoss(boolean acceptDataLoss) {
             this.acceptDataLoss = acceptDataLoss;

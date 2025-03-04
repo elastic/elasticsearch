@@ -32,11 +32,13 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -375,8 +377,9 @@ public class TransportRolloverActionTests extends ESTestCase {
             .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
+        final var projectId = randomProjectIdOrDefault();
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata).put(indexMetadata2))
             .build();
 
         when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean(), any())).thenReturn(stateBefore);
@@ -387,6 +390,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             mockClusterService,
             mockThreadPool,
             mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
             mockIndexNameExpressionResolver,
             rolloverService,
             mockClient,
@@ -438,25 +442,27 @@ public class TransportRolloverActionTests extends ESTestCase {
             .setMetadata(Map.of())
             .setIndexMode(IndexMode.STANDARD)
             .build();
+        final var projectId = randomProjectIdOrDefault();
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(backingIndexMetadata, false).put(dataStream))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(backingIndexMetadata, false).put(dataStream))
             .build();
 
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
-            assert args.length == 6;
+            assert args.length == 7;
             @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) args[5];
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) args[6];
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
         }).when(mockMetadataDataStreamService)
-            .setRolloverOnWrite(eq(dataStream.getName()), eq(true), eq(false), any(), any(), anyActionListener());
+            .setRolloverOnWrite(eq(projectId), eq(dataStream.getName()), eq(true), eq(false), any(), any(), anyActionListener());
 
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
             mock(TransportService.class),
             mockClusterService,
             mockThreadPool,
             mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
             mockIndexNameExpressionResolver,
             rolloverService,
             mockClient,
@@ -495,8 +501,9 @@ public class TransportRolloverActionTests extends ESTestCase {
             .setMetadata(Map.of())
             .setIndexMode(IndexMode.STANDARD)
             .build();
+        final var projectId = randomProjectIdOrDefault();
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata).put(backingIndexMetadata, false).put(dataStream))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata).put(backingIndexMetadata, false).put(dataStream))
             .build();
 
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
@@ -504,6 +511,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             mockClusterService,
             mockThreadPool,
             mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
             mockIndexNameExpressionResolver,
             rolloverService,
             mockClient,
@@ -559,15 +567,17 @@ public class TransportRolloverActionTests extends ESTestCase {
             .setMetadata(Map.of())
             .setIndexMode(IndexMode.STANDARD)
             .build();
-        Metadata.Builder metadataBuilder = Metadata.builder().put(backingIndexMetadata, false).put(dataStream);
+        final var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId).put(backingIndexMetadata, false).put(dataStream);
         metadataBuilder.put("ds-alias", dataStream.getName(), true, null);
-        final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
+        final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(metadataBuilder).build();
 
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
             mock(TransportService.class),
             mockClusterService,
             mockThreadPool,
             mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
             mockIndexNameExpressionResolver,
             rolloverService,
             mockClient,
@@ -584,11 +594,13 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testCheckBlockForIndices() {
+        final var projectId = randomProjectIdOrDefault();
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
             mock(TransportService.class),
             mockClusterService,
             mockThreadPool,
             mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
             mockIndexNameExpressionResolver,
             rolloverService,
             mockClient,
@@ -607,19 +619,19 @@ public class TransportRolloverActionTests extends ESTestCase {
             .numberOfReplicas(1)
             .build();
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata1).put(indexMetadata2, false))
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata2))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata1).put(indexMetadata2, false))
+            .blocks(ClusterBlocks.builder().addBlocks(projectId, indexMetadata2))
             .build();
         {
             RolloverRequest rolloverRequest = new RolloverRequest("my-alias", "my-new-index");
-            when(mockIndexNameExpressionResolver.concreteIndexNames(any(), any(), (IndicesRequest) any())).thenReturn(
+            when(mockIndexNameExpressionResolver.concreteIndexNames(any(ProjectMetadata.class), any(), (IndicesRequest) any())).thenReturn(
                 new String[] { "my-index-1" }
             );
             assertNull(transportRolloverAction.checkBlock(rolloverRequest, stateBefore));
         }
         {
             RolloverRequest rolloverRequest = new RolloverRequest("my-index-2", "my-new-index");
-            when(mockIndexNameExpressionResolver.concreteIndexNames(any(), any(), (IndicesRequest) any())).thenReturn(
+            when(mockIndexNameExpressionResolver.concreteIndexNames(any(ProjectMetadata.class), any(), (IndicesRequest) any())).thenReturn(
                 new String[] { "my-index-2" }
             );
             assertNotNull(transportRolloverAction.checkBlock(rolloverRequest, stateBefore));
@@ -627,11 +639,13 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testCheckBlockForDataStreams() {
+        final var projectId = randomProjectIdOrDefault();
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
             mock(TransportService.class),
             mockClusterService,
             mockThreadPool,
             mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
             mockIndexNameExpressionResolver,
             rolloverService,
             mockClient,
@@ -643,6 +657,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         {
             // First, make sure checkBlock returns null when there are no blocks
             final ClusterState clusterState = createDataStream(
+                projectId,
                 dataStreamName,
                 false,
                 false,
@@ -656,6 +671,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         {
             // Make sure checkBlock returns null when indices other than the write index have blocks
             final ClusterState clusterState = createDataStream(
+                projectId,
                 dataStreamName,
                 false,
                 true,
@@ -669,6 +685,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         {
             // Make sure checkBlock returns null when indices other than the write index have blocks and we use "::data"
             final ClusterState clusterState = createDataStream(
+                projectId,
                 dataStreamName,
                 false,
                 true,
@@ -682,6 +699,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         {
             // Make sure checkBlock returns an exception when the write index has a block
             ClusterState clusterState = createDataStream(
+                projectId,
                 dataStreamName,
                 true,
                 randomBoolean(),
@@ -699,6 +717,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         {
             // Make sure checkBlock returns an exception when the write index has a block and we use "::data"
             ClusterState clusterState = createDataStream(
+                projectId,
                 dataStreamName,
                 true,
                 randomBoolean(),
@@ -713,11 +732,13 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testCheckBlockForDataStreamFailureStores() {
+        final var projectId = randomProjectIdOrDefault();
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
             mock(TransportService.class),
             mockClusterService,
             mockThreadPool,
             mockActionFilters,
+            TestProjectResolvers.singleProject(projectId),
             mockIndexNameExpressionResolver,
             rolloverService,
             mockClient,
@@ -728,25 +749,34 @@ public class TransportRolloverActionTests extends ESTestCase {
         String dataStreamName = randomAlphaOfLength(20);
         {
             // Make sure checkBlock returns no exception when there is no failure store block
-            ClusterState clusterState = createDataStream(dataStreamName, randomBoolean(), randomBoolean(), true, false, false);
+            ClusterState clusterState = createDataStream(projectId, dataStreamName, randomBoolean(), randomBoolean(), true, false, false);
             RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName + "::failures", null);
             assertNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
         }
         {
             // Make sure checkBlock returns an exception when the failure store write index has a block
-            ClusterState clusterState = createDataStream(dataStreamName, randomBoolean(), randomBoolean(), true, true, randomBoolean());
+            ClusterState clusterState = createDataStream(
+                projectId,
+                dataStreamName,
+                randomBoolean(),
+                randomBoolean(),
+                true,
+                true,
+                randomBoolean()
+            );
             RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName + "::failures", null);
             assertNotNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
         }
         {
             // Make sure checkBlock returns no exception when failure store non-write indices have a block
-            ClusterState clusterState = createDataStream(dataStreamName, randomBoolean(), randomBoolean(), true, false, true);
+            ClusterState clusterState = createDataStream(projectId, dataStreamName, randomBoolean(), randomBoolean(), true, false, true);
             RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName + "::failures", null);
             assertNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
         }
     }
 
     private ClusterState createDataStream(
+        ProjectId projectId,
         String dataStreamName,
         boolean blockOnWriteIndex,
         boolean blocksOnNonWriteIndices,
@@ -755,7 +785,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         boolean blockOnFailureStoreNonWriteIndices
     ) {
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(ClusterName.DEFAULT);
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
         ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder();
         List<Index> indices = new ArrayList<>();
         int totalIndices = randomIntBetween(1, 20);
@@ -769,9 +799,9 @@ public class TransportRolloverActionTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();
-            metadataBuilder.put(backingIndexMetadata, false);
+            projectBuilder.put(backingIndexMetadata, false);
             indices.add(backingIndexMetadata.getIndex());
-            clusterBlocksBuilder.addBlocks(backingIndexMetadata);
+            clusterBlocksBuilder.addBlocks(projectId, backingIndexMetadata);
         }
 
         DataStream.Builder dataStreamBuilder = DataStream.builder(dataStreamName, indices)
@@ -790,14 +820,14 @@ public class TransportRolloverActionTests extends ESTestCase {
                     DataStream.getDefaultFailureStoreName(dataStreamName, i + 1, randomMillisUpToYear9999())
                 ).settings(settingsBuilder).numberOfShards(1).numberOfReplicas(1).build();
                 failureStoreIndices.add(failureStoreIndexMetadata.getIndex());
-                clusterBlocksBuilder.addBlocks(failureStoreIndexMetadata);
+                clusterBlocksBuilder.addBlocks(projectId, failureStoreIndexMetadata);
             }
             dataStreamBuilder.setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStoreIndices).build());
         }
         clusterStateBuilder.blocks(clusterBlocksBuilder);
         final DataStream dataStream = dataStreamBuilder.build();
-        metadataBuilder.put(dataStream);
-        return clusterStateBuilder.metadata(metadataBuilder).build();
+        projectBuilder.put(dataStream);
+        return clusterStateBuilder.putProjectMetadata(projectBuilder).build();
     }
 
     private IndicesStatsResponse createIndicesStatResponse(String indexName, long totalDocs, long primariesDocs) {

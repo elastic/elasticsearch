@@ -122,9 +122,14 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         return PERSISTENT_TASKS_PARSER.apply(parser, null).build();
     }
 
-    @SuppressWarnings("unchecked")
+    @Deprecated(forRemoval = true)
     public static <Params extends PersistentTaskParams> PersistentTask<Params> getTaskWithId(ClusterState clusterState, String taskId) {
-        PersistentTasksCustomMetadata tasks = get(clusterState.metadata().getProject());
+        return getTaskWithId(clusterState.metadata().getProject(), taskId);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <Params extends PersistentTaskParams> PersistentTask<Params> getTaskWithId(ProjectMetadata project, String taskId) {
+        PersistentTasksCustomMetadata tasks = get(project);
         if (tasks != null) {
             return (PersistentTask<Params>) tasks.getTask(taskId);
         }

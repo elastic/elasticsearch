@@ -9,6 +9,7 @@ dependencies {
   testImplementation project(':x-pack:qa:multi-project:yaml-test-framework')
   testImplementation(testArtifact(project(":x-pack:plugin:security:qa:service-account"), "javaRestTest"))
   restXpackTestConfig project(path: ':x-pack:plugin:ilm:qa:rest', configuration: "basicRestSpecs")
+  restXpackTestConfig project(path: ':x-pack:plugin:downsample:qa:rest', configuration: "basicRestSpecs")
 }
 
 // let the yamlRestTests see the classpath of test
@@ -141,7 +142,6 @@ tasks.named("yamlRestTest").configure {
     '^security/authz/14_cat_indices/*',
     '^security/authz/14_cat_indices/Test explicit request while multiple opened/*',
     '^security/authz/60_resolve_index/*',
-    '^security/authz/80_downsample/*',
     '^security/settings/10_update_security_settings/*',
     '^snapshot/10_basic/*',
     '^snapshot/20_operator_privileges_disabled/*',

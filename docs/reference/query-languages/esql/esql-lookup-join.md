@@ -33,13 +33,13 @@ The `LOOKUP JOIN` command adds new columns to a table, with data from {{es}} ind
 $$$esql-source-index$$$
 
 Source index
-:   An index which stores enrich data that the `LOOKUP` command can add to input tables. You can create and manage these indices just like a regular {{es}} index. You can use multiple source indices in an enrich policy. You also can use the same source index in multiple enrich policies.
+:   An index which stores data that the `LOOKUP` command can add to input tables. You can create and manage these indices just like a regular {{es}} index. You also can use the same source index in multiple lookup joins.
 
 ## Example
 
 In the case where there are multiple matches on the index `LOOKUP JOIN` the output rows is the combination of each match from the left with each match on the right. 
 
-Image you have the two tables:
+Imagine you have the two tables:
 
 **Left**
 
@@ -97,8 +97,8 @@ The following are the current limitations with `LOOKUP JOIN`
 * Indices in [lookup](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) mode are always single-sharded.
 * Cross cluster search is unsupported. Both source and lookup indicies must be local.
 * `LOOKUP JOIN` can only use a single match field, and can only use a single index. Wildcards, aliases, and datastreams are not supported.
-* The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require renames or evals to achieve it.
-* The query will circuit break if you fetch too much data in a single page. A large heap is needed to manage results of multiple megabytes.
+* The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require renames or evals to achieve.
+* The query will circuit break if many documents from the lookup index have the same key. A large heap is needed to manage results of multiple megabytes per key.
   * This limit is per page of data which is about about 10,000 rows.
   * Matching many rows per incoming row will count against this limit.
   * This limit is approximately the same as for [`ENRICH`](/reference/query-languages/esql/esql-commands.md#esql-enrich).

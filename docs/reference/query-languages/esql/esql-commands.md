@@ -691,7 +691,7 @@ FROM firewall_logs
 | LOOKUP JOIN threat_list ON source.IP
 ```
 
-**Host metadata correctlation**: This query pulls in environment or ownership details for each host to correlate your metrics data.
+**Host metadata correlation**: This query pulls in environment or ownership details for each host to correlate with your metrics data.
 
 ```esql
 FROM system_metrics

@@ -17,7 +17,7 @@ For example, you can use `ENRICH` to:
 
 [`ENRICH`](/reference/query-languages/esql/esql-commands.md#esql-enrich) is similar to [`LOOKUP join`](/reference/query-languages/esql/esql-commands.md#esql-lookup-join) in the fact that they both help you join data together. You should use `ENRICH` when:
 
-* Enrichment data doesn't changes frequently
+* Enrichment data doesn't change frequently
 * You can accept index-time overhead
 * You are working with structured enrichment patterns
 * You can accept having multiple matches combined into multi-values

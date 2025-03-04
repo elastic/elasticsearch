@@ -223,12 +223,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     private void executeListBlobsAndAssertRetries() {
         final int maxRetries = randomIntBetween(3, 5);
         final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null, null);
-        try {
-            blobContainer.listBlobs(randomPurpose());
-            fail("Should have thrown an exception");
-        } catch (Exception e) {
-            // This is expected
-        }
+        expectThrows(StorageException.class, () -> blobContainer.listBlobs(randomPurpose()));
         assertEquals(maxRetries + 1, requestCounters.get("/storage/v1/b/bucket/o").get());
     }
 

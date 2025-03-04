@@ -62,7 +62,6 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
@@ -264,14 +263,24 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     public void onResponse(UnparsedModel unparsedModel) {
                         var service = inferenceServiceRegistry.getService(unparsedModel.service());
                         if (service.isEmpty() == false) {
-                            InferenceService inferenceService = service.get();
-                            Model model = inferenceService.parsePersistedConfigWithSecrets(
-                                inferenceId,
-                                unparsedModel.taskType(),
-                                unparsedModel.settings(),
-                                unparsedModel.secrets()
+                            // InferenceService inferenceService = service.get();
+                            // Model model = inferenceService.parsePersistedConfigWithSecrets(
+                            // inferenceId,
+                            // unparsedModel.taskType(),
+                            // unparsedModel.settings(),
+                            // unparsedModel.secrets()
+                            // );
+                            // var provider = new InferenceProvider(inferenceService, model);
+                            var provider = new InferenceProvider(
+                                service.get(),
+                                service.get()
+                                    .parsePersistedConfigWithSecrets(
+                                        inferenceId,
+                                        unparsedModel.taskType(),
+                                        unparsedModel.settings(),
+                                        unparsedModel.secrets()
+                                    )
                             );
-                            var provider = new InferenceProvider(inferenceService, model);
                             executeShardBulkInferenceAsync(inferenceId, provider, requests, onFinish);
                         } else {
                             try (onFinish) {
@@ -317,17 +326,20 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
             int currentBatchSize = Math.min(requests.size(), batchSize);
 
-            final ChunkingSettings chunkingSettings = requests.getFirst().chunkingSettings;
-            final List<FieldInferenceRequest> nextBatch = new ArrayList<>();
-            final List<String> inputs = new ArrayList<>();
-            for (FieldInferenceRequest request : requests) {
-                if (Objects.equals(chunkingSettings, request.chunkingSettings) && inputs.size() < currentBatchSize) {
-                    inputs.add(request.input);
-                } else {
-                    nextBatch.add(request);
-                }
-            }
-
+            // TODO KD adjust here
+            // final ChunkingSettings chunkingSettings = requests.getFirst().chunkingSettings;
+            // final List<FieldInferenceRequest> nextBatch = new ArrayList<>();
+            // final List<String> inputs = new ArrayList<>();
+            // for (FieldInferenceRequest request : requests) {
+            // if (Objects.equals(chunkingSettings, request.chunkingSettings) && inputs.size() < currentBatchSize) {
+            // inputs.add(request.input);
+            // } else {
+            // nextBatch.add(request);
+            // }
+            // }
+            final List<FieldInferenceRequest> currentBatch = requests.subList(0, currentBatchSize);
+            final List<FieldInferenceRequest> nextBatch = requests.subList(currentBatchSize, requests.size());
+            final List<String> inputs = currentBatch.stream().map(FieldInferenceRequest::input).collect(Collectors.toList());
             ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {
                 @Override
                 public void onResponse(List<ChunkedInference> results) {
@@ -391,14 +403,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     }
                 }
             };
-
             inferenceProvider.service()
                 .chunkedInfer(
                     inferenceProvider.model(),
                     null,
                     inputs,
                     Map.of(),
-                    chunkingSettings,
+                    null, // TODO pass in chunkingSettings
                     InputType.INGEST,
                     TimeValue.MAX_VALUE,
                     completionListener

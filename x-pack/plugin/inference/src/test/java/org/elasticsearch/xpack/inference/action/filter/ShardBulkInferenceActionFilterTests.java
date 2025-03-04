@@ -170,7 +170,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
             "obj.field1",
-            new InferenceFieldMetadata("obj.field1", model.getInferenceEntityId(), new String[] { "obj.field1" })
+            new InferenceFieldMetadata("obj.field1", model.getInferenceEntityId(), new String[] { "obj.field1" }, null)
         );
         BulkItemRequest[] items = new BulkItemRequest[1];
         items[0] = new BulkItemRequest(0, new IndexRequest("test").source("obj.field1", "Test"));

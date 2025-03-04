@@ -73,9 +73,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
 
     @Override
     protected Settings indexSettings() {
-        var builder = Settings.builder()
-            .put(super.indexSettings())
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false);
+        var builder = Settings.builder().put(super.indexSettings());
         if (useSynthetic) {
             builder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name());
             builder.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true);
@@ -222,7 +220,9 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
 
     private static Model randomModel(TaskType taskType) {
         var dimensions = taskType == TaskType.TEXT_EMBEDDING ? randomIntBetween(2, 64) : null;
-        var similarity = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(SimilarityMeasure.values()) : null;
+        var similarity = taskType == TaskType.TEXT_EMBEDDING
+            ? randomValueOtherThan(SimilarityMeasure.COSINE, () -> randomFrom(SimilarityMeasure.values()))
+            : null;
         var elementType = taskType == TaskType.TEXT_EMBEDDING ? DenseVectorFieldMapper.ElementType.BYTE : null;
         return new TestModel(
             randomAlphaOfLength(4),

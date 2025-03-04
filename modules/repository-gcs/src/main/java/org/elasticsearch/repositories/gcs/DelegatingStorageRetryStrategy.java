@@ -31,7 +31,7 @@ public class DelegatingStorageRetryStrategy<T> implements StorageRetryStrategy {
         Function<ResultRetryAlgorithm<T>, ResultRetryAlgorithm<T>> decorator
     ) {
         this.idempotentRetryAlgorithm = decorator.apply((ResultRetryAlgorithm<T>) delegate.getIdempotentHandler());
-        this.nonIdempotentRetryAlgorithm = decorator.apply((ResultRetryAlgorithm<T>) delegate.getIdempotentHandler());
+        this.nonIdempotentRetryAlgorithm = decorator.apply((ResultRetryAlgorithm<T>) delegate.getNonidempotentHandler());
     }
 
     @Override

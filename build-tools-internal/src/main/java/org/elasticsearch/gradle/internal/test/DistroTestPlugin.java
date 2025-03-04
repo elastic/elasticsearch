@@ -320,7 +320,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         return examplePlugin;
     }
 
-    private static void configureVMWrapperTasks(
+    private static void  configureVMWrapperTasks(
         Project project,
         List<TaskProvider<Test>> destructiveTasks,
         Map<String, TaskProvider<?>> depsTasks,
@@ -336,8 +336,10 @@ public class DistroTestPlugin implements Plugin<Project> {
                 t.setDescription("Runs " + destructiveTaskName.split("\\.", 2)[1] + " tests within vagrant");
                 t.setTaskName(destructiveTaskName);
                 t.extraArg("-D'" + IN_VM_SYSPROP + "'");
-                t.dependsOn(depsTasks.get(destructiveTaskName));
-                t.dependsOn(additionalDeps);
+                TaskProvider<?> taskDependencies = depsTasks.get(destructiveTaskName);
+                if(taskDependencies != null) {
+                    t.dependsOn(taskDependencies);
+                }
                 t.setLogLevel(project.getGradle().getStartParameter().getLogLevel().toString());
                 t.setExtension(project.getExtensions().findByType(VagrantExtension.class));
                 t.setService(project.getExtensions().getByType(VagrantMachine.class));

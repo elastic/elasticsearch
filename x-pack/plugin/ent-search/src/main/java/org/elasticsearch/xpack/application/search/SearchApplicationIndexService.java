@@ -46,6 +46,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
@@ -80,6 +81,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.application.EnterpriseSearch.HARD_CODED_ENTERPRISE_SEARCH_MASTER_NODE_TIMEOUT;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 /**
@@ -260,7 +262,10 @@ public class SearchApplicationIndexService {
             requestBuilder = updateAliasIndices(currentAliases, targetAliases, searchAliasName);
 
         } else {
-            requestBuilder = client.admin().indices().prepareAliases().addAlias(app.indices(), searchAliasName);
+            requestBuilder = client.admin()
+                .indices()
+                .prepareAliases(HARD_CODED_ENTERPRISE_SEARCH_MASTER_NODE_TIMEOUT, HARD_CODED_ENTERPRISE_SEARCH_MASTER_NODE_TIMEOUT)
+                .addAlias(app.indices(), searchAliasName);
         }
 
         requestBuilder.execute(listener);
@@ -271,7 +276,9 @@ public class SearchApplicationIndexService {
         Set<String> deleteIndices = new HashSet<>(currentAliases);
         deleteIndices.removeAll(targetAliases);
 
-        IndicesAliasesRequestBuilder aliasesRequestBuilder = client.admin().indices().prepareAliases();
+        IndicesAliasesRequestBuilder aliasesRequestBuilder = client.admin()
+            .indices()
+            .prepareAliases(HARD_CODED_ENTERPRISE_SEARCH_MASTER_NODE_TIMEOUT, HARD_CODED_ENTERPRISE_SEARCH_MASTER_NODE_TIMEOUT);
 
         // Always re-add aliases, as an index could have been removed manually and it must be restored
         for (String newIndex : targetAliases) {
@@ -330,7 +337,7 @@ public class SearchApplicationIndexService {
     }
 
     private void removeAlias(String searchAliasName, ActionListener<AcknowledgedResponse> listener) {
-        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().addAliasAction(
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS).addAliasAction(
             IndicesAliasesRequest.AliasActions.remove().aliases(searchAliasName).indices("*")
         );
         client.admin().indices().aliases(aliasesRequest, new ActionListener<>() {

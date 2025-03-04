@@ -355,9 +355,11 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testDuplicatePrunedPaths() {
-        List<String> paths = List.of("/a", "/a", "/a/b", "/a/b", "/b/c", "b/c/d", "b/c/d", "b/c/d", "e/f", "e/f");
-        paths = FileAccessTree.pruneSortedPaths(paths);
-        assertEquals(List.of("/a", "/b/c", "b/c/d", "e/f"), paths);
+        List<String> inputPaths = List.of("/a", "/a", "/a/b", "/a/b", "/b/c", "b/c/d", "b/c/d", "b/c/d", "e/f", "e/f");
+        List<String> outputPaths = List.of("/a", "/b/c", "b/c/d", "e/f");
+        var actual = FileAccessTree.pruneSortedPaths(inputPaths.stream().map(p -> normalizePath(path(p))).toList());
+        var expected = outputPaths.stream().map(p -> normalizePath(path(p))).toList();
+        assertEquals(expected, actual);
     }
 
     public void testDuplicateExclusivePaths() {

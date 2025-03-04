@@ -723,7 +723,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     }
 
     private void dataStreamMigrationFailed(SystemDataStreamMigrationInfo migrationInfo, Collection<Exception> exceptions) {
-        logger.error("error occurred while reindexing data stream [{}], failures [{}]", migrationInfo, exceptions);
+        logger.error("error occurred while reindexing data stream [{}] from feature [{}], failures [{}]",
+            migrationInfo.getDataStreamName(), migrationInfo.getFeatureName(), exceptions);
 
         ElasticsearchException ex = new ElasticsearchException("error occurred while reindexing data stream [" + migrationInfo + "]");
         for (Exception exception : exceptions) {

@@ -1,5 +1,0 @@
-pr: 120355
-summary: Ensure cluster string could be quoted
-area: ES|QL
-type: enhancement
-issues: []

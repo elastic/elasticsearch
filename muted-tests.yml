@@ -266,15 +266,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_488}
   issue: https://github.com/elastic/elasticsearch/issues/121611
-- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
-  method: testSnapshotRecovery {p0=false p1=false}
-  issue: https://github.com/elastic/elasticsearch/issues/122549
-- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
-  method: testSnapshotRecovery {p0=true p1=false}
-  issue: https://github.com/elastic/elasticsearch/issues/122550
-- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
-  method: testSnapshotRecovery {p0=false p1=true}
-  issue: https://github.com/elastic/elasticsearch/issues/122551
 - class: org.elasticsearch.index.mapper.ShapeGeometryFieldMapperTests
   method: testCartesianBoundsBlockLoader
   issue: https://github.com/elastic/elasticsearch/issues/122661

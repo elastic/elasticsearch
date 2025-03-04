@@ -67,7 +67,7 @@ public class NodeInfo extends BaseNodeResponse {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             version = in.readString();
             if (in.getTransportVersion().isPatchFrom(TransportVersions.ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO_BACKPORT_8_16)
-                || in.getTransportVersion().onOrAfter(TransportVersions.ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO)) {
+                || in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
                 compatibilityVersions = CompatibilityVersions.readVersion(in);
             } else {
                 compatibilityVersions = new CompatibilityVersions(TransportVersion.readVersion(in), Map.of()); // unknown mappings versions
@@ -253,7 +253,7 @@ public class NodeInfo extends BaseNodeResponse {
             Version.writeVersion(Version.fromString(version), out);
         }
         if (out.getTransportVersion().isPatchFrom(TransportVersions.ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO_BACKPORT_8_16)
-            || out.getTransportVersion().onOrAfter(TransportVersions.ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO)) {
+            || out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
             compatibilityVersions.writeTo(out);
         } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             TransportVersion.writeVersion(compatibilityVersions.transportVersion(), out);

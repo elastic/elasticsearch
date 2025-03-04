@@ -66,8 +66,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             return new RelativePathFileData(relativePath, baseDir, mode, null, false);
         }
 
-        static FileData ofPathSetting(String setting, BaseDir baseDir, Mode mode, boolean ignoreUrl) {
-            return new PathSettingFileData(setting, baseDir, mode, ignoreUrl, null, false);
+        static FileData ofPathSetting(String setting, BaseDir baseDir, Mode mode) {
+            return new PathSettingFileData(setting, baseDir, mode, null, false);
         }
     }
 
@@ -151,22 +151,21 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
     }
 
-    private record PathSettingFileData(String setting, BaseDir baseDir, Mode mode, boolean ignoreUrl, Platform platform, boolean exclusive)
+    private record PathSettingFileData(String setting, BaseDir baseDir, Mode mode, Platform platform, boolean exclusive)
         implements
             RelativeFileData {
 
         @Override
         public PathSettingFileData withExclusive(boolean exclusive) {
-            return new PathSettingFileData(setting, baseDir, mode, ignoreUrl, platform, exclusive);
+            return new PathSettingFileData(setting, baseDir, mode, platform, exclusive);
         }
 
         @Override
         public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
-            Stream<String> result = pathLookup.settingResolver().apply(setting);
-            if (ignoreUrl) {
-                result = result.filter(s -> s.toLowerCase(Locale.ROOT).startsWith("https://") == false);
-            }
-            return result.map(pathLookup.configDir()::resolve);
+            Stream<String> result = pathLookup.settingResolver()
+                .apply(setting)
+                .filter(s -> s.toLowerCase(Locale.ROOT).startsWith("https://") == false);
+            return result.map(Path::of);
         }
 
         @Override
@@ -174,7 +173,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             if (platform == platform()) {
                 return this;
             }
-            return new PathSettingFileData(setting, baseDir, mode, ignoreUrl, platform, exclusive);
+            return new PathSettingFileData(setting, baseDir, mode, platform, exclusive);
         }
     }
 
@@ -262,8 +261,6 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             String settingBaseDirAsString = checkString.apply(file, "basedir_if_relative");
             String modeAsString = checkString.apply(file, "mode");
             String platformAsString = checkString.apply(file, "platform");
-            Boolean ignoreUrlAsStringBoolean = checkBoolean.apply(file, "ignore_url");
-            boolean ignoreUrlAsString = ignoreUrlAsStringBoolean != null && ignoreUrlAsStringBoolean;
             Boolean exclusiveBoolean = checkBoolean.apply(file, "exclusive");
             boolean exclusive = exclusiveBoolean != null && exclusiveBoolean;
 
@@ -290,9 +287,6 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 throw new PolicyValidationException("'relative_to' may only be used with 'relative_path'");
             }
 
-            if (ignoreUrlAsStringBoolean != null && pathSetting == null) {
-                throw new PolicyValidationException("'ignore_url' may only be used with 'path_setting'");
-            }
             if (settingBaseDirAsString != null && pathSetting == null) {
                 throw new PolicyValidationException("'basedir_if_relative' may only be used with 'path_setting'");
             }
@@ -319,7 +313,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                     throw new PolicyValidationException("files entitlement with a 'path_setting' must specify 'basedir_if_relative'");
                 }
                 BaseDir baseDir = parseBaseDir(settingBaseDirAsString);
-                fileData = FileData.ofPathSetting(pathSetting, baseDir, mode, ignoreUrlAsString);
+                fileData = FileData.ofPathSetting(pathSetting, baseDir, mode);
             } else {
                 throw new AssertionError("File entry validation error");
             }

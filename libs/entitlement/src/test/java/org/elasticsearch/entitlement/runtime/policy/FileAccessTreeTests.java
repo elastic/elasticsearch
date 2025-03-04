@@ -29,6 +29,7 @@ import java.util.Map;
 
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.elasticsearch.entitlement.runtime.policy.FileAccessTree.buildExclusivePathList;
+import static org.elasticsearch.entitlement.runtime.policy.FileAccessTree.normalizePath;
 import static org.elasticsearch.entitlement.runtime.policy.Platform.WINDOWS;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
@@ -382,7 +383,7 @@ public class FileAccessTreeTests extends ESTestCase {
             original.moduleName(),
             new FilesEntitlement(List.of(originalFileData.withPlatform(WINDOWS)))
         );
-        var originalExclusivePath = new ExclusivePath("component1", "module1", "/a/b");
+        var originalExclusivePath = new ExclusivePath("component1", "module1", normalizePath(path("/a/b")));
 
         // Some basic tests
 
@@ -404,7 +405,7 @@ public class FileAccessTreeTests extends ESTestCase {
             originalExclusivePath,
             new ExclusivePath("component2", original.moduleName(), originalExclusivePath.path()),
             new ExclusivePath(original.componentName(), "module2", originalExclusivePath.path()),
-            new ExclusivePath(original.componentName(), original.moduleName(), "/c/d")
+            new ExclusivePath(original.componentName(), original.moduleName(), normalizePath(path("/c/d")))
         );
         assertEquals(
             "Distinct elements should not be combined",
@@ -481,7 +482,7 @@ public class FileAccessTreeTests extends ESTestCase {
     static List<ExclusivePath> exclusivePaths(String componentName, String moduleName, String... paths) {
         List<ExclusivePath> exclusivePaths = new ArrayList<>();
         for (String path : paths) {
-            exclusivePaths.add(new ExclusivePath(componentName, moduleName, path(path).toString()));
+            exclusivePaths.add(new ExclusivePath(componentName, moduleName, normalizePath(path(path))));
         }
         return exclusivePaths;
     }

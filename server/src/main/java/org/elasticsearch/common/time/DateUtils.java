@@ -218,11 +218,13 @@ public class DateUtils {
         } catch (ArithmeticException e) {
             if (instant.isAfter(Instant.now())) {
                 throw new IllegalArgumentException(
-                    "date[" + instant + "] is too far in the future to be represented in a long milliseconds variable"
+                    "date[" + instant + "] is too far in the future to be represented in a long milliseconds variable",
+                    e
                 );
             } else {
                 throw new IllegalArgumentException(
-                    "date[" + instant + "] is too far in the past to be represented in a long milliseconds variable"
+                    "date[" + instant + "] is too far in the past to be represented in a long milliseconds variable",
+                    e
                 );
             }
         }

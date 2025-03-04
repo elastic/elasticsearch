@@ -13,6 +13,7 @@ import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -62,5 +63,9 @@ public final class EntitledActions {
 
     public static URLConnection createHttpURLConnection() throws IOException {
         return URI.create("http://127.0.0.1:12345/").toURL().openConnection();
+    }
+
+    public static URLConnection createMailToURLConnection() throws URISyntaxException, IOException {
+        return new URI("mailto", "email@example.com", null).toURL().openConnection();
     }
 }

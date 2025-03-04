@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
@@ -702,9 +703,20 @@ public class LocalExecutionPlanner {
             source.layout
         );
         if (PlannerUtils.usesScoring(filter)) {
-            // Add scorer operator to blend the filter expression scores on the overall scores
+            // Add scorer operator to add the filter expression scores to the overall scores
+            int scoreBlock = 0;
+            for (Attribute attribute : filter.output()) {
+                if (MetadataAttribute.SCORE.equals(attribute.name())) {
+                    break;
+                }
+                scoreBlock++;
+            }
+            if (scoreBlock == filter.output().size()) {
+                throw new IllegalStateException("Couldn't find _score attribute in a WHERE clause");
+            }
+
             filterOperation = filterOperation.with(
-                new ScoreOperator.ScoreOperatorFactory(ScoreMapper.toScorer(filter.condition(), shardContexts)),
+                new ScoreOperator.ScoreOperatorFactory(ScoreMapper.toScorer(filter.condition(), shardContexts), scoreBlock),
                 filterOperation.layout
             );
         }

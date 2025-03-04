@@ -17,16 +17,15 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Evaluates a tree of functions for every position in the block, resulting in a
- * new block which is appended to the page.
+ * Evaluates scores for a ExpressionScorer. The scores are added to the existing scores in the input page
  */
 public class ScoreOperator extends AbstractPageMappingOperator {
 
-    public record ScoreOperatorFactory(ExpressionScorer.Factory scorerFactory) implements OperatorFactory {
+    public record ScoreOperatorFactory(ExpressionScorer.Factory scorerFactory, int scoreBlockPosition) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ScoreOperator(driverContext.blockFactory(), scorerFactory.get(driverContext));
+            return new ScoreOperator(driverContext.blockFactory(), scorerFactory.get(driverContext), scoreBlockPosition);
         }
 
         @Override
@@ -37,10 +36,12 @@ public class ScoreOperator extends AbstractPageMappingOperator {
 
     private final BlockFactory blockFactory;
     private final ExpressionScorer scorer;
+    private final int scoreBlockPosition;
 
-    public ScoreOperator(BlockFactory blockFactory, ExpressionScorer scorer) {
+    public ScoreOperator(BlockFactory blockFactory, ExpressionScorer scorer, int scoreBlockPosition) {
         this.blockFactory = blockFactory;
         this.scorer = scorer;
+        this.scoreBlockPosition = scoreBlockPosition;
     }
 
     @Override
@@ -50,20 +51,27 @@ public class ScoreOperator extends AbstractPageMappingOperator {
         assert page.getBlock(1).asVector() instanceof DoubleVector : "Expected a DoubleVector, got " + page.getBlock(1).asVector();
 
         Block[] blocks = new Block[page.getBlockCount()];
-        blocks[0] = page.getBlock(0);
-        try (DoubleBlock evalScores = scorer.score(page); DoubleBlock existingScores = page.getBlock(1)) {
-            // TODO Optimize for constant zero scores?
+        for (int i = 0; i < page.getBlockCount(); i++) {
+            if (i == scoreBlockPosition) {
+                blocks[i] = calculateScoresBlock(page);
+            } else {
+                blocks[i] = page.getBlock(i);
+            }
+        }
+
+        return new Page(blocks);
+    }
+
+    private Block calculateScoresBlock(Page page) {
+        try (DoubleBlock evalScores = scorer.score(page); DoubleBlock existingScores = page.getBlock(scoreBlockPosition)) {
+            // TODO Optimize for constant scores?
             int rowCount = page.getPositionCount();
             DoubleVector.Builder builder = blockFactory.newDoubleVectorFixedBuilder(rowCount);
             for (int i = 0; i < rowCount; i++) {
                 builder.appendDouble(existingScores.getDouble(i) + evalScores.getDouble(i));
             }
-            blocks[1] = builder.build().asBlock();
+            return builder.build().asBlock();
         }
-        for (int i = 2; i < blocks.length; i++) {
-            blocks[i] = page.getBlock(i);
-        }
-        return new Page(blocks);
     }
 
     @Override

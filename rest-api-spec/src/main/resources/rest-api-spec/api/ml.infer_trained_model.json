@@ -24,19 +24,6 @@
               "required":true
             }
           }
-        },
-        {
-          "path":"/_ml/trained_models/{model_id}/deployment/_infer",
-          "methods":[
-            "POST"
-          ],
-          "parts":{
-            "model_id":{
-              "type":"string",
-              "description":"The unique identifier of the trained model.",
-              "required":true
-            }
-          }
         }
       ]
     },

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.services.ec2.model.Instance;
 import software.amazon.awssdk.services.ec2.model.InstanceState;
 import software.amazon.awssdk.services.ec2.model.InstanceStateName;
@@ -89,7 +90,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
         try (Ec2DiscoveryPlugin plugin = new Ec2DiscoveryPlugin(buildSettings(accessKey))) {
             AwsEc2SeedHostsProvider provider = new AwsEc2SeedHostsProvider(nodeSettings, transportService, plugin.ec2Service);
             httpServer.createContext("/", exchange -> {
-                if ("POST".equals(exchange.getRequestMethod())) {
+                if (SdkHttpMethod.POST.name().equals(exchange.getRequestMethod())) {
                     final String request = new String(exchange.getRequestBody().readAllBytes(), UTF_8);
                     final String userAgent = exchange.getRequestHeaders().getFirst("User-Agent");
                     if (userAgent != null && userAgent.startsWith("aws-sdk-java")) {

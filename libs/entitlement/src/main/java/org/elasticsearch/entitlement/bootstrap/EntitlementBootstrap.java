@@ -35,12 +35,12 @@ public class EntitlementBootstrap {
     public record BootstrapArgs(
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
-        Function<String, String> settingResolver,
-        Function<String, Stream<String>> settingGlobResolver,
+        Function<String, Stream<String>> settingResolver,
         Path[] dataDirs,
         Path[] sharedRepoDirs,
         Path configDir,
         Path libDir,
+        Path pluginsDir,
         Path logsDir,
         Path tempDir,
         Path pidFile,
@@ -50,7 +50,6 @@ public class EntitlementBootstrap {
             requireNonNull(pluginPolicies);
             requireNonNull(pluginResolver);
             requireNonNull(settingResolver);
-            requireNonNull(settingGlobResolver);
             requireNonNull(dataDirs);
             if (dataDirs.length == 0) {
                 throw new IllegalArgumentException("must provide at least one data directory");
@@ -58,6 +57,7 @@ public class EntitlementBootstrap {
             requireNonNull(sharedRepoDirs);
             requireNonNull(configDir);
             requireNonNull(libDir);
+            requireNonNull(pluginsDir);
             requireNonNull(logsDir);
             requireNonNull(tempDir);
             requireNonNull(suppressFailureLogClasses);
@@ -76,12 +76,12 @@ public class EntitlementBootstrap {
      *
      * @param pluginPolicies a map holding policies for plugins (and modules), by plugin (or module) name.
      * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
-     * @param settingResolver a functor to resolve the value of an Elasticsearch setting.
-     * @param settingGlobResolver a functor to resolve a glob expression for one or more Elasticsearch settings.
+     * @param settingResolver a functor to resolve a setting name pattern for one or more Elasticsearch settings.
      * @param dataDirs       data directories for Elasticsearch
      * @param sharedRepoDirs       shared repository directories for Elasticsearch
      * @param configDir      the config directory for Elasticsearch
      * @param libDir         the lib directory for Elasticsearch
+     * @param pluginsDir     the directory where plugins are installed for Elasticsearch
      * @param tempDir        the temp directory for Elasticsearch
      * @param logsDir        the log directory for Elasticsearch
      * @param pidFile        path to a pid file for Elasticsearch, or {@code null} if one was not specified
@@ -90,12 +90,12 @@ public class EntitlementBootstrap {
     public static void bootstrap(
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
-        Function<String, String> settingResolver,
-        Function<String, Stream<String>> settingGlobResolver,
+        Function<String, Stream<String>> settingResolver,
         Path[] dataDirs,
         Path[] sharedRepoDirs,
         Path configDir,
         Path libDir,
+        Path pluginsDir,
         Path logsDir,
         Path tempDir,
         Path pidFile,
@@ -109,11 +109,11 @@ public class EntitlementBootstrap {
             pluginPolicies,
             pluginResolver,
             settingResolver,
-            settingGlobResolver,
             dataDirs,
             sharedRepoDirs,
             configDir,
             libDir,
+            pluginsDir,
             logsDir,
             tempDir,
             pidFile,

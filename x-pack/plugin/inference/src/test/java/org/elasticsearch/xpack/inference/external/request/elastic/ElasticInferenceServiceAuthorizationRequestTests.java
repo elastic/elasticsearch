@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.junit.Before;
 
+import static org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -30,7 +31,7 @@ public class ElasticInferenceServiceAuthorizationRequestTests extends ESTestCase
 
         ElasticsearchStatusException exception = assertThrows(
             ElasticsearchStatusException.class,
-            () -> new ElasticInferenceServiceAuthorizationRequest(invalidUrl, traceContext, randomAlphaOfLength(10))
+            () -> new ElasticInferenceServiceAuthorizationRequest(invalidUrl, traceContext, randomElasticInferenceServiceRequestMetadata())
         );
 
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));

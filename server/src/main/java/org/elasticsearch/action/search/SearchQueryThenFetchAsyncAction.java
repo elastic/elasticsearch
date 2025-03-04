@@ -501,15 +501,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             // as this could be a transient failure and partial results we may have are still valid
                             // cancellation of the whole batched request on the remote -> maybe we timed out or so, partial results may
                             // still be valid
-                            for (ShardToQuery shard : request.shards) {
-                                final int shardIndex = shard.shardIndex;
-                                onShardFailure(
-                                    shardIndex,
-                                    new SearchShardTarget(routing.nodeId(), shard.shardId, routing.clusterAlias()),
-                                    shardIterators[shardIndex],
-                                    e
-                                );
-                            }
+                            onNodeQueryFailure(e, request, routing);
                         } else {
                             // Remote failure that wasn't due to networking or cancellation means that the data node was unable to reduce
                             // its local results. Failure to reduce always fails the phase without exception so we fail the phase here.

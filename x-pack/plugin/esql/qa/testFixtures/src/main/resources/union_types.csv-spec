@@ -1639,3 +1639,67 @@ id:integer | name:keyword | count:long
 13         | lllll        | 2
 14         | mmmmm        | 2
 ;
+
+MultiTypedFieldsKeepDropSort
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| DROP salary
+| KEEP emp_no, languages, hire_date, avg_worked_seconds
+| SORT emp_no, hire_date
+| limit 2
+;
+
+emp_no:long |languages:integer |hire_date:date_nanos     |avg_worked_seconds:unsigned_long
+10001       |2                 |1986-06-26T00:00:00.000Z |268728049
+10001       |2                 |1986-06-26T00:00:00.000Z |268728049
+;
+
+MultiTypedFieldsRenameKeep
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+from employees, employees_incompatible
+| RENAME emp_no as new_emp_no, languages as new_languages, hire_date as new_hire_date, avg_worked_seconds as new_avg_worked_seconds
+| KEEP new_emp_no, new_languages, new_hire_date, new_avg_worked_seconds
+| sort new_emp_no, new_hire_date
+| limit 2
+;
+
+new_emp_no:long |new_languages:integer |new_hire_date:date_nanos |new_avg_worked_seconds:unsigned_long
+10001           |2                     |1986-06-26T00:00:00.000Z |268728049
+10001           |2                     |1986-06-26T00:00:00.000Z |268728049
+;
+
+MultiTypedFieldsEvalKeepSort
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| DROP birth_date
+| EVAL x = emp_no + 1, y = hire_date + 1 year, z = hire_date::datetime
+| KEEP emp_no, x, hire_date, y, z
+| SORT emp_no, hire_date
+| limit 2
+;
+
+emp_no:long |x:long |hire_date:date_nanos     |y:date_nanos             |z:date
+10001       |10002  |1986-06-26T00:00:00.000Z |1987-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+10001       |10002  |1986-06-26T00:00:00.000Z |1987-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+;
+
+MultiTypedFieldsEvalFilterKeepSort
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| EVAL x = emp_no + 1, y = hire_date + 1 day
+| WHERE emp_no > 10010 AND hire_date > "1992-01-01" AND languages < 3 AND height > 1.2
+| KEEP emp_no, hire_date
+| SORT emp_no, hire_date
+| limit 4
+;
+
+emp_no:long |hire_date:date_nanos
+10016       | 1995-01-27T00:00:00.000Z
+10016       | 1995-01-27T00:00:00.000Z
+10017       | 1993-08-03T00:00:00.000Z
+10017       | 1993-08-03T00:00:00.000Z
+;

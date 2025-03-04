@@ -5,13 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.results;
+package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 
 import java.io.IOException;
@@ -19,9 +17,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<TextEmbeddingFloatResults> {
+public class TextEmbeddingFloatResultsTests extends AbstractWireSerializingTestCase<TextEmbeddingFloatResults> {
     public static TextEmbeddingFloatResults createRandomResults() {
         int embeddings = randomIntBetween(1, 10);
         List<TextEmbeddingFloatResults.Embedding> embeddingResults = new ArrayList<>(embeddings);
@@ -114,6 +113,16 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
         ).getFirstEmbeddingSize();
 
         assertThat(firstEmbeddingSize, is(2));
+    }
+
+    public void testEmbeddingMerge() {
+        TextEmbeddingFloatResults.Embedding embedding1 = new TextEmbeddingFloatResults.Embedding(new float[] { 0.1f, 0.2f, 0.3f, 0.4f });
+        TextEmbeddingFloatResults.Embedding embedding2 = new TextEmbeddingFloatResults.Embedding(new float[] { 0.0f, 0.4f, 0.1f, 1.0f });
+        TextEmbeddingFloatResults.Embedding embedding3 = new TextEmbeddingFloatResults.Embedding(new float[] { 0.2f, 0.9f, 0.8f, 0.1f });
+        TextEmbeddingFloatResults.Embedding mergedEmbedding = embedding1.merge(embedding2);
+        assertThat(mergedEmbedding, equalTo(new TextEmbeddingFloatResults.Embedding(new float[] { 0.05f, 0.3f, 0.2f, 0.7f })));
+        mergedEmbedding = mergedEmbedding.merge(embedding3);
+        assertThat(mergedEmbedding, equalTo(new TextEmbeddingFloatResults.Embedding(new float[] { 0.1f, 0.5f, 0.4f, 0.5f })));
     }
 
     @Override

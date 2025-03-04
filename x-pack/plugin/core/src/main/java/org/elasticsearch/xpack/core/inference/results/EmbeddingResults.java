@@ -19,7 +19,7 @@ import java.util.List;
  * A call to the inference service may contain multiple input texts, so this results may
  * contain multiple results.
  */
-public interface EmbeddingResults<C extends EmbeddingResults.Chunk, E extends EmbeddingResults.Embedding<C>>
+public interface EmbeddingResults<C extends EmbeddingResults.Chunk, E extends EmbeddingResults.Embedding<C, E>>
     extends
         InferenceServiceResults {
 
@@ -37,11 +37,16 @@ public interface EmbeddingResults<C extends EmbeddingResults.Chunk, E extends Em
     /**
      * A resulting embedding for one of the input texts to the inference service.
      */
-    interface Embedding<C extends Chunk> {
+    interface Embedding<C extends Chunk, E extends EmbeddingResults.Embedding<C, E>> {
         /**
          * Combines the resulting embedding with the input into a chunk.
          */
         C toChunk(String text, ChunkedInference.TextOffset offset);
+
+        /**
+         * Merges the existing embedding and provided embedding into a new embedding.
+         */
+        E merge(E embedding);
     }
 
     /**

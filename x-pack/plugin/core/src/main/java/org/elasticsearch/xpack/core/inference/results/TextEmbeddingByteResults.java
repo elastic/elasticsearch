@@ -118,8 +118,19 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings)
         return Objects.hash(embeddings);
     }
 
-    public record Embedding(byte[] values) implements Writeable, ToXContentObject, EmbeddingResults.Embedding<Chunk> {
+    // Note: the field "numberOfMergedEmbeddings" is not serialized, so merging
+    // embeddings should happen inbetween serializations.
+    public record Embedding(byte[] values, int[] sumMergedValues, int numberOfMergedEmbeddings)
+        implements
+            Writeable,
+            ToXContentObject,
+            EmbeddingResults.Embedding<Chunk, Embedding> {
+
         public static final String EMBEDDING = "embedding";
+
+        public Embedding(byte[] values) {
+            this(values, null, 1);
+        }
 
         public Embedding(StreamInput in) throws IOException {
             this(in.readByteArray());
@@ -189,6 +200,21 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings)
         @Override
         public Chunk toChunk(String text, ChunkedInference.TextOffset offset) {
             return new Chunk(values, text, offset);
+        }
+
+        @Override
+        public Embedding merge(Embedding embedding) {
+            byte[] newValues = new byte[values.length];
+            int[] newSumMergedValues = new int[values.length];
+            int newNumberOfMergedEmbeddings = numberOfMergedEmbeddings + embedding.numberOfMergedEmbeddings;
+            for (int i = 0; i < values.length; i++) {
+                newSumMergedValues[i] = (numberOfMergedEmbeddings == 1 ? values[i] : sumMergedValues[i])
+                    + (embedding.numberOfMergedEmbeddings == 1 ? embedding.values[i] : embedding.sumMergedValues[i]);
+                // Add (newNumberOfMergedEmbeddings / 2) in the numerator to round towards the
+                // closest byte instead of truncating.
+                newValues[i] = (byte) ((newSumMergedValues[i] + newNumberOfMergedEmbeddings / 2) / newNumberOfMergedEmbeddings);
+            }
+            return new Embedding(newValues, newSumMergedValues, newNumberOfMergedEmbeddings);
         }
     }
 

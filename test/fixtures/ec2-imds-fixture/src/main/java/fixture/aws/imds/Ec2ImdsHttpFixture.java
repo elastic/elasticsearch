@@ -26,7 +26,15 @@ import java.util.Objects;
 
 public class Ec2ImdsHttpFixture extends ExternalResource {
 
+    /**
+     * Name of the JVM system property that allows to override the IMDS endpoint address when using the AWS v1 SDK.
+     * Can be removed once we only use the v2 SDK.
+     */
     public static final String ENDPOINT_OVERRIDE_SYSPROP_NAME = "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride";
+
+    /**
+     * Name of the JVM system property that allows to override the IMDS endpoint address when using the AWS v2 SDK.
+     */
     public static final String ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2 = "aws.ec2MetadataServiceEndpoint";
 
     private final Ec2ImdsServiceBuilder ec2ImdsServiceBuilder;
@@ -63,6 +71,10 @@ public class Ec2ImdsHttpFixture extends ExternalResource {
         }
     }
 
+    /**
+     * Overrides the EC2 service endpoint for the lifetime of the method response. Resets back to the original endpoint property when
+     * closed.
+     */
     @SuppressForbidden(reason = "deliberately adjusting system property for endpoint override for use in internal-cluster tests")
     public static Releasable withEc2MetadataServiceEndpointOverride(String endpointOverride) {
         final PrivilegedAction<String> resetProperty = System.getProperty(

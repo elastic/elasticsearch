@@ -56,6 +56,7 @@ abstract class DataNodeRequestSender {
     private final Executor esqlExecutor;
     private final CancellableTask rootTask;
     private final boolean allowPartialResults;
+    private final Semaphore concurrentRequests;
     private final ReentrantLock sendingLock = new ReentrantLock();
     private final Queue<ShardId> pendingShardIds = ConcurrentCollections.newQueue();
     private final Map<DiscoveryNode, Semaphore> nodePermits = new HashMap<>();
@@ -63,11 +64,18 @@ abstract class DataNodeRequestSender {
     private final AtomicBoolean changed = new AtomicBoolean();
     private boolean reportedFailure = false; // guarded by sendingLock
 
-    DataNodeRequestSender(TransportService transportService, Executor esqlExecutor, CancellableTask rootTask, boolean allowPartialResults) {
+    DataNodeRequestSender(
+        TransportService transportService,
+        Executor esqlExecutor,
+        CancellableTask rootTask,
+        boolean allowPartialResults,
+        int concurrentRequests
+    ) {
         this.transportService = transportService;
         this.esqlExecutor = esqlExecutor;
         this.rootTask = rootTask;
         this.allowPartialResults = allowPartialResults;
+        this.concurrentRequests = concurrentRequests > 0 ? new Semaphore(concurrentRequests) : null;
     }
 
     final void startComputeOnDataNodes(
@@ -128,8 +136,7 @@ abstract class DataNodeRequestSender {
                         reportedFailure = true;
                         reportFailures(computeListener);
                     } else {
-                        var nodeRequests = selectNodeRequests(targetShards);
-                        for (NodeRequest request : nodeRequests) {
+                        for (NodeRequest request : selectNodeRequests(targetShards)) {
                             sendOneNodeRequest(targetShards, computeListener, request);
                         }
                     }
@@ -161,6 +168,9 @@ abstract class DataNodeRequestSender {
         sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
             void onAfter(List<DriverProfile> profiles) {
                 nodePermits.get(request.node).release();
+                if (concurrentRequests != null) {
+                    concurrentRequests.release();
+                }
                 trySendingRequestsForPendingShards(targetShards, computeListener);
                 listener.onResponse(profiles);
             }
@@ -243,17 +253,11 @@ abstract class DataNodeRequestSender {
     /**
      * (Remaining) allocated nodes of a given shard id and its alias filter
      */
-    record TargetShard(ShardId shardId, List<DiscoveryNode> remainingNodes, AliasFilter aliasFilter) {
+    record TargetShard(ShardId shardId, List<DiscoveryNode> remainingNodes, AliasFilter aliasFilter) {}
 
-    }
+    record NodeRequest(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {}
 
-    record NodeRequest(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {
-
-    }
-
-    private record ShardFailure(boolean fatal, Exception failure) {
-
-    }
+    private record ShardFailure(boolean fatal, Exception failure) {}
 
     /**
      * Selects the next nodes to send requests to. Limits to at most one outstanding request per node.
@@ -264,6 +268,7 @@ abstract class DataNodeRequestSender {
         assert sendingLock.isHeldByCurrentThread();
         final Map<DiscoveryNode, List<ShardId>> nodeToShardIds = new HashMap<>();
         final Iterator<ShardId> shardsIt = pendingShardIds.iterator();
+
         while (shardsIt.hasNext()) {
             ShardId shardId = shardsIt.next();
             ShardFailure failure = shardFailures.get(shardId);
@@ -273,23 +278,37 @@ abstract class DataNodeRequestSender {
             }
             TargetShard shard = targetShards.getShard(shardId);
             Iterator<DiscoveryNode> nodesIt = shard.remainingNodes.iterator();
-            DiscoveryNode selectedNode = null;
             while (nodesIt.hasNext()) {
                 DiscoveryNode node = nodesIt.next();
-                if (nodeToShardIds.containsKey(node) || nodePermits.get(node).tryAcquire()) {
+                List<ShardId> pendingRequest = nodeToShardIds.get(node);
+                if (pendingRequest != null) {
+                    pendingRequest.add(shard.shardId);
                     nodesIt.remove();
                     shardsIt.remove();
-                    selectedNode = node;
                     break;
                 }
-            }
-            if (selectedNode != null) {
-                nodeToShardIds.computeIfAbsent(selectedNode, unused -> new ArrayList<>()).add(shard.shardId);
+
+                if (concurrentRequests == null || concurrentRequests.tryAcquire()) {
+                    if (nodePermits.get(node).tryAcquire()) {
+                        pendingRequest = new ArrayList<>();
+                        pendingRequest.add(shard.shardId);
+                        nodeToShardIds.put(node, pendingRequest);
+
+                        nodesIt.remove();
+                        shardsIt.remove();
+
+                        break;
+                    } else if (concurrentRequests != null) {
+                        concurrentRequests.release();
+                    }
+                }
             }
         }
+
         final List<NodeRequest> nodeRequests = new ArrayList<>(nodeToShardIds.size());
-        for (var e : nodeToShardIds.entrySet()) {
-            List<ShardId> shardIds = e.getValue();
+        for (var entry : nodeToShardIds.entrySet()) {
+            var node = entry.getKey();
+            var shardIds = entry.getValue();
             Map<Index, AliasFilter> aliasFilters = new HashMap<>();
             for (ShardId shardId : shardIds) {
                 var aliasFilter = targetShards.getShard(shardId).aliasFilter;
@@ -297,7 +316,7 @@ abstract class DataNodeRequestSender {
                     aliasFilters.put(shardId.getIndex(), aliasFilter);
                 }
             }
-            nodeRequests.add(new NodeRequest(e.getKey(), shardIds, aliasFilters));
+            nodeRequests.add(new NodeRequest(node, shardIds, aliasFilters));
         }
         return nodeRequests;
     }

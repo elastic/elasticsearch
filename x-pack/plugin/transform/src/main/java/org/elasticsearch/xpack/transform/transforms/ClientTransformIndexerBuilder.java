@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -39,6 +40,7 @@ class ClientTransformIndexerBuilder {
     private TransformCheckpoint nextCheckpoint;
     private SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex;
     private boolean shouldStopAtCheckpoint;
+    private AsyncTwoPhaseIndexer.EventHook eventHook = AsyncTwoPhaseIndexer.EventHook.NOOP;
 
     ClientTransformIndexerBuilder() {
         this.initialStats = new TransformIndexerStats();
@@ -68,7 +70,8 @@ class ClientTransformIndexerBuilder {
             TransformCheckpoint.isNullOrEmpty(nextCheckpoint) ? TransformCheckpoint.EMPTY : nextCheckpoint,
             seqNoPrimaryTermAndIndex,
             context,
-            shouldStopAtCheckpoint
+            shouldStopAtCheckpoint,
+            eventHook
         );
     }
 
@@ -143,6 +146,11 @@ class ClientTransformIndexerBuilder {
 
     ClientTransformIndexerBuilder setSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex) {
         this.seqNoPrimaryTermAndIndex = seqNoPrimaryTermAndIndex;
+        return this;
+    }
+
+    ClientTransformIndexerBuilder setEventHook(AsyncTwoPhaseIndexer.EventHook eventHook) {
+        this.eventHook = eventHook != null ? eventHook : this.eventHook;
         return this;
     }
 

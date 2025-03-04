@@ -34,6 +34,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -427,6 +428,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         when(task.setNumFailureRetries(anyInt())).thenReturn(task);
         when(task.getParentTaskId()).thenReturn(TaskId.EMPTY_TASK_ID);
         when(task.getContext()).thenReturn(mock());
+        when(task.getTransformId()).thenReturn("1234");
         doAnswer(a -> fail(a.getArgument(0, Throwable.class))).when(task).fail(any(Throwable.class), any(String.class), any());
         when(task.getState()).thenReturn(
             new TransformState(TransformTaskState.STOPPED, IndexerState.STOPPED, null, 0, null, null, null, false, null)
@@ -611,7 +613,14 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             configManager,
             mockAuditor
         );
-        return new TransformServices(configManager, transformCheckpointService, mockAuditor, scheduler, mock(TransformNode.class));
+        return new TransformServices(
+            configManager,
+            transformCheckpointService,
+            mockAuditor,
+            scheduler,
+            mock(TransformNode.class),
+            Tracer.NOOP
+        );
     }
 
     private TransformPersistentTasksExecutor buildTaskExecutor(TransformServices transformServices) {

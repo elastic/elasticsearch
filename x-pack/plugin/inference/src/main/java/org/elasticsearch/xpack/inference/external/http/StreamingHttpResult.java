@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.external.http;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayOutputStream;
 import java.util.concurrent.Flow;
@@ -18,7 +17,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public record StreamingHttpResult(HttpResponse response, Flow.Publisher<byte[]> body) {
     public boolean isSuccessfulResponse() {
-        return RestStatus.isSuccessful(response.getStatusLine().getStatusCode());
+        var code = response.getStatusLine().getStatusCode();
+        return code >= 200 && code < 300;
     }
 
     public Flow.Publisher<HttpResult> toHttpResult() {

@@ -562,14 +562,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 && currentRouting.relocating()
                 && replicationTracker.isRelocated()
                 && (newRouting.relocating() == false || newRouting.equalsIgnoringMetadata(currentRouting) == false)) {
-                    // if the shard is not in primary mode anymore (after primary relocation) we have to fail when any changes in shard
-                    // routing occur (e.g. due to recovery failure / cancellation). The reason is that at the moment we cannot safely
-                    // reactivate primary mode without risking two active primaries.
-                    throw new IndexShardRelocatedException(
-                        shardId(),
-                        "Shard is marked as relocated, cannot safely move to state " + newRouting.state()
-                    );
-                }
+                // if the shard is not in primary mode anymore (after primary relocation) we have to fail when any changes in shard
+                // routing occur (e.g. due to recovery failure / cancellation). The reason is that at the moment we cannot safely
+                // reactivate primary mode without risking two active primaries.
+                throw new IndexShardRelocatedException(
+                    shardId(),
+                    "Shard is marked as relocated, cannot safely move to state " + newRouting.state()
+                );
+            }
 
             if (newRouting.active() && state != IndexShardState.STARTED && state != IndexShardState.CLOSED) {
                 // If cluster.no_master_block: all then we remove all shards locally whenever there's no master, but there might still be
@@ -611,15 +611,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                      */
                     assert newRouting.initializing() == false
                         : "a started primary shard should never update its term; "
-                            + "shard "
-                            + newRouting
-                            + ", "
-                            + "current term ["
-                            + pendingPrimaryTerm
-                            + "], "
-                            + "new term ["
-                            + newPrimaryTerm
-                            + "]";
+                        + "shard "
+                        + newRouting
+                        + ", "
+                        + "current term ["
+                        + pendingPrimaryTerm
+                        + "], "
+                        + "new term ["
+                        + newPrimaryTerm
+                        + "]";
                     assert newPrimaryTerm > pendingPrimaryTerm
                         : "primary terms can only go up; current term [" + pendingPrimaryTerm + "], new term [" + newPrimaryTerm + "]";
                     /*
@@ -636,14 +636,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         shardStateUpdated.await();
                         assert pendingPrimaryTerm == newPrimaryTerm
                             : "shard term changed on primary. expected ["
-                                + newPrimaryTerm
-                                + "] but was ["
-                                + pendingPrimaryTerm
-                                + "]"
-                                + ", current routing: "
-                                + currentRouting
-                                + ", new routing: "
-                                + newRouting;
+                            + newPrimaryTerm
+                            + "] but was ["
+                            + pendingPrimaryTerm
+                            + "]"
+                            + ", current routing: "
+                            + currentRouting
+                            + ", new routing: "
+                            + newRouting;
                         assert getOperationPrimaryTerm() == newPrimaryTerm;
                         try {
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
@@ -706,7 +706,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             this.shardRouting = newRouting;
 
             assert this.shardRouting.primary() == false || this.shardRouting.started() == false || // note that we use started and not
-                                                                                                   // active to avoid relocating shards
+                // active to avoid relocating shards
                 this.indexShardOperationPermits.isBlocked() || // if permits are blocked, we are still transitioning
                 this.replicationTracker.isPrimaryMode()
                 : "a started primary with non-pending operation term must be in primary mode " + this.shardRouting;
@@ -866,7 +866,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
             }, 30L, TimeUnit.MINUTES, EsExecutors.DIRECT_EXECUTOR_SERVICE); // Wait on current thread because this execution is wrapped by
-                                                                            // CancellableThreads and we want to be able to interrupt it
+            // CancellableThreads and we want to be able to interrupt it
         }
     }
 
@@ -2179,9 +2179,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         updateRetentionLeasesOnReplica(loadRetentionLeases());
         assert recoveryState.getRecoverySource().expectEmptyRetentionLeases() == false || getRetentionLeases().leases().isEmpty()
             : "expected empty set of retention leases with recovery source ["
-                + recoveryState.getRecoverySource()
-                + "] but got "
-                + getRetentionLeases();
+            + recoveryState.getRecoverySource()
+            + "] but got "
+            + getRetentionLeases();
         engineLock.writeLock().lock();
         try {
             assert this.currentEngine == null : "engine is running";
@@ -2232,10 +2232,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert userData.containsKey(Engine.HISTORY_UUID_KEY) : "commit point doesn't contains a history uuid";
         assert userData.get(Engine.HISTORY_UUID_KEY).equals(getHistoryUUID())
             : "commit point history uuid ["
-                + userData.get(Engine.HISTORY_UUID_KEY)
-                + "] is different than engine ["
-                + getHistoryUUID()
-                + "]";
+            + userData.get(Engine.HISTORY_UUID_KEY)
+            + "] is different than engine ["
+            + getHistoryUUID()
+            + "]";
 
         assert userData.containsKey(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID)
             : "opening index which was created post 5.5.0 but " + Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID + " is not found in commit";
@@ -2248,13 +2248,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final org.apache.lucene.util.Version commitLuceneVersion = segmentCommitInfos.getCommitLuceneVersion();
         assert commitLuceneVersion.onOrAfter(RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion()) == false
             || userData.containsKey(Engine.ES_VERSION)
-                && Engine.readIndexVersion(userData.get(Engine.ES_VERSION)).onOrBefore(IndexVersion.current())
+            && Engine.readIndexVersion(userData.get(Engine.ES_VERSION)).onOrBefore(IndexVersion.current())
             : "commit point has an invalid ES_VERSION value. commit point lucene version ["
-                + commitLuceneVersion
-                + "],"
-                + " ES_VERSION ["
-                + userData.get(Engine.ES_VERSION)
-                + "]";
+            + commitLuceneVersion
+            + "],"
+            + " ES_VERSION ["
+            + userData.get(Engine.ES_VERSION)
+            + "]";
         return true;
     }
 
@@ -2615,7 +2615,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void onSettingsChanged() {
-        Engine engineOrNull = getEngineOrNull(1, TimeUnit.SECONDS);
+        Engine engineOrNull = getEngineOrNull();
         if (engineOrNull != null) {
             engineOrNull.onSettingsChanged();
         }
@@ -3096,11 +3096,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              */
             assert state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED
                 : "supposedly in-sync shard copy received a global checkpoint ["
-                    + globalCheckpoint
-                    + "] "
-                    + "that is higher than its local checkpoint ["
-                    + localCheckpoint
-                    + "]";
+                + globalCheckpoint
+                + "] "
+                + "that is higher than its local checkpoint ["
+                + localCheckpoint
+                + "]";
             return;
         }
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);
@@ -3329,31 +3329,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    // TODO See how usages of this method are fixable
-    public Engine getEngineOrNull(long timeout, TimeUnit unit) {
-        try {
-            if (engineLock.readLock().tryLock(timeout, unit)) {
-                try {
-                    return getCurrentEngine(true);
-                } finally {
-                    engineLock.readLock().unlock();
-                }
-            }
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        return null;
+    public <R> void withMutableEngine(Function<Engine, R> operation) {
+        withEngine(operation, true, false);
     }
 
-    public <R> R withEngine(Function<Engine, R> operation) {
-        return withEngine(operation, false);
+    public <R> void withMutableEngineOrNull(Function<Engine, R> operation) {
+        withEngine(operation, true, true);
     }
 
-    public <R> R withEngineOrNull(Function<Engine, R> operation) {
-        return withEngine(operation, true);
+    public <R> void withImmutableEngine(Function<Engine, R> operation) {
+        withEngine(operation, false, false);
     }
 
-    private <R> R withEngine(Function<Engine, R> operation, boolean allowNoEngine) {
+    /**
+     * Executes an operation while preventing the shard's engine instance to be changed or closed during the execution. The parameter
+     * {@code requiredMutability} can be used to force the engine to be reset to a given mutable or immutable state before executing the
+     * operation. The parameter {@code allowNoEngine} is used to allow the operation to be executed with a null engine instance, in which
+     * case the {@code requiredMutability} is ignored. When {@code allowNoEngine} is set to {@code `false`} the method will throw an
+     * {@link AlreadyClosedException} if the current engine is null and won't reset the engine to the required mutability state.
+     *
+     * @param operation
+     * @param requiredMutability
+     * @param allowNoEngine
+     * @return
+     * @param <R>
+     */
+    private <R> R withEngine(Function<Engine, R> operation, boolean requiredMutability, boolean allowNoEngine) {
         assert ClusterApplierService.assertNotClusterStateUpdateThread("IndexShard.withEngine() can block");
         assert MasterService.assertNotMasterUpdateThread("IndexShard.withEngine() can block");
         assert Transports.assertNotTransportThread("IndexShard.withEngine() can block");
@@ -3363,14 +3364,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         var release = true;
         try {
             var engine = getCurrentEngine(allowNoEngine);
-            if (engine != null && engine.isOperable() == false) {
+            if (engine != null && (engine.isMutable() == requiredMutability) == false) {
                 engineLock.readLock().unlock();
                 release = false;
                 engineLock.writeLock().lock();
                 try {
                     engine = getCurrentEngine(allowNoEngine);
-                    if (engine != null && engine.isOperable() == false) {
-                        resetEngine(true);
+                    if (engine != null && (engine.isMutable() == requiredMutability) == false) {
+                        resetEngine(requiredMutability);
                         engine = getCurrentEngine(allowNoEngine);
                     }
                     engineLock.readLock().lock();
@@ -3379,7 +3380,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     engineLock.writeLock().unlock();
                 }
             }
-            assert engine == null || engine.isOperable();
+            assert engine == null || engine.isMutable() == requiredMutability;
             return operation.apply(engine);
         } finally {
             if (release) {
@@ -3389,7 +3390,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Engine getCurrentEngine(boolean allowNoEngine) {
-        assert engineLock.getReadHoldCount() > 0;
+        assert engineLock.getReadHoldCount() > 0 || engineLock.isWriteLockedByCurrentThread();
         var engine = this.currentEngine;
         if (engine == null && allowNoEngine == false) {
             throw new AlreadyClosedException("engine is closed");
@@ -4387,10 +4388,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 assert callingThread != null : "afterRefresh called but not beforeRefresh";
                 assert callingThread == Thread.currentThread()
                     : "beforeRefreshed called by a different thread. current ["
-                        + Thread.currentThread().getName()
-                        + "], thread that called beforeRefresh ["
-                        + callingThread.getName()
-                        + "]";
+                    + Thread.currentThread().getName()
+                    + "], thread that called beforeRefresh ["
+                    + callingThread.getName()
+                    + "]";
                 callingThread = null;
             }
             refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
@@ -4400,25 +4401,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Reset the current engine to a new one.
      *
-     * Calls {@link Engine#prepareForEngineReset()} on the current engine, then closes it, and loads a new engine without
+     * Calls {@link Engine#beforeReset()} on the current engine, then closes it, and loads a new engine without
      * doing any translog recovery.
      *
      * In general, resetting the engine should be done with care, to consider any in-progress operations and listeners.
      * At the moment, this is implemented in serverless for a special case that ensures the engine is prepared for reset.
      */
-    public void resetEngine(boolean operability) {
+    private void resetEngine(boolean mutability) {
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
         assert waitForEngineOrClosedShardListeners.isDone();
         try {
             engineLock.writeLock().lock(); // might already be held
             try {
                 verifyNotClosed();
-                if (currentEngine.isOperable() != operability) {
-                    currentEngine.prepareForEngineReset();
+                if (currentEngine.isMutable() != mutability) {
+                    currentEngine.beforeReset();
                     var newEngine = createEngine(newEngineConfig(replicationTracker));
-                    assert newEngine.isOperable() == operability : newEngine.isOperable() + " != " + operability;
+                    assert newEngine.isMutable() == mutability : newEngine.isMutable() + " != " + mutability;
                     IOUtils.close(getAndSetCurrentEngine(newEngine));
                     onNewEngine(newEngine);
+                    currentEngine.afterReset();
                 }
             } finally {
                 engineLock.writeLock().unlock();

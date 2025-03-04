@@ -4582,13 +4582,17 @@ public class IndexShardTests extends IndexShardTestCase {
             try {
                 return new ReadOnlyEngine(config, null, new TranslogStats(), false, Function.identity(), true, true) {
                     @Override
-                    public void prepareForEngineReset() {
+                    public void beforeReset() {
                         shared.set(true);
                     }
 
                     @Override
-                    public boolean isOperable() {
+                    public boolean isMutable() {
                         return shared.get();
+                    }
+
+                    @Override
+                    public void afterReset() throws IOException {
                     }
                 };
             } finally {
@@ -4601,7 +4605,7 @@ public class IndexShardTests extends IndexShardTestCase {
         var onAcquired = new PlainActionFuture<Releasable>();
         indexShard.acquireAllPrimaryOperationsPermits(onAcquired, TimeValue.timeValueMinutes(1L));
         try (var permits = safeGet(onAcquired)) {
-            indexShard.resetEngine(true);
+            indexShard.withMutableEngine(ignored -> ignored);
         }
         safeAwait(newEngineCreated);
         safeAwait(newEngineNotification);

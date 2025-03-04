@@ -989,7 +989,7 @@ public abstract class Engine implements Closeable {
         ensureOpen(null);
     }
 
-    public boolean isOperable() {
+    public boolean isMutable() {
         return true;
     }
 
@@ -2351,7 +2351,11 @@ public abstract class Engine implements Closeable {
      * in-progress operations and listeners (e.g., primary term and generation listeners).
      * At the moment, this is implemented in serverless for a special case that ensures the engine is prepared for reset.
      */
-    public void prepareForEngineReset() throws IOException {
+    public void beforeReset() throws IOException {
+        throw new UnsupportedOperationException("does not support engine reset");
+    }
+
+    public void afterReset() throws IOException {
         throw new UnsupportedOperationException("does not support engine reset");
     }
 

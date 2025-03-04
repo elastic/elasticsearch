@@ -46,7 +46,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.NUM_CANDS_OVERSAMPLE_LIMIT;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -82,7 +82,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
     abstract KnnVectorQueryBuilder createKnnVectorQueryBuilder(
         String fieldName,
-        Integer k,
+        int k,
         int numCands,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
@@ -138,8 +138,8 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
     @Override
     protected KnnVectorQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomBoolean() ? VECTOR_FIELD : VECTOR_ALIAS_FIELD;
-        Integer k = randomBoolean() ? null : randomIntBetween(1, 100);
-        int numCands = randomIntBetween(k == null ? DEFAULT_SIZE : k + 20, 1000);
+        int k = randomIntBetween(1, 100);
+        int numCands = randomIntBetween(k + 20, 1000);
         KnnVectorQueryBuilder queryBuilder = createKnnVectorQueryBuilder(
             fieldName,
             k,
@@ -176,8 +176,13 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             assertThat(((VectorSimilarityQuery) query).getSimilarity(), equalTo(queryBuilder.getVectorSimilarity()));
             query = ((VectorSimilarityQuery) query).getInnerKnnQuery();
         }
+        Integer k = queryBuilder.k();
+        if (k == null) {
+            k = context.requestSize() == null || context.requestSize() < 0 ? DEFAULT_SIZE : context.requestSize();
+        }
         if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
             RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
+            assertEquals(k.intValue(), (rescoreQuery.k()));
             query = rescoreQuery.innerQuery();
         }
         switch (elementType()) {
@@ -191,14 +196,11 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         }
         BooleanQuery booleanQuery = builder.build();
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
-        // The field should always be resolved to the concrete field
-        Integer k = queryBuilder.k();
         Integer numCands = queryBuilder.numCands();
         if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
-            Float numCandsFactor = queryBuilder.rescoreVectorBuilder().numCandidatesFactor();
-            int minCands = k == null ? 1 : k;
-            numCands = Math.max(minCands, (int) Math.ceil(numCands * numCandsFactor));
-            numCands = Math.min(numCands, NUM_CANDS_OVERSAMPLE_LIMIT);
+            Float oversample = queryBuilder.rescoreVectorBuilder().oversample();
+            k = Math.min(OVERSAMPLE_LIMIT, (int) Math.ceil(k * oversample));
+            numCands = Math.max(numCands, k);
         }
 
         Query knnVectorQueryBuilt = switch (elementType()) {

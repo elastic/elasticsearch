@@ -497,7 +497,9 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     public void testPutAlias() throws Exception {
         createIndex("foobar");
         verify(indicesAdmin().prepareAliases().addAlias("foobar", "foobar_alias"), false);
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("foobar").get().getAliases().isEmpty());
+        assertFalse(
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foobar").get().getAliases().isEmpty()
+        );
 
     }
 
@@ -505,16 +507,24 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         createIndex("foo", "foobar", "bar", "barbaz");
 
         verify(indicesAdmin().prepareAliases().addAlias("foo*", "foobar_alias"), false);
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("foo").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("foobar").get().getAliases().isEmpty());
-        assertTrue(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("bar").get().getAliases().isEmpty());
-        assertTrue(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("barbaz").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foo").get().getAliases().isEmpty());
+        assertFalse(
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foobar").get().getAliases().isEmpty()
+        );
+        assertTrue(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("bar").get().getAliases().isEmpty());
+        assertTrue(
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("barbaz").get().getAliases().isEmpty()
+        );
 
         verify(indicesAdmin().prepareAliases().addAlias("*", "foobar_alias"), false);
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("foo").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("foobar").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("bar").get().getAliases().isEmpty());
-        assertFalse(indicesAdmin().prepareGetAliases("foobar_alias").setIndices("barbaz").get().getAliases().isEmpty());
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foo").get().getAliases().isEmpty());
+        assertFalse(
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foobar").get().getAliases().isEmpty()
+        );
+        assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("bar").get().getAliases().isEmpty());
+        assertFalse(
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("barbaz").get().getAliases().isEmpty()
+        );
 
     }
 
@@ -527,26 +537,26 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         }
 
         verify(indicesAdmin().preparePutMapping("foo").setSource("field", "type=text"), false);
-        assertThat(indicesAdmin().prepareGetMappings("foo").get().mappings().get("foo"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "foo").get().mappings().get("foo"), notNullValue());
         verify(indicesAdmin().preparePutMapping("b*").setSource("field", "type=text"), false);
-        assertThat(indicesAdmin().prepareGetMappings("bar").get().mappings().get("bar"), notNullValue());
-        assertThat(indicesAdmin().prepareGetMappings("barbaz").get().mappings().get("barbaz"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "bar").get().mappings().get("bar"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "barbaz").get().mappings().get("barbaz"), notNullValue());
         verify(indicesAdmin().preparePutMapping("_all").setSource("field", "type=text"), false);
-        assertThat(indicesAdmin().prepareGetMappings("foo").get().mappings().get("foo"), notNullValue());
-        assertThat(indicesAdmin().prepareGetMappings("foobar").get().mappings().get("foobar"), notNullValue());
-        assertThat(indicesAdmin().prepareGetMappings("bar").get().mappings().get("bar"), notNullValue());
-        assertThat(indicesAdmin().prepareGetMappings("barbaz").get().mappings().get("barbaz"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "foo").get().mappings().get("foo"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "foobar").get().mappings().get("foobar"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "bar").get().mappings().get("bar"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "barbaz").get().mappings().get("barbaz"), notNullValue());
         verify(indicesAdmin().preparePutMapping().setSource("field", "type=text"), false);
-        assertThat(indicesAdmin().prepareGetMappings("foo").get().mappings().get("foo"), notNullValue());
-        assertThat(indicesAdmin().prepareGetMappings("foobar").get().mappings().get("foobar"), notNullValue());
-        assertThat(indicesAdmin().prepareGetMappings("bar").get().mappings().get("bar"), notNullValue());
-        assertThat(indicesAdmin().prepareGetMappings("barbaz").get().mappings().get("barbaz"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "foo").get().mappings().get("foo"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "foobar").get().mappings().get("foobar"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "bar").get().mappings().get("bar"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "barbaz").get().mappings().get("barbaz"), notNullValue());
 
         verify(indicesAdmin().preparePutMapping("c*").setSource("field", "type=text"), true);
 
         assertAcked(indicesAdmin().prepareClose("barbaz").get());
         verify(indicesAdmin().preparePutMapping("barbaz").setSource("field", "type=text"), false);
-        assertThat(indicesAdmin().prepareGetMappings("barbaz").get().mappings().get("barbaz"), notNullValue());
+        assertThat(indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "barbaz").get().mappings().get("barbaz"), notNullValue());
     }
 
     public static final class TestPlugin extends Plugin {
@@ -585,12 +595,12 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(indicesAdmin().prepareUpdateSettings("bar*").setSettings(Settings.builder().put("a", "b")), false);
         verify(indicesAdmin().prepareUpdateSettings("_all").setSettings(Settings.builder().put("c", "d")), false);
 
-        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings("foo").get();
+        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "foo").get();
         assertThat(settingsResponse.getSetting("foo", "index.a"), equalTo("b"));
-        settingsResponse = indicesAdmin().prepareGetSettings("bar*").get();
+        settingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "bar*").get();
         assertThat(settingsResponse.getSetting("bar", "index.a"), equalTo("b"));
         assertThat(settingsResponse.getSetting("barbaz", "index.a"), equalTo("b"));
-        settingsResponse = indicesAdmin().prepareGetSettings("_all").get();
+        settingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "_all").get();
         assertThat(settingsResponse.getSetting("foo", "index.c"), equalTo("d"));
         assertThat(settingsResponse.getSetting("foobar", "index.c"), equalTo("d"));
         assertThat(settingsResponse.getSetting("bar", "index.c"), equalTo("d"));
@@ -646,7 +656,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     static GetAliasesRequestBuilder getAliases(String... indices) {
-        return indicesAdmin().prepareGetAliases("dummy").setIndices(indices);
+        return indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "dummy").setIndices(indices);
     }
 
     static GetFieldMappingsRequestBuilder getFieldMapping(String... indices) {
@@ -654,11 +664,11 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     static GetMappingsRequestBuilder getMapping(String... indices) {
-        return indicesAdmin().prepareGetMappings(indices);
+        return indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, indices);
     }
 
     static GetSettingsRequestBuilder getSettings(String... indices) {
-        return indicesAdmin().prepareGetSettings(indices);
+        return indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indices);
     }
 
     private static CreateSnapshotRequestBuilder snapshot(String name, String... indices) {

@@ -5,10 +5,6 @@ setup:
 
 ---
 "geo_shape":
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_fallback"]
-      reason: introduced in 8.15.0
-
   - do:
       indices.create:
         index: test
@@ -72,10 +68,6 @@ setup:
 
 ---
 "geo_shape with ignore_malformed":
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_fallback"]
-      reason: introduced in 8.15.0
-
   - do:
       indices.create:
         index: test
@@ -156,10 +148,6 @@ setup:
 
 ---
 "shape":
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_fallback"]
-      reason: introduced in 8.15.0
-
   - do:
       indices.create:
         index: test
@@ -223,10 +211,6 @@ setup:
 
 ---
 "shape with ignore_malformed":
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_fallback"]
-      reason: introduced in 8.15.0
-
   - do:
       indices.create:
         index: test
@@ -424,8 +408,6 @@ setup:
 ---
 "geo_point with ignore_malformed":
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: introduced in 8.15.0
       test_runner_features: close_to
 
   - do:
@@ -504,10 +486,6 @@ setup:
 
 ---
 "point":
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_fallback"]
-      reason: introduced in 8.15.0
-
   - do:
       indices.create:
         index: test
@@ -601,10 +579,6 @@ setup:
 
 ---
 "point with ignore_malformed":
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_fallback"]
-      reason: introduced in 8.15.0
-
   - do:
       indices.create:
         index: test

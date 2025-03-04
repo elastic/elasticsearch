@@ -106,7 +106,7 @@ public class BitArrayTests extends ESTestCase {
     }
 
     public void testClearingDoesntAllocate() {
-        ByteSizeValue max = new ByteSizeValue(1, ByteSizeUnit.KB);
+        ByteSizeValue max = ByteSizeValue.of(1, ByteSizeUnit.KB);
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), max);
         try (BitArray bitArray = new BitArray(1, bigArrays)) {
             bitArray.clear(100000000);

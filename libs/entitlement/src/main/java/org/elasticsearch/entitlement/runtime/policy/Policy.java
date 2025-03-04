@@ -9,38 +9,15 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
 /**
  * A holder for scoped entitlements.
  */
-public class Policy {
-
-    public final String name;
-    public final List<Scope> scopes;
-
+public record Policy(String name, List<Scope> scopes) {
     public Policy(String name, List<Scope> scopes) {
         this.name = Objects.requireNonNull(name);
-        this.scopes = Collections.unmodifiableList(Objects.requireNonNull(scopes));
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Policy policy = (Policy) o;
-        return Objects.equals(name, policy.name) && Objects.equals(scopes, policy.scopes);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(name, scopes);
-    }
-
-    @Override
-    public String toString() {
-        return "Policy{" + "name='" + name + '\'' + ", scopes=" + scopes + '}';
+        this.scopes = List.copyOf(scopes);
     }
 }

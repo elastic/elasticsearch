@@ -376,8 +376,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         try {
             final int rounds = scaledRandomIntBetween(100, 10000);
             SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
-            SearchRequest scrollSearchRequest = new SearchRequest().allowPartialSearchResults(true)
-                .scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+            SearchRequest scrollSearchRequest = new SearchRequest().allowPartialSearchResults(true).scroll(TimeValue.timeValueMinutes(1));
             for (int i = 0; i < rounds; i++) {
                 try {
                     try {
@@ -688,7 +687,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                     int from,
                                     Client client
                                 ) {
-                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE, false) {
                                         @Override
                                         protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                                             float[] scores = new float[featureDocs.length];
@@ -832,7 +831,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                 int from,
                                 Client client
                             ) {
-                                return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE, false) {
                                     @Override
                                     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                                         throw new IllegalStateException("should have failed earlier");
@@ -948,7 +947,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                     int from,
                                     Client client
                                 ) {
-                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE, false) {
                                         @Override
                                         protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                                             float[] scores = new float[featureDocs.length];
@@ -1076,7 +1075,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                     int from,
                                     Client client
                                 ) {
-                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE, false) {
                                         @Override
                                         protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                                             float[] scores = new float[featureDocs.length];
@@ -1188,8 +1187,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         });
 
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
-        SearchRequest scrollSearchRequest = new SearchRequest().allowPartialSearchResults(true)
-            .scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        SearchRequest scrollSearchRequest = new SearchRequest().allowPartialSearchResults(true).scroll(TimeValue.timeValueMinutes(1));
 
         // the scrolls are not explicitly freed, but should all be gone when the test finished.
         // for completeness, we also randomly test the regular search path.
@@ -1217,7 +1215,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             // ok
         }
 
-        expectThrows(IndexNotFoundException.class, () -> indicesAdmin().prepareGetIndex().setIndices("index").get());
+        expectThrows(IndexNotFoundException.class, () -> indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("index").get());
 
         assertEquals(0, service.getActiveContexts());
 
@@ -1657,7 +1655,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private static class ShardScrollRequestTest extends ShardSearchRequest {
-        private Scroll scroll;
+        private final TimeValue scroll;
 
         ShardScrollRequestTest(ShardId shardId) {
             super(
@@ -1671,11 +1669,11 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 -1,
                 null
             );
-            this.scroll = new Scroll(TimeValue.timeValueMinutes(1));
+            this.scroll = TimeValue.timeValueMinutes(1);
         }
 
         @Override
-        public Scroll scroll() {
+        public TimeValue scroll() {
             return this.scroll;
         }
     }

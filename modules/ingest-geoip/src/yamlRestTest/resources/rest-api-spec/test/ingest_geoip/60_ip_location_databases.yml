@@ -1,11 +1,4 @@
 ---
-setup:
-  - requires:
-      cluster_features:
-        - "put_database_configuration_action.ipinfo"
-      reason: "ip location downloader database configuration APIs added in 8.16 to support more types"
-
----
 teardown:
   - do:
       ingest.delete_ip_location_database:

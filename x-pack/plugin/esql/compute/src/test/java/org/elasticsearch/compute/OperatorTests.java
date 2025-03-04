@@ -37,7 +37,6 @@ import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
@@ -57,12 +56,14 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
-import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.ShuffleDocsOperator;
+import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -84,7 +85,7 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
-import static org.elasticsearch.compute.operator.OperatorTestCase.randomPageSize;
+import static org.elasticsearch.compute.test.OperatorTestCase.randomPageSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -123,7 +124,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         }
                     });
                     DriverContext driverContext = driverContext();
-                    drivers.add(new Driver(driverContext, factory.get(driverContext), List.of(), docCollector, () -> {}));
+                    drivers.add(TestDriverFactory.create(driverContext, factory.get(driverContext), List.of(), docCollector));
                 }
                 OperatorTestCase.runDriver(drivers);
                 Set<Integer> expectedDocIds = searchForDocIds(reader, query);
@@ -197,14 +198,14 @@ public class OperatorTests extends MapperServiceTestCase {
                         ElementType.BYTES_REF,
                         0,
                         gField,
-                        List.of(CountAggregatorFunction.supplier(List.of(1)).groupingAggregatorFactory(INITIAL)),
+                        List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(INITIAL, List.of(1))),
                         randomPageSize(),
                         driverContext
                     )
                 );
                 operators.add(
                     new HashAggregationOperator(
-                        List.of(CountAggregatorFunction.supplier(List.of(1, 2)).groupingAggregatorFactory(FINAL)),
+                        List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(FINAL, List.of(1, 2))),
                         () -> BlockHash.build(
                             List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF)),
                             driverContext.blockFactory(),
@@ -214,7 +215,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         driverContext
                     )
                 );
-                Driver driver = new Driver(
+                Driver driver = TestDriverFactory.create(
                     driverContext,
                     luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT).get(driverContext),
                     operators,
@@ -227,8 +228,7 @@ public class OperatorTests extends MapperServiceTestCase {
                             actualCounts.put(BytesRef.deepCopyOf(spare), counts.getLong(i));
                         }
                         page.releaseBlocks();
-                    }),
-                    () -> {}
+                    })
                 );
                 OperatorTestCase.runDriver(driver);
                 assertThat(actualCounts, equalTo(expectedCounts));
@@ -247,7 +247,7 @@ public class OperatorTests extends MapperServiceTestCase {
         var results = new ArrayList<Long>();
         DriverContext driverContext = driverContext();
         try (
-            var driver = new Driver(
+            var driver = TestDriverFactory.create(
                 driverContext,
                 new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
                 List.of((new LimitOperator.Factory(limit)).get(driverContext)),
@@ -256,8 +256,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     for (int i = 0; i < page.getPositionCount(); i++) {
                         results.add(block.getLong(i));
                     }
-                }),
-                () -> {}
+                })
             )
         ) {
             OperatorTestCase.runDriver(driver);
@@ -334,7 +333,7 @@ public class OperatorTests extends MapperServiceTestCase {
             var actualValues = new ArrayList<>();
             var actualPrimeOrds = new ArrayList<>();
             try (
-                var driver = new Driver(
+                var driver = TestDriverFactory.create(
                     driverContext,
                     new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
                     List.of(
@@ -351,8 +350,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         } finally {
                             page.releaseBlocks();
                         }
-                    }),
-                    () -> {}
+                    })
                 )
             ) {
                 OperatorTestCase.runDriver(driver);

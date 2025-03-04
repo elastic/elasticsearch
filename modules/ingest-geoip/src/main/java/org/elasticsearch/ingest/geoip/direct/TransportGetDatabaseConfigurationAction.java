@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.geoip.DatabaseNodeService;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState;
 import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
@@ -41,8 +40,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.ingest.IngestGeoIpFeatures.GET_DATABASE_CONFIGURATION_ACTION_MULTI_NODE;
-
 public class TransportGetDatabaseConfigurationAction extends TransportNodesAction<
     GetDatabaseConfigurationAction.Request,
     GetDatabaseConfigurationAction.Response,
@@ -50,7 +47,6 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
     GetDatabaseConfigurationAction.NodeResponse,
     List<DatabaseConfigurationMetadata>> {
 
-    private final FeatureService featureService;
     private final DatabaseNodeService databaseNodeService;
 
     @Inject
@@ -59,7 +55,6 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        FeatureService featureService,
         DatabaseNodeService databaseNodeService
     ) {
         super(
@@ -70,37 +65,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
             GetDatabaseConfigurationAction.NodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.featureService = featureService;
         this.databaseNodeService = databaseNodeService;
-    }
-
-    @Override
-    protected void doExecute(
-        Task task,
-        GetDatabaseConfigurationAction.Request request,
-        ActionListener<GetDatabaseConfigurationAction.Response> listener
-    ) {
-        if (featureService.clusterHasFeature(clusterService.state(), GET_DATABASE_CONFIGURATION_ACTION_MULTI_NODE) == false) {
-            /*
-             * TransportGetDatabaseConfigurationAction used to be a TransportMasterNodeAction, and not all nodes in the cluster have been
-             * updated. So we don't want to send node requests to the other nodes because they will blow up. Instead, we just return
-             * the information that we used to return from the master node (it doesn't make any difference that this might not be the master
-             * node, because we're only reading the cluster state). Because older nodes only know about the Maxmind provider type, we filter
-             * out all others here to avoid causing problems on those nodes.
-             */
-            newResponseAsync(
-                task,
-                request,
-                createActionContext(task, request).stream()
-                    .filter(database -> database.database().provider() instanceof DatabaseConfiguration.Maxmind)
-                    .toList(),
-                List.of(),
-                List.of(),
-                listener
-            );
-        } else {
-            super.doExecute(task, request, listener);
-        }
     }
 
     protected List<DatabaseConfigurationMetadata> createActionContext(Task task, GetDatabaseConfigurationAction.Request request) {
@@ -174,7 +139,10 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
      */
     private static Collection<DatabaseConfigurationMetadata> getMaxmindDatabases(ClusterService clusterService, String id) {
         List<DatabaseConfigurationMetadata> maxmindDatabases = new ArrayList<>();
-        final IngestGeoIpMetadata geoIpMeta = clusterService.state().metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        final IngestGeoIpMetadata geoIpMeta = clusterService.state()
+            .metadata()
+            .getProject()
+            .custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
         if (Regex.isSimpleMatchPattern(id)) {
             for (Map.Entry<String, DatabaseConfigurationMetadata> entry : geoIpMeta.getDatabases().entrySet()) {
                 if (Regex.simpleMatch(id, entry.getKey())) {

@@ -16,12 +16,10 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -29,6 +27,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+
+import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 /**
  * Some {@link FullTextFunction} implementations such as {@link org.elasticsearch.xpack.esql.expression.function.fulltext.Match}
@@ -59,12 +59,6 @@ public class QueryBuilderResolver {
         ActionListener<Result> listener,
         BiConsumer<LogicalPlan, ActionListener<Result>> callback
     ) {
-        // TODO: remove once SEMANTIC_TEXT_TYPE is enabled outside of snapshots
-        if (false == EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled()) {
-            callback.accept(plan, listener);
-            return;
-        }
-
         if (plan.optimized() == false) {
             listener.onFailure(new IllegalStateException("Expected optimized plan before query builder rewrite."));
             return;
@@ -105,9 +99,7 @@ public class QueryBuilderResolver {
 
     public Set<String> indexNames(LogicalPlan plan) {
         Holder<Set<String>> indexNames = new Holder<>();
-
-        plan.forEachDown(EsRelation.class, esRelation -> { indexNames.set(esRelation.index().concreteIndices()); });
-
+        plan.forEachDown(EsRelation.class, esRelation -> indexNames.set(esRelation.concreteIndices()));
         return indexNames.get();
     }
 
@@ -127,7 +119,7 @@ public class QueryBuilderResolver {
         ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndexNamesAndOptions(
             indexNames.toArray(String[]::new),
             IndexResolver.FIELD_CAPS_INDICES_OPTIONS,
-            clusterService.state(),
+            clusterService.state().getMetadata().getProject(),
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
             System.currentTimeMillis()
@@ -148,7 +140,7 @@ public class QueryBuilderResolver {
             this.queryBuilderMap = new HashMap<>();
 
             for (FullTextFunction func : functions) {
-                queryBuilderMap.put(func, func.asQuery(PlannerUtils.TRANSLATOR_HANDLER).asBuilder());
+                queryBuilderMap.put(func, TRANSLATOR_HANDLER.asQuery(func).asBuilder());
             }
         }
 
@@ -157,15 +149,12 @@ public class QueryBuilderResolver {
             Map<FullTextFunction, QueryBuilder> results = new HashMap<>();
 
             boolean hasChanged = false;
-            for (FullTextFunction func : queryBuilderMap.keySet()) {
-                var initial = queryBuilderMap.get(func);
-                var rewritten = Rewriteable.rewrite(initial, ctx, false);
+            for (var entry : queryBuilderMap.entrySet()) {
+                var initial = entry.getValue();
+                var rewritten = initial.rewrite(ctx);
+                hasChanged |= rewritten != initial;
 
-                if (rewritten.equals(initial) == false) {
-                    hasChanged = true;
-                }
-
-                results.put(func, rewritten);
+                results.put(entry.getKey(), rewritten);
             }
 
             return hasChanged ? new FullTextFunctionsRewritable(results) : this;

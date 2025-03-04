@@ -43,11 +43,13 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMergeContext;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -57,6 +59,7 @@ import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -70,6 +73,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
+import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -82,8 +86,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
+import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
@@ -103,8 +110,6 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
  * A {@link FieldMapper} for semantic text fields.
  */
 public class SemanticTextFieldMapper extends FieldMapper implements InferenceFieldMapper {
-    public static final NodeFeature SEMANTIC_TEXT_SEARCH_INFERENCE_ID = new NodeFeature("semantic_text.search_inference_id");
-    public static final NodeFeature SEMANTIC_TEXT_DEFAULT_ELSER_2 = new NodeFeature("semantic_text.default_elser_2");
     public static final NodeFeature SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX = new NodeFeature("semantic_text.in_object_field_fix");
     public static final NodeFeature SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX = new NodeFeature("semantic_text.single_field_update_fix");
     public static final NodeFeature SEMANTIC_TEXT_DELETE_FIX = new NodeFeature("semantic_text.delete_fix");
@@ -112,18 +117,27 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final NodeFeature SEMANTIC_TEXT_ALWAYS_EMIT_INFERENCE_ID_FIX = new NodeFeature(
         "semantic_text.always_emit_inference_id_fix"
     );
+    public static final NodeFeature SEMANTIC_TEXT_SKIP_INFERENCE_FIELDS = new NodeFeature("semantic_text.skip_inference_fields");
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
 
     public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, c::bitSetProducer, c.getIndexSettings()),
-        List.of(notInMultiFields(CONTENT_TYPE), notFromDynamicTemplates(CONTENT_TYPE))
+        List.of(validateParserContext(CONTENT_TYPE))
     );
+
+    public static BiConsumer<String, MappingParserContext> validateParserContext(String type) {
+        return (n, c) -> {
+            if (InferenceMetadataFieldsMapper.isEnabled(c.getIndexSettings().getSettings()) == false) {
+                notInMultiFields(type).accept(n, c);
+            }
+            notFromDynamicTemplates(type).accept(n, c);
+        };
+    }
 
     public static class Builder extends FieldMapper.Builder {
         private final boolean useLegacyFormat;
-        private final IndexVersion indexVersionCreated;
 
         private final Parameter<String> inferenceId = Parameter.stringParam(
             INFERENCE_ID_FIELD,
@@ -151,7 +165,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
         });
 
-        private final Parameter<SemanticTextField.ModelSettings> modelSettings = new Parameter<>(
+        private final Parameter<MinimalServiceSettings> modelSettings = new Parameter<>(
             MODEL_SETTINGS_FIELD,
             true,
             () -> null,
@@ -177,7 +191,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         public Builder(String name, Function<Query, BitSetProducer> bitSetProducer, IndexSettings indexSettings) {
             super(name);
-            this.indexVersionCreated = indexSettings.getIndexVersionCreated();
             this.useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(indexSettings.getSettings()) == false;
             this.inferenceFieldBuilder = c -> createInferenceField(
                 c,
@@ -199,7 +212,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return this;
         }
 
-        public Builder setModelSettings(SemanticTextField.ModelSettings value) {
+        public Builder setModelSettings(MinimalServiceSettings value) {
             this.modelSettings.setValue(value);
             return this;
         }
@@ -224,11 +237,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public SemanticTextFieldMapper build(MapperBuilderContext context) {
-            if (copyTo.copyToFields().isEmpty() == false) {
+            if (useLegacyFormat && copyTo.copyToFields().isEmpty() == false) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [copy_to]");
             }
-            if (multiFieldsBuilder.hasMultiFields()) {
+            if (useLegacyFormat && multiFieldsBuilder.hasMultiFields()) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support multi-fields");
+            }
+            if (modelSettings.get() != null) {
+                validateServiceSettings(modelSettings.get());
             }
             final String fullName = context.buildFullName(leafName());
 
@@ -246,7 +262,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     searchInferenceId.getValue(),
                     modelSettings.getValue(),
                     inferenceField,
-                    indexVersionCreated,
                     useLegacyFormat,
                     meta.getValue()
                 ),
@@ -254,9 +269,26 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             );
         }
 
+        private void validateServiceSettings(MinimalServiceSettings settings) {
+            switch (settings.taskType()) {
+                case SPARSE_EMBEDDING, TEXT_EMBEDDING -> {
+                }
+                default -> throw new IllegalArgumentException(
+                    "Wrong ["
+                        + MinimalServiceSettings.TASK_TYPE_FIELD
+                        + "], expected "
+                        + TEXT_EMBEDDING
+                        + " or "
+                        + SPARSE_EMBEDDING
+                        + ", got "
+                        + settings.taskType().name()
+                );
+            }
+        }
+
         /**
          * As necessary, copy settings from this builder to the passed-in mapper.
-         * Used to preserve {@link SemanticTextField.ModelSettings} when updating a semantic text mapping to one where the model settings
+         * Used to preserve {@link MinimalServiceSettings} when updating a semantic text mapping to one where the model settings
          * are not specified.
          *
          * @param mapper The mapper
@@ -276,13 +308,33 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     private SemanticTextFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
         super(simpleName, mappedFieldType, builderParams);
+        ensureMultiFields(builderParams.multiFields().iterator());
+    }
+
+    private void ensureMultiFields(Iterator<FieldMapper> mappers) {
+        while (mappers.hasNext()) {
+            var mapper = mappers.next();
+            if (mapper.leafName().equals(INFERENCE_FIELD)) {
+                throw new IllegalArgumentException(
+                    "Field ["
+                        + mapper.fullPath()
+                        + "] is already used by another field ["
+                        + fullPath()
+                        + "] internally. Please choose a different name."
+                );
+            }
+        }
     }
 
     @Override
     public Iterator<Mapper> iterator() {
-        List<Mapper> subIterators = new ArrayList<>();
-        subIterators.add(fieldType().getInferenceField());
-        return subIterators.iterator();
+        List<Mapper> mappers = new ArrayList<>();
+        Iterator<Mapper> m = super.iterator();
+        while (m.hasNext()) {
+            mappers.add(m.next());
+        }
+        mappers.add(fieldType().getInferenceField());
+        return mappers.iterator();
     }
 
     @Override
@@ -351,20 +403,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         final SemanticTextFieldMapper mapper;
         if (fieldType().getModelSettings() == null) {
-            context.path().remove();
-            Builder builder = (Builder) new Builder(
-                leafName(),
-                fieldType().getChunksField().bitsetProducer(),
-                fieldType().getChunksField().indexSettings()
-            ).init(this);
-            try {
-                mapper = builder.setModelSettings(field.inference().modelSettings())
-                    .setInferenceId(field.inference().inferenceId())
-                    .build(context.createDynamicMapperBuilderContext());
-                context.addDynamicMapper(mapper);
-            } finally {
-                context.path().add(leafName());
-            }
+            mapper = addDynamicUpdate(context, field);
         } else {
             Conflicts conflicts = new Conflicts(fullFieldName);
             canMergeModelSettings(fieldType().getModelSettings(), field.inference().modelSettings(), conflicts);
@@ -382,6 +421,17 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 );
             }
             mapper = this;
+        }
+
+        if (mapper.fieldType().getModelSettings() == null) {
+            for (var chunkList : field.inference().chunks().values()) {
+                if (chunkList.isEmpty() == false) {
+                    throw new DocumentParsingException(
+                        xContentLocation,
+                        "[" + MODEL_SETTINGS_FIELD + "] must be set for field [" + fullFieldName + "] when chunks are provided"
+                    );
+                }
+            }
         }
 
         var chunksField = mapper.fieldType().getChunksField();
@@ -428,6 +478,32 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
     }
 
+    private SemanticTextFieldMapper addDynamicUpdate(DocumentParserContext context, SemanticTextField field) {
+        Builder builder = (Builder) getMergeBuilder();
+        context.path().remove();
+        try {
+            builder.setModelSettings(field.inference().modelSettings()).setInferenceId(field.inference().inferenceId());
+            if (context.mappingLookup().isMultiField(fullPath())) {
+                // The field is part of a multi-field, so the parent field must also be updated accordingly.
+                var fieldName = context.path().remove();
+                try {
+                    var parentMapper = ((FieldMapper) context.mappingLookup().getMapper(context.mappingLookup().parentField(fullPath())))
+                        .getMergeBuilder();
+                    context.addDynamicMapper(parentMapper.addMultiField(builder).build(context.createDynamicMapperBuilderContext()));
+                    return builder.build(context.createDynamicMapperBuilderContext());
+                } finally {
+                    context.path().add(fieldName);
+                }
+            } else {
+                var mapper = builder.build(context.createDynamicMapperBuilderContext());
+                context.addDynamicMapper(mapper);
+                return mapper;
+            }
+        } finally {
+            context.path().add(leafName());
+        }
+    }
+
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
@@ -448,11 +524,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     protected void doValidate(MappingLookup mappers) {
-        int parentPathIndex = fullPath().lastIndexOf(leafName());
+        String fullPath = mappers.isMultiField(fullPath()) ? mappers.parentField(fullPath()) : fullPath();
+        String leafName = mappers.getMapper(fullPath).leafName();
+        int parentPathIndex = fullPath.lastIndexOf(leafName);
         if (parentPathIndex > 0) {
+            String parentName = fullPath.substring(0, parentPathIndex - 1);
             // Check that the parent object field allows subobjects.
             // Subtract one from the parent path index to omit the trailing dot delimiter.
-            ObjectMapper parentMapper = mappers.objectMappers().get(fullPath().substring(0, parentPathIndex - 1));
+            ObjectMapper parentMapper = mappers.objectMappers().get(parentName);
             if (parentMapper == null) {
                 throw new IllegalStateException(CONTENT_TYPE + " field [" + fullPath() + "] does not have a parent object mapper");
             }
@@ -468,18 +547,16 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static class SemanticTextFieldType extends SimpleMappedFieldType {
         private final String inferenceId;
         private final String searchInferenceId;
-        private final SemanticTextField.ModelSettings modelSettings;
+        private final MinimalServiceSettings modelSettings;
         private final ObjectMapper inferenceField;
-        private final IndexVersion indexVersionCreated;
         private final boolean useLegacyFormat;
 
         public SemanticTextFieldType(
             String name,
             String inferenceId,
             String searchInferenceId,
-            SemanticTextField.ModelSettings modelSettings,
+            MinimalServiceSettings modelSettings,
             ObjectMapper inferenceField,
-            IndexVersion indexVersionCreated,
             boolean useLegacyFormat,
             Map<String, String> meta
         ) {
@@ -488,7 +565,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             this.searchInferenceId = searchInferenceId;
             this.modelSettings = modelSettings;
             this.inferenceField = inferenceField;
-            this.indexVersionCreated = indexVersionCreated;
             this.useLegacyFormat = useLegacyFormat;
         }
 
@@ -501,6 +577,16 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return CONTENT_TYPE;
         }
 
+        @Override
+        public String familyTypeName() {
+            return TextFieldMapper.CONTENT_TYPE;
+        }
+
+        @Override
+        public String getDefaultHighlighter() {
+            return SemanticTextHighlighter.NAME;
+        }
+
         public String getInferenceId() {
             return inferenceId;
         }
@@ -509,7 +595,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return searchInferenceId == null ? inferenceId : searchInferenceId;
         }
 
-        public SemanticTextField.ModelSettings getModelSettings() {
+        public MinimalServiceSettings getModelSettings() {
             return modelSettings;
         }
 
@@ -623,9 +709,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
                         MlTextEmbeddingResults textEmbeddingResults = (MlTextEmbeddingResults) inferenceResults;
                         float[] inference = textEmbeddingResults.getInferenceAsFloat();
-                        if (inference.length != modelSettings.dimensions()) {
+                        var inferenceLength = modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BIT
+                            ? inference.length * Byte.SIZE
+                            : inference.length;
+                        if (inferenceLength != modelSettings.dimensions()) {
                             throw new IllegalArgumentException(
-                                generateDimensionCountMismatchMessage(inference.length, modelSettings.dimensions())
+                                generateDimensionCountMismatchMessage(inferenceLength, modelSettings.dimensions())
                             );
                         }
 
@@ -823,7 +912,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         MapperBuilderContext context,
         IndexVersion indexVersionCreated,
         boolean useLegacyFormat,
-        @Nullable SemanticTextField.ModelSettings modelSettings,
+        @Nullable MinimalServiceSettings modelSettings,
         Function<Query, BitSetProducer> bitSetProducer,
         IndexSettings indexSettings
     ) {
@@ -835,7 +924,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     private static NestedObjectMapper.Builder createChunksField(
         IndexVersion indexVersionCreated,
         boolean useLegacyFormat,
-        @Nullable SemanticTextField.ModelSettings modelSettings,
+        @Nullable MinimalServiceSettings modelSettings,
         Function<Query, BitSetProducer> bitSetProducer,
         IndexSettings indexSettings
     ) {
@@ -847,7 +936,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         );
         chunksField.dynamic(ObjectMapper.Dynamic.FALSE);
         if (modelSettings != null) {
-            chunksField.add(createEmbeddingsField(indexSettings.getIndexVersionCreated(), modelSettings));
+            chunksField.add(createEmbeddingsField(indexSettings.getIndexVersionCreated(), modelSettings, useLegacyFormat));
         }
         if (useLegacyFormat) {
             var chunkTextField = new KeywordFieldMapper.Builder(TEXT_FIELD, indexVersionCreated).indexed(false).docValues(false);
@@ -858,9 +947,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         return chunksField;
     }
 
-    private static Mapper.Builder createEmbeddingsField(IndexVersion indexVersionCreated, SemanticTextField.ModelSettings modelSettings) {
+    private static Mapper.Builder createEmbeddingsField(
+        IndexVersion indexVersionCreated,
+        MinimalServiceSettings modelSettings,
+        boolean useLegacyFormat
+    ) {
         return switch (modelSettings.taskType()) {
-            case SPARSE_EMBEDDING -> new SparseVectorFieldMapper.Builder(CHUNKED_EMBEDDINGS_FIELD).setStored(true);
+            case SPARSE_EMBEDDING -> new SparseVectorFieldMapper.Builder(CHUNKED_EMBEDDINGS_FIELD).setStored(useLegacyFormat == false);
             case TEXT_EMBEDDING -> {
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
@@ -887,15 +980,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         };
     }
 
-    private static boolean canMergeModelSettings(
-        SemanticTextField.ModelSettings previous,
-        SemanticTextField.ModelSettings current,
-        Conflicts conflicts
-    ) {
+    private static boolean canMergeModelSettings(MinimalServiceSettings previous, MinimalServiceSettings current, Conflicts conflicts) {
         if (Objects.equals(previous, current)) {
             return true;
         }
-        if (previous == null) {
+        if (previous == null || current == null) {
             return true;
         }
         conflicts.addConflict("model_settings", "");

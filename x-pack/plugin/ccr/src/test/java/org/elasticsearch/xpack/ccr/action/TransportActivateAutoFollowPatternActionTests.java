@@ -95,10 +95,10 @@ public class TransportActivateAutoFollowPatternActionTests extends ESTestCase {
             ClusterState updatedState = TransportActivateAutoFollowPatternAction.innerActivate(pauseRequest, clusterState);
             assertThat(updatedState, not(sameInstance(clusterState)));
 
-            AutoFollowMetadata updatedAutoFollowMetadata = updatedState.getMetadata().custom(AutoFollowMetadata.TYPE);
+            AutoFollowMetadata updatedAutoFollowMetadata = updatedState.getMetadata().getProject().custom(AutoFollowMetadata.TYPE);
             assertNotEquals(updatedAutoFollowMetadata, notNullValue());
 
-            AutoFollowMetadata autoFollowMetadata = clusterState.getMetadata().custom(AutoFollowMetadata.TYPE);
+            AutoFollowMetadata autoFollowMetadata = clusterState.getMetadata().getProject().custom(AutoFollowMetadata.TYPE);
             assertNotEquals(updatedAutoFollowMetadata, autoFollowMetadata);
             assertThat(updatedAutoFollowMetadata.getPatterns().size(), equalTo(autoFollowMetadata.getPatterns().size()));
             assertThat(updatedAutoFollowMetadata.getPatterns().get("remote_cluster").isActive(), not(autoFollowPattern.isActive()));
@@ -120,10 +120,10 @@ public class TransportActivateAutoFollowPatternActionTests extends ESTestCase {
             randomIntBetween(1, 100),
             randomIntBetween(1, 100),
             randomIntBetween(1, 100),
-            new ByteSizeValue(randomIntBetween(1, 100), randomFrom(ByteSizeUnit.values())),
-            new ByteSizeValue(randomIntBetween(1, 100), randomFrom(ByteSizeUnit.values())),
+            ByteSizeValue.of(randomIntBetween(1, 100), randomFrom(ByteSizeUnit.values())),
+            ByteSizeValue.of(randomIntBetween(1, 100), randomFrom(ByteSizeUnit.values())),
             randomIntBetween(1, 100),
-            new ByteSizeValue(randomIntBetween(1, 100), randomFrom(ByteSizeUnit.values())),
+            ByteSizeValue.of(randomIntBetween(1, 100), randomFrom(ByteSizeUnit.values())),
             TimeValue.timeValueSeconds(randomIntBetween(30, 600)),
             TimeValue.timeValueSeconds(randomIntBetween(30, 600))
         );

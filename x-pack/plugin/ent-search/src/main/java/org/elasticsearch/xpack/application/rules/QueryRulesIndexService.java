@@ -33,7 +33,6 @@ import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
@@ -433,13 +432,12 @@ public class QueryRulesIndexService {
 
     private static QueryRulesetResult mapSearchResponseToQueryRulesetList(SearchResponse response) {
         final List<QueryRulesetListItem> rulesetResults = Arrays.stream(response.getHits().getHits())
-            .map(QueryRulesIndexService::hitToQueryRulesetListItem)
+            .map(searchHit -> QueryRulesIndexService.hitToQueryRulesetListItem(searchHit.getSourceAsMap()))
             .toList();
         return new QueryRulesetResult(rulesetResults, (int) response.getHits().getTotalHits().value());
     }
 
-    private static QueryRulesetListItem hitToQueryRulesetListItem(SearchHit searchHit) {
-        final Map<String, Object> sourceMap = searchHit.getSourceAsMap();
+    private static QueryRulesetListItem hitToQueryRulesetListItem(final Map<String, Object> sourceMap) {
         final String rulesetId = (String) sourceMap.get(QueryRuleset.ID_FIELD.getPreferredName());
         @SuppressWarnings("unchecked")
         final List<LinkedHashMap<?, ?>> rules = ((List<LinkedHashMap<?, ?>>) sourceMap.get(QueryRuleset.RULES_FIELD.getPreferredName()));

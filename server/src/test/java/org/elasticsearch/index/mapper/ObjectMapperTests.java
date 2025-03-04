@@ -329,6 +329,40 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("can't merge a non object mapping [object.field1] with an object mapping"));
     }
 
+    public void testFieldReplacementSubobjectsFalse() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("obj").field("type", "object").field("subobjects", false).startObject("properties");
+            {
+                b.startObject("my.field").field("type", "keyword").endObject();
+            }
+            b.endObject().endObject();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
+        assertNull(mapper.mapping().getRoot().dynamic());
+        Mapping mergeWith = mapperService.parseMapping(
+            "_doc",
+            MergeReason.INDEX_TEMPLATE,
+            new CompressedXContent(BytesReference.bytes(topMapping(b -> {
+                b.startObject("properties").startObject("obj").field("type", "object").field("subobjects", false).startObject("properties");
+                {
+                    b.startObject("my.field").field("type", "long").endObject();
+                }
+                b.endObject().endObject().endObject();
+            })))
+        );
+
+        // Fails on mapping update.
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
+        );
+        assertEquals("mapper [obj.my.field] cannot be changed from type [keyword] to [long]", exception.getMessage());
+
+        // Passes on template merging.
+        Mapping merged = mapper.mapping().merge(mergeWith, MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE);
+        assertThat(((ObjectMapper) merged.getRoot().getMapper("obj")).getMapper("my.field"), instanceOf(NumberFieldMapper.class));
+    }
+
     public void testUnknownLegacyFields() throws Exception {
         MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");

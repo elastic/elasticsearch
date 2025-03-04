@@ -79,7 +79,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {
-                    assert getVersion().equals(TransportVersion.current());
+                    assert version.equals(TransportVersion.current());
                     listener.onResponse(TransportVersions.MINIMUM_COMPATIBLE);
                 }
             }

@@ -99,13 +99,13 @@ class S3Repository extends MeteredBlobStoreRepository {
     /**
      * Maximum size of files that can be uploaded using a single upload request.
      */
-    static final ByteSizeValue MAX_FILE_SIZE = new ByteSizeValue(5, ByteSizeUnit.GB);
+    static final ByteSizeValue MAX_FILE_SIZE = ByteSizeValue.of(5, ByteSizeUnit.GB);
 
     /**
      * Minimum size of parts that can be uploaded using the Multipart Upload API.
      * (see http://docs.aws.amazon.com/AmazonS3/latest/dev/qfacts.html)
      */
-    static final ByteSizeValue MIN_PART_SIZE_USING_MULTIPART = new ByteSizeValue(5, ByteSizeUnit.MB);
+    static final ByteSizeValue MIN_PART_SIZE_USING_MULTIPART = ByteSizeValue.of(5, ByteSizeUnit.MB);
 
     /**
      * Maximum size of parts that can be uploaded using the Multipart Upload API.
@@ -116,7 +116,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     /**
      * Maximum size of files that can be uploaded using the Multipart Upload API.
      */
-    static final ByteSizeValue MAX_FILE_SIZE_USING_MULTIPART = new ByteSizeValue(5, ByteSizeUnit.TB);
+    static final ByteSizeValue MAX_FILE_SIZE_USING_MULTIPART = ByteSizeValue.of(5, ByteSizeUnit.TB);
 
     /**
      * Minimum threshold below which the chunk is uploaded using a single request. Beyond this threshold,
@@ -137,7 +137,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
         "chunk_size",
         MAX_FILE_SIZE_USING_MULTIPART,
-        new ByteSizeValue(5, ByteSizeUnit.MB),
+        ByteSizeValue.of(5, ByteSizeUnit.MB),
         MAX_FILE_SIZE_USING_MULTIPART
     );
 

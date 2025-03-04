@@ -10,15 +10,16 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -208,15 +209,17 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testCommandNamesAsIdentifiers() {
-        Expression expr = whereExpression("from and limit");
-        assertThat(expr, instanceOf(And.class));
-        And and = (And) expr;
+        for (var commandName : List.of("dissect", "drop", "enrich", "eval", "keep", "limit", "sort")) {
+            Expression expr = whereExpression("from and " + commandName);
+            assertThat(expr, instanceOf(And.class));
+            And and = (And) expr;
 
-        assertThat(and.left(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) and.left()).name(), equalTo("from"));
+            assertThat(and.left(), instanceOf(UnresolvedAttribute.class));
+            assertThat(((UnresolvedAttribute) and.left()).name(), equalTo("from"));
 
-        assertThat(and.right(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) and.right()).name(), equalTo("limit"));
+            assertThat(and.right(), instanceOf(UnresolvedAttribute.class));
+            assertThat(((UnresolvedAttribute) and.right()).name(), equalTo(commandName));
+        }
     }
 
     public void testIdentifiersCaseSensitive() {
@@ -617,16 +620,14 @@ public class ExpressionTests extends ESTestCase {
         Equals eq = (Equals) e;
         assertThat(eq.left(), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) eq.left()).name(), equalTo("a"));
-        assertThat(eq.right(), instanceOf(Literal.class));
-        assertThat(eq.right().fold(), equalTo(1));
+        assertThat(as(eq.right(), Literal.class).value(), equalTo(1));
 
         e = whereExpression("1 IN (a)");
         assertThat(e, instanceOf(Equals.class));
         eq = (Equals) e;
         assertThat(eq.right(), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) eq.right()).name(), equalTo("a"));
-        assertThat(eq.left(), instanceOf(Literal.class));
-        assertThat(eq.left().fold(), equalTo(1));
+        assertThat(eq.left().fold(FoldContext.small()), equalTo(1));
 
         e = whereExpression("1 NOT IN (a)");
         assertThat(e, instanceOf(Not.class));
@@ -635,9 +636,7 @@ public class ExpressionTests extends ESTestCase {
         eq = (Equals) e;
         assertThat(eq.right(), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) eq.right()).name(), equalTo("a"));
-        assertThat(eq.left(), instanceOf(Literal.class));
-        assertThat(eq.left().fold(), equalTo(1));
-
+        assertThat(eq.left().fold(FoldContext.small()), equalTo(1));
     }
 
     private Expression whereExpression(String e) {

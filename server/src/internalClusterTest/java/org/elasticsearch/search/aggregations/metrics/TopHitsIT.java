@@ -655,8 +655,9 @@ public class TopHitsIT extends ESIntegTestCase {
                     assertThat(hit.field("field2").getValue(), equalTo(2.71f));
                     assertThat(hit.field("script").getValue().toString(), equalTo("5"));
 
-                    assertThat(hit.getSourceAsMap().size(), equalTo(1));
-                    assertThat(hit.getSourceAsMap().get("text").toString(), equalTo("some text to entertain"));
+                    Map<String, Object> source = hit.getSourceAsMap();
+                    assertThat(source.size(), equalTo(1));
+                    assertThat(source.get("text").toString(), equalTo("some text to entertain"));
                     assertEquals("some text to entertain", hit.getFields().get("text").getValue());
                     assertEquals("some text to entertain", hit.getFields().get("text_stored_lookup").getValue());
                 }
@@ -927,8 +928,9 @@ public class TopHitsIT extends ESIntegTestCase {
                 field = searchHit.field("script");
                 assertThat(field.getValue().toString(), equalTo("5"));
 
-                assertThat(searchHit.getSourceAsMap().size(), equalTo(1));
-                assertThat(extractValue("message", searchHit.getSourceAsMap()), equalTo("some comment"));
+                Map<String, Object> source = searchHit.getSourceAsMap();
+                assertThat(source.size(), equalTo(1));
+                assertThat(extractValue("message", source), equalTo("some comment"));
             }
         );
     }

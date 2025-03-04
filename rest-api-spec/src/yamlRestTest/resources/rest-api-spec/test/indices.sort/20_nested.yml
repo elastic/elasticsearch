@@ -1,8 +1,5 @@
 ---
 sort doc with nested object:
-  - requires:
-      cluster_features: ["mapper.index_sorting_on_nested"]
-      reason: uses index sorting on nested fields
   - do:
       indices.create:
         index: test
@@ -66,9 +63,6 @@ sort doc with nested object:
 
 ---
 sort doc on nested field:
-  - requires:
-      cluster_features: [ "mapper.index_sorting_on_nested" ]
-      reason: uses index sorting on nested fields
   - do:
       catch: /cannot apply index sort to field \[nested_field\.foo\] under nested object \[nested_field\]/
       indices.create:

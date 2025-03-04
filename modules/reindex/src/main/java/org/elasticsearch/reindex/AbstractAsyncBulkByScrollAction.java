@@ -43,7 +43,6 @@ import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -212,7 +211,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES
             && mainRequest.getMaxDocs() <= preparedSearchRequest.source().size()
             && mainRequest.isAbortOnVersionConflict()) {
-            preparedSearchRequest.scroll((Scroll) null);
+            preparedSearchRequest.scroll(null);
         }
 
         return preparedSearchRequest;

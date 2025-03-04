@@ -10,8 +10,6 @@
 package org.elasticsearch.search.retriever;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -46,7 +44,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class KnnRetrieverBuilder extends RetrieverBuilder {
 
     public static final String NAME = "knn";
-    public static final NodeFeature KNN_RETRIEVER_SUPPORTED = new NodeFeature("knn_retriever_supported");
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField K_FIELD = new ParseField("k");
@@ -103,9 +100,6 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     }
 
     public static KnnRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
-        if (context.clusterSupportsFeature(KNN_RETRIEVER_SUPPORTED) == false) {
-            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
-        }
         return PARSER.apply(parser, context);
     }
 

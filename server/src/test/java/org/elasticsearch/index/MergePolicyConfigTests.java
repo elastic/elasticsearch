@@ -164,19 +164,19 @@ public class MergePolicyConfigTests extends ESTestCase {
                 Settings.builder()
                     .put(
                         MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(),
-                        new ByteSizeValue(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.getMb() + 1, ByteSizeUnit.MB)
+                        ByteSizeValue.of(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.getMb() + 1, ByteSizeUnit.MB)
                     )
                     .build()
             )
         );
         assertEquals(
             ((TieredMergePolicy) indexSettings.getMergePolicy(false)).getFloorSegmentMB(),
-            new ByteSizeValue(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.getMb() + 1, ByteSizeUnit.MB).getMbFrac(),
+            ByteSizeValue.of(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.getMb() + 1, ByteSizeUnit.MB).getMbFrac(),
             0.001
         );
         assertEquals(
             ((LogByteSizeMergePolicy) indexSettings.getMergePolicy(true)).getMinMergeMB(),
-            new ByteSizeValue(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.getMb() + 1, ByteSizeUnit.MB).getMbFrac(),
+            ByteSizeValue.of(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.getMb() + 1, ByteSizeUnit.MB).getMbFrac(),
             0.001
         );
 
@@ -303,12 +303,12 @@ public class MergePolicyConfigTests extends ESTestCase {
         );
         assertEquals(
             ((TieredMergePolicy) indexSettings.getMergePolicy(false)).getFloorSegmentMB(),
-            new ByteSizeValue(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.getMb(), ByteSizeUnit.MB).getMbFrac(),
+            ByteSizeValue.of(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.getMb(), ByteSizeUnit.MB).getMbFrac(),
             0.00
         );
         assertEquals(
             ((LogByteSizeMergePolicy) indexSettings.getMergePolicy(true)).getMinMergeMB(),
-            new ByteSizeValue(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.getMb(), ByteSizeUnit.MB).getMbFrac(),
+            ByteSizeValue.of(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.getMb(), ByteSizeUnit.MB).getMbFrac(),
             0.00
         );
         assertEquals(

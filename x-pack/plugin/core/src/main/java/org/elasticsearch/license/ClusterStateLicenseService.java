@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.license.internal.TrialLicenseVersion;
@@ -65,7 +64,6 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     private final Settings settings;
 
     private final ClusterService clusterService;
-    private final FeatureService featureService;
 
     /**
      * The xpack feature state to update when license changes are made.
@@ -104,12 +102,10 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         ThreadPool threadPool,
         ClusterService clusterService,
         Clock clock,
-        XPackLicenseState xPacklicenseState,
-        FeatureService featureService
+        XPackLicenseState xPacklicenseState
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
-        this.featureService = featureService;
         this.startTrialTaskQueue = clusterService.createTaskQueue(
             "license-service-start-trial",
             Priority.NORMAL,
@@ -344,7 +340,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         }
         startTrialTaskQueue.submitTask(
             StartTrialClusterTask.TASK_SOURCE,
-            new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, featureService, request, listener),
+            new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener),
             null             // TODO should pass in request.masterNodeTimeout() here
         );
     }

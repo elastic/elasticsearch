@@ -9,9 +9,14 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -19,7 +24,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class OrderBy extends UnaryPlan {
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+
+public class OrderBy extends UnaryPlan
+    implements
+        PostAnalysisVerificationAware,
+        PostOptimizationVerificationAware,
+        TelemetryAware,
+        SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "OrderBy", OrderBy::new);
 
     private final List<Order> order;
@@ -64,7 +76,7 @@ public class OrderBy extends UnaryPlan {
     }
 
     @Override
-    public String commandName() {
+    public String telemetryLabel() {
         return "SORT";
     }
 
@@ -90,5 +102,22 @@ public class OrderBy extends UnaryPlan {
 
         OrderBy other = (OrderBy) obj;
         return Objects.equals(order, other.order) && Objects.equals(child(), other.child());
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        /**
+         * Some datatypes are not sortable
+         */
+        order.forEach(order -> {
+            if (DataType.isSortable(order.dataType()) == false) {
+                failures.add(fail(order, "cannot sort on " + order.dataType().typeName()));
+            }
+        });
+    }
+
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        failures.add(fail(this, "Unbounded sort not supported yet [{}] please add a limit", this.sourceText()));
     }
 }

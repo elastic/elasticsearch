@@ -16,7 +16,6 @@ import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.index.mapper.vectors.VectorSimilarityFloatValueSource;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -32,16 +31,15 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
     private final String fieldName;
     private final float[] floatTarget;
     private final VectorSimilarityFunction vectorSimilarityFunction;
-    private final Integer k;
+    private final int k;
     private final Query innerQuery;
-
-    private QueryProfilerProvider vectorProfiling;
+    private long vectorOperations = 0;
 
     public RescoreKnnVectorQuery(
         String fieldName,
         float[] floatTarget,
         VectorSimilarityFunction vectorSimilarityFunction,
-        Integer k,
+        int k,
         Query innerQuery
     ) {
         this.fieldName = fieldName;
@@ -54,35 +52,20 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         DoubleValuesSource valueSource = new VectorSimilarityFloatValueSource(fieldName, floatTarget, vectorSimilarityFunction);
-        // Vector similarity VectorSimilarityFloatValueSource keep track of the compared vectors - we need that in case we don't need
-        // to calculate top k and return directly the query to understand how many comparisons were done
-        vectorProfiling = (QueryProfilerProvider) valueSource;
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(innerQuery, valueSource);
         Query query = searcher.rewrite(functionScoreQuery);
 
-        if (k == null) {
-            // No need to calculate top k - let the request size limit the results.
-            return query;
-        }
-
         // Retrieve top k documents from the rescored query
         TopDocs topDocs = searcher.search(query, k);
-        ScoreDoc[] scoreDocs = topDocs.scoreDocs;
-        int[] docIds = new int[scoreDocs.length];
-        float[] scores = new float[scoreDocs.length];
-        for (int i = 0; i < scoreDocs.length; i++) {
-            docIds[i] = scoreDocs[i].doc;
-            scores[i] = scoreDocs[i].score;
-        }
-
-        return new KnnScoreDocQuery(docIds, scores, searcher.getIndexReader());
+        vectorOperations = topDocs.totalHits.value();
+        return new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
     }
 
     public Query innerQuery() {
         return innerQuery;
     }
 
-    public Integer k() {
+    public int k() {
         return k;
     }
 
@@ -92,10 +75,7 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
             queryProfilerProvider.profile(queryProfiler);
         }
 
-        if (vectorProfiling == null) {
-            throw new IllegalStateException("Query should have been rewritten");
-        }
-        vectorProfiling.profile(queryProfiler);
+        queryProfiler.addVectorOpsCount(vectorOperations);
     }
 
     @Override

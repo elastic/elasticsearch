@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -30,6 +29,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.gateway.GatewayService;
@@ -64,7 +64,6 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     protected final ThreadPool threadPool;
     protected final TransportService transportService;
     protected final ClusterService clusterService;
-    protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private final Writeable.Reader<Response> responseReader;
 
@@ -77,22 +76,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
         Executor executor
     ) {
-        this(
-            actionName,
-            true,
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            request,
-            indexNameExpressionResolver,
-            response,
-            executor
-        );
+        this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, response, executor);
     }
 
     protected TransportMasterNodeAction(
@@ -103,7 +90,6 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
         Executor executor
     ) {
@@ -111,7 +97,6 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = executor;
         this.responseReader = response;
     }
@@ -148,12 +133,17 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
     }
 
-    // package private for testing
-    void validateForReservedState(Request request, ClusterState state) {
+    @FixForMultiProject // this is overridden for project-specific reserved metadata checks. A common subclass needs to exist for this.
+    protected void validateForReservedState(Request request, ClusterState state) {
         Optional<String> handlerName = reservedStateHandlerName();
         assert handlerName.isPresent();
 
-        validateForReservedState(state, handlerName.get(), modifiedKeys(request), request.toString());
+        validateForReservedState(
+            state.metadata().reservedStateMetadata().values(),
+            handlerName.get(),
+            modifiedKeys(request),
+            request.toString()
+        );
     }
 
     // package private for testing

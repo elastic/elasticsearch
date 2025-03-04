@@ -17,8 +17,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -107,7 +107,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         IndexMetadata meta = IndexMetadata.builder("index").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).build();
-        assertThat(metadata.getMappingsByHash(), Matchers.aMapWithSize(1));
+        assertThat(metadata.getProject().getMappingsByHash(), Matchers.aMapWithSize(1));
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
         assertEquals("""
             {
@@ -239,7 +239,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mappingString2).build();
         IndexMetadata meta3 = IndexMetadata.builder("index3").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mappingString2).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).put(meta3, false).build();
-        assertThat(metadata.getMappingsByHash(), Matchers.aMapWithSize(2));
+        assertThat(metadata.getProject().getMappingsByHash(), Matchers.aMapWithSize(2));
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
         assertEquals("""
             {
@@ -586,7 +586,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         int numDisabledIndices = randomIntBetween(1, 5);
         for (int i = 0; i < numSyntheticIndices; i++) {
             IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo-synthetic-" + i).settings(
-                indexSettings(IndexVersion.current(), 4, 1).put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
+                indexSettings(IndexVersion.current(), 4, 1).put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
             );
             builder.put(indexMetadata);
         }
@@ -594,7 +594,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
             IndexMetadata.Builder indexMetadata;
             if (randomBoolean()) {
                 indexMetadata = new IndexMetadata.Builder("foo-stored-" + i).settings(
-                    indexSettings(IndexVersion.current(), 4, 1).put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "stored")
+                    indexSettings(IndexVersion.current(), 4, 1).put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "stored")
                 );
             } else {
                 indexMetadata = new IndexMetadata.Builder("foo-stored-" + i).settings(indexSettings(IndexVersion.current(), 4, 1));
@@ -603,7 +603,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         }
         for (int i = 0; i < numDisabledIndices; i++) {
             IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo-disabled-" + i).settings(
-                indexSettings(IndexVersion.current(), 4, 1).put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "disabled")
+                indexSettings(IndexVersion.current(), 4, 1).put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "disabled")
             );
             builder.put(indexMetadata);
         }

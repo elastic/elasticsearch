@@ -41,4 +41,9 @@ public class NodeCapability extends BaseNodeResponse {
 
         out.writeBoolean(supported);
     }
+
+    @Override
+    public String toString() {
+        return "NodeCapability{supported=" + supported + '}';
+    }
 }

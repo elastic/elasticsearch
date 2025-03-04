@@ -10,7 +10,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.CanMatchNodeResponse.ResponseOrFailure;
@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -136,9 +135,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             }
         };
 
-        AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+        AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+        List<SearchShardIterator> shardsIter = getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             2,
@@ -233,9 +232,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             }
         };
 
-        AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+        AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+        List<SearchShardIterator> shardsIter = getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             2,
@@ -326,9 +325,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 }
             };
 
-            AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+            AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
-            GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+            List<SearchShardIterator> shardsIter = getShardsIter(
                 "logs",
                 new OriginalIndices(new String[] { "logs" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
                 randomIntBetween(2, 20),
@@ -428,9 +427,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 }
             };
 
-            AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+            AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
-            GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+            List<SearchShardIterator> shardsIter = getShardsIter(
                 "logs",
                 new OriginalIndices(new String[] { "logs" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
                 numShards,
@@ -541,7 +540,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             parserConfig(),
             mock(Client.class),
             System::currentTimeMillis,
-            () -> finalState,
+            () -> finalState.projectState(),
             (index) -> null
         );
 
@@ -1150,7 +1149,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             parserConfig(),
             mock(Client.class),
             System::currentTimeMillis,
-            () -> finalState,
+            () -> finalState.projectState(),
             (index) -> null
         );
 
@@ -1203,7 +1202,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 false,
                 new ActionListener<>() {
                     @Override
-                    public void onResponse(GroupShardsIterator<SearchShardIterator> searchShardIterators) {
+                    public void onResponse(List<SearchShardIterator> searchShardIterators) {
                         fail(null, "unexpected success with result [%s] while expecting to handle failure with [%s]", searchShardIterators);
                         latch.countDown();
                     }
@@ -1269,7 +1268,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         boolean allowPartialResults,
         BiConsumer<List<SearchShardIterator>, List<ShardSearchRequest>> canMatchResultsConsumer
     ) throws Exception {
-        AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+        AtomicReference<List<SearchShardIterator>> result = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         Tuple<CanMatchPreFilterSearchPhase, List<ShardSearchRequest>> canMatchAndShardRequests = getCanMatchPhaseAndRequests(
             dataStreams,
@@ -1306,7 +1305,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         SuggestBuilder suggest,
         List<Index> unassignedIndices,
         boolean allowPartialResults,
-        ActionListener<GroupShardsIterator<SearchShardIterator>> canMatchActionListener
+        ActionListener<List<SearchShardIterator>> canMatchActionListener
     ) {
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
         DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
@@ -1325,7 +1324,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         String[] indices = indicesToSearch.toArray(new String[0]);
         OriginalIndices originalIndices = new OriginalIndices(indices, SearchRequest.DEFAULT_INDICES_OPTIONS);
 
-        final List<SearchShardIterator> originalShardIters = new ArrayList<>();
+        final List<SearchShardIterator> shardIters = new ArrayList<>();
         for (var dataStream : dataStreams) {
             boolean atLeastOnePrimaryAssigned = false;
             for (var dataStreamIndex : dataStream.getIndices()) {
@@ -1334,9 +1333,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 boolean withAssignedPrimaries = randomBoolean() || atLeastOnePrimaryAssigned == false;
                 int numShards = randomIntBetween(1, 6);
                 if (unassignedIndices.contains(dataStreamIndex)) {
-                    originalShardIters.addAll(getShardsIter(dataStreamIndex, originalIndices, numShards, false, null, null));
+                    shardIters.addAll(getShardsIter(dataStreamIndex, originalIndices, numShards, false, null, null));
                 } else {
-                    originalShardIters.addAll(
+                    shardIters.addAll(
                         getShardsIter(dataStreamIndex, originalIndices, numShards, false, withAssignedPrimaries ? primaryNode : null, null)
                     );
                     atLeastOnePrimaryAssigned |= withAssignedPrimaries;
@@ -1346,14 +1345,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
         for (Index regularIndex : regularIndices) {
             if (unassignedIndices.contains(regularIndex)) {
-                originalShardIters.addAll(getShardsIter(regularIndex, originalIndices, randomIntBetween(1, 6), false, null, null));
+                shardIters.addAll(getShardsIter(regularIndex, originalIndices, randomIntBetween(1, 6), false, null, null));
             } else {
-                originalShardIters.addAll(
+                shardIters.addAll(
                     getShardsIter(regularIndex, originalIndices, randomIntBetween(1, 6), randomBoolean(), primaryNode, replicaNode)
                 );
             }
         }
-        GroupShardsIterator<SearchShardIterator> shardsIter = GroupShardsIterator.sortAndCreate(originalShardIters);
+        CollectionUtil.timSort(shardIters);
 
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices(indices);
@@ -1416,7 +1415,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             System::nanoTime
         );
 
-        AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
         return new Tuple<>(
             new CanMatchPreFilterSearchPhase(
                 logger,
@@ -1426,7 +1424,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 Collections.emptyMap(),
                 threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 searchRequest,
-                shardsIter,
+                shardIters,
                 timeProvider,
                 null,
                 true,
@@ -1442,7 +1440,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         private final Map<Index, DateFieldRangeInfo> fields = new HashMap<>();
 
         private void addIndexMinMaxTimestamps(Index index, String fieldName, long minTimeStamp, long maxTimestamp) {
-            if (clusterState.metadata().index(index) != null) {
+            if (clusterState.metadata().getProject().index(index) != null) {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
@@ -1462,7 +1460,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 indexMetadataBuilder.timestampRange(timestampRange);
                 fields.put(index, new DateFieldRangeInfo(new DateFieldMapper.DateFieldType(fieldName), null, null, null));
             } else if (fieldName.equals(IndexMetadata.EVENT_INGESTED_FIELD_NAME)) {
-                indexMetadataBuilder.eventIngestedRange(timestampRange, TransportVersion.current());
+                indexMetadataBuilder.eventIngestedRange(timestampRange);
                 fields.put(index, new DateFieldRangeInfo(null, null, new DateFieldMapper.DateFieldType(fieldName), null));
             }
 
@@ -1480,7 +1478,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             long minTimestampForEventIngested,
             long maxTimestampForEventIngested
         ) {
-            if (clusterState.metadata().index(index) != null) {
+            if (clusterState.metadata().getProject().index(index) != null) {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
@@ -1502,7 +1500,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .timestampRange(tsTimestampRange)
-                .eventIngestedRange(eventIngestedTimestampRange, TransportVersion.current());
+                .eventIngestedRange(eventIngestedTimestampRange);
 
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(indexMetadataBuilder);
             clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
@@ -1518,7 +1516,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         }
 
         private void addIndex(Index index) {
-            if (clusterState.metadata().index(index) != null) {
+            if (clusterState.metadata().getProject().index(index) != null) {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
@@ -1538,7 +1536,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 XContentParserConfiguration.EMPTY,
                 mock(Client.class),
                 System::currentTimeMillis,
-                () -> clusterState,
+                () -> clusterState.projectState(),
                 fields::get
             );
         }

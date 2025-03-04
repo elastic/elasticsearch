@@ -18,7 +18,7 @@ public class CancelPersistentTaskRequestTests extends AbstractWireSerializingTes
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAsciiOfLength(10));
+        return new Request(randomTimeValue(), randomAsciiOfLength(10));
     }
 
     @Override

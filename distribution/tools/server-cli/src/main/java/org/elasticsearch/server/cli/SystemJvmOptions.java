@@ -11,12 +11,13 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.jdk.RuntimeVersionFeature;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -26,7 +27,9 @@ final class SystemJvmOptions {
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
-        boolean useEntitlements = Boolean.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "false"));
+        boolean entitlementsExplicitlyEnabled = Booleans.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "true"));
+        // java 24+ only supports entitlements, but it may be enabled on earlier versions explicitly
+        boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsExplicitlyEnabled;
         return Stream.of(
             Stream.of(
                 /*
@@ -66,12 +69,12 @@ final class SystemJvmOptions {
                 // Pass through distribution type
                 "-Des.distribution.type=" + distroType
             ),
-            maybeEnableNativeAccess(),
+            maybeEnableNativeAccess(useEntitlements),
             maybeOverrideDockerCgroup(distroType),
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
-            maybeAllowSecurityManager(),
+            maybeAllowSecurityManager(useEntitlements),
             maybeAttachEntitlementAgent(useEntitlements)
         ).flatMap(s -> s).toList();
     }
@@ -121,11 +124,18 @@ final class SystemJvmOptions {
         return Stream.empty();
     }
 
-    private static Stream<String> maybeEnableNativeAccess() {
+    private static Stream<String> maybeEnableNativeAccess(boolean useEntitlements) {
+        var enableNativeAccessOptions = new ArrayList<String>();
         if (Runtime.version().feature() >= 21) {
-            return Stream.of("--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core");
+            enableNativeAccessOptions.add("--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core");
+            if (useEntitlements) {
+                enableNativeAccessOptions.add("--enable-native-access=ALL-UNNAMED");
+                if (Runtime.version().feature() >= 24) {
+                    enableNativeAccessOptions.add("--illegal-native-access=deny");
+                }
+            }
         }
-        return Stream.empty();
+        return enableNativeAccessOptions.stream();
     }
 
     /*
@@ -139,8 +149,7 @@ final class SystemJvmOptions {
         return Stream.of();
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    private static Stream<String> maybeAllowSecurityManager() {
+    private static Stream<String> maybeAllowSecurityManager(boolean useEntitlements) {
         if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
             // Will become conditional on useEntitlements once entitlements can run without SM
             return Stream.of("-Djava.security.manager=allow");
@@ -167,12 +176,16 @@ final class SystemJvmOptions {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
+        // We instrument classes in these modules to call the bridge. Because the bridge gets patched
+        // into java.base, we must export the bridge from java.base to these modules, as a comma-separated list
+        String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
         return Stream.of(
             "-Des.entitlements.enabled=true",
             "-XX:+EnableDynamicAgentLoading",
             "-Djdk.attach.allowAttachSelf=true",
             "--patch-module=java.base=" + bridgeJar,
-            "--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement"
+            "--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement,"
+                + modulesContainingEntitlementInstrumentation
         );
     }
 }

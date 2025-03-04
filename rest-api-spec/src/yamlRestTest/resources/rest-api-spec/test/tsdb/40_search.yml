@@ -340,9 +340,6 @@ sort by tsid:
 
 ---
 aggs by index_mode:
-  - requires:
-      cluster_features: ["mapper.query_index_mode"]
-      reason: require _index_mode metadata field
   - do:
       search:
         index: test

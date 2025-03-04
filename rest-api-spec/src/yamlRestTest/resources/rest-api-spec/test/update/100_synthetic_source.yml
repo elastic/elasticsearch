@@ -6,8 +6,8 @@ setup:
 ---
 keyword:
   - requires:
-      cluster_features: ["gte_v8.4.0"]
-      reason: introduced in 8.4.0
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
 
   - do:
       indices.create:
@@ -60,13 +60,14 @@ keyword:
         index: test
         run_expensive_tasks: true
   - is_false: test.fields._source
-  - is_true: test.fields._recovery_source
+  # When synthetic source is used there is no _recovery_source field
+  - match: { test.fields._recovery_source: null }
 
 ---
 stored text:
   - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: introduced in 8.5.0
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
 
   - do:
       indices.create:
@@ -121,4 +122,5 @@ stored text:
         index: test
         run_expensive_tasks: true
   - is_false: test.fields._source
-  - is_true: test.fields._recovery_source
+  # When synthetic source is used there is no _recovery_source field
+  - match: { test.fields._recovery_source: null }

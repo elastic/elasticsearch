@@ -164,7 +164,6 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
                     SnapshotState.SUCCESS
                 )
             ),
-            Map.of(),
             null,
             0,
             0
@@ -202,7 +201,6 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
                     SnapshotState.SUCCESS
                 )
             ),
-            Map.of(),
             null,
             0,
             0

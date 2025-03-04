@@ -8,15 +8,13 @@
  */
 package org.elasticsearch.action.admin.indices.template.get;
 
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.core.TimeValue;
 
-public class GetIndexTemplatesRequestBuilder extends MasterNodeReadOperationRequestBuilder<
-    GetIndexTemplatesRequest,
-    GetIndexTemplatesResponse,
-    GetIndexTemplatesRequestBuilder> {
+public class GetIndexTemplatesRequestBuilder extends ActionRequestBuilder<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
 
-    public GetIndexTemplatesRequestBuilder(ElasticsearchClient client, String... names) {
-        super(client, GetIndexTemplatesAction.INSTANCE, new GetIndexTemplatesRequest(names));
+    public GetIndexTemplatesRequestBuilder(ElasticsearchClient client, TimeValue masterTimeout, String... names) {
+        super(client, GetIndexTemplatesAction.INSTANCE, new GetIndexTemplatesRequest(masterTimeout, names));
     }
 }

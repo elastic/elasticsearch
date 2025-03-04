@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToDateNanos}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDateNanosFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   public ToDateNanosFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,

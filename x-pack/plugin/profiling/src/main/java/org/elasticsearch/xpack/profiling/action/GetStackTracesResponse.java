@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.profiling.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
@@ -93,14 +92,14 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
-            optional("stack_traces", stackTraces, ChunkedToXContentHelper::xContentValuesMap),
-            optional("stack_frames", stackFrames, ChunkedToXContentHelper::xContentValuesMap),
-            optional("executables", executables, ChunkedToXContentHelper::map),
+            optional("stack_traces", stackTraces, ChunkedToXContentHelper::xContentObjectFields),
+            optional("stack_frames", stackFrames, ChunkedToXContentHelper::xContentObjectFields),
+            optional("executables", executables, ChunkedToXContentHelper::object),
             // render only count for backwards-compatibility
             optional(
                 "stack_trace_events",
                 stackTraceEvents,
-                (n, v) -> ChunkedToXContentHelper.map(n, v, entry -> (b, p) -> b.field(entry.getKey(), entry.getValue().count))
+                (n, v) -> ChunkedToXContentHelper.object(n, v, entry -> (b, p) -> b.field(entry.getKey(), entry.getValue().count))
             ),
             Iterators.single((b, p) -> b.field("total_frames", totalFrames)),
             Iterators.single((b, p) -> b.field("sampling_rate", samplingRate)),
@@ -141,10 +140,5 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     @Override
     public int hashCode() {
         return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this, true, true);
     }
 }

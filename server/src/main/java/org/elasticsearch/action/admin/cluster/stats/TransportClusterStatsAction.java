@@ -34,12 +34,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
@@ -101,8 +104,10 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final NodeService nodeService;
     private final IndicesService indicesService;
     private final RepositoriesService repositoriesService;
+    private final ProjectResolver projectResolver;
     private final SearchUsageHolder searchUsageHolder;
     private final CCSUsageTelemetry ccsUsageHolder;
+    private final CCSUsageTelemetry esqlUsageHolder;
 
     private final Executor clusterStateStatsExecutor;
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
@@ -118,6 +123,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         NodeService nodeService,
         IndicesService indicesService,
         RepositoriesService repositoriesService,
+        ProjectResolver projectResolver,
         UsageService usageService,
         ActionFilters actionFilters,
         Settings settings
@@ -133,8 +139,10 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.nodeService = nodeService;
         this.indicesService = indicesService;
         this.repositoriesService = repositoriesService;
+        this.projectResolver = projectResolver;
         this.searchUsageHolder = usageService.getSearchUsageHolder();
         this.ccsUsageHolder = usageService.getCcsUsageHolder();
+        this.esqlUsageHolder = usageService.getEsqlUsageHolder();
         this.clusterStateStatsExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
@@ -285,14 +293,18 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         }
 
         final ClusterState clusterState = clusterService.state();
+
+        @FixForMultiProject(description = "Should it be possible to execute this against the cluster rather than a specific project?")
+        final ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         final ClusterHealthStatus clusterStatus = clusterState.nodes().isLocalNodeElectedMaster()
-            ? new ClusterStateHealth(clusterState).getStatus()
+            ? new ClusterStateHealth(clusterState, project.getConcreteAllIndices(), project.id()).getStatus()
             : null;
 
         final SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
 
         final RepositoryUsageStats repositoryUsageStats = repositoriesService.getUsageStats();
         final CCSTelemetrySnapshot ccsTelemetry = ccsUsageHolder.getCCSTelemetrySnapshot();
+        final CCSTelemetrySnapshot esqlTelemetry = esqlUsageHolder.getCCSTelemetrySnapshot();
 
         return new ClusterStatsNodeResponse(
             nodeInfo.getNode(),
@@ -302,7 +314,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             shardsStats.toArray(new ShardStats[shardsStats.size()]),
             searchUsageStats,
             repositoryUsageStats,
-            ccsTelemetry
+            ccsTelemetry,
+            esqlTelemetry
         );
     }
 

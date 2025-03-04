@@ -22,7 +22,7 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -115,6 +115,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private boolean requireAlias;
 
     private boolean requireDataStream;
+
+    private boolean includeSourceOnError = true;
 
     /**
      * Transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire.
@@ -210,6 +212,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                 in.readBoolean(); // obsolete originatesFromUpdateByDoc
             }
         }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
+            includeSourceOnError = in.readBoolean();
+        } // else default value is true
     }
 
     public IndexRequest() {
@@ -806,6 +812,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                 out.writeBoolean(false); // obsolete originatesFromUpdateByDoc
             }
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
+            out.writeBoolean(includeSourceOnError);
+        }
     }
 
     @Override
@@ -874,8 +883,17 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
+    public boolean getIncludeSourceOnError() {
+        return includeSourceOnError;
+    }
+
+    public IndexRequest setIncludeSourceOnError(boolean includeSourceOnError) {
+        this.includeSourceOnError = includeSourceOnError;
+        return this;
+    }
+
     @Override
-    public Index getConcreteWriteIndex(IndexAbstraction ia, Metadata metadata) {
+    public Index getConcreteWriteIndex(IndexAbstraction ia, ProjectMetadata project) {
         if (DataStream.isFailureStoreFeatureFlagEnabled() && writeToFailureStore) {
             if (ia.isDataStreamRelated() == false) {
                 throw new ElasticsearchException(
@@ -884,16 +902,16 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
             // Resolve write index and get parent data stream to handle the case of dealing with an alias
             String defaultWriteIndexName = ia.getWriteIndex().getName();
-            DataStream dataStream = metadata.getIndicesLookup().get(defaultWriteIndexName).getParentDataStream();
-            if (dataStream.getFailureIndices().getIndices().size() < 1) {
+            DataStream dataStream = project.getIndicesLookup().get(defaultWriteIndexName).getParentDataStream();
+            if (dataStream.getFailureIndices().size() < 1) {
                 throw new ElasticsearchException(
                     "Attempting to write a document to a failure store but the target data stream does not have one enabled"
                 );
             }
-            return dataStream.getFailureIndices().getIndices().get(dataStream.getFailureIndices().getIndices().size() - 1);
+            return dataStream.getFailureIndices().get(dataStream.getFailureIndices().size() - 1);
         } else {
             // Resolve as normal
-            return ia.getWriteIndex(this, metadata);
+            return ia.getWriteIndex(this, project);
         }
     }
 

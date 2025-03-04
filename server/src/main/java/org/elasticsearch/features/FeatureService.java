@@ -26,10 +26,6 @@ import java.util.Map;
  */
 public class FeatureService {
 
-    /**
-     * A feature indicating that node features are supported.
-     */
-    public static final NodeFeature FEATURES_SUPPORTED = new NodeFeature("features_supported");
     public static final NodeFeature TEST_FEATURES_ENABLED = new NodeFeature("test_features_enabled");
 
     private static final Logger logger = LogManager.getLogger(FeatureService.class);
@@ -57,14 +53,14 @@ public class FeatureService {
     /**
      * Returns {@code true} if {@code node} can have assumed features.
      */
-    public boolean featuresCanBeAssumedForNode(DiscoveryNode node) {
+    public static boolean featuresCanBeAssumedForNode(DiscoveryNode node) {
         return ClusterFeatures.featuresCanBeAssumedForNode(node);
     }
 
     /**
     * Returns {@code true} if one or more nodes in {@code nodes} can have assumed features.
     */
-    public boolean featuresCanBeAssumedForNodes(DiscoveryNodes nodes) {
+    public static boolean featuresCanBeAssumedForNodes(DiscoveryNodes nodes) {
         return ClusterFeatures.featuresCanBeAssumedForNodes(nodes);
     }
 

@@ -11,10 +11,13 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Assert;
 
@@ -25,17 +28,16 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.entityToMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.requestObjectBuilder;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
 
@@ -49,6 +51,10 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         }
     }
 
+    protected String from(String... indexName) {
+        return "FROM " + String.join(",", indexName);
+    }
+
     public void testTimestampFilterFromQuery() throws IOException {
         int docsTest1 = 50;
         int docsTest2 = 30;
@@ -56,43 +62,36 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         indexTimestampData(docsTest2, "test2", "2023-11-26", "id2");
 
         // filter includes both indices in the result (all columns, all rows)
-        RestEsqlTestCase.RequestObjectBuilder builder = timestampFilter("gte", "2023-01-01").query("FROM test*");
-        Map<String, Object> result = runEsql(builder);
-        assertMap(
-            result,
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                    .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-                    .item(matchesMap().entry("name", "id2").entry("type", "integer"))
-                    .item(matchesMap().entry("name", "value").entry("type", "long"))
-            ).entry("values", allOf(instanceOf(List.class), hasSize(docsTest1 + docsTest2))).entry("took", greaterThanOrEqualTo(0))
+        RestEsqlTestCase.RequestObjectBuilder builder = timestampFilter("gte", "2023-01-01").query(from("test*"));
+        assertQueryResult(
+            runEsql(builder),
+            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+                .item(matchesMap().entry("name", "id2").entry("type", "integer"))
+                .item(matchesMap().entry("name", "value").entry("type", "long")),
+            allOf(instanceOf(List.class), hasSize(docsTest1 + docsTest2))
         );
 
         // filter includes only test1. Columns from test2 are filtered out, as well (not only rows)!
-        builder = timestampFilter("gte", "2024-01-01").query("FROM test*");
-        assertMap(
+        builder = timestampFilter("gte", "2024-01-01").query(from("test*"));
+        assertQueryResult(
             runEsql(builder),
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                    .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-                    .item(matchesMap().entry("name", "value").entry("type", "long"))
-            ).entry("values", allOf(instanceOf(List.class), hasSize(docsTest1))).entry("took", greaterThanOrEqualTo(0))
+            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+                .item(matchesMap().entry("name", "value").entry("type", "long")),
+            allOf(instanceOf(List.class), hasSize(docsTest1))
         );
 
         // filter excludes both indices (no rows); the first analysis step fails because there are no columns, a second attempt succeeds
         // after eliminating the index filter. All columns are returned.
-        builder = timestampFilter("gte", "2025-01-01").query("FROM test*");
-        assertMap(
+        builder = timestampFilter("gte", "2025-01-01").query(from("test*"));
+        assertQueryResult(
             runEsql(builder),
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                    .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-                    .item(matchesMap().entry("name", "id2").entry("type", "integer"))
-                    .item(matchesMap().entry("name", "value").entry("type", "long"))
-            ).entry("values", allOf(instanceOf(List.class), hasSize(0))).entry("took", greaterThanOrEqualTo(0))
+            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+                .item(matchesMap().entry("name", "id2").entry("type", "integer"))
+                .item(matchesMap().entry("name", "value").entry("type", "long")),
+            allOf(instanceOf(List.class), hasSize(0))
         );
     }
 
@@ -103,33 +102,28 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         indexTimestampData(docsTest2, "test2", "2023-11-26", "id2");
 
         // filter includes only test1. Columns and rows of test2 are filtered out
-        RestEsqlTestCase.RequestObjectBuilder builder = existsFilter("id1").query("FROM test*");
-        Map<String, Object> result = runEsql(builder);
-        assertMap(
-            result,
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                    .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-                    .item(matchesMap().entry("name", "value").entry("type", "long"))
-            ).entry("values", allOf(instanceOf(List.class), hasSize(docsTest1))).entry("took", greaterThanOrEqualTo(0))
+        RestEsqlTestCase.RequestObjectBuilder builder = existsFilter("id1").query(from("test*"));
+        assertQueryResult(
+            runEsql(builder),
+            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+                .item(matchesMap().entry("name", "value").entry("type", "long")),
+            allOf(instanceOf(List.class), hasSize(docsTest1))
         );
 
         // filter includes only test1. Columns from test2 are filtered out, as well (not only rows)!
-        builder = existsFilter("id1").query("FROM test* METADATA _index | KEEP _index, id*");
-        result = runEsql(builder);
-        assertMap(
+        builder = existsFilter("id1").query(from("test*") + " METADATA _index | KEEP _index, id*");
+        Map<String, Object> result = runEsql(builder);
+        assertQueryResult(
             result,
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
-                    .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-            ).entry("values", allOf(instanceOf(List.class), hasSize(docsTest1))).entry("took", greaterThanOrEqualTo(0))
+            matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer")),
+            allOf(instanceOf(List.class), hasSize(docsTest1))
         );
         @SuppressWarnings("unchecked")
         var values = (List<List<Object>>) result.get("values");
         for (List<Object> row : values) {
-            assertThat(row.get(0), equalTo("test1"));
+            assertThat(row.get(0), oneOf("test1", "remote_cluster:test1"));
             assertThat(row.get(1), instanceOf(Integer.class));
         }
     }
@@ -142,22 +136,20 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
 
         // test2 is explicitly used in a query with "SORT id2" even if the index filter should discard test2
         RestEsqlTestCase.RequestObjectBuilder builder = existsFilter("id1").query(
-            "FROM test* METADATA _index | SORT id2 | KEEP _index, id*"
+            from("test*") + " METADATA _index | SORT id2 | KEEP _index, id*"
         );
         Map<String, Object> result = runEsql(builder);
-        assertMap(
+        assertQueryResult(
             result,
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
-                    .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-                    .item(matchesMap().entry("name", "id2").entry("type", "integer"))
-            ).entry("values", allOf(instanceOf(List.class), hasSize(docsTest1))).entry("took", greaterThanOrEqualTo(0))
+            matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+                .item(matchesMap().entry("name", "id2").entry("type", "integer")),
+            allOf(instanceOf(List.class), hasSize(docsTest1))
         );
         @SuppressWarnings("unchecked")
         var values = (List<List<Object>>) result.get("values");
         for (List<Object> row : values) {
-            assertThat(row.get(0), equalTo("test1"));
+            assertThat(row.get(0), oneOf("test1", "remote_cluster:test1"));
             assertThat(row.get(1), instanceOf(Integer.class));
             assertThat(row.get(2), nullValue());
         }
@@ -172,63 +164,70 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         // idx field name is explicitly used, though it doesn't exist in any of the indices. First test - without filter
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> runEsql(requestObjectBuilder().query("FROM test* | WHERE idx == 123"))
+            () -> runEsql(requestObjectBuilder().query(from("test*") + " | WHERE idx == 123"))
         );
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("verification_exception"));
         assertThat(e.getMessage(), containsString("Found 1 problem"));
-        assertThat(e.getMessage(), containsString("line 1:20: Unknown column [idx]"));
+        assertThat(e.getMessage(), containsString("Unknown column [idx]"));
 
-        e = expectThrows(ResponseException.class, () -> runEsql(requestObjectBuilder().query("FROM test1 | WHERE idx == 123")));
+        e = expectThrows(ResponseException.class, () -> runEsql(requestObjectBuilder().query(from("test1") + " | WHERE idx == 123")));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("verification_exception"));
         assertThat(e.getMessage(), containsString("Found 1 problem"));
-        assertThat(e.getMessage(), containsString("line 1:20: Unknown column [idx]"));
+        assertThat(e.getMessage(), containsString("Unknown column [idx]"));
 
         e = expectThrows(
             ResponseException.class,
-            () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM test* | WHERE idx == 123"))
+            () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("test*") + " | WHERE idx == 123"))
         );
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("Found 1 problem"));
-        assertThat(e.getMessage(), containsString("line 1:20: Unknown column [idx]"));
+        assertThat(e.getMessage(), containsString("Unknown column [idx]"));
 
         e = expectThrows(
             ResponseException.class,
-            () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM test2 | WHERE idx == 123"))
+            () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("test2") + " | WHERE idx == 123"))
         );
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("Found 1 problem"));
-        assertThat(e.getMessage(), containsString("line 1:20: Unknown column [idx]"));
+        assertThat(e.getMessage(), containsString("Unknown column [idx]"));
     }
 
     public void testIndicesDontExist() throws IOException {
         int docsTest1 = 0; // we are interested only in the created index, not necessarily that it has data
         indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
 
-        ResponseException e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM foo")));
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo"))));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("verification_exception"));
-        assertThat(e.getMessage(), containsString("Unknown index [foo]"));
+        assertThat(e.getMessage(), anyOf(containsString("Unknown index [foo]"), containsString("Unknown index [remote_cluster:foo]")));
 
-        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM foo*")));
+        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo*"))));
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("verification_exception"));
-        assertThat(e.getMessage(), containsString("Unknown index [foo*]"));
+        assertThat(e.getMessage(), anyOf(containsString("Unknown index [foo*]"), containsString("Unknown index [remote_cluster:foo*]")));
 
-        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM foo,test1")));
+        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo", "test1"))));
         assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("index_not_found_exception"));
-        assertThat(e.getMessage(), containsString("no such index [foo]"));
+        assertThat(e.getMessage(), anyOf(containsString("no such index [foo]"), containsString("no such index [remote_cluster:foo]")));
 
-        if (EsqlCapabilities.Cap.JOIN_LOOKUP_V9.isEnabled()) {
+        if (EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {
+            var pattern = from("test1");
             e = expectThrows(
                 ResponseException.class,
-                () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM test1 | LOOKUP JOIN foo ON id1"))
+                () -> runEsql(timestampFilter("gte", "2020-01-01").query(pattern + " | LOOKUP JOIN foo ON id1"))
             );
             assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-            assertThat(e.getMessage(), containsString("verification_exception"));
-            assertThat(e.getMessage(), containsString("Unknown index [foo]"));
+            assertThat(
+                e.getMessage(),
+                // currently we don't support remote clusters in LOOKUP JOIN
+                // this check happens before resolving actual indices and results in a different error message
+                RemoteClusterAware.isRemoteIndexName(pattern)
+                    ? allOf(containsString("parsing_exception"), containsString("remote clusters are not supported in LOOKUP JOIN"))
+                    : allOf(containsString("verification_exception"), containsString("Unknown index [foo]"))
+            );
         }
     }
 
@@ -251,6 +250,11 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
     }
 
     protected void indexTimestampData(int docs, String indexName, String date, String differentiatorFieldName) throws IOException {
+        indexTimestampDataForClient(client(), docs, indexName, date, differentiatorFieldName);
+    }
+
+    protected void indexTimestampDataForClient(RestClient client, int docs, String indexName, String date, String differentiatorFieldName)
+        throws IOException {
         Request createIndex = new Request("PUT", indexName);
         createIndex.setJsonEntity("""
             {
@@ -273,7 +277,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
                 }
               }
             }""".replace("%differentiator_field_name%", differentiatorFieldName));
-        Response response = client().performRequest(createIndex);
+        Response response = client.performRequest(createIndex);
         assertThat(
             entityToMap(response.getEntity(), XContentType.JSON),
             matchesMap().entry("shards_acknowledged", true).entry("index", indexName).entry("acknowledged", true)
@@ -291,8 +295,13 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             bulk.addParameter("refresh", "true");
             bulk.addParameter("filter_path", "errors");
             bulk.setJsonEntity(b.toString());
-            response = client().performRequest(bulk);
+            response = client.performRequest(bulk);
             Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
         }
     }
+
+    protected void assertQueryResult(Map<String, Object> result, Matcher<?> columnMatcher, Matcher<?> valuesMatcher) {
+        assertResultMap(result, columnMatcher, valuesMatcher);
+    }
+
 }

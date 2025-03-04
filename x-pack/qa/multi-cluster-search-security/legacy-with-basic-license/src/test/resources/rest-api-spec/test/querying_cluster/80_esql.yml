@@ -92,8 +92,6 @@ teardown:
 
   - do:
       catch: bad_request
-      allowed_warnings:
-        - "Line 1:21: Square brackets '[]' need to be removed in FROM METADATA declaration"
       headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       esql.query:
         body:
@@ -104,12 +102,10 @@ teardown:
 
   - do:
       catch: bad_request
-      allowed_warnings:
-        - "Line 1:21: Square brackets '[]' need to be removed in FROM METADATA declaration"
       headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       esql.query:
         body:
-          query: 'FROM *:esql*,esql_* [METADATA _index] | sort cost | KEEP _index, tag, cost | LIMIT 10'
+          query: 'FROM *:esql*,esql_* METADATA _index | sort cost | KEEP _index, tag, cost | LIMIT 10'
           filter:
             range:
               since:

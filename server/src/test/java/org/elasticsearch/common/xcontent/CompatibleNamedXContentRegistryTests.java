@@ -12,7 +12,6 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -116,8 +115,6 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
         }
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    @AwaitsFix(bugUrl = "this can be re-enabled once our rest api version is bumped to V_9")
     public void testNotCompatibleRequest() throws IOException {
         NamedXContentRegistry registry = new NamedXContentRegistry(
             List.of(

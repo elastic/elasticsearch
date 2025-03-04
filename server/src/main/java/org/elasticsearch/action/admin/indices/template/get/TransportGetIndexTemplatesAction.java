@@ -10,59 +10,75 @@ package org.elasticsearch.action.admin.indices.template.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
+public class TransportGetIndexTemplatesAction extends TransportLocalProjectMetadataAction<
+    GetIndexTemplatesRequest,
+    GetIndexTemplatesResponse> {
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportGetIndexTemplatesAction(
         TransportService transportService,
         ClusterService clusterService,
-        ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             GetIndexTemplatesAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
+            transportService.getTaskManager(),
+            clusterService,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            projectResolver
+        );
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
             GetIndexTemplatesRequest::new,
-            indexNameExpressionResolver,
-            GetIndexTemplatesResponse::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
         );
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetIndexTemplatesRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetIndexTemplatesRequest request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         GetIndexTemplatesRequest request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetIndexTemplatesResponse> listener
     ) {
+        final var cancellableTask = (CancellableTask) task;
         List<IndexTemplateMetadata> results;
 
         // If we did not ask for a specific name, then we return all templates
@@ -84,6 +100,7 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
             }
         }
 
+        cancellableTask.ensureNotCancelled();
         listener.onResponse(new GetIndexTemplatesResponse(results));
     }
 }

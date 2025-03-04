@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.snapshots.RestoreService;
@@ -37,8 +36,7 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
         ClusterService clusterService,
         ThreadPool threadPool,
         RestoreService restoreService,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             TYPE.name(),
@@ -47,7 +45,6 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
             threadPool,
             actionFilters,
             RestoreSnapshotRequest::new,
-            indexNameExpressionResolver,
             RestoreSnapshotResponse::new,
             threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
         );

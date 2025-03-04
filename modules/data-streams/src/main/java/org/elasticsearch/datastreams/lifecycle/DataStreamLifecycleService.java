@@ -33,7 +33,7 @@ import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -49,6 +49,9 @@ import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -342,7 +345,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         lastRunStartedAt = startTime;
         int affectedIndices = 0;
         int affectedDataStreams = 0;
-        for (DataStream dataStream : state.metadata().dataStreams().values()) {
+        for (DataStream dataStream : state.metadata().getProject().dataStreams().values()) {
             clearErrorStoreForUnmanagedIndices(dataStream);
             if (dataStream.getLifecycle() == null) {
                 continue;
@@ -360,7 +363,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             indicesToExcludeForRemainingRun.addAll(
                 timeSeriesIndicesStillWithinTimeBounds(
                     state.metadata(),
-                    getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index, false),
+                    getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata().getProject()::index, false),
                     nowSupplier
                 )
             );
@@ -384,7 +387,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 indicesToExcludeForRemainingRun.addAll(
                     maybeExecuteForceMerge(
                         state,
-                        getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index, true)
+                        getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata().getProject()::index, true)
                     )
                 );
             } catch (Exception e) {
@@ -403,7 +406,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     maybeExecuteDownsampling(
                         state,
                         dataStream,
-                        getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index, false)
+                        getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata().getProject()::index, false)
                     )
                 );
             } catch (Exception e) {
@@ -433,7 +436,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     static Set<Index> timeSeriesIndicesStillWithinTimeBounds(Metadata metadata, List<Index> targetIndices, LongSupplier nowSupplier) {
         Set<Index> tsIndicesWithinBounds = new HashSet<>();
         for (Index index : targetIndices) {
-            IndexMetadata backingIndex = metadata.index(index);
+            IndexMetadata backingIndex = metadata.getProject().index(index);
             assert backingIndex != null : "the data stream backing indices must exist";
             if (IndexSettings.MODE.get(backingIndex.getSettings()) == IndexMode.TIME_SERIES) {
                 Instant configuredEndTime = IndexSettings.TIME_SERIES_END_TIME.get(backingIndex.getSettings());
@@ -472,11 +475,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Set<Index> affectedIndices = new HashSet<>();
         Metadata metadata = state.metadata();
         for (Index index : targetIndices) {
-            IndexMetadata backingIndexMeta = metadata.index(index);
+            IndexMetadata backingIndexMeta = metadata.getProject().index(index);
             assert backingIndexMeta != null : "the data stream backing indices must exist";
             List<DataStreamLifecycle.Downsampling.Round> downsamplingRounds = dataStream.getDownsamplingRoundsFor(
                 index,
-                metadata::index,
+                metadata.getProject()::index,
                 nowSupplier
             );
             if (downsamplingRounds.isEmpty()) {
@@ -530,7 +533,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 backingIndex,
                 round.config().getFixedInterval()
             );
-            IndexMetadata targetDownsampleIndexMeta = metadata.index(downsampleIndexName);
+            IndexMetadata targetDownsampleIndexMeta = metadata.getProject().index(downsampleIndexName);
             boolean targetDownsampleIndexExists = targetDownsampleIndexMeta != null;
 
             if (targetDownsampleIndexExists) {
@@ -759,10 +762,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 targetIndices.add(index);
             }
         }
-        if (withFailureStore
-            && DataStream.isFailureStoreFeatureFlagEnabled()
-            && dataStream.getFailureIndices().getIndices().isEmpty() == false) {
-            for (Index index : dataStream.getFailureIndices().getIndices()) {
+        if (withFailureStore && DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
+            for (Index index : dataStream.getFailureIndices()) {
                 if (dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier)
                     && indicesToExcludeForRemainingRun.contains(index) == false) {
                     targetIndices.add(index);
@@ -779,7 +780,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private void clearErrorStoreForUnmanagedIndices(DataStream dataStream) {
         Metadata metadata = clusterService.state().metadata();
         for (String indexName : errorStore.getAllIndices()) {
-            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexName);
+            IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(indexName);
             DataStream parentDataStream = indexAbstraction != null ? indexAbstraction.getParentDataStream() : null;
             if (indexAbstraction == null || parentDataStream == null) {
                 logger.trace(
@@ -789,8 +790,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 errorStore.clearRecordedError(indexName);
             } else if (parentDataStream.getName().equals(dataStream.getName())) {
                 // we're only verifying the indices that pertain to this data stream
-                IndexMetadata indexMeta = metadata.index(indexName);
-                if (dataStream.isIndexManagedByDataStreamLifecycle(indexMeta.getIndex(), metadata::index) == false) {
+                IndexMetadata indexMeta = metadata.getProject().index(indexName);
+                if (dataStream.isIndexManagedByDataStreamLifecycle(indexMeta.getIndex(), metadata.getProject()::index) == false) {
                     logger.trace("Clearing recorded error for index [{}] because the index is not managed by DSL anymore", indexName);
                     errorStore.clearRecordedError(indexName);
                 }
@@ -817,12 +818,12 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     @Nullable
     private Index maybeExecuteRollover(ClusterState state, DataStream dataStream, boolean rolloverFailureStore) {
-        Index currentRunWriteIndex = rolloverFailureStore ? dataStream.getFailureStoreWriteIndex() : dataStream.getWriteIndex();
+        Index currentRunWriteIndex = rolloverFailureStore ? dataStream.getWriteFailureIndex() : dataStream.getWriteIndex();
         if (currentRunWriteIndex == null) {
             return null;
         }
         try {
-            if (dataStream.isIndexManagedByDataStreamLifecycle(currentRunWriteIndex, state.metadata()::index)) {
+            if (dataStream.isIndexManagedByDataStreamLifecycle(currentRunWriteIndex, state.metadata().getProject()::index)) {
                 RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                     rolloverConfiguration,
                     dataStream.getName(),
@@ -855,7 +856,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 ),
                 e
             );
-            DataStream latestDataStream = clusterService.state().metadata().dataStreams().get(dataStream.getName());
+            DataStream latestDataStream = clusterService.state().metadata().getProject().dataStreams().get(dataStream.getName());
             if (latestDataStream != null) {
                 if (latestDataStream.getWriteIndex().getName().equals(currentRunWriteIndex.getName())) {
                     // data stream has not been rolled over in the meantime so record the error against the write index we
@@ -879,7 +880,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     Set<Index> maybeExecuteRetention(ClusterState state, DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun) {
         Metadata metadata = state.metadata();
         DataStreamGlobalRetention globalRetention = dataStream.isSystem() ? null : globalRetentionSettings.get();
-        List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(metadata::index, nowSupplier, globalRetention);
+        List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(
+            metadata.getProject()::index,
+            nowSupplier,
+            globalRetention
+        );
         if (backingIndicesOlderThanRetention.isEmpty()) {
             return Set.of();
         }
@@ -889,7 +894,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         TimeValue effectiveDataRetention = dataStream.getLifecycle().getEffectiveDataRetention(globalRetention, dataStream.isInternal());
         for (Index index : backingIndicesOlderThanRetention) {
             if (indicesToExcludeForRemainingRun.contains(index) == false) {
-                IndexMetadata backingIndex = metadata.index(index);
+                IndexMetadata backingIndex = metadata.getProject().index(index);
                 assert backingIndex != null : "the data stream backing indices must exist";
 
                 IndexMetadata.DownsampleTaskStatus downsampleStatus = INDEX_DOWNSAMPLE_STATUS.get(backingIndex.getSettings());
@@ -928,7 +933,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Metadata metadata = state.metadata();
         Set<Index> affectedIndices = new HashSet<>();
         for (Index index : indices) {
-            IndexMetadata backingIndex = metadata.index(index);
+            IndexMetadata backingIndex = metadata.getProject().index(index);
             assert backingIndex != null : "the data stream backing indices must exist";
             String indexName = index.getName();
             boolean alreadyForceMerged = isForceMergeComplete(backingIndex);
@@ -944,11 +949,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             if ((configuredFloorSegmentMerge == null || configuredFloorSegmentMerge.equals(targetMergePolicyFloorSegment) == false)
                 || (configuredMergeFactor == null || configuredMergeFactor.equals(targetMergePolicyFactor) == false)) {
                 UpdateSettingsRequest updateMergePolicySettingsRequest = new UpdateSettingsRequest();
-                updateMergePolicySettingsRequest.indicesOptions(
-                    IndicesOptions.builder(updateMergePolicySettingsRequest.indicesOptions())
-                        .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
-                        .build()
-                );
                 updateMergePolicySettingsRequest.indices(indexName);
                 updateMergePolicySettingsRequest.settings(
                     Settings.builder()
@@ -998,8 +998,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     private void rolloverDataStream(String writeIndexName, RolloverRequest rolloverRequest, ActionListener<Void> listener) {
         // "saving" the rollover target name here so we don't capture the entire request
-        String rolloverTarget = rolloverRequest.getRolloverTarget();
-        logger.trace("Data stream lifecycle issues rollover request for data stream [{}]", rolloverTarget);
+        ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(
+            rolloverRequest.getRolloverTarget(),
+            rolloverRequest.indicesOptions()
+        );
+        logger.trace("Data stream lifecycle issues rollover request for data stream [{}]", rolloverRequest.getRolloverTarget());
         client.admin().indices().rolloverIndex(rolloverRequest, new ActionListener<>() {
             @Override
             public void onResponse(RolloverResponse rolloverResponse) {
@@ -1014,7 +1017,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     logger.info(
                         "Data stream lifecycle successfully rolled over datastream [{}] due to the following met rollover "
                             + "conditions {}. The new index is [{}]",
-                        rolloverTarget,
+                        rolloverRequest.getRolloverTarget(),
                         metConditions,
                         rolloverResponse.getNewIndex()
                     );
@@ -1024,7 +1027,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             @Override
             public void onFailure(Exception e) {
-                DataStream dataStream = clusterService.state().metadata().dataStreams().get(rolloverTarget);
+                DataStream dataStream = clusterService.state().metadata().getProject().dataStreams().get(resolvedRolloverTarget.resource());
                 if (dataStream == null || dataStream.getWriteIndex().getName().equals(writeIndexName) == false) {
                     // the data stream has another write index so no point in recording an error for the previous write index we were
                     // attempting to roll over
@@ -1407,9 +1410,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     ) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
         if (rolloverFailureStore) {
-            rolloverRequest.setIndicesOptions(
-                IndicesOptions.builder(rolloverRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.FAILURES).build()
-            );
+            rolloverRequest.setRolloverTarget(IndexNameExpressionResolver.combineSelector(dataStream, IndexComponentSelector.FAILURES));
         }
         rolloverRequest.setConditions(rolloverConfiguration.resolveRolloverConditions(dataRetention));
         return rolloverRequest;
@@ -1499,7 +1500,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
         ClusterState execute(ClusterState currentState) throws Exception {
             logger.debug("Updating cluster state with force merge complete marker for {}", targetIndex);
-            IndexMetadata indexMetadata = currentState.metadata().index(targetIndex);
+            IndexMetadata indexMetadata = currentState.metadata().getProject().index(targetIndex);
             Map<String, String> customMetadata = indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
             Map<String, String> newCustomMetadata = new HashMap<>();
             if (customMetadata != null) {

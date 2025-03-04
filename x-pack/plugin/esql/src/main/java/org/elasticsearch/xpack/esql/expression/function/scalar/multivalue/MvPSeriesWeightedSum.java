@@ -115,7 +115,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
                 source(),
                 toEvaluator.apply(field),
                 ctx -> new CompensatedSum(),
-                (Double) p.fold()
+                (Double) p.fold(toEvaluator.foldCtx())
             );
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());

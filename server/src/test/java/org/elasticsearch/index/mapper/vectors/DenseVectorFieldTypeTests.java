@@ -36,6 +36,7 @@ import java.util.Set;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_MIN_DIMS;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BYTE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.FLOAT;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -456,19 +457,18 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
 
         // Total results is k, internal k is multiplied by oversample
-        checkRescoreQueryParameters(fieldType, 10, 200, 2.5F, null, 500, 10);
+        checkRescoreQueryParameters(fieldType, 10, 200, 2.5F, 25, 200, 10);
         // If numCands < k, update numCands to k
-        checkRescoreQueryParameters(fieldType, 10, 20, 2.5F, null, 50, 10);
-        // Oversampling limits for num candidates
-        checkRescoreQueryParameters(fieldType, 1000, 1000, 11.0F, null, 10000, 1000);
-        checkRescoreQueryParameters(fieldType, 5000, 7500, 2.5F, null, 10000, 5000);
+        checkRescoreQueryParameters(fieldType, 10, 20, 2.5F, 25, 25, 10);
+        // Oversampling limits for k
+        checkRescoreQueryParameters(fieldType, 1000, 1000, 11.0F, OVERSAMPLE_LIMIT, OVERSAMPLE_LIMIT, 1000);
     }
 
     private static void checkRescoreQueryParameters(
         DenseVectorFieldType fieldType,
-        Integer k,
+        int k,
         int candidates,
-        float numCandsFactor,
+        float oversample,
         Integer expectedK,
         int expectedCandidates,
         int expectedResults
@@ -477,7 +477,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             VectorData.fromFloats(new float[] { 1, 4, 10 }),
             k,
             candidates,
-            numCandsFactor,
+            oversample,
             null,
             null,
             null

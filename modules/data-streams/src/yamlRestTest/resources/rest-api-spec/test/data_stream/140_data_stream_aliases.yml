@@ -240,7 +240,8 @@
             test: {}
 
   - do:
-      indices.get_alias: { }
+      indices.get_alias:
+        index: test*
   - match: { test1.aliases.test: { } }
   - match: { test2.aliases.test: { } }
   - match: { test3.aliases.test: { } }
@@ -255,7 +256,8 @@
   - is_true: acknowledged
 
   - do:
-      indices.get_alias: {}
+      indices.get_alias:
+        index: test*
   - match: {test1.aliases: {}}
   - match: {test2.aliases: {}}
   - match: {test3.aliases: {}}

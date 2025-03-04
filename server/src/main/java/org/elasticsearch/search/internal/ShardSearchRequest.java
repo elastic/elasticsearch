@@ -42,7 +42,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -77,7 +76,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final long waitForCheckpoint;
     private final TimeValue waitForCheckpointsTimeout;
     private final SearchType searchType;
-    private final Scroll scroll;
+    private final TimeValue scroll;
     private final float indexBoost;
     private Boolean requestCache;
     private final long nowInMillis;
@@ -221,7 +220,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         AliasFilter aliasFilter,
         float indexBoost,
         boolean allowPartialSearchResults,
-        Scroll scroll,
+        TimeValue scroll,
         long nowInMillis,
         @Nullable String clusterAlias,
         ShardSearchContextId readerId,
@@ -283,7 +282,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         searchType = SearchType.fromId(in.readByte());
         shardRequestIndex = in.readVInt();
         numberOfShards = in.readVInt();
-        scroll = in.readOptionalWriteable(Scroll::new);
+        scroll = in.readOptionalTimeValue();
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && in.getTransportVersion().before(TransportVersions.V_8_9_X)) {
             // to deserialize between the 8.8 and 8.500.020 version we need to translate
@@ -358,7 +357,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeVInt(shardRequestIndex);
             out.writeVInt(numberOfShards);
         }
-        out.writeOptionalWriteable(scroll);
+        out.writeOptionalTimeValue(scroll);
         out.writeOptionalWriteable(source);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && out.getTransportVersion().before(TransportVersions.V_8_9_X)) {
             // to serialize between the 8.8 and 8.500.020 version we need to translate
@@ -482,7 +481,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return allowPartialSearchResults;
     }
 
-    public Scroll scroll() {
+    public TimeValue scroll() {
         return scroll;
     }
 

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -347,7 +346,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                     .build()
                             )
-                            .eventIngestedRange(IndexLongFieldRange.UNKNOWN, TransportVersion.current())
+                            .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
                             .build(),
                         false
                     )

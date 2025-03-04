@@ -25,6 +25,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -73,6 +74,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         }
     }
 
+    @FixForMultiProject(description = "we can pass ProjectMetadata here")
     IndicesStatsResponse(
         ShardStats[] shards,
         int totalShards,
@@ -91,7 +93,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         Map<String, IndexMetadata.State> indexStateModifiableMap = new HashMap<>();
         for (ShardStats shard : shards) {
             Index index = shard.getShardRouting().index();
-            IndexMetadata indexMetadata = metadata.index(index);
+            IndexMetadata indexMetadata = metadata.findIndex(index).orElse(null);
             if (indexMetadata != null) {
                 indexHealthModifiableMap.computeIfAbsent(
                     index.getName(),
@@ -204,7 +206,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         if (level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS) {
             return Iterators.concat(
 
-                ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                ChunkedToXContentHelper.chunk((builder, p) -> {
                     commonStats(builder, p);
                     return builder.startObject(Fields.INDICES);
                 }),
@@ -212,7 +214,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                     getIndices().values().iterator(),
                     indexStats -> Iterators.concat(
 
-                        ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                        ChunkedToXContentHelper.chunk((builder, p) -> {
                             builder.startObject(indexStats.getIndex());
                             builder.field("uuid", indexStats.getUuid());
                             if (indexStats.getHealth() != null) {
@@ -232,22 +234,20 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                         }),
 
                         level == ClusterStatsLevel.SHARDS
-                            ? Iterators.concat(
-                                ChunkedToXContentHelper.startObject(Fields.SHARDS),
+                            ? ChunkedToXContentHelper.object(
+                                Fields.SHARDS,
                                 Iterators.flatMap(
                                     indexStats.iterator(),
-                                    indexShardStats -> Iterators.concat(
-                                        ChunkedToXContentHelper.startArray(Integer.toString(indexShardStats.getShardId().id())),
-                                        Iterators.<ShardStats, ToXContent>map(indexShardStats.iterator(), shardStats -> (builder, p) -> {
+                                    indexShardStats -> ChunkedToXContentHelper.array(
+                                        Integer.toString(indexShardStats.getShardId().id()),
+                                        Iterators.map(indexShardStats.iterator(), shardStats -> (builder, p) -> {
                                             builder.startObject();
                                             shardStats.toXContent(builder, p);
                                             builder.endObject();
                                             return builder;
-                                        }),
-                                        ChunkedToXContentHelper.endArray()
+                                        })
                                     )
-                                ),
-                                ChunkedToXContentHelper.endObject()
+                                )
                             )
                             : Collections.emptyIterator(),
 
@@ -257,7 +257,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                 ChunkedToXContentHelper.endObject()
             );
         } else {
-            return ChunkedToXContentHelper.singleChunk((builder, p) -> {
+            return ChunkedToXContentHelper.chunk((builder, p) -> {
                 commonStats(builder, p);
                 return builder;
             });

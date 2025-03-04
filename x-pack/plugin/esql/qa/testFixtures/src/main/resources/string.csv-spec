@@ -734,10 +734,11 @@ null                                                                            
 ;
 
 convertFromFloats
+required_capability: fix_precision_of_scaled_float_fields
 from employees | sort emp_no| eval double = to_string(height), float = to_string(height.float), scaled_float = to_string(height.scaled_float), half_float = to_string(height.half_float) | keep emp_no, double, float, scaled_float, half_float, height  | limit 2;
 
 emp_no:integer |double:keyword |float:keyword     |scaled_float:keyword   |half_float:keyword   |height:double
-10001          |2.03           |2.0299999713897705|2.0300000000000002     |2.029296875          |2.03
+10001          |2.03           |2.0299999713897705|2.03                   |2.029296875          |2.03
 10002          |2.08           |2.0799999237060547|2.08                   |2.080078125          |2.08
 ;
 
@@ -1067,6 +1068,25 @@ Gatewayinstances|Gateway instances
 null            |null             
 ;
 
+replaceWarnings
+required_capability: functions_source_serialization_warnings
+
+FROM employees
+| SORT first_name ASC
+| EVAL
+    regex = CASE(first_name == "Alejandro", "(", ""),
+    result = replace(first_name, regex, "")
+| KEEP first_name, result
+| LIMIT 1
+;
+
+warningRegex:Line 5:10: evaluation of \[replace\(first_name, regex, \\"\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 5:10: java.util.regex.PatternSyntaxException: Unclosed group near index 1(%0D)?%0A\(
+
+first_name:keyword | result:keyword
+Alejandro          | null
+;
+
 left
 // tag::left[]
 FROM employees
@@ -1287,7 +1307,7 @@ emp_no:integer  | first_name:keyword
 10001           | Georgi
 ;
 
-equalsToUpperFolded
+equalsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | where to_upper(first_name) == "Georgi"
 | keep emp_no, first_name
@@ -1296,7 +1316,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-negatedEqualsToUpperFolded
+negatedEqualsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | where not(to_upper(first_name) == "Georgi")
 | stats c = count()
@@ -1315,7 +1335,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-equalsNullToUpperFolded
+equalsNullToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | where to_upper(first_name) == to_string(null)
 | keep emp_no, first_name
@@ -1333,7 +1353,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-notEqualsNullToUpperFolded
+notEqualsNullToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | where to_upper(first_name) != to_string(null)
 | keep emp_no, first_name
@@ -1342,7 +1362,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-notEqualsToUpperFolded
+notEqualsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | where to_upper(first_name) != "Georgi"
 | stats c = count()
@@ -1352,7 +1372,7 @@ c:long
 90
 ;
 
-negatedNotEqualsToUpperFolded
+negatedNotEqualsToUpperFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | where not(to_upper(first_name) != "Georgi")
 | stats c = count()
@@ -1384,7 +1404,7 @@ emp_no:integer  | first_name:keyword
 10002           | Bezalel
 ;
 
-equalsToLowerFolded
+equalsToLowerFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | where to_lower(first_name) == "Georgi"
 | keep emp_no, first_name
@@ -1393,7 +1413,7 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
-notEqualsToLowerFolded
+notEqualsToLowerFolded#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | where to_lower(first_name) != "Georgi"
 | stats c = count()
@@ -1403,7 +1423,7 @@ c:long
 90
 ;
 
-equalsToLowerWithUnico(rn|d)s
+equalsToLowerWithUnico(rn|d)s#[skip:-8.12.99, reason:case insensitive operators implemented in v 8.13]
 from employees
 | where to_lower(concat(first_name, "🦄🦄")) != "georgi🦄🦄"
 | stats c = count()

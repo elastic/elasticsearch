@@ -28,10 +28,6 @@ public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFunction
 
     public final void testFold() {
         Expression expression = buildLiteralExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
-            return;
-        }
         assertFalse("expected resolved", expression.typeResolved().unresolved());
     }
 
@@ -46,9 +42,7 @@ public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFunction
                 )
             );
         }
-        List<TestCaseSupplier> errorsSuppliers = errorsForCasesWithoutExamples(suppliers, (v, p) -> "string");
-        // Don't test null, as it is not allowed but the expected message is not a type error - so we check it separately in VerifierTests
-        return parameterSuppliersFromTypedData(errorsSuppliers.stream().filter(s -> s.types().contains(DataType.NULL) == false).toList());
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     private static TestCaseSupplier.TestCase testCase(DataType strType, String str, Matcher<Boolean> matcher) {

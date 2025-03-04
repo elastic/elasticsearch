@@ -19,8 +19,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -205,7 +203,13 @@ public class SearchApplicationIndexService {
     }
 
     private String[] getAliasIndices(String searchApplicationName) {
-        return clusterService.state().metadata().aliasedIndices(searchApplicationName).stream().map(Index::getName).toArray(String[]::new);
+        return clusterService.state()
+            .metadata()
+            .getProject()
+            .aliasedIndices(searchApplicationName)
+            .stream()
+            .map(Index::getName)
+            .toArray(String[]::new);
     }
 
     private static String getSearchAliasName(SearchApplication app) {
@@ -245,8 +249,12 @@ public class SearchApplicationIndexService {
         final String searchAliasName = getSearchAliasName(app);
 
         IndicesAliasesRequestBuilder requestBuilder = null;
-        if (metadata.hasAlias(searchAliasName)) {
-            Set<String> currentAliases = metadata.aliasedIndices(searchAliasName).stream().map(Index::getName).collect(Collectors.toSet());
+        if (metadata.getProject().hasAlias(searchAliasName)) {
+            Set<String> currentAliases = metadata.getProject()
+                .aliasedIndices(searchAliasName)
+                .stream()
+                .map(Index::getName)
+                .collect(Collectors.toSet());
             Set<String> targetAliases = Set.of(app.indices());
 
             requestBuilder = updateAliasIndices(currentAliases, targetAliases, searchAliasName);
@@ -319,10 +327,6 @@ public class SearchApplicationIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    GetAliasesResponse getAlias(String searchAliasName) {
-        return client.admin().indices().getAliases(new GetAliasesRequest(searchAliasName)).actionGet();
     }
 
     private void removeAlias(String searchAliasName, ActionListener<AcknowledgedResponse> listener) {

@@ -1016,6 +1016,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
 
     static class TestSecurityNetty4ServerTransport extends SecurityNetty4ServerTransport {
         private final boolean doHandshake;
+        private final TransportVersion version;
 
         TestSecurityNetty4ServerTransport(
             Settings settings,
@@ -1043,6 +1044,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 sharedGroupFactory,
                 mock(CrossClusterAccessAuthenticationService.class)
             );
+            this.version = version;
             this.doHandshake = doHandshake;
         }
 
@@ -1056,7 +1058,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             if (doHandshake) {
                 super.executeHandshake(node, channel, profile, listener);
             } else {
-                assert getVersion().equals(TransportVersion.current());
+                assert version.equals(TransportVersion.current());
                 listener.onResponse(TransportVersions.MINIMUM_COMPATIBLE);
             }
         }

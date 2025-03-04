@@ -18,9 +18,11 @@ import org.apache.tika.parser.Parser;
 import org.apache.tika.parser.ParserDecorator;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.FilePermissionUtils;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -122,15 +124,22 @@ final class TikaImpl {
 
     // apply additional containment for parsers, this is intersected with the current permissions
     // its hairy, but worth it so we don't have some XML flaw reading random crap from the FS
-    private static final AccessControlContext RESTRICTED_CONTEXT = new AccessControlContext(
-        new ProtectionDomain[] { new ProtectionDomain(null, getRestrictedPermissions()) }
-    );
+    private static final AccessControlContext RESTRICTED_CONTEXT = isUsingSecurityManager()
+        ? new AccessControlContext(new ProtectionDomain[] { new ProtectionDomain(null, getRestrictedPermissions()) })
+        : null;
+
+    private static boolean isUsingSecurityManager() {
+        boolean entitlementsEnabled = Booleans.parseBoolean(System.getProperty("es.entitlements.enabled"), false)
+            || RuntimeVersionFeature.isSecurityManagerAvailable() == false;
+        return entitlementsEnabled == false;
+    }
 
     // compute some minimal permissions for parsers. they only get r/w access to the java temp directory,
     // the ability to load some resources from JARs, and read sysprops
     @SuppressForbidden(reason = "adds access to tmp directory")
     static PermissionCollection getRestrictedPermissions() {
         Permissions perms = new Permissions();
+
         // property/env access needed for parsing
         perms.add(new PropertyPermission("*", "read"));
         perms.add(new RuntimePermission("getenv.TIKA_CONFIG"));

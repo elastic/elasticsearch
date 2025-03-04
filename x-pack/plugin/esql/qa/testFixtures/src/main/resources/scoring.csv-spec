@@ -92,26 +92,26 @@ testMultiValuedFieldWithConjunctionWithScore
 required_capability: match_function
 required_capability: metadata_score
 
-from employees metadata _score
-| where match(job_positions, "Data Scientist") and match(job_positions, "Support Engineer")
-| keep emp_no, first_name, last_name, job_positions, _score;
+from books metadata _score
+| where match(author, "Keith Faulkner") and match(author, "Rory Tyger")
+| keep book_no, title, author, _score;
 
-emp_no:integer | first_name:keyword | last_name:keyword | job_positions:keyword | _score:double
-10043          | Yishay             | Tzvieli           | [Data Scientist, Python Developer, Support Engineer] | 5.233309745788574
+book_no:keyword | title:text                                                                            | author:text                  | _score:double
+6151            | Pop! Went Another Balloon: A Magical Counting Storybook (Magical Counting Storybooks) | [Keith Faulkner, Rory Tyger] | 8.5822172164917
 ;
 
 testMatchAndQueryStringFunctionsWithScore
 required_capability: match_function
 required_capability: metadata_score
 
-from employees metadata _score
-| where match(job_positions, "Data Scientist") and qstr("job_positions: (Support Engineer) and gender: F")
-| keep emp_no, first_name, last_name, job_positions, _score;
+from books metadata _score
+| where match(author, "Keith Faulkner") and qstr("author:Rory or author:Beverlie")
+| keep book_no, title, author, _score;
 ignoreOrder:true
 
-emp_no:integer | first_name:keyword | last_name:keyword | job_positions:keyword | _score:double
-10041          | Uri                 | Lenart           | [Data Scientist, Head Human Resources, Internship, Senior Team Lead] | 3.509873867034912
-10043          | Yishay              | Tzvieli          | [Data Scientist, Python Developer, Support Engineer] | 5.233309745788574
+book_no:keyword | title:text                                                                            | author:text                       | _score:double
+3535            | Rainbow's End: A Magical Story and Moneybox                                           | [Beverlie Manson, Keith Faulkner] | 6.5579609870910645
+6151            | Pop! Went Another Balloon: A Magical Counting Storybook (Magical Counting Storybooks) | [Keith Faulkner, Rory Tyger]      | 5.975414276123047 
 ;
 
 multipleWhereWithMatchScoringNoSort

@@ -190,6 +190,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
                 .get()
                 .getState()
                 .getMetadata()
+                .getProject()
                 .index("test")
                 .getLifecycleExecutionState();
             assertThat(lifecycleState.step(), equalTo("complete"));
@@ -388,7 +389,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
     private IndexLifecycleExplainResponse executeExplainRequestAndGetTestIndexResponse(String indexName) throws ExecutionException,
         InterruptedException {
-        ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest();
+        ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT);
         ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
         assertThat(explainResponse.getIndexResponses().size(), equalTo(1));
         return explainResponse.getIndexResponses().get(indexName);
@@ -433,6 +434,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
                 .get()
                 .getState()
                 .getMetadata()
+                .getProject()
                 .index("test")
                 .getLifecycleExecutionState();
             assertThat(lifecycleState.step(), equalTo("complete"));
@@ -593,7 +595,11 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         @Override
         public Result isConditionMet(Index index, ClusterState clusterState) {
-            boolean complete = clusterState.metadata().index("test").getSettings().getAsBoolean("index.lifecycle.test.complete", false);
+            boolean complete = clusterState.metadata()
+                .getProject()
+                .index("test")
+                .getSettings()
+                .getAsBoolean("index.lifecycle.test.complete", false);
             return new Result(complete, null);
         }
     }

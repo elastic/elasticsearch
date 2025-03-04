@@ -83,7 +83,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testMissingNoCreate() throws Exception {
         terminal.addTextInput("n"); // explicit no
         execute("foo");
-        assertNull(KeyStoreWrapper.load(env.configFile()));
+        assertNull(KeyStoreWrapper.load(env.configDir()));
     }
 
     public void testOverwritePromptDefault() throws Exception {
@@ -143,7 +143,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testPromptForValue() throws Exception {
         String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
         terminal.addSecretInput("secret value");
         execute("foo");
@@ -152,7 +152,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testPromptForMultipleValues() throws Exception {
         final String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
         terminal.addSecretInput("bar1");
         terminal.addSecretInput("bar2");
@@ -165,7 +165,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testStdinShort() throws Exception {
         String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
         setInput("secret value 1");
         execute("-x", "foo");
@@ -174,7 +174,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testStdinLong() throws Exception {
         String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
         setInput("secret value 2");
         execute("--stdin", "foo");
@@ -183,7 +183,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testStdinNoInput() throws Exception {
         String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
         setInput("");
         execute("-x", "foo");
@@ -192,7 +192,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testStdinInputWithLineBreaks() throws Exception {
         String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
         setInput("Typedthisandhitenter\n");
         execute("-x", "foo");
@@ -201,7 +201,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testStdinInputWithCarriageReturn() throws Exception {
         String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
         setInput("Typedthisandhitenter\r");
         execute("-x", "foo");
@@ -210,7 +210,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testStdinWithMultipleValues() throws Exception {
         final String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
         setInput("bar1\nbar2\nbar3");
         execute(randomFrom("-x", "--stdin"), "foo1", "foo2", "foo3");
@@ -221,7 +221,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testAddUtf8String() throws Exception {
         String password = "keystorepassword";
-        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        KeyStoreWrapper.create().save(env.configDir(), password.toCharArray());
         terminal.addSecretInput(password);
         final int stringSize = randomIntBetween(8, 16);
         try (CharArrayWriter secretChars = new CharArrayWriter(stringSize)) {

@@ -268,18 +268,19 @@ public class QueryStringQueryParser extends QueryParser {
             if (allFields && this.field != null && this.field.equals(field)) {
                 // "*" is the default field
                 extractedFields = fieldsAndWeights;
+            } else {
+                boolean multiFields = Regex.isSimpleMatchPattern(field);
+                // Filters unsupported fields if a pattern is requested
+                // Filters metadata fields if all fields are requested
+                extractedFields = resolveMappingField(
+                    context,
+                    field,
+                    1.0f,
+                    allFields == false,
+                    multiFields == false,
+                    quoted ? quoteFieldSuffix : null
+                );
             }
-            boolean multiFields = Regex.isSimpleMatchPattern(field);
-            // Filters unsupported fields if a pattern is requested
-            // Filters metadata fields if all fields are requested
-            extractedFields = resolveMappingField(
-                context,
-                field,
-                1.0f,
-                allFields == false,
-                multiFields == false,
-                quoted ? quoteFieldSuffix : null
-            );
         } else if (quoted && quoteFieldSuffix != null) {
             extractedFields = resolveMappingFields(context, fieldsAndWeights, quoteFieldSuffix);
         } else {

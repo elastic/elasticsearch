@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsTests;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -32,11 +31,14 @@ import org.junit.Before;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -48,7 +50,6 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
     private ClusterService clusterService;
     private TransportService transportService;
     private AllocationStatsService allocationStatsService;
-    private FeatureService featureService;
 
     private TransportGetAllocationStatsAction action;
 
@@ -67,15 +68,12 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
             Set.of()
         );
         allocationStatsService = mock(AllocationStatsService.class);
-        featureService = mock(FeatureService.class);
         action = new TransportGetAllocationStatsAction(
             transportService,
             clusterService,
             threadPool,
             new ActionFilters(Set.of()),
-            null,
-            allocationStatsService,
-            featureService
+            allocationStatsService
         );
     }
 
@@ -99,8 +97,6 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         );
 
         when(allocationStatsService.stats()).thenReturn(Map.of(randomIdentifier(), NodeAllocationStatsTests.randomNodeAllocationStats()));
-        when(featureService.clusterHasFeature(any(ClusterState.class), eq(AllocationStatsFeatures.INCLUDE_DISK_THRESHOLD_SETTINGS)))
-            .thenReturn(true);
 
         var future = new PlainActionFuture<TransportGetAllocationStatsAction.Response>();
         action.masterOperation(mock(Task.class), request, ClusterState.EMPTY_STATE, future);
@@ -118,6 +114,52 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
             assertNotNull(response.getDiskThresholdSettings());
         } else {
             assertNull(response.getDiskThresholdSettings());
+        }
+    }
+
+    public void testDeduplicatesStatsComputations() throws InterruptedException {
+        final var requestCounter = new AtomicInteger();
+        final var isExecuting = new AtomicBoolean();
+        when(allocationStatsService.stats()).thenAnswer(invocation -> {
+            try {
+                assertTrue(isExecuting.compareAndSet(false, true));
+                assertThat(Thread.currentThread().getName(), containsString("[management]"));
+                return Map.of(Integer.toString(requestCounter.incrementAndGet()), NodeAllocationStatsTests.randomNodeAllocationStats());
+            } finally {
+                Thread.yield();
+                assertTrue(isExecuting.compareAndSet(true, false));
+            }
+        });
+
+        final var threads = new Thread[between(1, 5)];
+        final var startBarrier = new CyclicBarrier(threads.length);
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                safeAwait(startBarrier);
+
+                final var minRequestIndex = requestCounter.get();
+
+                final TransportGetAllocationStatsAction.Response response = safeAwait(
+                    l -> action.masterOperation(
+                        mock(Task.class),
+                        new TransportGetAllocationStatsAction.Request(
+                            TEST_REQUEST_TIMEOUT,
+                            TaskId.EMPTY_TASK_ID,
+                            EnumSet.of(Metric.ALLOCATIONS)
+                        ),
+                        ClusterState.EMPTY_STATE,
+                        l
+                    )
+                );
+
+                final var requestIndex = Integer.valueOf(response.getNodeAllocationStats().keySet().iterator().next());
+                assertThat(requestIndex, greaterThanOrEqualTo(minRequestIndex)); // did not get a stale result
+            }, "thread-" + i);
+            threads[i].start();
+        }
+
+        for (final var thread : threads) {
+            thread.join();
         }
     }
 }

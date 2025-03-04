@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -54,6 +55,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     DataStreamsStatsAction.DataStreamShardStats> {
 
     private final IndicesService indicesService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public DataStreamsStatsTransportAction(
@@ -61,6 +63,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -73,6 +76,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indicesService = indicesService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -97,22 +101,12 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         DataStreamsStatsAction.Request request,
         String[] concreteIndices
     ) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
-    }
-
-    @Override
-    protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
-        return DataStreamsActionUtil.resolveConcreteIndexNames(
-            indexNameExpressionResolver,
-            clusterState,
-            request.indices(),
-            request.indicesOptions()
-        ).toArray(String[]::new);
+        return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
     @Override
     protected ShardsIterator shards(ClusterState clusterState, DataStreamsStatsAction.Request request, String[] concreteIndices) {
-        return clusterState.getRoutingTable().allShards(concreteIndices);
+        return clusterState.routingTable(projectResolver.getProjectId()).allShards(concreteIndices);
     }
 
     @Override
@@ -126,7 +120,9 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
             StoreStats storeStats = indexShard.storeStats();
-            IndexAbstraction indexAbstraction = clusterService.state().getMetadata().getIndicesLookup().get(shardRouting.getIndexName());
+            IndexAbstraction indexAbstraction = projectResolver.getProjectMetadata(clusterService.state())
+                .getIndicesLookup()
+                .get(shardRouting.getIndexName());
             assert indexAbstraction != null;
             DataStream dataStream = indexAbstraction.getParentDataStream();
             assert dataStream != null;
@@ -143,6 +139,16 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     }
 
     @Override
+    protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
+        return DataStreamsActionUtil.resolveConcreteIndexNames(
+            indexNameExpressionResolver,
+            projectResolver.getProjectMetadata(clusterState),
+            request.indices(),
+            request.indicesOptions()
+        ).toArray(String[]::new);
+    }
+
+    @Override
     protected DataStreamsStatsAction.DataStreamShardStats readShardResult(StreamInput in) throws IOException {
         return new DataStreamsStatsAction.DataStreamShardStats(in);
     }
@@ -153,23 +159,24 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         getResponseFactory(DataStreamsStatsAction.Request request, ClusterState clusterState) {
         Map<String, AggregatedStats> aggregatedDataStreamsStats = new HashMap<>();
         Set<String> allBackingIndices = new HashSet<>();
-        SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
+        final var project = projectResolver.getProjectMetadata(clusterState);
+        SortedMap<String, IndexAbstraction> indicesLookup = project.getIndicesLookup();
 
         // Collect the number of backing indices from the cluster state. If every shard operation for an index fails,
         // or if a backing index simply has no shards allocated, it would be excluded from the counts if we only used
         // shard results to calculate.
-        List<String> abstractionNames = indexNameExpressionResolver.dataStreamNames(
-            clusterState,
-            request.indicesOptions(),
-            request.indices()
-        );
-        for (String abstractionName : abstractionNames) {
-            IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
+        List<String> abstractionNames = indexNameExpressionResolver.dataStreamNames(project, request.indicesOptions(), request.indices());
+        for (String abstraction : abstractionNames) {
+            IndexAbstraction indexAbstraction = indicesLookup.get(abstraction);
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 DataStream dataStream = (DataStream) indexAbstraction;
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
                 dataStream.getIndices().stream().map(Index::getName).forEach(index -> {
+                    stats.backingIndices.add(index);
+                    allBackingIndices.add(index);
+                });
+                dataStream.getFailureIndices().stream().map(Index::getName).forEach(index -> {
                     stats.backingIndices.add(index);
                     allBackingIndices.add(index);
                 });

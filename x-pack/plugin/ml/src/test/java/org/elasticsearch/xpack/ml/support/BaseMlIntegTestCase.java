@@ -82,7 +82,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskState;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
@@ -161,8 +160,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             DataStreamsPlugin.class,
             // To remove errors from parsing build in templates that contain scaled_float
             MapperExtrasPlugin.class,
-            Wildcard.class,
-            InferencePlugin.class
+            Wildcard.class
         );
     }
 
@@ -517,7 +515,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     protected void assertRecentLastTaskStateChangeTime(String taskId, Duration howRecent, String queryNode) {
         ClusterStateRequest csRequest = new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().metadata(true);
         ClusterStateResponse csResponse = client(queryNode).execute(ClusterStateAction.INSTANCE, csRequest).actionGet();
-        PersistentTasksCustomMetadata tasks = csResponse.getState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = csResponse.getState().getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         assertNotNull(tasks);
         PersistentTasksCustomMetadata.PersistentTask<?> task = tasks.getTask(taskId);
         assertNotNull(task);

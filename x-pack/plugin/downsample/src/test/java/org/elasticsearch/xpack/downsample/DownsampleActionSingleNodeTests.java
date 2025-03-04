@@ -449,7 +449,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex, true);
         downsample(sourceIndex, downsampleIndex, config);
 
-        GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex().addIndices(sourceIndex, downsampleIndex).get();
+        GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .addIndices(sourceIndex, downsampleIndex)
+            .get();
         assertDownsampleIndexSettings(sourceIndex, downsampleIndex, indexSettingsResp);
         for (String key : settings.keySet()) {
             if (LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey().equals(key)) {
@@ -605,7 +607,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         );
         assertBusy(() -> {
             try {
-                assertEquals(indicesAdmin().prepareGetIndex().addIndices(downsampleIndex).get().getIndices().length, 1);
+                assertEquals(indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(downsampleIndex).get().getIndices().length, 1);
             } catch (IndexNotFoundException e) {
                 fail("downsample index has not been created");
             }
@@ -1179,7 +1181,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     @SuppressWarnings("unchecked")
     private void assertDownsampleIndex(String sourceIndex, String downsampleIndex, DownsampleConfig config) throws Exception {
         // Retrieve field information for the metric fields
-        final GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(sourceIndex).get();
+        final GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, sourceIndex).get();
         final Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
             .entrySet()
             .stream()
@@ -1192,6 +1194,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .get()
             .getState()
             .getMetadata()
+            .getProject()
             .index(sourceIndex);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
@@ -1211,7 +1214,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         assertDownsampleIndexAggregations(sourceIndex, downsampleIndex, config, metricFields, labelFields);
 
-        GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex().addIndices(sourceIndex, downsampleIndex).get();
+        GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .addIndices(sourceIndex, downsampleIndex)
+            .get();
         assertDownsampleIndexSettings(sourceIndex, downsampleIndex, indexSettingsResp);
 
         Map<String, Map<String, Object>> mappings = (Map<String, Map<String, Object>>) indexSettingsResp.getMappings()
@@ -1221,8 +1226,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         assertFieldMappings(config, metricFields, mappings);
 
-        GetMappingsResponse indexMappings = indicesAdmin().getMappings(new GetMappingsRequest().indices(downsampleIndex, sourceIndex))
-            .actionGet();
+        GetMappingsResponse indexMappings = indicesAdmin().getMappings(
+            new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(downsampleIndex, sourceIndex)
+        ).actionGet();
         Map<String, String> downsampleIndexProperties = (Map<String, String>) indexMappings.mappings()
             .get(downsampleIndex)
             .sourceAsMap()
@@ -1755,7 +1761,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         new Thread(() -> {
             try {
                 downsample(sourceIndex, targetIndex, config);
-            } catch (ResourceAlreadyExistsException e) {
+            } catch (ElasticsearchException e) {
                 firstFailed.set(true);
             } finally {
                 downsampleComplete.countDown();
@@ -1765,7 +1771,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         new Thread(() -> {
             try {
                 downsample(sourceIndex, targetIndex, config);
-            } catch (ResourceAlreadyExistsException e) {
+            } catch (ElasticsearchException e) {
                 secondFailed.set(true);
             } finally {
                 downsampleComplete.countDown();

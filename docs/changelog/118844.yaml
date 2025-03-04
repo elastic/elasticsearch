@@ -1,5 +1,0 @@
-pr: 118844
-summary: Add missing timeouts to rest-api-spec ingest APIs
-area: Ingest Node
-type: bug
-issues: []

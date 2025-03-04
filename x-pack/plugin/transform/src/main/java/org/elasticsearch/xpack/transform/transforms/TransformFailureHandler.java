@@ -170,6 +170,7 @@ class TransformFailureHandler {
      */
     private void handleBulkIndexingException(BulkIndexingException bulkIndexingException, boolean unattended, int numFailureRetries) {
         if (bulkIndexingException.getCause() instanceof ClusterBlockException) {
+            context.setIsWaitingForIndexToUnblock(true);
             retryWithoutIncrementingFailureCount(
                 bulkIndexingException,
                 bulkIndexingException.getDetailedMessage(),

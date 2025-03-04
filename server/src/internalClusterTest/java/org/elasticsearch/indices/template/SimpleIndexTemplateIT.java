@@ -79,7 +79,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         indicesAdmin().prepareDeleteTemplate("*").get();
 
         // check get all templates on an empty index.
-        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates().get();
+        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertThat(response.getIndexTemplates(), empty());
 
         indicesAdmin().preparePutTemplate("template_1")
@@ -145,7 +145,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             );
         expectThrows(IllegalArgumentException.class, builder);
 
-        response = indicesAdmin().prepareGetTemplates().get();
+        response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertThat(response.getIndexTemplates(), hasSize(2));
 
         // index something into test_index, will match on both templates
@@ -180,7 +180,14 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     }
 
     public void testDeleteIndexTemplate() throws Exception {
-        final int existingTemplates = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().templates().size();
+        final int existingTemplates = admin().cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .getProject()
+            .templates()
+            .size();
         logger.info("--> put template_1 and template_2");
         indicesAdmin().preparePutTemplate("template_1")
             .setPatterns(Collections.singletonList("te*"))
@@ -227,9 +234,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         ClusterState state = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
 
-        assertThat(state.metadata().templates().size(), equalTo(1 + existingTemplates));
-        assertThat(state.metadata().templates().containsKey("template_2"), equalTo(true));
-        assertThat(state.metadata().templates().containsKey("template_1"), equalTo(false));
+        assertThat(state.metadata().getProject().templates().size(), equalTo(1 + existingTemplates));
+        assertThat(state.metadata().getProject().templates().containsKey("template_2"), equalTo(true));
+        assertThat(state.metadata().getProject().templates().containsKey("template_1"), equalTo(false));
 
         logger.info("--> put template_1 back");
         indicesAdmin().preparePutTemplate("template_1")
@@ -257,13 +264,16 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         logger.info("--> delete template*");
         indicesAdmin().prepareDeleteTemplate("template*").get();
         assertThat(
-            admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().templates().size(),
+            admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().templates().size(),
             equalTo(existingTemplates)
         );
 
         logger.info("--> delete * with no templates, make sure we don't get a failure");
         indicesAdmin().prepareDeleteTemplate("*").get();
-        assertThat(admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().templates().size(), equalTo(0));
+        assertThat(
+            admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().templates().size(),
+            equalTo(0)
+        );
     }
 
     public void testThatGetIndexTemplatesWorks() throws Exception {
@@ -292,7 +302,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             .get();
 
         logger.info("--> get template template_1");
-        GetIndexTemplatesResponse getTemplate1Response = indicesAdmin().prepareGetTemplates("template_1").get();
+        GetIndexTemplatesResponse getTemplate1Response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "template_1").get();
         assertThat(getTemplate1Response.getIndexTemplates(), hasSize(1));
         assertThat(getTemplate1Response.getIndexTemplates().get(0), is(notNullValue()));
         assertThat(getTemplate1Response.getIndexTemplates().get(0).patterns(), is(Collections.singletonList("te*")));
@@ -300,7 +310,8 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(getTemplate1Response.getIndexTemplates().get(0).getVersion(), is(123));
 
         logger.info("--> get non-existing-template");
-        GetIndexTemplatesResponse getTemplate2Response = indicesAdmin().prepareGetTemplates("non-existing-template").get();
+        GetIndexTemplatesResponse getTemplate2Response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "non-existing-template")
+            .get();
         assertThat(getTemplate2Response.getIndexTemplates(), hasSize(0));
     }
 
@@ -375,7 +386,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             .get();
 
         logger.info("--> get template template_*");
-        GetIndexTemplatesResponse getTemplate1Response = indicesAdmin().prepareGetTemplates("template_*").get();
+        GetIndexTemplatesResponse getTemplate1Response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "template_*").get();
         assertThat(getTemplate1Response.getIndexTemplates(), hasSize(2));
 
         List<String> templateNames = new ArrayList<>();
@@ -384,7 +395,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(templateNames, containsInAnyOrder("template_1", "template_2"));
 
         logger.info("--> get all templates");
-        getTemplate1Response = indicesAdmin().prepareGetTemplates("template*").get();
+        getTemplate1Response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "template*").get();
         assertThat(getTemplate1Response.getIndexTemplates(), hasSize(3));
 
         templateNames = new ArrayList<>();
@@ -394,7 +405,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(templateNames, containsInAnyOrder("template_1", "template_2", "template3"));
 
         logger.info("--> get templates template_1 and template_2");
-        getTemplate1Response = indicesAdmin().prepareGetTemplates("template_1", "template_2").get();
+        getTemplate1Response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "template_1", "template_2").get();
         assertThat(getTemplate1Response.getIndexTemplates(), hasSize(2));
 
         templateNames = new ArrayList<>();
@@ -419,7 +430,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
     private void testExpectActionRequestValidationException(String... names) {
         assertRequestBuilderThrows(
-            indicesAdmin().prepareGetTemplates(names),
+            indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, names),
             ActionRequestValidationException.class,
             "get template with " + Arrays.toString(names)
         );
@@ -430,7 +441,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         indicesAdmin().prepareDeleteTemplate("*").get();
 
         // check get all templates on an empty index.
-        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates().get();
+        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertThat(response.getIndexTemplates(), empty());
 
         MapperParsingException e = expectThrows(
@@ -441,7 +452,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         );
         assertThat(e.getMessage(), containsString("Failed to parse mapping"));
 
-        response = indicesAdmin().prepareGetTemplates().get();
+        response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertThat(response.getIndexTemplates(), hasSize(0));
     }
 
@@ -450,7 +461,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         indicesAdmin().prepareDeleteTemplate("*").get();
 
         // check get all templates on an empty index.
-        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates().get();
+        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertThat(response.getIndexTemplates(), empty());
 
         IllegalArgumentException e = expectThrows(
@@ -465,12 +476,12 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             e.getMessage()
         );
 
-        response = indicesAdmin().prepareGetTemplates().get();
+        response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertEquals(0, response.getIndexTemplates().size());
 
         createIndex("test");
 
-        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings("test").get();
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get();
         assertNull(getSettingsResponse.getIndexToSettings().get("test").get("index.does_not_exist"));
     }
 
@@ -494,7 +505,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         prepareIndex("test_index").setId("4").setSource("type", "typeY", "field", "D value").get();
         prepareIndex("test_index").setId("5").setSource("type", "typeZ", "field", "E value").get();
 
-        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases().setIndices("test_index").get();
+        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT).setIndices("test_index").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(4));
 
@@ -538,7 +549,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
-        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases().setIndices("test_index").get();
+        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT).setIndices("test_index").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(1));
 
@@ -574,7 +585,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
-        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases().setIndices("test_index").get();
+        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT).setIndices("test_index").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get("test_index").size(), equalTo(3));
 
@@ -597,7 +608,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             .addAlias(new Alias("my_alias").filter(termQuery("field", "value2")))
             .get();
 
-        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates("template_1").get();
+        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "template_1").get();
         assertThat(response.getIndexTemplates().size(), equalTo(1));
         assertThat(response.getIndexTemplates().get(0).getAliases().size(), equalTo(1));
         assertThat(response.getIndexTemplates().get(0).getAliases().get("my_alias").filter().string(), containsString("\"value1\""));
@@ -610,7 +621,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             .addAlias(new Alias("invalid_alias").filter("{ \"invalid\": {} }"))
             .get();
 
-        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates("template_1").get();
+        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "template_1").get();
         assertThat(response.getIndexTemplates().size(), equalTo(1));
         assertThat(response.getIndexTemplates().get(0).getAliases().size(), equalTo(1));
         assertThat(response.getIndexTemplates().get(0).getAliases().get("invalid_alias").filter().string(), equalTo("{\"invalid\":{}}"));
@@ -631,7 +642,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         );
         assertThat(e.getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
 
-        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates("template_1").get();
+        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "template_1").get();
         assertThat(response.getIndexTemplates().size(), equalTo(0));
     }
 
@@ -685,7 +696,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases().setIndices("test").get();
+        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT).setIndices("test").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(4));
 
         for (AliasMetadata aliasMetadata : getAliasesResponse.getAliases().get("test")) {
@@ -747,7 +758,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         indicesAdmin().prepareDeleteTemplate("*").get();
 
         // check get all templates on an empty index.
-        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates().get();
+        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertThat(response.getIndexTemplates(), empty());
 
         // Now, a complete mapping with two separated templates is error
@@ -789,7 +800,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         );
         assertThat(e.getMessage(), containsString("analyzer [custom_1] has not been configured in mappings"));
 
-        response = indicesAdmin().prepareGetTemplates().get();
+        response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertThat(response.getIndexTemplates(), hasSize(1));
 
     }
@@ -806,7 +817,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setMapping("field", "type=text")
         );
 
-        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates("versioned_template").get();
+        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "versioned_template").get();
         assertThat(response.getIndexTemplates().size(), equalTo(1));
         assertThat(response.getIndexTemplates().get(0).getVersion(), equalTo(version));
         assertThat(response.getIndexTemplates().get(0).getOrder(), equalTo(order));
@@ -856,7 +867,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         indicesAdmin().prepareDeleteTemplate("*").get();
 
         // check get all templates on an empty index.
-        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates().get();
+        GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertThat(response.getIndexTemplates(), empty());
 
         // provide more partitions than shards
@@ -882,7 +893,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(eBadMapping.getMessage(), containsString("must have routing required for partitioned index"));
 
         // no templates yet
-        response = indicesAdmin().prepareGetTemplates().get();
+        response = indicesAdmin().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         assertEquals(0, response.getIndexTemplates().size());
 
         // a valid configuration that only provides the partition size
@@ -906,7 +917,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // finally, create a valid index
         prepareCreate("test_good", Settings.builder().put("index.number_of_shards", 7).put("index.number_of_routing_shards", 7)).get();
 
-        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings("test_good").get();
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test_good").get();
         assertEquals("6", getSettingsResponse.getIndexToSettings().get("test_good").get("index.routing_partition_size"));
     }
 

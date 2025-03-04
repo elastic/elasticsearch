@@ -91,9 +91,9 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
                 "ReplaceEvaluator[str=Attribute[channel=0], regex=Attribute[channel=1], newStr=Attribute[channel=2]]",
                 DataType.KEYWORD,
                 equalTo(null)
-            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning(
-                    "Line -1:-1: java.util.regex.PatternSyntaxException: Unclosed character class near index 0\n[\n^".replaceAll(
+                    "Line 1:1: java.util.regex.PatternSyntaxException: Unclosed character class near index 0\n[\n^".replaceAll(
                         "\n",
                         System.lineSeparator()
                     )
@@ -103,7 +103,7 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
                     "Unclosed character class near index 0\n[\n^".replaceAll("\n", System.lineSeparator())
                 );
         }));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, suppliers);
     }
 
     private static TestCaseSupplier fixedCase(String name, String str, String oldStr, String newStr, String result) {
@@ -138,5 +138,11 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Replace(source, args.get(0), args.get(1), args.get(2));
+    }
+
+    @Override
+    protected Expression serializeDeserializeExpression(Expression expression) {
+        // TODO: This function doesn't serialize the Source, and must be fixed.
+        return expression;
     }
 }

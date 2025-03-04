@@ -26,11 +26,32 @@ public class ReindexDataStreamPersistentTaskStateTests extends AbstractXContentS
 
     @Override
     protected ReindexDataStreamPersistentTaskState createTestInstance() {
-        return new ReindexDataStreamPersistentTaskState(randomNegativeLong());
+        return new ReindexDataStreamPersistentTaskState(
+            randomBoolean() ? null : randomNonNegativeInt(),
+            randomBoolean() ? null : randomNonNegativeInt(),
+            randomBoolean() ? null : randomNonNegativeLong()
+        );
     }
 
     @Override
     protected ReindexDataStreamPersistentTaskState mutateInstance(ReindexDataStreamPersistentTaskState instance) throws IOException {
-        return new ReindexDataStreamPersistentTaskState(instance.completionTime() + 1);
+        return switch (randomInt(2)) {
+            case 0 -> new ReindexDataStreamPersistentTaskState(
+                instance.totalIndices() == null ? randomNonNegativeInt() : instance.totalIndices() + 1,
+                instance.totalIndicesToBeUpgraded(),
+                instance.completionTime()
+            );
+            case 1 -> new ReindexDataStreamPersistentTaskState(
+                instance.totalIndices(),
+                instance.totalIndicesToBeUpgraded() == null ? randomNonNegativeInt() : instance.totalIndicesToBeUpgraded() + 1,
+                instance.completionTime()
+            );
+            case 2 -> new ReindexDataStreamPersistentTaskState(
+                instance.totalIndices(),
+                instance.totalIndicesToBeUpgraded(),
+                instance.completionTime() == null ? randomNonNegativeLong() : instance.completionTime() + 1
+            );
+            default -> throw new IllegalArgumentException("Should never get here");
+        };
     }
 }

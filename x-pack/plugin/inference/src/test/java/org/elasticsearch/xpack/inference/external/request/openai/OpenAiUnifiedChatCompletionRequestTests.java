@@ -150,7 +150,7 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
         @Nullable String user,
         boolean stream
     ) {
-        var chatCompletionModel = OpenAiChatCompletionModelTests.createChatCompletionModel(url, org, apiKey, model, user);
+        var chatCompletionModel = OpenAiChatCompletionModelTests.createCompletionModel(url, org, apiKey, model, user);
         return new OpenAiUnifiedChatCompletionRequest(new UnifiedChatInput(List.of(input), "user", stream), chatCompletionModel);
     }
 

@@ -34,7 +34,7 @@ public record AlibabaCloudSearchSparseRequestEntity(List<String> input, AlibabaC
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(TEXTS_FIELD, input);
-        String inputType = AlibabaCloudSearchEmbeddingsRequestEntity.covertToString(taskSettings.getInputType());
+        String inputType = AlibabaCloudSearchEmbeddingsRequestEntity.convertToString(taskSettings.getInputType());
         if (inputType != null) {
             builder.field(INPUT_TYPE_FIELD, inputType);
         }

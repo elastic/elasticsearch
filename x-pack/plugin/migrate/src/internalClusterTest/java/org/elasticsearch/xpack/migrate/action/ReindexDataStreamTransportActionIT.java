@@ -28,7 +28,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamRequest;
-import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamResponse;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamEnrichedStatus;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
 
@@ -41,7 +40,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -53,7 +51,6 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
     }
 
     public void testNonExistentDataStream() {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
         String nonExistentDataStreamName = randomAlphaOfLength(50);
         ReindexDataStreamRequest reindexDataStreamRequest = new ReindexDataStreamRequest(
             ReindexDataStreamAction.Mode.UPGRADE,
@@ -61,25 +58,22 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
         );
         assertThrows(
             ResourceNotFoundException.class,
-            () -> client().execute(new ActionType<ReindexDataStreamResponse>(ReindexDataStreamAction.NAME), reindexDataStreamRequest)
-                .actionGet()
+            () -> client().execute(new ActionType<AcknowledgedResponse>(ReindexDataStreamAction.NAME), reindexDataStreamRequest).actionGet()
         );
     }
 
     public void testAlreadyUpToDateDataStream() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
         String dataStreamName = randomAlphaOfLength(50).toLowerCase(Locale.ROOT);
         ReindexDataStreamRequest reindexDataStreamRequest = new ReindexDataStreamRequest(
             ReindexDataStreamAction.Mode.UPGRADE,
             dataStreamName
         );
         final int backingIndexCount = createDataStream(dataStreamName);
-        ReindexDataStreamResponse response = client().execute(
-            new ActionType<ReindexDataStreamResponse>(ReindexDataStreamAction.NAME),
+        AcknowledgedResponse response = client().execute(
+            new ActionType<AcknowledgedResponse>(ReindexDataStreamAction.NAME),
             reindexDataStreamRequest
         ).actionGet();
-        String persistentTaskId = response.getTaskId();
-        assertThat(persistentTaskId, equalTo("reindex-data-stream-" + dataStreamName));
+        String persistentTaskId = "reindex-data-stream-" + dataStreamName;
         AtomicReference<ReindexDataStreamTask> runningTask = new AtomicReference<>();
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             TaskManager taskManager = transportService.getTaskManager();

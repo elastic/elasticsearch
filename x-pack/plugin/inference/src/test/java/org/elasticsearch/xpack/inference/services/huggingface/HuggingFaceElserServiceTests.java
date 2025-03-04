@@ -24,7 +24,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -102,13 +103,13 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
             );
 
             var result = listener.actionGet(TIMEOUT).get(0);
-            assertThat(result, instanceOf(ChunkedInferenceEmbeddingSparse.class));
-            var sparseResult = (ChunkedInferenceEmbeddingSparse) result;
+            assertThat(result, instanceOf(ChunkedInferenceEmbedding.class));
+            var sparseResult = (ChunkedInferenceEmbedding) result;
             assertThat(
                 sparseResult.chunks(),
                 is(
                     List.of(
-                        new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(
+                        new SparseEmbeddingResults.Chunk(
                             List.of(new WeightedToken(".", 0.13315596f)),
                             "abc",
                             new ChunkedInference.TextOffset(0, "abc".length())
@@ -140,55 +141,36 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
         ) {
             String content = XContentHelper.stripWhitespace("""
                 {
-                       "provider": "hugging_face_elser",
-                       "task_types": [
-                            {
-                                "task_type": "sparse_embedding",
-                                "configuration": {}
-                            }
-                       ],
-                       "configuration": {
+                       "service": "hugging_face_elser",
+                       "name": "Hugging Face ELSER",
+                       "task_types": ["sparse_embedding"],
+                       "configurations": {
                            "api_key": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "API Key for the provider you're connecting to.",
                                "label": "API Key",
-                               "order": 1,
                                "required": true,
                                "sensitive": true,
-                               "tooltip": "API Key for the provider you're connecting to.",
+                               "updatable": true,
                                "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "supported_task_types": ["sparse_embedding"]
                            },
                            "rate_limit.requests_per_minute": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "numeric",
+                               "description": "Minimize the number of rate limit errors.",
                                "label": "Rate Limit",
-                               "order": 6,
                                "required": false,
                                "sensitive": false,
-                               "tooltip": "Minimize the number of rate limit errors.",
+                               "updatable": false,
                                "type": "int",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "supported_task_types": ["sparse_embedding"]
                            },
                            "url": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "The URL endpoint to use for the requests.",
                                "label": "URL",
-                               "order": 1,
                                "required": true,
                                "sensitive": false,
-                               "tooltip": "The URL endpoint to use for the requests.",
+                               "updatable": false,
                                "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "supported_task_types": ["sparse_embedding"]
                            }
                        }
                    }

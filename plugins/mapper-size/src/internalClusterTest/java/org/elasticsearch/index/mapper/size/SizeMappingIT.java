@@ -91,7 +91,7 @@ public class SizeMappingIT extends ESIntegTestCase {
             "Expected size field mapping to be " + (enabled ? "enabled" : "disabled") + " for %s",
             index
         );
-        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(index).get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get();
         Map<String, Object> mappingSource = getMappingsResponse.getMappings().get(index).getSourceAsMap();
         assertThat(errMsg, mappingSource, hasKey("_size"));
         String sizeAsString = mappingSource.get("_size").toString();

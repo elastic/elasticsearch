@@ -101,11 +101,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var indexMode = instance.getIndexMode();
         var lifecycle = instance.getLifecycle();
         var dataStreamOptions = instance.getDataStreamOptions();
-        var failureIndices = instance.getFailureIndices().getIndices();
+        var failureIndices = instance.getFailureIndices();
         var rolloverOnWrite = instance.rolloverOnWrite();
         var autoShardingEvent = instance.getAutoShardingEvent();
-        var failureRolloverOnWrite = instance.getFailureIndices().isRolloverOnWrite();
-        var failureAutoShardingEvent = instance.getBackingIndices().getAutoShardingEvent();
+        var failureRolloverOnWrite = instance.getFailureComponent().isRolloverOnWrite();
+        var failureAutoShardingEvent = instance.getDataComponent().getAutoShardingEvent();
         switch (between(0, 15)) {
             case 0 -> name = randomAlphaOfLength(10);
             case 1 -> indices = randomNonEmptyIndexInstances();
@@ -197,7 +197,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testRollover() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA, ds.getBackingIndices());
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
         final DataStream rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), null, null);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
@@ -214,7 +215,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         // create some indices with names that conflict with the names of the data stream's backing indices
         int numConflictingIndices = randomIntBetween(1, 10);
-        Metadata.Builder builder = Metadata.builder();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         for (int k = 1; k <= numConflictingIndices; k++) {
             IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + k, 0L))
                 .settings(settings(IndexVersion.current()))
@@ -224,7 +225,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             builder.put(im, false);
         }
 
-        final Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(builder.build(), ds.getBackingIndices());
+        final Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(builder.build(), ds.getDataComponent());
         final DataStream rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), null, null);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + numConflictingIndices + 1));
@@ -240,7 +241,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .setReplicated(false)
             .setIndexMode(randomBoolean() ? IndexMode.STANDARD : null)
             .build();
-        var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA, ds.getBackingIndices());
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
 
         var rolledDs = ds.rollover(
             new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
@@ -262,7 +264,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             .setReplicated(false)
             .setIndexMode(randomBoolean() ? IndexMode.STANDARD : null)
             .build();
-        var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA, ds.getBackingIndices());
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
 
         var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), IndexMode.LOGSDB, null);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
@@ -275,7 +278,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testRolloverDowngradeFromTsdbToRegularDataStream() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.TIME_SERIES).build();
-        var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA, ds.getBackingIndices());
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
 
         var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), null, null);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
@@ -288,7 +292,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testRolloverDowngradeFromLogsdbToRegularDataStream() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.LOGSDB).build();
-        var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA, ds.getBackingIndices());
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
 
         var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), null, null);
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
@@ -301,18 +306,19 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testRolloverFailureStore() {
         DataStream ds = DataStreamTestHelper.randomInstance(true).promoteDataStream();
-        Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA, ds.getFailureIndices());
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        Tuple<String, Long> newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getFailureComponent());
         final DataStream rolledDs = ds.rolloverFailureStore(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2());
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size()));
         // Ensure that the rolloverOnWrite flag hasn't changed when rolling over a failure store.
         assertThat(rolledDs.rolloverOnWrite(), equalTo(ds.rolloverOnWrite()));
-        assertThat(rolledDs.getFailureIndices().getIndices().size(), equalTo(ds.getFailureIndices().getIndices().size() + 1));
+        assertThat(rolledDs.getFailureIndices().size(), equalTo(ds.getFailureIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
-        assertTrue(rolledDs.getFailureIndices().getIndices().containsAll(ds.getFailureIndices().getIndices()));
-        assertTrue(rolledDs.getFailureIndices().getIndices().contains(rolledDs.getFailureStoreWriteIndex()));
+        assertTrue(rolledDs.getFailureIndices().containsAll(ds.getFailureIndices()));
+        assertTrue(rolledDs.getFailureIndices().contains(rolledDs.getWriteFailureIndex()));
     }
 
     public void testRemoveBackingIndex() {
@@ -361,18 +367,15 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testRemoveFailureStoreIndex() {
         DataStream original = createRandomDataStream();
-        int indexToRemove = randomIntBetween(1, original.getFailureIndices().getIndices().size() - 1);
+        int indexToRemove = randomIntBetween(1, original.getFailureIndices().size() - 1);
 
-        DataStream updated = original.removeFailureStoreIndex(original.getFailureIndices().getIndices().get(indexToRemove - 1));
+        DataStream updated = original.removeFailureStoreIndex(original.getFailureIndices().get(indexToRemove - 1));
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
         assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
-        assertThat(updated.getFailureIndices().getIndices().size(), equalTo(original.getFailureIndices().getIndices().size() - 1));
-        for (int k = 0; k < (original.getFailureIndices().getIndices().size() - 1); k++) {
-            assertThat(
-                updated.getFailureIndices().getIndices().get(k),
-                equalTo(original.getFailureIndices().getIndices().get(k < (indexToRemove - 1) ? k : k + 1))
-            );
+        assertThat(updated.getFailureIndices().size(), equalTo(original.getFailureIndices().size() - 1));
+        for (int k = 0; k < (original.getFailureIndices().size() - 1); k++) {
+            assertThat(updated.getFailureIndices().get(k), equalTo(original.getFailureIndices().get(k < (indexToRemove - 1) ? k : k + 1)));
         }
     }
 
@@ -389,16 +392,16 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testRemoveFailureStoreWriteIndex() {
         DataStream original = createRandomDataStream();
-        int indexToRemove = original.getFailureIndices().getIndices().size() - 1;
+        int indexToRemove = original.getFailureIndices().size() - 1;
 
-        DataStream updated = original.removeFailureStoreIndex(original.getFailureIndices().getIndices().get(indexToRemove));
+        DataStream updated = original.removeFailureStoreIndex(original.getFailureIndices().get(indexToRemove));
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
         assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
-        assertThat(updated.getFailureIndices().getIndices().size(), equalTo(original.getFailureIndices().getIndices().size() - 1));
-        assertThat(updated.getFailureIndices().isRolloverOnWrite(), equalTo(true));
-        for (int k = 0; k < (original.getFailureIndices().getIndices().size() - 1); k++) {
-            assertThat(updated.getFailureIndices().getIndices().get(k), equalTo(original.getFailureIndices().getIndices().get(k)));
+        assertThat(updated.getFailureIndices().size(), equalTo(original.getFailureIndices().size() - 1));
+        assertThat(updated.getFailureComponent().isRolloverOnWrite(), equalTo(true));
+        for (int k = 0; k < (original.getFailureIndices().size() - 1); k++) {
+            assertThat(updated.getFailureIndices().get(k), equalTo(original.getFailureIndices().get(k)));
         }
     }
 
@@ -420,7 +423,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             false
         );
 
-        DataStream updated = original.addBackingIndex(builder.build(), indexToAdd);
+        DataStream updated = original.addBackingIndex(builder.build().getProject(), indexToAdd);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
         assertThat(updated.getIndices().size(), equalTo(original.getIndices().size() + 1));
@@ -440,13 +443,16 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         builder.put(ds2);
 
         createMetadataForIndices(builder, ds1.getIndices());
-        createMetadataForIndices(builder, ds1.getFailureIndices().getIndices());
+        createMetadataForIndices(builder, ds1.getFailureIndices());
         createMetadataForIndices(builder, ds2.getIndices());
-        createMetadataForIndices(builder, ds2.getFailureIndices().getIndices());
+        createMetadataForIndices(builder, ds2.getFailureIndices());
 
         Index indexToAdd = randomFrom(ds2.getIndices().toArray(Index.EMPTY_ARRAY));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ds1.addBackingIndex(builder.build(), indexToAdd));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ds1.addBackingIndex(builder.build().getProject(), indexToAdd)
+        );
         assertThat(
             e.getMessage(),
             equalTo(
@@ -470,13 +476,16 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         builder.put(ds2);
 
         createMetadataForIndices(builder, ds1.getIndices());
-        createMetadataForIndices(builder, ds1.getFailureIndices().getIndices());
+        createMetadataForIndices(builder, ds1.getFailureIndices());
         createMetadataForIndices(builder, ds2.getIndices());
-        createMetadataForIndices(builder, ds2.getFailureIndices().getIndices());
+        createMetadataForIndices(builder, ds2.getFailureIndices());
 
-        Index indexToAdd = randomFrom(ds2.getFailureIndices().getIndices().toArray(Index.EMPTY_ARRAY));
+        Index indexToAdd = randomFrom(ds2.getFailureIndices().toArray(Index.EMPTY_ARRAY));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ds1.addBackingIndex(builder.build(), indexToAdd));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ds1.addBackingIndex(builder.build().getProject(), indexToAdd)
+        );
         assertThat(
             e.getMessage(),
             equalTo(
@@ -501,7 +510,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         Index indexToAdd = randomFrom(original.getIndices().toArray(Index.EMPTY_ARRAY));
 
-        DataStream updated = original.addBackingIndex(builder.build(), indexToAdd);
+        DataStream updated = original.addBackingIndex(builder.build().getProject(), indexToAdd);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
         assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
@@ -534,7 +543,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> original.addBackingIndex(builder.build(), indexToAdd)
+            () -> original.addBackingIndex(builder.build().getProject(), indexToAdd)
         );
         assertThat(
             e.getMessage(),
@@ -559,7 +568,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         builder.put(original);
 
         createMetadataForIndices(builder, original.getIndices());
-        createMetadataForIndices(builder, original.getFailureIndices().getIndices());
+        createMetadataForIndices(builder, original.getFailureIndices());
 
         Index indexToAdd = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
         builder.put(
@@ -571,15 +580,15 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             false
         );
 
-        DataStream updated = original.addFailureStoreIndex(builder.build(), indexToAdd);
+        DataStream updated = original.addFailureStoreIndex(builder.build().getProject(), indexToAdd);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
         assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
-        assertThat(updated.getFailureIndices().getIndices().size(), equalTo(original.getFailureIndices().getIndices().size() + 1));
-        for (int k = 1; k <= original.getFailureIndices().getIndices().size(); k++) {
-            assertThat(updated.getFailureIndices().getIndices().get(k), equalTo(original.getFailureIndices().getIndices().get(k - 1)));
+        assertThat(updated.getFailureIndices().size(), equalTo(original.getFailureIndices().size() + 1));
+        for (int k = 1; k <= original.getFailureIndices().size(); k++) {
+            assertThat(updated.getFailureIndices().get(k), equalTo(original.getFailureIndices().get(k - 1)));
         }
-        assertThat(updated.getFailureIndices().getIndices().get(0), equalTo(indexToAdd));
+        assertThat(updated.getFailureIndices().get(0), equalTo(indexToAdd));
     }
 
     public void testAddFailureStoreIndexThatIsPartOfAnotherDataStream() {
@@ -591,15 +600,15 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         builder.put(ds2);
 
         createMetadataForIndices(builder, ds1.getIndices());
-        createMetadataForIndices(builder, ds1.getFailureIndices().getIndices());
+        createMetadataForIndices(builder, ds1.getFailureIndices());
         createMetadataForIndices(builder, ds2.getIndices());
-        createMetadataForIndices(builder, ds2.getFailureIndices().getIndices());
+        createMetadataForIndices(builder, ds2.getFailureIndices());
 
-        Index indexToAdd = randomFrom(ds2.getFailureIndices().getIndices().toArray(Index.EMPTY_ARRAY));
+        Index indexToAdd = randomFrom(ds2.getFailureIndices().toArray(Index.EMPTY_ARRAY));
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ds1.addFailureStoreIndex(builder.build(), indexToAdd)
+            () -> ds1.addFailureStoreIndex(builder.build().getProject(), indexToAdd)
         );
         assertThat(
             e.getMessage(),
@@ -624,15 +633,15 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         builder.put(ds2);
 
         createMetadataForIndices(builder, ds1.getIndices());
-        createMetadataForIndices(builder, ds1.getFailureIndices().getIndices());
+        createMetadataForIndices(builder, ds1.getFailureIndices());
         createMetadataForIndices(builder, ds2.getIndices());
-        createMetadataForIndices(builder, ds2.getFailureIndices().getIndices());
+        createMetadataForIndices(builder, ds2.getFailureIndices());
 
         Index indexToAdd = randomFrom(ds2.getIndices().toArray(Index.EMPTY_ARRAY));
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ds1.addFailureStoreIndex(builder.build(), indexToAdd)
+            () -> ds1.addFailureStoreIndex(builder.build().getProject(), indexToAdd)
         );
         assertThat(
             e.getMessage(),
@@ -655,16 +664,16 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         builder.put(original);
 
         createMetadataForIndices(builder, original.getIndices());
-        createMetadataForIndices(builder, original.getFailureIndices().getIndices());
+        createMetadataForIndices(builder, original.getFailureIndices());
 
-        Index indexToAdd = randomFrom(original.getFailureIndices().getIndices().toArray(Index.EMPTY_ARRAY));
+        Index indexToAdd = randomFrom(original.getFailureIndices().toArray(Index.EMPTY_ARRAY));
 
-        DataStream updated = original.addFailureStoreIndex(builder.build(), indexToAdd);
+        DataStream updated = original.addFailureStoreIndex(builder.build().getProject(), indexToAdd);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
         assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
-        assertThat(updated.getFailureIndices().getIndices().size(), equalTo(original.getFailureIndices().getIndices().size()));
-        assertThat(updated.getFailureIndices().getIndices(), equalTo(original.getFailureIndices().getIndices()));
+        assertThat(updated.getFailureIndices().size(), equalTo(original.getFailureIndices().size()));
+        assertThat(updated.getFailureIndices(), equalTo(original.getFailureIndices()));
     }
 
     public void testAddFailureStoreIndexWithAliases() {
@@ -674,7 +683,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         builder.put(original);
 
         createMetadataForIndices(builder, original.getIndices());
-        createMetadataForIndices(builder, original.getFailureIndices().getIndices());
+        createMetadataForIndices(builder, original.getFailureIndices());
 
         Index indexToAdd = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
         IndexMetadata.Builder b = IndexMetadata.builder(indexToAdd.getName())
@@ -692,7 +701,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> original.addFailureStoreIndex(builder.build(), indexToAdd)
+            () -> original.addFailureStoreIndex(builder.build().getProject(), indexToAdd)
         );
         assertThat(
             e.getMessage(),
@@ -762,9 +771,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testReplaceBackingIndexThrowsExceptionIfIndexPartOfFailureStore() {
         DataStream original = createRandomDataStream();
-        int indexToReplace = randomIntBetween(1, original.getFailureIndices().getIndices().size() - 1) - 1;
+        int indexToReplace = randomIntBetween(1, original.getFailureIndices().size() - 1) - 1;
 
-        Index failureIndex = original.getFailureIndices().getIndices().get(indexToReplace);
+        Index failureIndex = original.getFailureIndices().get(indexToReplace);
         Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
         expectThrows(IllegalArgumentException.class, () -> original.replaceBackingIndex(failureIndex, newBackingIndex));
     }
@@ -801,21 +810,18 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testReplaceFailureIndex() {
         DataStream original = createRandomDataStream();
-        int indexToReplace = randomIntBetween(1, original.getFailureIndices().getIndices().size() - 1) - 1;
+        int indexToReplace = randomIntBetween(1, original.getFailureIndices().size() - 1) - 1;
 
         Index newFailureIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
-        DataStream updated = original.replaceFailureStoreIndex(
-            original.getFailureIndices().getIndices().get(indexToReplace),
-            newFailureIndex
-        );
+        DataStream updated = original.replaceFailureStoreIndex(original.getFailureIndices().get(indexToReplace), newFailureIndex);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
-        assertThat(updated.getFailureIndices().getIndices().size(), equalTo(original.getFailureIndices().getIndices().size()));
-        assertThat(updated.getFailureIndices().getIndices().get(indexToReplace), equalTo(newFailureIndex));
+        assertThat(updated.getFailureIndices().size(), equalTo(original.getFailureIndices().size()));
+        assertThat(updated.getFailureIndices().get(indexToReplace), equalTo(newFailureIndex));
 
-        for (int i = 0; i < original.getFailureIndices().getIndices().size(); i++) {
+        for (int i = 0; i < original.getFailureIndices().size(); i++) {
             if (i != indexToReplace) {
-                assertThat(updated.getFailureIndices().getIndices().get(i), equalTo(original.getFailureIndices().getIndices().get(i)));
+                assertThat(updated.getFailureIndices().get(i), equalTo(original.getFailureIndices().get(i)));
             }
         }
     }
@@ -886,23 +892,23 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         postSnapshotBackingIndices.addAll(backingIndicesToAdd);
 
         // Mutate failure indices
-        var failureIndicesToRemove = randomSubsetOf(preSnapshotDataStream.getFailureIndices().getIndices());
+        var failureIndicesToRemove = randomSubsetOf(preSnapshotDataStream.getFailureIndices());
         var failureIndicesToAdd = randomIndexInstances();
-        var postSnapshotFailureIndices = new ArrayList<>(preSnapshotDataStream.getFailureIndices().getIndices());
+        var postSnapshotFailureIndices = new ArrayList<>(preSnapshotDataStream.getFailureIndices());
         postSnapshotFailureIndices.removeAll(failureIndicesToRemove);
         postSnapshotFailureIndices.addAll(failureIndicesToAdd);
 
         var replicated = preSnapshotDataStream.isReplicated() && randomBoolean();
         var postSnapshotDataStream = preSnapshotDataStream.copy()
             .setBackingIndices(
-                preSnapshotDataStream.getBackingIndices()
+                preSnapshotDataStream.getDataComponent()
                     .copy()
                     .setIndices(postSnapshotBackingIndices)
                     .setRolloverOnWrite(replicated == false && preSnapshotDataStream.rolloverOnWrite())
                     .build()
             )
             .setFailureIndices(
-                preSnapshotDataStream.getFailureIndices()
+                preSnapshotDataStream.getFailureComponent()
                     .copy()
                     .setIndices(postSnapshotFailureIndices)
                     .setRolloverOnWrite(replicated == false && preSnapshotDataStream.rolloverOnWrite())
@@ -915,7 +921,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         Set<String> indicesInSnapshot = new HashSet<>();
         preSnapshotDataStream.getIndices().forEach(index -> indicesInSnapshot.add(index.getName()));
-        preSnapshotDataStream.getFailureIndices().getIndices().forEach(index -> indicesInSnapshot.add(index.getName()));
+        preSnapshotDataStream.getFailureIndices().forEach(index -> indicesInSnapshot.add(index.getName()));
         var reconciledDataStream = postSnapshotDataStream.snapshot(indicesInSnapshot, Metadata.builder());
 
         assertThat(reconciledDataStream.getName(), equalTo(postSnapshotDataStream.getName()));
@@ -936,12 +942,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             reconciledDataStream.getIndices().size(),
             equalTo(preSnapshotDataStream.getIndices().size() - backingIndicesToRemove.size())
         );
-        var reconciledFailureIndices = reconciledDataStream.getFailureIndices().getIndices();
+        var reconciledFailureIndices = reconciledDataStream.getFailureIndices();
         assertThat(reconciledFailureIndices, everyItem(not(in(failureIndicesToRemove))));
         assertThat(reconciledFailureIndices, everyItem(not(in(failureIndicesToAdd))));
         assertThat(
             reconciledFailureIndices.size(),
-            equalTo(preSnapshotDataStream.getFailureIndices().getIndices().size() - failureIndicesToRemove.size())
+            equalTo(preSnapshotDataStream.getFailureIndices().size() - failureIndicesToRemove.size())
         );
     }
 
@@ -950,7 +956,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var indicesToAdd = randomNonEmptyIndexInstances();
 
         var postSnapshotDataStream = preSnapshotDataStream.copy()
-            .setBackingIndices(preSnapshotDataStream.getBackingIndices().copy().setIndices(indicesToAdd).build())
+            .setBackingIndices(preSnapshotDataStream.getDataComponent().copy().setIndices(indicesToAdd).build())
             .build();
 
         assertNull(
@@ -974,21 +980,22 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
         );
+        ProjectMetadata project = clusterState.getMetadata().getProject();
 
-        DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
-        Index result = dataStream.selectTimeSeriesWriteIndex(currentTime, clusterState.getMetadata());
+        DataStream dataStream = project.dataStreams().get(dataStreamName);
+        Index result = dataStream.selectTimeSeriesWriteIndex(currentTime, project);
         assertThat(result, equalTo(dataStream.getIndices().get(1)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, start2.toEpochMilli())));
 
-        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(2, ChronoUnit.HOURS), clusterState.getMetadata());
+        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(2, ChronoUnit.HOURS), project);
         assertThat(result, equalTo(dataStream.getIndices().get(1)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, start2.toEpochMilli())));
 
-        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(3, ChronoUnit.HOURS), clusterState.getMetadata());
+        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(3, ChronoUnit.HOURS), project);
         assertThat(result, equalTo(dataStream.getIndices().get(0)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())));
 
-        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(6, ChronoUnit.HOURS), clusterState.getMetadata());
+        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(6, ChronoUnit.HOURS), project);
         assertThat(result, equalTo(dataStream.getIndices().get(0)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())));
     }
@@ -1009,23 +1016,31 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
             );
-            DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+            DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
             assertThat(dataStream, notNullValue());
             assertThat(dataStream.getIndices(), hasSize(2));
             assertThat(
-                IndexSettings.TIME_SERIES_START_TIME.get(clusterState.getMetadata().index(dataStream.getIndices().get(0)).getSettings()),
+                IndexSettings.TIME_SERIES_START_TIME.get(
+                    clusterState.getMetadata().getProject().index(dataStream.getIndices().get(0)).getSettings()
+                ),
                 equalTo(start1)
             );
             assertThat(
-                IndexSettings.TIME_SERIES_END_TIME.get(clusterState.getMetadata().index(dataStream.getIndices().get(0)).getSettings()),
+                IndexSettings.TIME_SERIES_END_TIME.get(
+                    clusterState.getMetadata().getProject().index(dataStream.getIndices().get(0)).getSettings()
+                ),
                 equalTo(end1)
             );
             assertThat(
-                IndexSettings.TIME_SERIES_START_TIME.get(clusterState.getMetadata().index(dataStream.getIndices().get(1)).getSettings()),
+                IndexSettings.TIME_SERIES_START_TIME.get(
+                    clusterState.getMetadata().getProject().index(dataStream.getIndices().get(1)).getSettings()
+                ),
                 equalTo(start2)
             );
             assertThat(
-                IndexSettings.TIME_SERIES_END_TIME.get(clusterState.getMetadata().index(dataStream.getIndices().get(1)).getSettings()),
+                IndexSettings.TIME_SERIES_END_TIME.get(
+                    clusterState.getMetadata().getProject().index(dataStream.getIndices().get(1)).getSettings()
+                ),
                 equalTo(end2)
             );
 
@@ -1087,7 +1102,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
             );
-            DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+            DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
 
             {
                 // IndexMetadata not found case:
@@ -1332,7 +1347,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             List<Index> backingIndices = dataStream.getNonWriteIndicesOlderThan(
                 TimeValue.timeValueMillis(2500),
-                metadata::index,
+                metadata.getProject()::index,
                 null,
                 () -> now
             );
@@ -1344,7 +1359,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             List<Index> backingIndices = dataStream.getNonWriteIndicesOlderThan(
                 TimeValue.timeValueMillis(0),
-                metadata::index,
+                metadata.getProject()::index,
                 null,
                 () -> now
             );
@@ -1358,7 +1373,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             List<Index> backingIndices = dataStream.getNonWriteIndicesOlderThan(
                 TimeValue.timeValueMillis(6000),
-                metadata::index,
+                metadata.getProject()::index,
                 null,
                 () -> now
             );
@@ -1371,7 +1386,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             List<Index> backingIndices = dataStream.getNonWriteIndicesOlderThan(
                 TimeValue.timeValueMillis(0),
-                metadata::index,
+                metadata.getProject()::index,
                 genThreeAndFivePredicate,
                 () -> now
             );
@@ -1405,7 +1420,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadata = builder.build();
 
-            assertThat(dataStream.getIndicesPastRetention(metadata::index, () -> now, randomGlobalRetention()).isEmpty(), is(true));
+            assertThat(
+                dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, randomGlobalRetention()).isEmpty(),
+                is(true)
+            );
         }
 
         {
@@ -1424,7 +1442,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadata = builder.build();
 
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, globalRetention);
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, globalRetention);
             assertThat(backingIndices.size(), is(2));
             assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
             assertThat(backingIndices.get(1).getName(), is(dataStream.getIndices().get(1).getName()));
@@ -1443,7 +1461,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadata = builder.build();
 
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, globalRetention);
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, globalRetention);
             assertThat(backingIndices.size(), is(2));
             assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
             assertThat(backingIndices.get(1).getName(), is(dataStream.getIndices().get(1).getName()));
@@ -1460,7 +1478,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadata = builder.build();
 
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, randomGlobalRetention());
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(
+                metadata.getProject()::index,
+                () -> now,
+                randomGlobalRetention()
+            );
             assertThat(backingIndices.size(), is(2));
             assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
             assertThat(backingIndices.get(1).getName(), is(dataStream.getIndices().get(1).getName()));
@@ -1478,7 +1500,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadata = builder.build();
 
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, randomGlobalRetention());
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(
+                metadata.getProject()::index,
+                () -> now,
+                randomGlobalRetention()
+            );
 
             assertThat(backingIndices.size(), is(4));
             assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
@@ -1499,7 +1525,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadata = builder.build();
 
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, randomGlobalRetention());
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(
+                metadata.getProject()::index,
+                () -> now,
+                randomGlobalRetention()
+            );
             assertThat(backingIndices.isEmpty(), is(true));
         }
 
@@ -1517,7 +1547,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadata = builder.build();
 
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, randomGlobalRetention());
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(
+                metadata.getProject()::index,
+                () -> now,
+                randomGlobalRetention()
+            );
             assertThat(backingIndices.isEmpty(), is(true));
         }
     }
@@ -1552,13 +1586,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // no retention configured so we expect an empty list
             testRetentionReference.set(null);
-            assertThat(dataStream.getIndicesPastRetention(metadata::index, () -> now, null).isEmpty(), is(true));
+            assertThat(dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, null).isEmpty(), is(true));
         }
 
         {
             // retention period where oldIndex is too old, but newIndex should be retained
             testRetentionReference.set(TimeValue.timeValueMillis(2500));
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, null);
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, null);
             assertThat(backingIndices.size(), is(3));
             assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
             assertThat(backingIndices.get(1).getName(), is(dataStream.getIndices().get(1).getName()));
@@ -1568,7 +1602,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // even though all indices match the write index should not be returned
             testRetentionReference.set(TimeValue.timeValueMillis(0));
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, null);
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, null);
 
             assertThat(backingIndices.size(), is(6));
             assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
@@ -1582,7 +1616,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // no index matches the retention age
             testRetentionReference.set(TimeValue.timeValueMillis(9000));
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, null);
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, null);
             assertThat(backingIndices.isEmpty(), is(true));
         }
     }
@@ -1632,10 +1666,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             // generation time is now - 2000
             String thirdGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 3);
-            Index thirdIndex = metadata.index(thirdGeneration).getIndex();
+            Index thirdIndex = metadata.getProject().index(thirdGeneration).getIndex();
             List<DataStreamLifecycle.Downsampling.Round> roundsForThirdIndex = dataStream.getDownsamplingRoundsFor(
                 thirdIndex,
-                metadata::index,
+                metadata.getProject()::index,
                 () -> now
             );
 
@@ -1644,10 +1678,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             // generation time is now - 40000
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            Index firstIndex = metadata.index(firstGeneration).getIndex();
+            Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
             List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
-                metadata::index,
+                metadata.getProject()::index,
                 () -> now
             );
             // expecting all rounds to match this index
@@ -1693,10 +1727,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             // generation time is now - 40000
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            Index firstIndex = metadata.index(firstGeneration).getIndex();
+            Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
             List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
-                metadata::index,
+                metadata.getProject()::index,
                 () -> now
             );
             assertThat(roundsForFirstIndex.size(), is(0));
@@ -1717,10 +1751,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             // generation time is now - 40000
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            Index firstIndex = metadata.index(firstGeneration).getIndex();
+            Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
             List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
-                metadata::index,
+                metadata.getProject()::index,
                 () -> now
             );
             assertThat(roundsForFirstIndex.size(), is(0));
@@ -1740,10 +1774,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             Metadata metadata = builder.build();
 
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            Index firstIndex = metadata.index(firstGeneration).getIndex();
+            Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
             List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
-                metadata::index,
+                metadata.getProject()::index,
                 () -> now
             );
             assertThat(roundsForFirstIndex.size(), is(0));
@@ -1773,7 +1807,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         {
             // false for indices not part of the data stream
-            assertThat(dataStream.isIndexManagedByDataStreamLifecycle(new Index("standalone_index", "uuid"), metadata::index), is(false));
+            assertThat(
+                dataStream.isIndexManagedByDataStreamLifecycle(new Index("standalone_index", "uuid"), metadata.getProject()::index),
+                is(false)
+            );
         }
 
         {
@@ -1793,7 +1830,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata newMetadata = newBuilder.build();
             assertThat(
-                unmanagedDataStream.isIndexManagedByDataStreamLifecycle(unmanagedDataStream.getIndices().get(1), newMetadata::index),
+                unmanagedDataStream.isIndexManagedByDataStreamLifecycle(
+                    unmanagedDataStream.getIndices().get(1),
+                    newMetadata.getProject()::index
+                ),
                 is(false)
             );
         }
@@ -1812,7 +1852,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadataIlm = builderWithIlm.build();
             for (Index index : ds.getIndices()) {
-                assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm::index), is(false));
+                assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm.getProject()::index), is(false));
             }
         }
 
@@ -1833,7 +1873,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 );
                 Metadata metadataIlm = builderWithIlm.build();
                 for (Index index : ds.getIndices()) {
-                    assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm::index), is(true));
+                    assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm.getProject()::index), is(true));
                 }
             }
         }
@@ -1841,7 +1881,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // true otherwise
             for (Index index : dataStream.getIndices()) {
-                assertThat(dataStream.isIndexManagedByDataStreamLifecycle(index, metadata::index), is(true));
+                assertThat(dataStream.isIndexManagedByDataStreamLifecycle(index, metadata.getProject()::index), is(true));
             }
         }
     }
@@ -1871,7 +1911,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         List<Index> backingIndices = dataStream.getNonWriteIndicesOlderThan(
             TimeValue.timeValueMillis(2500),
-            metadata::index,
+            metadata.getProject()::index,
             null,
             () -> now
         );
@@ -2139,7 +2179,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             replicated == false && randomBoolean(),
             null
         );
-        assertThat(noFailureStoreDataStream.getFailureStoreWriteIndex(), nullValue());
+        assertThat(noFailureStoreDataStream.getWriteFailureIndex(), nullValue());
 
         DataStream failureStoreDataStreamWithEmptyFailureIndices = new DataStream(
             randomAlphaOfLength(10),
@@ -2157,7 +2197,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             replicated == false && randomBoolean(),
             null
         );
-        assertThat(failureStoreDataStreamWithEmptyFailureIndices.getFailureStoreWriteIndex(), nullValue());
+        assertThat(failureStoreDataStreamWithEmptyFailureIndices.getWriteFailureIndex(), nullValue());
 
         List<Index> failureIndices = randomIndexInstances();
         String dataStreamName = randomAlphaOfLength(10);
@@ -2182,7 +2222,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             replicated == false && randomBoolean(),
             null
         );
-        assertThat(failureStoreDataStream.getFailureStoreWriteIndex(), is(writeFailureIndex));
+        assertThat(failureStoreDataStream.getWriteFailureIndex(), is(writeFailureIndex));
     }
 
     public void testIsFailureIndex() {

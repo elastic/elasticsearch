@@ -128,6 +128,10 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
         TransformTask transformTask,
         ActionListener<Response> listener
     ) {
+        if (transformTask.getContext().isWaitingForIndexToUnblock()) {
+            logger.debug("[{}] Destination index is blocked. User requested a retry.", transformTask.getTransformId());
+            transformTask.getContext().setIsWaitingForIndexToUnblock(false);
+        }
         transformScheduler.scheduleNow(request.getId());
         listener.onResponse(Response.TRUE);
     }

@@ -219,6 +219,30 @@ setup:
           index_name: search-test
 
 ---
+'Create Connector - Index name used by deleted connector':
+  - do:
+      connector.put:
+        connector_id: test-connector-1
+        body:
+          index_name: search-test
+
+  - match: { result: 'created' }
+
+  - do:
+      connector.delete:
+        connector_id: test-connector-1
+
+  - match: { acknowledged: true }
+
+  - do:
+      connector.put:
+        connector_id: test-connector-2
+        body:
+          index_name: search-test
+
+  - match: { result: 'created' }
+
+---
 'Create Connector - Without index attached':
   - do:
       connector.put:

@@ -5,10 +5,6 @@ setup:
 
 ---
 synthetic source:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]
-      reason: requires synthetic source support
-
   - do:
       indices.create:
         index: synthetic_source_test
@@ -47,10 +43,6 @@ synthetic source:
 
 ---
 synthetic source with copy_to:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: synthetic_source_test

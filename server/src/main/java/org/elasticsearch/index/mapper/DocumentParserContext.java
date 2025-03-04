@@ -50,6 +50,13 @@ public abstract class DocumentParserContext {
             this.in = in;
         }
 
+        // Used to create a copy_to context.
+        // It is important to reset `dynamic` here since it is possible that we copy into a completely different object.
+        private Wrapper(RootObjectMapper root, DocumentParserContext in) {
+            super(root, ObjectMapper.Dynamic.getRootDynamic(in.mappingLookup()), in);
+            this.in = in;
+        }
+
         @Override
         public Iterable<LuceneDocument> nonRootDocuments() {
             return in.nonRootDocuments();
@@ -84,6 +91,31 @@ public abstract class DocumentParserContext {
         protected void addDoc(LuceneDocument doc) {
             in.addDoc(doc);
         }
+
+        @Override
+        public void processArrayOffsets(DocumentParserContext context) throws IOException {
+            in.processArrayOffsets(context);
+        }
+
+        @Override
+        public FieldArrayContext getOffSetContext() {
+            return in.getOffSetContext();
+        }
+
+        @Override
+        public void setImmediateXContentParent(XContentParser.Token token) {
+            in.setImmediateXContentParent(token);
+        }
+
+        @Override
+        public XContentParser.Token getImmediateXContentParent() {
+            return in.getImmediateXContentParent();
+        }
+
+        @Override
+        public boolean isImmediateParentAnArray() {
+            return in.isImmediateParentAnArray();
+        }
     }
 
     /**
@@ -117,7 +149,6 @@ public abstract class DocumentParserContext {
     private final MappingLookup mappingLookup;
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
-    private final DocumentParser.Listeners listeners;
 
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
@@ -135,6 +166,8 @@ public abstract class DocumentParserContext {
     private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
 
+    private FieldArrayContext fieldArrayContext;
+
     /**
      * Fields that are copied from values of other fields via copy_to.
      * This per-document state is needed since it is possible
@@ -150,7 +183,6 @@ public abstract class DocumentParserContext {
         MappingLookup mappingLookup,
         MappingParserContext mappingParserContext,
         SourceToParse sourceToParse,
-        DocumentParser.Listeners listeners,
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
         Scope currentScope,
@@ -171,7 +203,6 @@ public abstract class DocumentParserContext {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
-        this.listeners = listeners;
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
         this.currentScope = currentScope;
@@ -195,7 +226,6 @@ public abstract class DocumentParserContext {
             in.mappingLookup,
             in.mappingParserContext,
             in.sourceToParse,
-            in.listeners,
             in.ignoredFields,
             in.ignoredFieldValues,
             in.currentScope,
@@ -219,7 +249,6 @@ public abstract class DocumentParserContext {
         MappingLookup mappingLookup,
         MappingParserContext mappingParserContext,
         SourceToParse source,
-        DocumentParser.Listeners listeners,
         ObjectMapper parent,
         ObjectMapper.Dynamic dynamic
     ) {
@@ -227,7 +256,6 @@ public abstract class DocumentParserContext {
             mappingLookup,
             mappingParserContext,
             source,
-            listeners,
             new HashSet<>(),
             new ArrayList<>(),
             Scope.SINGLETON,
@@ -307,6 +335,12 @@ public abstract class DocumentParserContext {
         }
     }
 
+    final void removeLastIgnoredField(String name) {
+        if (ignoredFieldValues.isEmpty() == false && ignoredFieldValues.getLast().name().equals(name)) {
+            ignoredFieldValues.removeLast();
+        }
+    }
+
     /**
      * Return the collection of values for fields that have been ignored so far.
      */
@@ -362,19 +396,6 @@ public abstract class DocumentParserContext {
             && currentScope != Scope.ARRAY) {
             DocumentParserContext subcontext = switchParser(parser());
             subcontext.currentScope = Scope.ARRAY;
-            return subcontext;
-        }
-        return this;
-    }
-
-    /**
-     * Creates a sub-context from the current {@link DocumentParserContext} to indicate that the source for the sub-context has been
-     * recorded and avoid duplicate recording for parts of the sub-context. Applies to synthetic source only.
-     */
-    public final DocumentParserContext cloneWithRecordedSource() throws IOException {
-        if (canAddIgnoredField()) {
-            DocumentParserContext subcontext = createChildContext(parent());
-            subcontext.setRecordedSource();  // Avoids double-storing parts of the source for the same parser subtree.
             return subcontext;
         }
         return this;
@@ -466,17 +487,31 @@ public abstract class DocumentParserContext {
         return copyToFields.contains(name);
     }
 
-    public Set<String> getCopyToFields() {
-        return copyToFields;
+    public void processArrayOffsets(DocumentParserContext context) throws IOException {
+        if (fieldArrayContext != null) {
+            fieldArrayContext.addToLuceneDocument(context);
+        }
     }
 
-    public void publishEvent(DocumentParserListener.Event event) throws IOException {
-        listeners.publish(event, this);
+    public FieldArrayContext getOffSetContext() {
+        if (fieldArrayContext == null) {
+            fieldArrayContext = new FieldArrayContext();
+        }
+        return fieldArrayContext;
     }
 
-    public void finishListeners() {
-        var output = listeners.finish();
-        ignoredFieldValues.addAll(output.ignoredSourceValues());
+    private XContentParser.Token lastSetToken;
+
+    public void setImmediateXContentParent(XContentParser.Token token) {
+        this.lastSetToken = token;
+    }
+
+    public XContentParser.Token getImmediateXContentParent() {
+        return lastSetToken;
+    }
+
+    public boolean isImmediateParentAnArray() {
+        return lastSetToken == XContentParser.Token.START_ARRAY;
     }
 
     /**
@@ -668,7 +703,7 @@ public abstract class DocumentParserContext {
     /**
      * Return a new context that will be used within a nested document.
      */
-    public final DocumentParserContext createNestedContext(NestedObjectMapper nestedMapper) throws IOException {
+    public final DocumentParserContext createNestedContext(NestedObjectMapper nestedMapper) {
         if (isWithinCopyTo()) {
             // nested context will already have been set up for copy_to fields
             return this;
@@ -684,8 +719,14 @@ public abstract class DocumentParserContext {
         if (idField != null) {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
-            // NOTE: we don't support nested fields in tsdb so it's safe to assume the standard id mapper.
             doc.add(new StringField(IdFieldMapper.NAME, idField.binaryValue(), Field.Store.NO));
+        } else if (indexSettings().getMode() == IndexMode.TIME_SERIES) {
+            // For time series indices, the _id is generated from the _tsid, which in turn is generated from the values of the configured
+            // routing fields. At this point in document parsing, we can't guarantee that we've parsed all the routing fields yet, so the
+            // parent document's _id is not yet available.
+            // So we just add the child document without the parent _id, then in TimeSeriesIdFieldMapper#postParse we set the _id on all
+            // child documents once we've calculated it.
+            assert getRoutingFields().equals(RoutingFields.Noop.INSTANCE) == false;
         } else {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }
@@ -697,7 +738,7 @@ public abstract class DocumentParserContext {
     /**
      * Return a new context that has the provided document as the current document.
      */
-    public final DocumentParserContext switchDoc(final LuceneDocument document) throws IOException {
+    public final DocumentParserContext switchDoc(final LuceneDocument document) {
         DocumentParserContext cloned = new Wrapper(this.parent, this) {
             @Override
             public LuceneDocument doc() {
@@ -715,8 +756,29 @@ public abstract class DocumentParserContext {
      * @param doc           the document to target
      */
     public final DocumentParserContext createCopyToContext(String copyToField, LuceneDocument doc) throws IOException {
+        /*
+            Mark field as containing copied data meaning it should not be present
+            in synthetic _source (to be consistent with stored _source).
+            Ignored source values take precedence over standard synthetic source implementation
+            so by adding the `XContentDataHelper.voidValue()` entry we disable the field in synthetic source.
+            Otherwise, it would be constructed f.e. from doc_values which leads to duplicate values
+            in copied field after reindexing.
+         */
+        if (mappingLookup.isSourceSynthetic() && indexSettings().getSkipIgnoredSourceWrite() == false) {
+            ObjectMapper parent = root().findParentMapper(copyToField);
+            // There are scenarios when this is false:
+            // 1. all values of the field that is the source of copy_to are null
+            // 2. copy_to points at a field inside a disabled object
+            // 3. copy_to points at dynamic field which is not yet applied to mapping, we will process it properly after the dynamic update
+            if (parent != null) {
+                int offset = parent.isRoot() ? 0 : parent.fullPath().length() + 1;
+                ignoredFieldValues.add(new IgnoredSourceFieldMapper.NameValue(copyToField, offset, XContentDataHelper.voidValue(), doc));
+            }
+        }
+
         ContentPath path = new ContentPath();
         XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()), path);
+
         return new Wrapper(root(), this) {
             @Override
             public ContentPath path() {

@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
@@ -46,8 +45,7 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
         final TransportService transportService,
         final ClusterService clusterService,
         final ThreadPool threadPool,
-        final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver
+        final ActionFilters actionFilters
     ) {
         super(
             DeleteAutoscalingPolicyAction.NAME,
@@ -56,7 +54,6 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
             threadPool,
             actionFilters,
             DeleteAutoscalingPolicyAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }

@@ -1,32 +1,32 @@
 simple
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | KEEP semantic_text_field
 | sort semantic_text_field asc;
 
-semantic_text_field:semantic_text
+semantic_text_field:text
 all we have to decide is what to do with the time that is given to us
 be excellent to each other
 live long and prosper
 ;
 
 simpleWithUnicode
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | KEEP st_unicode
 | SORT st_unicode
 ;
 
-st_unicode:semantic_text
+st_unicode:text
 你吃饭了吗
 ["谢谢", "对不起我的中文不好"]
 null
 ;
 
 mvExpand
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | KEEP _id, st_multi_value
@@ -34,7 +34,7 @@ FROM semantic_text METADATA _id
 | SORT st_multi_value
 ;
 
-_id:keyword | st_multi_value:semantic_text
+_id:keyword | st_multi_value:text
 1           | Hello there!
 1           | This is a random value
 2           | bye bye!
@@ -44,7 +44,7 @@ _id:keyword | st_multi_value:semantic_text
 ;
 
 withDropAndKeep
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | KEEP _id, semantic_text_field, st_double
@@ -52,14 +52,14 @@ FROM semantic_text METADATA _id
 | SORT _id
 ;
 
-_id:keyword | semantic_text_field:semantic_text
+_id:keyword | semantic_text_field:text
 1           | live long and prosper
 2           | all we have to decide is what to do with the time that is given to us
 3           | be excellent to each other
 ;
 
 rename
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | RENAME semantic_text_field AS my_field
@@ -67,14 +67,14 @@ FROM semantic_text METADATA _id
 | SORT _id
 ;
 
-_id:keyword | my_field:semantic_text
+_id:keyword | my_field:text
 1           | live long and prosper
 2           | all we have to decide is what to do with the time that is given to us
 3           | be excellent to each other
 ;
 
 eval
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL my_field = semantic_text_field
@@ -82,7 +82,7 @@ FROM semantic_text METADATA _id
 | SORT _id
 ;
 
-_id:keyword | my_field:semantic_text
+_id:keyword | my_field:text
 1           | live long and prosper
 2           | all we have to decide is what to do with the time that is given to us
 3           | be excellent to each other
@@ -163,14 +163,14 @@ FROM semantic_text METADATA _id
 | SORT st_version
 ;
 
-COUNT(*):long | st_version:semantic_text
+COUNT(*):long | st_version:text
 1             | 1.2.3
 1             | 9.0.0
 1             | null
 ;
 
 withDropKeepStatsMvExpandRenameSortLimit
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | KEEP _id, semantic_text_field, st_multi_value
@@ -182,14 +182,14 @@ FROM semantic_text METADATA _id
 | LIMIT 3
 ;
 
-COUNT(*):long | my_field:semantic_text
+COUNT(*):long | my_field:text
 1             | Hello there!
 1             | This is a random value
 1             | bye bye!
 ;
 
 grok
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | GROK st_logs """%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num}"""
@@ -197,14 +197,14 @@ FROM semantic_text METADATA _id
 | SORT st_logs
 ;
 
-st_logs:semantic_text                                     | date:keyword             | ip:keyword | email:keyword       | num:keyword
+st_logs:text                                              | date:keyword             | ip:keyword | email:keyword       | num:keyword
 2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42  | 2023-01-23T12:15:00.000Z | 127.0.0.1  | some.email@foo.com  | 42
 2024-01-23T12:15:00.000Z 1.2.3.4 foo@example.com 42       | 2024-01-23T12:15:00.000Z | 1.2.3.4    | foo@example.com     | 42
 2024-12-23T12:15:00.000Z 1.2.3.4 example@example.com 4553 | 2024-12-23T12:15:00.000Z | 1.2.3.4    | example@example.com | 4553
 ;
 
 dissect
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | DISSECT st_logs """%{date} %{ip} %{email} %{num}"""
@@ -212,56 +212,56 @@ FROM semantic_text METADATA _id
 | SORT st_logs
 ;
 
-st_logs:semantic_text                                     | date:keyword             | ip:keyword | email:keyword       | num:keyword
+st_logs:text                                              | date:keyword             | ip:keyword | email:keyword       | num:keyword
 2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42  | 2023-01-23T12:15:00.000Z | 127.0.0.1  | some.email@foo.com  | 42
 2024-01-23T12:15:00.000Z 1.2.3.4 foo@example.com 42       | 2024-01-23T12:15:00.000Z | 1.2.3.4    | foo@example.com     | 42
 2024-12-23T12:15:00.000Z 1.2.3.4 example@example.com 4553 | 2024-12-23T12:15:00.000Z | 1.2.3.4    | example@example.com | 4553
 ;
 
 simpleWithLongValue
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | KEEP value, semantic_text_field
 | SORT value
 ;
 
-value:long | semantic_text_field:semantic_text
+value:long      | semantic_text_field:text
 1001            | live long and prosper
 1002            | all we have to decide is what to do with the time that is given to us
 1003            | be excellent to each other
 ;
 
 simpleWithText
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | KEEP description, semantic_text_field
 | SORT description
 ;
 
-description:text     | semantic_text_field:semantic_text
+description:text     | semantic_text_field:text
 "some description1"  | live long and prosper
 "some description2"  | all we have to decide is what to do with the time that is given to us
 "some description3"  | be excellent to each other
 ;
 
 simpleWithKeyword
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | KEEP host, semantic_text_field
 | SORT host
 ;
 
-host:keyword | semantic_text_field:semantic_text
+host:keyword | semantic_text_field:text
 "host1"      | live long and prosper
 "host2"      | all we have to decide is what to do with the time that is given to us
 "host3"      | be excellent to each other
 ;
 
 case
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = case(st_ip == "1.1.1.1", "okay", "try again")
@@ -276,7 +276,7 @@ _id:keyword | result:keyword
 ;
 
 coalesce
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = coalesce(st_version, st_ip, semantic_text_field)
@@ -291,7 +291,7 @@ _id:keyword | result:keyword
 ;
 
 greatest
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = greatest(semantic_text_field, st_version)
@@ -306,7 +306,7 @@ _id:keyword | result:keyword
 ;
 
 least
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = least(semantic_text_field, st_version)
@@ -321,7 +321,7 @@ _id:keyword | result:keyword
 ;
 
 convertToBool
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = to_bool(st_bool)
@@ -336,7 +336,7 @@ _id:keyword | result:bool
 ;
 
 convertToCartesianPoint
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = to_cartesianpoint(st_cartesian_point)
@@ -351,7 +351,7 @@ _id:keyword | result:cartesian_point
 ;
 
 convertToCartesianShape
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = to_cartesianshape(st_cartesian_shape)
@@ -366,7 +366,7 @@ _id:keyword | result:cartesian_shape
 ;
 
 convertToDatetime
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = to_datetime(st_datetime)
@@ -381,7 +381,7 @@ _id:keyword|result:datetime
 ;
 
 convertToDouble
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = to_double(st_double)
@@ -396,7 +396,7 @@ _id:keyword|result:double
 ;
 
 convertToGeopoint
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = to_geopoint(st_geopoint)
@@ -411,7 +411,7 @@ _id:keyword | result:geo_point
 ;
 
 convertToGeoshape
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = to_geoshape(st_geoshape)
@@ -426,7 +426,7 @@ _id:keyword | result:geo_shape
 ;
 
 convertToInteger
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = to_integer(st_integer)
@@ -441,7 +441,7 @@ _id:keyword | result:integer
 ;
 
 convertToIp
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = to_ip(st_ip)
@@ -456,7 +456,7 @@ _id:keyword | result:ip
 ;
 
 convertToLong
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = to_long(st_long)
@@ -471,7 +471,7 @@ _id:keyword | result:long
 ;
 
 convertToUnsignedLong
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = to_unsigned_long(st_unsigned_long)
@@ -486,7 +486,7 @@ _id:keyword | result:unsigned_long
 ;
 
 convertToVersion
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = to_version(st_version)
@@ -501,7 +501,7 @@ _id:keyword | result:version
 ;
 
 concat
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | EVAL result = concat("<em>", semantic_text_field, "</em>")
@@ -516,7 +516,7 @@ result:keyword
 ;
 
 endsWith
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | WHERE ends_with(semantic_text_field, "er")
@@ -524,13 +524,13 @@ FROM semantic_text
 | SORT semantic_text_field
 ;
 
-semantic_text_field:semantic_text
+semantic_text_field:text
 be excellent to each other
 live long and prosper
 ;
 
 fromBase64
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 FROM semantic_text
 | EVAL result = from_base64(st_base64)
 | SORT result
@@ -544,7 +544,7 @@ null
 ;
 
 left
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | EVAL result = left(semantic_text_field, 2)
@@ -559,7 +559,7 @@ li
 ;
 
 length
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | EVAL result = length(st_version)
@@ -574,7 +574,7 @@ null
 ;
 
 locate
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = locate(semantic_text_field, "all")
@@ -589,7 +589,7 @@ _id:keyword | result:integer
 ;
 
 ltrim
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | EVAL result = ltrim(semantic_text_field)
@@ -604,7 +604,7 @@ live long and prosper
 ;
 
 repeat
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | EVAL result = repeat(semantic_text_field, 2)
@@ -617,7 +617,7 @@ live long and prosperlive long and prosper
 ;
 
 replace
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | EVAL result = replace(semantic_text_field, "excellent", "good")
@@ -632,7 +632,7 @@ live long and prosper
 ;
 
 right
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | EVAL result = right(semantic_text_field, 2)
@@ -647,7 +647,7 @@ us
 ;
 
 rtrim
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | EVAL result = rtrim(semantic_text_field)
@@ -662,7 +662,7 @@ live long and prosper
 ;
 
 split
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = split(st_version, ".")
@@ -677,7 +677,7 @@ null
 ;
 
 startsWith
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = starts_with(semantic_text_field, "be")
@@ -692,7 +692,7 @@ _id:keyword | result:bool
 ;
 
 substring
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = substring(semantic_text_field, 2, 1)
@@ -707,7 +707,7 @@ _id:keyword | result:keyword
 ;
 
 toBase64
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = to_base64(st_integer)
@@ -722,7 +722,7 @@ _id:keyword | result:keyword
 ;
 
 toLower
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = to_lower(st_cartesian_point)
@@ -737,7 +737,7 @@ _id:keyword | result:keyword
 ;
 
 toUpper
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = to_upper(semantic_text_field)
@@ -752,7 +752,7 @@ _id:keyword | result:keyword
 ;
 
 trim
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | EVAL result = trim(semantic_text_field)
@@ -767,7 +767,7 @@ live long and prosper
 ;
 
 mvAppend
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = mv_append(st_multi_value, st_long)
@@ -782,7 +782,7 @@ _id: keyword | result:keyword
 ;
 
 mvConcat
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = mv_concat(st_multi_value, "; ")
@@ -797,7 +797,7 @@ _id: keyword | result:keyword
 ;
 
 mvCount
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = mv_count(st_multi_value)
@@ -812,7 +812,7 @@ _id: keyword | result:integer
 ;
 
 mvDedupe
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = mv_dedupe(st_multi_value)
@@ -827,7 +827,7 @@ _id: keyword | result:keyword
 ;
 
 mvFirst
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = mv_first(st_multi_value)
@@ -842,7 +842,7 @@ _id: keyword | result:keyword
 ;
 
 mvLast
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = mv_last(st_multi_value)
@@ -857,7 +857,7 @@ _id: keyword | result:keyword
 ;
 
 mvMax
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = mv_max(st_multi_value)
@@ -872,7 +872,7 @@ _id: keyword | result:keyword
 ;
 
 mvMin
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = mv_min(st_multi_value)
@@ -887,7 +887,7 @@ _id: keyword | result:keyword
 ;
 
 mvSlice
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = mv_slice(st_multi_value, 1, 2)
@@ -902,7 +902,7 @@ _id: keyword | result:keyword
 ;
 
 mvSort
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = mv_sort(st_multi_value, "ASC")
@@ -917,7 +917,7 @@ _id: keyword | result:keyword
 ;
 
 mvZip
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = mv_zip(st_multi_value, st_multi_value, " + ")
@@ -932,7 +932,7 @@ _id: keyword | result:keyword
 ;
 
 equalityWithConstant
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = st_ip == "1.1.1.1"
@@ -947,7 +947,7 @@ _id: keyword | result:bool
 ;
 
 equalityBetweenFields
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = st_long == st_unsigned_long
@@ -962,7 +962,7 @@ _id: keyword | result:bool
 ;
 
 inequalityWithConstant
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = st_ip != "1.1.1.1"
@@ -977,7 +977,7 @@ _id: keyword | result:bool
 ;
 
 inequalityBetweenFields
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = st_long != st_unsigned_long
@@ -992,7 +992,7 @@ _id: keyword | result:bool
 ;
 
 lessThanWithConstant
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = semantic_text_field < "bye!"
@@ -1007,7 +1007,7 @@ _id: keyword | result:bool
 ;
 
 lessThanBetweenFields
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = semantic_text_field < st_version
@@ -1023,7 +1023,7 @@ _id: keyword | result:bool
 
 
 lessThanOrEqualToWithConstant
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 
 FROM semantic_text METADATA _id
@@ -1039,7 +1039,7 @@ _id: keyword | result:bool
 ;
 
 lessThanOrEqualToBetweenFields
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = st_integer <= st_long
@@ -1054,7 +1054,7 @@ _id: keyword | result:bool
 ;
 
 greaterThanWithConstant
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = semantic_text_field > "bye!"
@@ -1069,7 +1069,7 @@ _id: keyword | result:bool
 ;
 
 greaterThanBetweenFields
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = semantic_text_field > st_version
@@ -1084,7 +1084,7 @@ _id: keyword | result:bool
 ;
 
 greaterThanOrEqualToWithConstant
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = semantic_text_field >= "be excellent to each other"
@@ -1099,7 +1099,7 @@ _id: keyword | result:bool
 ;
 
 greaterThanOrEqualToBetweenFields
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = st_integer >= st_long
@@ -1114,7 +1114,7 @@ _id: keyword | result:bool
 ;
 
 isNull
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = st_integer IS NULL
@@ -1129,7 +1129,7 @@ _id: keyword | result:bool
 ;
 
 isNotNull
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = st_integer IS NOT NULL
@@ -1144,7 +1144,7 @@ _id: keyword | result:bool
 ;
 
 cast
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = st_bool::BOOL
@@ -1159,7 +1159,7 @@ _id:keyword | result:bool
 ;
 
 in
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = st_integer IN ("123", "23")
@@ -1174,7 +1174,7 @@ _id: keyword | result:bool
 ;
 
 like
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = semantic_text_field LIKE "all*"
@@ -1189,7 +1189,7 @@ _id: keyword | result:bool
 ;
 
 rlike
-required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | EVAL result = st_version RLIKE "[0-9].[0-9].[0-9]"

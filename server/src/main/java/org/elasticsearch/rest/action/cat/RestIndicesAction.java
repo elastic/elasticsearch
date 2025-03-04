@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectIdResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -53,6 +55,12 @@ public class RestIndicesAction extends AbstractCatAction {
 
     private static final Set<String> RESPONSE_PARAMS = addToCopy(AbstractCatAction.RESPONSE_PARAMS, "local", "health");
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
+
+    private final ProjectIdResolver projectIdResolver;
+
+    public RestIndicesAction(ProjectIdResolver projectIdResolver) {
+        this.projectIdResolver = projectIdResolver;
+    }
 
     @Override
     public List<Route> routes() {
@@ -114,7 +122,7 @@ public class RestIndicesAction extends AbstractCatAction {
                 // security benefits - it's more of a convenience thing.
                 client.admin()
                     .indices()
-                    .prepareGetSettings(indices)
+                    .prepareGetSettings(masterNodeTimeout, indices)
                     .setIndicesOptions(indicesOptions)
                     .setMasterNodeTimeout(masterNodeTimeout)
                     .setNames(IndexSettings.INDEX_SEARCH_THROTTLED.getKey())
@@ -303,6 +311,15 @@ public class RestIndicesAction extends AbstractCatAction {
             "sibling:pri;alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops"
         );
         table.addCell("pri.indexing.index_failed", "default:false;text-align:right;desc:number of failed indexing ops");
+        table.addCell(
+            "indexing.index_failed_due_to_version_conflict",
+            "sibling:pri;alias:iifvc,indexingIndexFailedDueToVersionConflict;default:false;text-align:right;"
+                + "desc:number of failed indexing ops due to version conflict"
+        );
+        table.addCell(
+            "pri.indexing.index_failed_due_to_version_conflict",
+            "default:false;text-align:right;desc:number of failed indexing ops due to version conflict"
+        );
 
         table.addCell("merges.current", "sibling:pri;alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
         table.addCell("pri.merges.current", "default:false;text-align:right;desc:number of current merges");
@@ -531,9 +548,16 @@ public class RestIndicesAction extends AbstractCatAction {
 
         final Table table = getTableWithHeader(request);
 
+        if (clusterState.metadata().projects().size() != 1) {
+            throw new IllegalStateException(
+                clusterState.metadata().projects().isEmpty() ? "No project available" : "Cluster has multiple projects"
+            );
+        }
+        final ProjectMetadata project = clusterState.metadata().getProject(projectIdResolver.getProjectId());
+
         // Use indicesSettings to determine the indices returned - see [NOTE: WHY GET SETTINGS] above for details.
         indicesSettings.forEach((indexName, settings) -> {
-            final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+            final IndexMetadata indexMetadata = project.index(indexName);
 
             if (indexMetadata == null) {
                 // The index exists in indicesSettings but its metadata is missing, which means it was created or deleted
@@ -546,7 +570,7 @@ public class RestIndicesAction extends AbstractCatAction {
             final IndexStats indexStats = indicesStats.get(indexName);
             final boolean searchThrottled = IndexSettings.INDEX_SEARCH_THROTTLED.get(settings);
 
-            final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexName);
+            final IndexRoutingTable indexRoutingTable = clusterState.routingTable(project.id()).index(indexName);
             final ClusterHealthStatus indexHealthStatus = indexRoutingTable == null
                 ? ClusterHealthStatus.RED // no routing table => cluster not recovered
                 : new ClusterIndexHealth(indexMetadata, indexRoutingTable).getStatus();
@@ -669,6 +693,13 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexFailedCount());
             table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexFailedCount());
+
+            table.addCell(
+                totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexFailedDueToVersionConflictCount()
+            );
+            table.addCell(
+                primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexFailedDueToVersionConflictCount()
+            );
 
             table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getCurrent());
             table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getCurrent());

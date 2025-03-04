@@ -21,9 +21,4 @@ public class MvMinSerializationTests extends AbstractExpressionSerializationTest
     protected MvMin mutateInstance(MvMin instance) throws IOException {
         return new MvMin(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

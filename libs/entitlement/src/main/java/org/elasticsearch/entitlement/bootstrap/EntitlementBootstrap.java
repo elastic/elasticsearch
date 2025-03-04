@@ -16,21 +16,53 @@ import com.sun.tools.attach.VirtualMachine;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
+import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collection;
-import java.util.Objects;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Stream;
+
+import static java.util.Objects.requireNonNull;
 
 public class EntitlementBootstrap {
 
-    public record PluginData(Path pluginPath, boolean isModular, boolean isExternalPlugin) {}
-
-    public record BootstrapArgs(Collection<PluginData> pluginData, Function<Class<?>, String> pluginResolver) {}
+    public record BootstrapArgs(
+        Map<String, Policy> pluginPolicies,
+        Function<Class<?>, String> pluginResolver,
+        Function<String, Stream<String>> settingResolver,
+        Path[] dataDirs,
+        Path[] sharedRepoDirs,
+        Path configDir,
+        Path libDir,
+        Path pluginsDir,
+        Path logsDir,
+        Path tempDir,
+        Path pidFile,
+        Set<Class<?>> suppressFailureLogClasses
+    ) {
+        public BootstrapArgs {
+            requireNonNull(pluginPolicies);
+            requireNonNull(pluginResolver);
+            requireNonNull(settingResolver);
+            requireNonNull(dataDirs);
+            if (dataDirs.length == 0) {
+                throw new IllegalArgumentException("must provide at least one data directory");
+            }
+            requireNonNull(sharedRepoDirs);
+            requireNonNull(configDir);
+            requireNonNull(libDir);
+            requireNonNull(pluginsDir);
+            requireNonNull(logsDir);
+            requireNonNull(tempDir);
+            requireNonNull(suppressFailureLogClasses);
+        }
+    }
 
     private static BootstrapArgs bootstrapArgs;
 
@@ -41,16 +73,52 @@ public class EntitlementBootstrap {
     /**
      * Activates entitlement checking. Once this method returns, calls to methods protected by Entitlements from classes without a valid
      * policy will throw {@link org.elasticsearch.entitlement.runtime.api.NotEntitledException}.
-     * @param pluginData a collection of (plugin path, boolean, boolean), that holds the paths of all the installed Elasticsearch modules
-     *                   and plugins, whether they are Java modular or not, and whether they are Elasticsearch modules or external plugins.
+     *
+     * @param pluginPolicies a map holding policies for plugins (and modules), by plugin (or module) name.
      * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
+     * @param settingResolver a functor to resolve a setting name pattern for one or more Elasticsearch settings.
+     * @param dataDirs       data directories for Elasticsearch
+     * @param sharedRepoDirs       shared repository directories for Elasticsearch
+     * @param configDir      the config directory for Elasticsearch
+     * @param libDir         the lib directory for Elasticsearch
+     * @param pluginsDir     the directory where plugins are installed for Elasticsearch
+     * @param tempDir        the temp directory for Elasticsearch
+     * @param logsDir        the log directory for Elasticsearch
+     * @param pidFile        path to a pid file for Elasticsearch, or {@code null} if one was not specified
+     * @param suppressFailureLogClasses   classes for which we do not need or want to log Entitlements failures
      */
-    public static void bootstrap(Collection<PluginData> pluginData, Function<Class<?>, String> pluginResolver) {
+    public static void bootstrap(
+        Map<String, Policy> pluginPolicies,
+        Function<Class<?>, String> pluginResolver,
+        Function<String, Stream<String>> settingResolver,
+        Path[] dataDirs,
+        Path[] sharedRepoDirs,
+        Path configDir,
+        Path libDir,
+        Path pluginsDir,
+        Path logsDir,
+        Path tempDir,
+        Path pidFile,
+        Set<Class<?>> suppressFailureLogClasses
+    ) {
         logger.debug("Loading entitlement agent");
         if (EntitlementBootstrap.bootstrapArgs != null) {
             throw new IllegalStateException("plugin data is already set");
         }
-        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(Objects.requireNonNull(pluginData), Objects.requireNonNull(pluginResolver));
+        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(
+            pluginPolicies,
+            pluginResolver,
+            settingResolver,
+            dataDirs,
+            sharedRepoDirs,
+            configDir,
+            libDir,
+            pluginsDir,
+            logsDir,
+            tempDir,
+            pidFile,
+            suppressFailureLogClasses
+        );
         exportInitializationToAgent();
         loadAgent(findAgentJar());
     }

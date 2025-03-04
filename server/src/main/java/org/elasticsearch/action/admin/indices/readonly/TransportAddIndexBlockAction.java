@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
@@ -46,6 +48,8 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
     private static final Logger logger = LogManager.getLogger(TransportAddIndexBlockAction.class);
 
     private final MetadataIndexStateService indexStateService;
+    private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DestructiveOperations destructiveOperations;
 
     @Inject
@@ -55,6 +59,7 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
         ThreadPool threadPool,
         MetadataIndexStateService indexStateService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         DestructiveOperations destructiveOperations
     ) {
@@ -65,11 +70,12 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
             threadPool,
             actionFilters,
             AddIndexBlockRequest::new,
-            indexNameExpressionResolver,
             AddIndexBlockResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexStateService = indexStateService;
+        this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destructiveOperations = destructiveOperations;
     }
 
@@ -85,8 +91,13 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
             && state.blocks().global(ClusterBlockLevel.METADATA_WRITE).isEmpty()) {
             return null;
         }
+        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
+            .indicesBlockedException(
+                projectMetadata.id(),
+                ClusterBlockLevel.METADATA_WRITE,
+                indexNameExpressionResolver.concreteIndexNames(projectMetadata, request)
+            );
     }
 
     @Override
@@ -106,7 +117,9 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
             new AddIndexBlockClusterStateUpdateRequest(
                 request.masterNodeTimeout(),
                 request.ackTimeout(),
+                projectResolver.getProjectId(),
                 request.getBlock(),
+                request.markVerified(),
                 task.getId(),
                 concreteIndices
             ),

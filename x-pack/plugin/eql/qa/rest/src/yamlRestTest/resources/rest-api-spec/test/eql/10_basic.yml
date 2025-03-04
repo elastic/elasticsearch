@@ -509,6 +509,30 @@ setup:
 
 
 ---
+
+"Execute query shard failures":
+  - do:
+      eql.search:
+        index: eql_test*
+        body:
+          query: 'process where user == "SYSTEM" and day_of_week == "Monday"'
+          fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","day_of_week"]
+          allow_partial_search_results: true
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.user: "SYSTEM"}
+  - match: {hits.events.0._id: "1"}
+  - match: {hits.events.0.fields.@timestamp: ["1580733296000"]}
+  - match: {hits.events.0.fields.id: [123]}
+  - match: {hits.events.0.fields.valid: [false]}
+  - match: {hits.events.0.fields.day_of_week: ["Monday"]}
+  - match: {shard_failures.0.index: "eql_test_rebel"}
+
+
+---
+
 "Execute query shard failures and with allow_partial_search_results":
   - do:
       eql.search:
@@ -535,7 +559,6 @@ setup:
   - do:
       eql.search:
         index: eql_test*
-        allow_partial_search_results: true
         body:
           query: 'process where user == "SYSTEM" and day_of_week == "Monday"'
           fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","day_of_week"]
@@ -575,7 +598,6 @@ setup:
         body:
           query: 'sequence [process where user == "SYSTEM" and day_of_week == "Monday"] [process where user == "SYSTEM" and day_of_week == "Tuesday"]'
           fields: [{"field":"@timestamp","format":"epoch_millis"},"id","valid","day_of_week"]
-          allow_partial_search_results: true
           allow_partial_sequence_results: true
 
   - match: {timed_out: false}
@@ -600,7 +622,6 @@ setup:
   - do:
       eql.search:
         index: eql_test*
-        allow_partial_search_results: true
         allow_partial_sequence_results: true
         body:
           query: 'sequence [process where user == "SYSTEM" and day_of_week == "Monday"] [process where user == "SYSTEM" and day_of_week == "Tuesday"]'

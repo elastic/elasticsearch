@@ -3568,7 +3568,8 @@ public class InternalEngineTests extends EngineTestCase {
             new TranslogDeletionPolicy(),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationAsserter.DEFAULT
         );
         translog.add(TranslogOperationsUtils.indexOp("SomeBogusId", 0, primaryTerm.get()));
         assertEquals(generation.translogFileGeneration(), translog.currentFileGeneration());
@@ -7326,7 +7327,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.close();
         engine = new InternalEngine(engine.config()) {
             @Override
-            protected Map<String, String> getCommitExtraUserData() {
+            protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
                 return Map.of("userkey", "userdata", ES_VERSION, IndexVersions.ZERO.toString());
             }
         };

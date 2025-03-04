@@ -99,8 +99,10 @@ public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
         prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
 
         assertBusy(() -> {
-            ExplainLifecycleResponse explain = client().execute(ExplainLifecycleAction.INSTANCE, new ExplainLifecycleRequest().indices("*"))
-                .get();
+            ExplainLifecycleResponse explain = client().execute(
+                ExplainLifecycleAction.INSTANCE,
+                new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices("*")
+            ).get();
             logger.info("--> explain: {}", Strings.toString(explain));
 
             String backingIndexName = DataStream.getDefaultBackingIndexName(index, 1);

@@ -32,6 +32,7 @@ public class ExchangeSourceOperator extends SourceOperator {
     private final ExchangeSource source;
     private IsBlockedResult isBlocked = NOT_BLOCKED;
     private int pagesEmitted;
+    private long rowsEmitted;
 
     public record ExchangeSourceOperatorFactory(Supplier<ExchangeSource> exchangeSources) implements SourceOperatorFactory {
 
@@ -55,6 +56,7 @@ public class ExchangeSourceOperator extends SourceOperator {
         final var page = source.pollPage();
         if (page != null) {
             pagesEmitted++;
+            rowsEmitted += page.getPositionCount();
         }
         return page;
     }
@@ -92,7 +94,7 @@ public class ExchangeSourceOperator extends SourceOperator {
 
     @Override
     public Status status() {
-        return new Status(source.bufferSize(), pagesEmitted);
+        return new Status(source.bufferSize(), pagesEmitted, rowsEmitted);
     }
 
     public static class Status implements Operator.Status {
@@ -104,21 +106,33 @@ public class ExchangeSourceOperator extends SourceOperator {
 
         private final int pagesWaiting;
         private final int pagesEmitted;
+        private final long rowsEmitted;
 
-        Status(int pagesWaiting, int pagesEmitted) {
+        Status(int pagesWaiting, int pagesEmitted, long rowsEmitted) {
             this.pagesWaiting = pagesWaiting;
             this.pagesEmitted = pagesEmitted;
+            this.rowsEmitted = rowsEmitted;
         }
 
         Status(StreamInput in) throws IOException {
             pagesWaiting = in.readVInt();
             pagesEmitted = in.readVInt();
+
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                rowsEmitted = in.readVLong();
+            } else {
+                rowsEmitted = 0;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(pagesWaiting);
             out.writeVInt(pagesEmitted);
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                out.writeVLong(rowsEmitted);
+            }
         }
 
         @Override
@@ -134,11 +148,16 @@ public class ExchangeSourceOperator extends SourceOperator {
             return pagesEmitted;
         }
 
+        public long rowsEmitted() {
+            return rowsEmitted;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("pages_waiting", pagesWaiting);
             builder.field("pages_emitted", pagesEmitted);
+            builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
         }
 
@@ -147,12 +166,12 @@ public class ExchangeSourceOperator extends SourceOperator {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Status status = (Status) o;
-            return pagesWaiting == status.pagesWaiting && pagesEmitted == status.pagesEmitted;
+            return pagesWaiting == status.pagesWaiting && pagesEmitted == status.pagesEmitted && rowsEmitted == status.rowsEmitted;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pagesWaiting, pagesEmitted);
+            return Objects.hash(pagesWaiting, pagesEmitted, rowsEmitted);
         }
 
         @Override

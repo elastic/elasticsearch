@@ -111,13 +111,13 @@ public class ByteRankVectorsDocValuesField extends RankVectorsDocValuesField {
         return value == null;
     }
 
-    static class ByteVectorIterator implements VectorIterator<byte[]> {
+    public static class ByteVectorIterator implements VectorIterator<byte[]> {
         private final byte[] buffer;
         private final BytesRef vectorValues;
         private final int size;
         private int idx = 0;
 
-        ByteVectorIterator(BytesRef vectorValues, byte[] buffer, int size) {
+        public ByteVectorIterator(BytesRef vectorValues, byte[] buffer, int size) {
             assert vectorValues.length == (buffer.length * size);
             this.vectorValues = vectorValues;
             this.size = size;

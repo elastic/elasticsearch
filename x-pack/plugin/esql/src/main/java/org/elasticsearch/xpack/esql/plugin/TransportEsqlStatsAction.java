@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,14 +33,12 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
     Void> {
 
     // the plan executor holds the metrics
-    private final FeatureService featureService;
     private final PlanExecutor planExecutor;
 
     @Inject
     public TransportEsqlStatsAction(
         TransportService transportService,
         ClusterService clusterService,
-        FeatureService featureService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         PlanExecutor planExecutor
@@ -54,7 +51,6 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
             EsqlStatsRequest.NodeStatsRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.featureService = featureService;
         this.planExecutor = planExecutor;
     }
 

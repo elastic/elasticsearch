@@ -53,6 +53,6 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
                 attributes.add(ma);
             }
         });
-        return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), attributes, plan.query());
+        return new EsQueryExec(plan.source(), plan.indexPattern(), plan.indexMode(), plan.indexNameWithModes(), attributes, plan.query());
     }
 }

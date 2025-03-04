@@ -14,7 +14,9 @@ buildParams.bwcVersions.withLatestReadOnlyIndexCompatible { bwcVersion ->
   tasks.named("javaRestTest").configure {
     systemProperty("tests.minimum.index.compatible", bwcVersion)
     usesBwcDistribution(bwcVersion)
-    enabled = true
+
+    // Tests rely on unreleased code in 8.18 branch
+    enabled = buildParams.isSnapshotBuild()
   }
 }
 
@@ -22,4 +24,3 @@ tasks.withType(Test).configureEach {
   // CI doesn't like it when there's multiple clusters running at once
   maxParallelForks = 1
 }
-

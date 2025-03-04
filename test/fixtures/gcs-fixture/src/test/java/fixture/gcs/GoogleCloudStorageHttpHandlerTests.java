@@ -22,24 +22,37 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
+
+import static java.util.Objects.requireNonNull;
 
 public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
 
     private static final String HOST = "http://127.0.0.1:12345";
     private static final int RESUME_INCOMPLETE = 308;
+    private static final Pattern GENERATION_PATTERN = Pattern.compile("\"generation\"\\s*:\\s*\"(\\d+)\"");
 
     public void testRejectsBadUri() {
         assertEquals(
@@ -61,48 +74,38 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
     public void testSimpleObjectOperations() {
         final var bucket = randomAlphaOfLength(10);
         final var handler = new GoogleCloudStorageHttpHandler(bucket);
+        final var blobName = "path/" + randomAlphaOfLength(10);
 
-        assertEquals(RestStatus.NOT_FOUND, handleRequest(handler, "GET", "/download/storage/v1/b/" + bucket + "/o/blob").restStatus());
+        assertEquals(RestStatus.NOT_FOUND, getBlobContents(handler, bucket, blobName, null, null).restStatus());
 
         assertEquals(
             new TestHttpResponse(RestStatus.OK, "{\"kind\":\"storage#objects\",\"items\":[],\"prefixes\":[]}"),
-            handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o")
+            listBlobs(handler, bucket, null, null)
         );
 
-        // Multipart upload
         final var body = randomAlphaOfLength(50);
         assertEquals(
             RestStatus.OK,
-            handleRequest(
-                handler,
-                "POST",
-                "/upload/storage/v1/b/" + bucket + "/?uploadType=multipart",
-                createGzipCompressedMultipartUploadBody(bucket, "path/blob", body)
-            ).restStatus()
+            executeUpload(handler, bucket, blobName, new BytesArray(body.getBytes(StandardCharsets.UTF_8)), null).restStatus()
         );
-        assertEquals(
-            new TestHttpResponse(RestStatus.OK, body),
-            handleRequest(handler, "GET", "/download/storage/v1/b/" + bucket + "/o/path/blob")
-        );
+
+        assertEquals(new TestHttpResponse(RestStatus.OK, body), getBlobContents(handler, bucket, blobName, null, null));
 
         assertEquals(new TestHttpResponse(RestStatus.OK, Strings.format("""
-            {"kind":"storage#objects","items":[{"kind":"storage#object","bucket":"%s","name":"path/blob","id":"path/blob","size":"50"}
-            ],"prefixes":[]}""", bucket)), handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o"));
+            {"kind":"storage#objects","items":[{"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"50",\
+            "generation":"1"}],"prefixes":[]}""", bucket, blobName, blobName)), listBlobs(handler, bucket, null, null));
 
         assertEquals(new TestHttpResponse(RestStatus.OK, Strings.format("""
-            {"kind":"storage#objects","items":[{"kind":"storage#object","bucket":"%s","name":"path/blob","id":"path/blob","size":"50"}
-            ],"prefixes":[]}""", bucket)), handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o?prefix=path/"));
+            {"kind":"storage#objects","items":[{"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"50",\
+            "generation":"1"}],"prefixes":[]}""", bucket, blobName, blobName)), listBlobs(handler, bucket, "path/", null));
 
-        assertEquals(
-            new TestHttpResponse(RestStatus.OK, """
-                {"kind":"storage#objects","items":[],"prefixes":[]}"""),
-            handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o?prefix=path/other")
-        );
+        assertEquals(new TestHttpResponse(RestStatus.OK, """
+            {"kind":"storage#objects","items":[],"prefixes":[]}"""), listBlobs(handler, bucket, "some/other/path", null));
 
         assertEquals(
             new TestHttpResponse(RestStatus.OK, """
                 --__END_OF_PART__d8b50acb-87dc-4630-a3d3-17d187132ebc__
-                Content-Length: 162
+                Content-Length: 168
                 Content-Type: application/http
                 content-id: 1
                 content-transfer-encoding: binary
@@ -118,7 +121,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
                 handler,
                 "POST",
                 "/batch/storage/v1",
-                createBatchDeleteRequest(bucket, "path/blob"),
+                createBatchDeleteRequest(bucket, blobName),
                 Headers.of("Content-Type", "mixed/multipart")
             )
         );
@@ -128,53 +131,41 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
                 handler,
                 "POST",
                 "/batch/storage/v1",
-                createBatchDeleteRequest(bucket, "path/blob"),
+                createBatchDeleteRequest(bucket, blobName),
                 Headers.of("Content-Type", "mixed/multipart")
             ).restStatus()
         );
 
-        assertEquals(
-            new TestHttpResponse(RestStatus.OK, """
-                {"kind":"storage#objects","items":[],"prefixes":[]}"""),
-            handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o?prefix=path/")
-        );
+        assertEquals(new TestHttpResponse(RestStatus.OK, """
+            {"kind":"storage#objects","items":[],"prefixes":[]}"""), listBlobs(handler, bucket, "path/", null));
     }
 
     public void testGetWithBytesRange() {
         final var bucket = randomIdentifier();
         final var handler = new GoogleCloudStorageHttpHandler(bucket);
         final var blobName = "blob_name_" + randomIdentifier();
-        final var blobPath = "/download/storage/v1/b/" + bucket + "/o/" + blobName;
         final var blobBytes = randomBytesReference(256);
 
-        assertEquals(
-            RestStatus.OK,
-            handleRequest(
-                handler,
-                "POST",
-                "/upload/storage/v1/b/" + bucket + "/?uploadType=multipart",
-                createGzipCompressedMultipartUploadBody(bucket, blobName, blobBytes)
-            ).restStatus()
-        );
+        assertEquals(RestStatus.OK, executeUpload(handler, bucket, blobName, blobBytes, 0L).restStatus());
 
         assertEquals(
             "No Range",
             new TestHttpResponse(RestStatus.OK, blobBytes, TestHttpExchange.EMPTY_HEADERS),
-            handleRequest(handler, "GET", blobPath)
+            getBlobContents(handler, bucket, blobName, null, null)
         );
 
         var end = blobBytes.length() - 1;
         assertEquals(
             "Exact Range: bytes=0-" + end,
             new TestHttpResponse(RestStatus.OK, blobBytes, TestHttpExchange.EMPTY_HEADERS),
-            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, rangeHeader(0, end))
+            getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(0, end))
         );
 
         end = randomIntBetween(blobBytes.length() - 1, Integer.MAX_VALUE);
         assertEquals(
             "Larger Range: bytes=0-" + end,
             new TestHttpResponse(RestStatus.OK, blobBytes, TestHttpExchange.EMPTY_HEADERS),
-            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, rangeHeader(0, end))
+            getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(0, end))
         );
 
         var start = randomIntBetween(blobBytes.length(), Integer.MAX_VALUE - 1);
@@ -182,7 +173,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         assertEquals(
             "Invalid Range: bytes=" + start + '-' + end,
             new TestHttpResponse(RestStatus.REQUESTED_RANGE_NOT_SATISFIED, BytesArray.EMPTY, TestHttpExchange.EMPTY_HEADERS),
-            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, rangeHeader(start, end))
+            getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(start, end))
         );
 
         start = randomIntBetween(0, blobBytes.length() - 1);
@@ -191,7 +182,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         assertEquals(
             "Range: bytes=" + start + '-' + end,
             new TestHttpResponse(RestStatus.OK, blobBytes.slice(start, length), TestHttpExchange.EMPTY_HEADERS),
-            handleRequest(handler, "GET", blobPath, BytesArray.EMPTY, rangeHeader(start, end))
+            getBlobContents(handler, bucket, blobName, null, new HttpHeaderParser.Range(start, end))
         );
     }
 
@@ -209,22 +200,38 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         final var sessionURI = locationHeader.substring(locationHeader.indexOf(HOST) + HOST.length());
         assertEquals(RestStatus.OK, createUploadResponse.restStatus());
 
-        final var part1 = randomAlphaOfLength(50);
-        final var uploadPart1Response = handleRequest(handler, "PUT", sessionURI, part1, contentRangeHeader(0, 50, null));
-        assertEquals(new TestHttpResponse(RESUME_INCOMPLETE, rangeHeader(0, 50)), uploadPart1Response);
-
+        // status check
         assertEquals(
             new TestHttpResponse(RESUME_INCOMPLETE, TestHttpExchange.EMPTY_HEADERS),
             handleRequest(handler, "PUT", sessionURI, BytesArray.EMPTY, contentRangeHeader(null, null, null))
         );
 
+        final var part1 = randomAlphaOfLength(50);
+        final var uploadPart1Response = handleRequest(handler, "PUT", sessionURI, part1, contentRangeHeader(0, 50, null));
+        assertEquals(new TestHttpResponse(RESUME_INCOMPLETE, rangeHeader(0, 49)), uploadPart1Response);
+
+        // status check
+        assertEquals(
+            new TestHttpResponse(RESUME_INCOMPLETE, rangeHeader(0, 49)),
+            handleRequest(handler, "PUT", sessionURI, BytesArray.EMPTY, contentRangeHeader(null, null, null))
+        );
+
         final var part2 = randomAlphaOfLength(50);
-        final var uploadPart2Response = handleRequest(handler, "PUT", sessionURI, part2, contentRangeHeader(51, 100, null));
-        assertEquals(new TestHttpResponse(RESUME_INCOMPLETE, rangeHeader(51, 100)), uploadPart2Response);
+        final var uploadPart2Response = handleRequest(handler, "PUT", sessionURI, part2, contentRangeHeader(50, 99, null));
+        assertEquals(new TestHttpResponse(RESUME_INCOMPLETE, rangeHeader(0, 99)), uploadPart2Response);
+
+        // incomplete upload should not be visible yet
+        assertEquals(RestStatus.NOT_FOUND, getBlobContents(handler, bucket, blobName, null, null).restStatus());
 
         final var part3 = randomAlphaOfLength(30);
-        final var uploadPart3Response = handleRequest(handler, "PUT", sessionURI, part3, contentRangeHeader(101, 130, 130));
+        final var uploadPart3Response = handleRequest(handler, "PUT", sessionURI, part3, contentRangeHeader(100, 129, 130));
         assertEquals(new TestHttpResponse(RestStatus.OK, TestHttpExchange.EMPTY_HEADERS), uploadPart3Response);
+
+        // status check
+        assertEquals(
+            new TestHttpResponse(RestStatus.OK, rangeHeader(0, 129)),
+            handleRequest(handler, "PUT", sessionURI, BytesArray.EMPTY, contentRangeHeader(null, null, null))
+        );
 
         // complete upload should be visible now
 
@@ -235,14 +242,403 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         );
 
         // can see in listing
-        assertEquals(new TestHttpResponse(RestStatus.OK, Strings.format("""
-            {"kind":"storage#objects","items":[{"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"130"}
-            ],"prefixes":[]}""", bucket, blobName, blobName)), handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o"));
+        assertEquals(
+            new TestHttpResponse(RestStatus.OK, Strings.format("""
+                {"kind":"storage#objects","items":[{"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"130",\
+                "generation":"1"}],"prefixes":[]}""", bucket, blobName, blobName)),
+            handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o")
+        );
 
         // can get metadata
-        assertEquals(new TestHttpResponse(RestStatus.OK, Strings.format("""
-            {"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"130"}
-            """, bucket, blobName, blobName)), handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o/" + blobName));
+        assertEquals(
+            new TestHttpResponse(
+                RestStatus.OK,
+                Strings.format(
+                    """
+                        {"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"130","generation":"1"}""",
+                    bucket,
+                    blobName,
+                    blobName
+                )
+            ),
+            handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o/" + blobName)
+        );
+    }
+
+    public void testIfGenerationMatch_MultipartUpload() {
+        final var bucket = randomIdentifier();
+        final var handler = new GoogleCloudStorageHttpHandler(bucket);
+        final var blobName = "blob_name_" + randomIdentifier();
+
+        assertEquals(
+            RestStatus.OK,
+            executeUpload(handler, bucket, blobName, randomBytesReference(randomIntBetween(100, 5_000)), null).restStatus()
+        );
+
+        // update, matched generation
+        assertEquals(
+            RestStatus.OK,
+            executeMultipartUpload(
+                handler,
+                bucket,
+                blobName,
+                randomBytesReference(randomIntBetween(100, 5_000)),
+                getCurrentGeneration(handler, bucket, blobName)
+            ).restStatus()
+        );
+
+        // update, mismatched generation
+        assertEquals(
+            RestStatus.PRECONDITION_FAILED,
+            executeMultipartUpload(
+                handler,
+                bucket,
+                blobName,
+                randomBytesReference(randomIntBetween(100, 5_000)),
+                randomValueOtherThan(getCurrentGeneration(handler, bucket, blobName), ESTestCase::randomNonNegativeLong)
+            ).restStatus()
+        );
+
+        // update, no generation
+        assertEquals(
+            RestStatus.OK,
+            executeMultipartUpload(handler, bucket, blobName, randomBytesReference(randomIntBetween(100, 5_000)), null).restStatus()
+        );
+
+        // update, zero generation
+        assertEquals(
+            RestStatus.PRECONDITION_FAILED,
+            executeMultipartUpload(handler, bucket, blobName, randomBytesReference(randomIntBetween(100, 5_000)), 0L).restStatus()
+        );
+
+        // new file, zero generation
+        assertEquals(
+            RestStatus.OK,
+            executeMultipartUpload(handler, bucket, blobName + "/new/1", randomBytesReference(randomIntBetween(100, 5_000)), 0L)
+                .restStatus()
+        );
+
+        // new file, non-zero generation
+        assertEquals(
+            RestStatus.PRECONDITION_FAILED,
+            executeMultipartUpload(
+                handler,
+                bucket,
+                blobName + "/new/2",
+                randomBytesReference(randomIntBetween(100, 5_000)),
+                randomLongBetween(1, Long.MAX_VALUE)
+            ).restStatus()
+        );
+    }
+
+    public void testIfGenerationMatch_ResumableUpload() {
+        final var bucket = randomIdentifier();
+        final var handler = new GoogleCloudStorageHttpHandler(bucket);
+        final var blobName = "blob_name_" + randomIdentifier();
+
+        assertEquals(
+            RestStatus.OK,
+            executeUpload(handler, bucket, blobName, randomBytesReference(randomIntBetween(100, 5_000)), null).restStatus()
+        );
+
+        // update, matched generation
+        assertEquals(
+            RestStatus.OK,
+            executeResumableUpload(
+                handler,
+                bucket,
+                blobName,
+                randomBytesReference(randomIntBetween(100, 5_000)),
+                getCurrentGeneration(handler, bucket, blobName)
+            ).restStatus()
+        );
+
+        // update, mismatched generation
+        assertEquals(
+            RestStatus.PRECONDITION_FAILED,
+            executeResumableUpload(
+                handler,
+                bucket,
+                blobName,
+                randomBytesReference(randomIntBetween(100, 5_000)),
+                randomValueOtherThan(getCurrentGeneration(handler, bucket, blobName), ESTestCase::randomNonNegativeLong)
+            ).restStatus()
+        );
+
+        // update, no generation
+        assertEquals(
+            RestStatus.OK,
+            executeResumableUpload(handler, bucket, blobName, randomBytesReference(randomIntBetween(100, 5_000)), null).restStatus()
+        );
+
+        // update, zero generation
+        assertEquals(
+            RestStatus.PRECONDITION_FAILED,
+            executeResumableUpload(handler, bucket, blobName, randomBytesReference(randomIntBetween(100, 5_000)), 0L).restStatus()
+        );
+
+        // new file, zero generation
+        assertEquals(
+            RestStatus.OK,
+            executeResumableUpload(handler, bucket, blobName + "/new/1", randomBytesReference(randomIntBetween(100, 5_000)), 0L)
+                .restStatus()
+        );
+
+        // new file, non-zero generation
+        assertEquals(
+            RestStatus.PRECONDITION_FAILED,
+            executeResumableUpload(
+                handler,
+                bucket,
+                blobName + "/new/2",
+                randomBytesReference(randomIntBetween(100, 5_000)),
+                randomLongBetween(1, Long.MAX_VALUE)
+            ).restStatus()
+        );
+    }
+
+    public void testIfGenerationMatch_GetObject() {
+        final var bucket = randomIdentifier();
+        final var handler = new GoogleCloudStorageHttpHandler(bucket);
+        final var blobName = "blob_name_" + randomIdentifier();
+
+        assertEquals(
+            RestStatus.OK,
+            executeUpload(handler, bucket, blobName, randomBytesReference(randomIntBetween(100, 5_000)), null).restStatus()
+        );
+
+        final long currentGeneration = getCurrentGeneration(handler, bucket, blobName);
+
+        // Get contents, matching generation
+        assertEquals(RestStatus.OK, getBlobContents(handler, bucket, blobName, currentGeneration, null).restStatus());
+
+        // Get contents, mismatched generation
+        assertEquals(
+            RestStatus.PRECONDITION_FAILED,
+            getBlobContents(handler, bucket, blobName, randomValueOtherThan(currentGeneration, ESTestCase::randomNonNegativeLong), null)
+                .restStatus()
+        );
+
+        // Get metadata, matching generation
+        assertEquals(RestStatus.OK, getBlobMetadata(handler, bucket, blobName, currentGeneration).restStatus());
+
+        // Get metadata, mismatched generation
+        assertEquals(
+            RestStatus.PRECONDITION_FAILED,
+            getBlobMetadata(handler, bucket, blobName, randomValueOtherThan(currentGeneration, ESTestCase::randomNonNegativeLong))
+                .restStatus()
+        );
+    }
+
+    public void testListObjectsWithPrefix() {
+        final var bucket = randomIdentifier();
+        final var handler = new GoogleCloudStorageHttpHandler(bucket);
+
+        final int numberOfFiles = randomIntBetween(1, 100);
+        final int numberWithMatchingPrefix = randomIntBetween(0, numberOfFiles);
+        final String prefix = randomIdentifier();
+
+        // Create expected state
+        for (int i = 0; i < numberOfFiles; i++) {
+            final String blobName;
+            if (i < numberWithMatchingPrefix) {
+                blobName = prefix + "blob_name_" + i;
+            } else {
+                final String nonMatchingPrefix = randomValueOtherThan(prefix, ESTestCase::randomIdentifier);
+                blobName = nonMatchingPrefix + "blob_name_" + i;
+            }
+            assertEquals(
+                RestStatus.OK,
+                executeUpload(handler, bucket, blobName, randomBytesReference(randomIntBetween(100, 5_000)), null).restStatus()
+            );
+        }
+
+        TestHttpResponse response = listBlobs(handler, bucket, prefix, null);
+        assertEquals(RestStatus.OK, response.restStatus());
+
+        XContentTestUtils.JsonMapView jsonMapView = XContentTestUtils.createJsonMapView(
+            new ByteArrayInputStream(BytesReference.toBytes(response.body()))
+        );
+        assertEquals(numberWithMatchingPrefix, ((List<?>) jsonMapView.get("items")).size());
+    }
+
+    public void testListObjectsWithPrefixAndDelimiter() {
+        final var bucket = randomIdentifier();
+        final var handler = new GoogleCloudStorageHttpHandler(bucket);
+        final var delimiter = randomFrom("/", ".", "+", "\\");
+        final var prefix = randomBoolean() ? "" : randomIdentifier() + delimiter;
+
+        final int numberOfFiles = randomIntBetween(1, 100);
+        final int numberWithDelimiter = randomIntBetween(0, numberOfFiles);
+
+        // Create expected state
+        final Set<String> topLevelDirectories = new HashSet<>();
+        for (int i = 0; i < numberOfFiles; i++) {
+            final String blobName;
+            if (i < numberWithDelimiter) {
+                final String directory = randomAlphaOfLength(3);
+                blobName = directory + delimiter + "blob_name_" + i;
+                topLevelDirectories.add(directory + delimiter);
+            } else {
+                blobName = randomIdentifier() + "_blob_name_" + i;
+            }
+            assertEquals(
+                RestStatus.OK,
+                executeUpload(handler, bucket, prefix + blobName, randomBytesReference(randomIntBetween(100, 5_000)), null).restStatus()
+            );
+        }
+
+        final TestHttpResponse response = listBlobs(handler, bucket, prefix, delimiter);
+        assertEquals(RestStatus.OK, response.restStatus());
+
+        XContentTestUtils.JsonMapView jsonMapView = XContentTestUtils.createJsonMapView(
+            new ByteArrayInputStream(BytesReference.toBytes(response.body()))
+        );
+        assertEquals(numberOfFiles - numberWithDelimiter, ((List<?>) jsonMapView.get("items")).size());
+        assertEquals(
+            topLevelDirectories.stream().map(d -> prefix + d).collect(Collectors.toSet()),
+            new HashSet<>(jsonMapView.get("prefixes"))
+        );
+    }
+
+    /**
+     * Tests the example from <a href="https://cloud.google.com/storage/docs/json_api/v1/objects/list">The docs</a>
+     */
+    public void testListObjectsExampleFromDocumentation() {
+        final var bucket = randomIdentifier();
+        final var handler = new GoogleCloudStorageHttpHandler(bucket);
+
+        Stream.of("a/b", "a/c", "d", "e", "e/f", "e/g/h")
+            .forEach(
+                path -> assertEquals(
+                    RestStatus.OK,
+                    executeUpload(handler, bucket, path, randomBytesReference(randomIntBetween(100, 5_000)), null).restStatus()
+                )
+            );
+
+        TestHttpResponse response = listBlobs(handler, bucket, null, "/");
+        assertEquals(RestStatus.OK, response.restStatus());
+        XContentTestUtils.JsonMapView jsonMapView = XContentTestUtils.createJsonMapView(
+            new ByteArrayInputStream(BytesReference.toBytes(response.body()))
+        );
+        assertEquals(
+            Set.of("d", "e"),
+            ((List<?>) jsonMapView.get("items")).stream().map(i -> ((Map<?, ?>) i).get("name")).collect(Collectors.toSet())
+        );
+        assertEquals(Set.of("a/", "e/"), new HashSet<>(jsonMapView.get("prefixes")));
+
+        response = listBlobs(handler, bucket, "e/", "/");
+        assertEquals(RestStatus.OK, response.restStatus());
+        jsonMapView = XContentTestUtils.createJsonMapView(new ByteArrayInputStream(BytesReference.toBytes(response.body())));
+        assertEquals(
+            Set.of("e/f"),
+            ((List<?>) jsonMapView.get("items")).stream().map(i -> ((Map<?, ?>) i).get("name")).collect(Collectors.toSet())
+        );
+        // note this differs from the example, but third party test indicates this is what we get back
+        assertEquals(Set.of("e/g/"), new HashSet<>(jsonMapView.get("prefixes")));
+    }
+
+    private static TestHttpResponse executeUpload(
+        GoogleCloudStorageHttpHandler handler,
+        String bucket,
+        String blobName,
+        BytesReference bytes,
+        Long ifGenerationMatch
+    ) {
+        assert bytes.length() > 20;
+        if (randomBoolean()) {
+            return executeResumableUpload(handler, bucket, blobName, bytes, ifGenerationMatch);
+        } else {
+            return executeMultipartUpload(handler, bucket, blobName, bytes, ifGenerationMatch);
+        }
+    }
+
+    private static TestHttpResponse executeResumableUpload(
+        GoogleCloudStorageHttpHandler handler,
+        String bucket,
+        String blobName,
+        BytesReference bytes,
+        Long ifGenerationMatch
+    ) {
+        final var createUploadResponse = handleRequest(
+            handler,
+            "POST",
+            "/upload/storage/v1/b/"
+                + bucket
+                + "/"
+                + generateQueryString("uploadType", "resumable", "name", blobName, "ifGenerationMatch", ifGenerationMatch)
+        );
+        final var locationHeader = createUploadResponse.headers.getFirst("Location");
+        final var sessionURI = locationHeader.substring(locationHeader.indexOf(HOST) + HOST.length());
+        assertEquals(RestStatus.OK, createUploadResponse.restStatus());
+
+        final int partBoundary = randomIntBetween(10, bytes.length() - 1);
+        final var part1 = bytes.slice(0, partBoundary);
+        final var uploadPart1Response = handleRequest(handler, "PUT", sessionURI, part1, contentRangeHeader(0, partBoundary - 1, null));
+        assertEquals(RESUME_INCOMPLETE, uploadPart1Response.status());
+
+        final var part2 = bytes.slice(partBoundary, bytes.length() - partBoundary);
+        return handleRequest(handler, "PUT", sessionURI, part2, contentRangeHeader(partBoundary, bytes.length() - 1, bytes.length()));
+    }
+
+    private static TestHttpResponse executeMultipartUpload(
+        GoogleCloudStorageHttpHandler handler,
+        String bucket,
+        String blobName,
+        BytesReference bytes,
+        Long ifGenerationMatch
+    ) {
+        return handleRequest(
+            handler,
+            "POST",
+            "/upload/storage/v1/b/" + bucket + "/" + generateQueryString("uploadType", "multipart", "ifGenerationMatch", ifGenerationMatch),
+            createGzipCompressedMultipartUploadBody(bucket, blobName, bytes)
+        );
+    }
+
+    private static TestHttpResponse getBlobContents(
+        GoogleCloudStorageHttpHandler handler,
+        String bucket,
+        String blobName,
+        @Nullable Long ifGenerationMatch,
+        @Nullable HttpHeaderParser.Range range
+    ) {
+        return handleRequest(
+            handler,
+            "GET",
+            "/download/storage/v1/b/" + bucket + "/o/" + blobName + generateQueryString("ifGenerationMatch", ifGenerationMatch),
+            BytesArray.EMPTY,
+            range != null ? rangeHeader(range.start(), range.end()) : TestHttpExchange.EMPTY_HEADERS
+        );
+    }
+
+    private static TestHttpResponse getBlobMetadata(
+        GoogleCloudStorageHttpHandler handler,
+        String bucket,
+        String blobName,
+        @Nullable Long ifGenerationMatch
+    ) {
+        return handleRequest(
+            handler,
+            "GET",
+            "/storage/v1/b/" + bucket + "/o/" + blobName + generateQueryString("ifGenerationMatch", ifGenerationMatch)
+        );
+    }
+
+    private static long getCurrentGeneration(GoogleCloudStorageHttpHandler handler, String bucket, String blobName) {
+        final TestHttpResponse blobMetadata = getBlobMetadata(handler, bucket, blobName, null);
+        assertEquals(RestStatus.OK, blobMetadata.restStatus());
+        final Matcher matcher = GENERATION_PATTERN.matcher(blobMetadata.body.utf8ToString());
+        assertTrue(matcher.find());
+        return Long.parseLong(matcher.group(1));
+    }
+
+    private static TestHttpResponse listBlobs(GoogleCloudStorageHttpHandler handler, String bucket, String prefix, String delimiter) {
+        return handleRequest(
+            handler,
+            "GET",
+            "/storage/v1/b/" + bucket + "/o" + generateQueryString("prefix", prefix, "delimiter", delimiter)
+        );
     }
 
     private record TestHttpResponse(int status, BytesReference body, Headers headers) {
@@ -263,7 +659,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         }
 
         RestStatus restStatus() {
-            return Objects.requireNonNull(RestStatus.fromCode(status));
+            return requireNonNull(RestStatus.fromCode(status));
         }
 
         @Override
@@ -313,7 +709,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             fail(e);
         }
         assertNotEquals(0, httpExchange.getResponseCode());
-        var responseHeaders = new Headers();
+        final var responseHeaders = new Headers();
         httpExchange.getResponseHeaders().forEach((header, values) -> {
             // com.sun.net.httpserver.Headers.Headers() normalize keys
             if ("Range".equals(header) || "Content-range".equals(header) || "Location".equals(header)) {
@@ -321,6 +717,35 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             }
         });
         return new TestHttpResponse(httpExchange.getResponseCode(), httpExchange.getResponseBodyContents(), responseHeaders);
+    }
+
+    /**
+     * Generate a query string for the given parameters
+     *
+     * @param parameters The query parameters as alternating key, value pairs
+     * @return The query string including all parameters with a non-null value (e.g.
+     */
+    public static String generateQueryString(Object... parameters) {
+        if (parameters.length % 2 != 0) {
+            final String message = "Parameters must be represented as alternating key, value pairs";
+            assert false : message;
+            throw new IllegalArgumentException(message);
+        }
+        final StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < parameters.length; i += 2) {
+            final String key = String.valueOf(requireNonNull(parameters[i], "Parameter names must be non-null strings"));
+            final Object value = parameters[i + 1];
+            if (value != null) {
+                if (builder.isEmpty() == false) {
+                    builder.append("&");
+                }
+                builder.append(key).append("=").append(URLEncoder.encode(String.valueOf(value), StandardCharsets.UTF_8));
+            }
+        }
+        if (builder.isEmpty() == false) {
+            return "?" + builder;
+        }
+        return "";
     }
 
     private static Headers contentRangeHeader(@Nullable Integer startInclusive, @Nullable Integer endInclusive, @Nullable Integer limit) {
@@ -331,10 +756,6 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
 
     private static Headers rangeHeader(long start, long end) {
         return Headers.of("Range", Strings.format("bytes=%d-%d", start, end));
-    }
-
-    private static BytesReference createGzipCompressedMultipartUploadBody(String bucketName, String path, String content) {
-        return createGzipCompressedMultipartUploadBody(bucketName, path, new BytesArray(content.getBytes(StandardCharsets.UTF_8)));
     }
 
     private static BytesReference createGzipCompressedMultipartUploadBody(String bucketName, String path, BytesReference content) {

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
@@ -38,6 +39,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -49,6 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -152,7 +155,7 @@ public class TransformIT extends TransformRestTestCase {
     public void testContinuousTransformCrud() throws Exception {
         var transformId = "transform-continuous-crud";
         var indexName = "continuous-crud-reviews";
-        createContinuousTransform(indexName, transformId);
+        createContinuousTransform(indexName, transformId, "reviews-by-user-business-day");
         var transformStats = getBasicTransformStats(transformId);
         assertThat(transformStats.get("state"), equalTo("started"));
 
@@ -181,7 +184,7 @@ public class TransformIT extends TransformRestTestCase {
         deleteTransform(transformId);
     }
 
-    private void createContinuousTransform(String indexName, String transformId) throws Exception {
+    private void createContinuousTransform(String indexName, String transformId, String destinationIndex) throws Exception {
         createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         var groups = Map.of(
@@ -197,8 +200,9 @@ public class TransformIT extends TransformRestTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        var config = createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryConfig.matchAll(), indexName)
-            .setPivotConfig(createPivotConfig(groups, aggs))
+        var config = createTransformConfigBuilder(transformId, destinationIndex, QueryConfig.matchAll(), indexName).setPivotConfig(
+            createPivotConfig(groups, aggs)
+        )
             .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
             .setSettings(new SettingsConfig.Builder().setAlignCheckpoints(false).build())
             .build();
@@ -216,7 +220,7 @@ public class TransformIT extends TransformRestTestCase {
     @SuppressWarnings("unchecked")
     public void testBasicContinuousTransformStats() throws Exception {
         var transformId = "transform-continuous-basic-stats";
-        createContinuousTransform("continuous-basic-stats-reviews", transformId);
+        createContinuousTransform("continuous-basic-stats-reviews", transformId, "reviews-by-user-business-day");
         var transformStats = getBasicTransformStats(transformId);
 
         assertEquals("started", XContentMapValues.extractValue("state", transformStats));
@@ -225,6 +229,78 @@ public class TransformIT extends TransformRestTestCase {
         // We aren't testing for 'checkpointing.next.checkpoint_progress.percent_complete'.
         // It's difficult to get the integration test to reliably call the stats API while that data is available, since continuous
         // transforms start and finish the next checkpoint quickly (<1ms).
+
+        stopTransform(transformId);
+        deleteTransform(transformId);
+    }
+
+    public void testDestinationIndexBlocked() throws Exception {
+        var transformId = "transform-continuous-blocked-destination";
+        var sourceIndexName = "source-reviews";
+        var destIndexName = "destination-reviews";
+
+        // create transform & indices, wait until 1st checkpoint is finished
+        createContinuousTransform(sourceIndexName, transformId, destIndexName);
+
+        // block destination index
+        Request request = new Request("PUT", destIndexName + "/_block/write");
+        assertAcknowledged(adminClient().performRequest(request));
+
+        // index more docs so the checkpoint tries to run, wait until transform stops
+        indexDoc(42, sourceIndexName);
+        assertBusy(() -> { assertEquals(TransformStats.State.WAITING.value(), getTransformState(transformId)); }, 30, TimeUnit.SECONDS);
+
+        // unblock index
+        request = new Request("PUT", destIndexName + "/_settings");
+        request.setJsonEntity("""
+                { "blocks.write": false }
+            """);
+        assertAcknowledged(adminClient().performRequest(request));
+
+        assertBusy(() -> {
+            indexDoc(42, sourceIndexName);
+            assertEquals(TransformStats.State.STARTED.value(), getTransformState(transformId));
+        }, 30, TimeUnit.SECONDS);
+
+        stopTransform(transformId);
+        deleteTransform(transformId);
+    }
+
+    public void testUnblockWithNewDestinationIndex() throws Exception {
+        var transformId = "transform-continuous-unblock-destination";
+        var sourceIndexName = "source-reviews";
+        var destIndexName = "destination-reviews-old";
+        var newDestIndexName = "destination-reviews-new";
+
+        // create transform & indices, wait until 1st checkpoint is finished
+        createReviewsIndex(newDestIndexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+        createContinuousTransform(sourceIndexName, transformId, destIndexName);
+
+        // block destination index
+        Request request = new Request("PUT", destIndexName + "/_block/write");
+        assertAcknowledged(adminClient().performRequest(request));
+
+        // index more docs so the checkpoint tries to run, wait until transform stops
+        indexDoc(42, sourceIndexName);
+        assertBusy(() -> { assertEquals(TransformStats.State.WAITING.value(), getTransformState(transformId)); }, 30, TimeUnit.SECONDS);
+
+        // change destination index
+        var update = format("""
+            {
+                "description": "updated config",
+                "dest": {
+                   "index": "%s"
+                }
+            }
+            """, newDestIndexName);
+        updateConfig(transformId, update, true, RequestOptions.DEFAULT);
+
+        assertBusy(() -> {
+            assertThat(
+                getTransformState(transformId),
+                in(Set.of(TransformStats.State.STARTED.value(), TransformStats.State.INDEXING.value()))
+            );
+        }, 30, TimeUnit.SECONDS);
 
         stopTransform(transformId);
         deleteTransform(transformId);
@@ -649,6 +725,19 @@ public class TransformIT extends TransformRestTestCase {
                 """, userId, i, business, stars, timestamp);
             bulkBuilder.append(source);
         }
+        bulkBuilder.append("\r\n");
+        doBulk(bulkBuilder.toString(), true);
+    }
+
+    private void indexDoc(long userId, String index) throws Exception {
+        StringBuilder bulkBuilder = new StringBuilder();
+        bulkBuilder.append(format("""
+            {"create":{"_index":"%s"}}
+            """, index));
+        String source = format("""
+            {"user_id":"user_%s","count":%s,"business_id":"business_%s","stars":%s,"timestamp":%s}
+            """, userId, 1, 2, 5, Instant.now().toEpochMilli());
+        bulkBuilder.append(source);
         bulkBuilder.append("\r\n");
         doBulk(bulkBuilder.toString(), true);
     }

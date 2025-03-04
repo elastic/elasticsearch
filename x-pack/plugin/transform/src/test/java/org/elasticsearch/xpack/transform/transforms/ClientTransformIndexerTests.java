@@ -22,13 +22,19 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchHit;
@@ -44,6 +50,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -53,6 +60,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSetti
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformNode;
@@ -77,7 +85,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class ClientTransformIndexerTests extends ESTestCase {
@@ -467,6 +480,61 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
     }
 
+    public void testIndexBlocked() {
+        var service = serviceWithBlockCheck(true);
+        var context = new TransformContext(TransformTaskState.STARTED, "", 0, mock());
+
+        var indexer = createTestIndexer(mock(), service, resolver(), context);
+        context.setIsWaitingForIndexToUnblock(true);
+
+        assertFalse(indexer.maybeTriggerAsyncJob(Instant.now().toEpochMilli()));
+        assertTrue(context.isWaitingForIndexToUnblock());
+    }
+
+    public void testIndexUnblocked() {
+        var service = serviceWithBlockCheck(false);
+        // set state to failed so that TransformIndexer returns false
+        var context = new TransformContext(TransformTaskState.FAILED, "", 0, mock());
+
+        var indexer = createTestIndexer(mock(), service, resolver(), context);
+        context.setIsWaitingForIndexToUnblock(true);
+
+        assertFalse(indexer.maybeTriggerAsyncJob(Instant.now().toEpochMilli()));
+        // ClientTransformIndexer's maybeTriggerAsyncJob should reset isWaitingForIndexToUnblock to false
+        assertFalse(context.isWaitingForIndexToUnblock());
+    }
+
+    private ClusterService serviceWithBlockCheck(boolean checkResponse) {
+        var clusterBlocks = mock(ClusterBlocks.class);
+        when(clusterBlocks.indexBlocked(eq(ClusterBlockLevel.WRITE), anyString())).thenReturn(checkResponse);
+
+        var project = spy(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).build());
+        when(project.custom(eq(TransformMetadata.TYPE))).thenReturn(TransformMetadata.EMPTY_METADATA);
+
+        var metadata = Metadata.builder().put(project).build();
+        var clusterState = mock(ClusterState.class);
+        when(clusterState.blocks()).thenReturn(clusterBlocks);
+        when(clusterState.metadata()).thenReturn(metadata);
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        return clusterService;
+    }
+
+    private IndexNameExpressionResolver resolver() {
+        var resolver = mock(IndexNameExpressionResolver.class);
+        when(resolver.concreteWriteIndex(any(ProjectMetadata.class), any(), any(), anyBoolean(), anyBoolean())).thenAnswer(ans -> {
+            Index destIndex = mock();
+            when(destIndex.getName()).thenReturn(ans.getArgument(2));
+            return destIndex;
+        });
+        when(resolver.concreteWriteIndex(any(ClusterState.class), any(), any(), anyBoolean(), anyBoolean())).thenAnswer(ans -> {
+            Index destIndex = mock();
+            when(destIndex.getName()).thenReturn(ans.getArgument(2));
+            return destIndex;
+        });
+        return resolver;
+    }
+
     private static class MockClientTransformIndexer extends ClientTransformIndexer {
 
         MockClientTransformIndexer(
@@ -627,13 +695,22 @@ public class ClientTransformIndexerTests extends ESTestCase {
     }
 
     private ClientTransformIndexer createTestIndexer(ParentTaskAssigningClient client) {
+        return createTestIndexer(client, mock(), mock(), mock(TransformContext.class));
+    }
+
+    private ClientTransformIndexer createTestIndexer(
+        ParentTaskAssigningClient client,
+        ClusterService service,
+        IndexNameExpressionResolver resolver,
+        TransformContext context
+    ) {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
         return new ClientTransformIndexer(
             mock(ThreadPool.class),
-            mock(ClusterService.class),
-            mock(IndexNameExpressionResolver.class),
+            service,
+            resolver,
             mock(TransformExtension.class),
             new TransformServices(
                 mock(IndexBasedTransformConfigManager.class),
@@ -652,7 +729,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 0L, Collections.emptyMap(), Instant.now().toEpochMilli()),
             new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 2L, Collections.emptyMap(), Instant.now().toEpochMilli()),
             new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
-            mock(TransformContext.class),
+            context,
             false
         );
     }

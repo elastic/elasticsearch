@@ -33,6 +33,7 @@ class Bootstrap {
 
     // arguments from the CLI process
     private final ServerArgs args;
+    private final boolean useEntitlements;
 
     // controller for spawning component subprocesses
     private final Spawner spawner = new Spawner();
@@ -46,10 +47,11 @@ class Bootstrap {
     // loads information about plugins required for entitlements in phase 2, used by plugins service in phase 3
     private final SetOnce<PluginsLoader> pluginsLoader = new SetOnce<>();
 
-    Bootstrap(PrintStream out, PrintStream err, ServerArgs args) {
+    Bootstrap(PrintStream out, PrintStream err, ServerArgs args, boolean useEntitlements) {
         this.out = out;
         this.err = err;
         this.args = args;
+        this.useEntitlements = useEntitlements;
     }
 
     ServerArgs args() {
@@ -58,6 +60,10 @@ class Bootstrap {
 
     Spawner spawner() {
         return spawner;
+    }
+
+    public boolean useEntitlements() {
+        return useEntitlements;
     }
 
     void setSecureSettings(SecureSettings secureSettings) {

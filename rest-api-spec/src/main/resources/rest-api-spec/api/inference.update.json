@@ -1,0 +1,45 @@
+{
+  "inference.update": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-inference-api.html",
+      "description": "Update inference"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": ["application/json"],
+      "content_type": ["application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_inference/{inference_id}/_update",
+          "methods": ["PUT"],
+          "parts": {
+            "inference_id": {
+              "type": "string",
+              "description": "The inference Id"
+            }
+          }
+        },
+        {
+          "path": "/_inference/{task_type}/{inference_id}/_update",
+          "methods": ["PUT"],
+          "parts": {
+            "task_type": {
+              "type": "string",
+              "description": "The task type"
+            },
+            "inference_id": {
+              "type": "string",
+              "description": "The inference Id"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The inference endpoint's task and service settings"
+    }
+  }
+}

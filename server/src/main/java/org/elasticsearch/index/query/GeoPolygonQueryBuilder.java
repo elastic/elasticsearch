@@ -36,6 +36,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
+ * Deprecated geo query. Deprecated in #64227, 7.12/8.0. We do not plan to remove this so we
+ * do not break any users using this.
  * @deprecated use {@link GeoShapeQueryBuilder}
  */
 @Deprecated

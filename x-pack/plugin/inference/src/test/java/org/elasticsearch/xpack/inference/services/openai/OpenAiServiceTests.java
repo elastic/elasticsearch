@@ -897,10 +897,7 @@ public class OpenAiServiceTests extends ESTestCase {
             );
 
             var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(
-                thrownException.getMessage(),
-                is("Invalid value [search] received. [input_type] is not allowed;")
-            );
+            assertThat(thrownException.getMessage(), is("Invalid value [search] received. [input_type] is not allowed;"));
 
             verify(factory, times(1)).createSender();
             verify(sender, times(1)).start();

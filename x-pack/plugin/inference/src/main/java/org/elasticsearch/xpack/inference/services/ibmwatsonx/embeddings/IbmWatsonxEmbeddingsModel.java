@@ -20,6 +20,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.ibmwatsonx.IbmWatsonxActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -31,7 +32,6 @@ import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmW
 import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.ML;
 import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.TEXT;
 import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.V1;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
 

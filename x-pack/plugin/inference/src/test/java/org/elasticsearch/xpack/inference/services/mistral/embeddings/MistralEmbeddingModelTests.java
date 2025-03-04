@@ -75,10 +75,7 @@ public class MistralEmbeddingModelTests extends ESTestCase {
         var model = createModel("id", "model", "api_key");
 
         var thrownException = expectThrows(ValidationException.class, () -> MistralEmbeddingsModel.of(model, Map.of(), InputType.SEARCH));
-        assertThat(
-            thrownException.getMessage(),
-            is("Validation Failed: 1: Invalid value [search] received. [input_type] is not allowed;")
-        );
+        assertThat(thrownException.getMessage(), is("Validation Failed: 1: Invalid value [search] received. [input_type] is not allowed;"));
     }
 
     public void testAcceptsInternalInputType() {

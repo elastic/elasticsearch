@@ -800,14 +800,13 @@ public final class ServiceUtils {
         );
     }
 
-    static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
-        InputType.INTERNAL_INGEST,
-        InputType.INTERNAL_SEARCH
-    );
+    static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH);
 
     public static void validateInputTypeIsUnspecifiedOrInternal(InputType inputType, ValidationException validationException) {
         if (inputType != null && inputType != InputType.UNSPECIFIED && VALID_INPUT_TYPE_VALUES.contains(inputType) == false) {
-            validationException.addValidationError(Strings.format("Invalid value [%s] received. [%s] is not allowed", inputType, "input_type"));
+            validationException.addValidationError(
+                Strings.format("Invalid value [%s] received. [%s] is not allowed", inputType, "input_type")
+            );
         }
     }
 

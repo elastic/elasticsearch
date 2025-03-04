@@ -97,7 +97,10 @@ public class IbmWatsonxEmbeddingsModelTests extends ESTestCase {
     public void testThrowsError_WhenInputTypeSpecified() throws URISyntaxException {
         var model = createModel("url", "projectId", new URI("http"), "api_version", "api_key", "url");
 
-        var thrownException = expectThrows(ValidationException.class, () -> IbmWatsonxEmbeddingsModel.of(model, Map.of(), InputType.SEARCH));
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> IbmWatsonxEmbeddingsModel.of(model, Map.of(), InputType.SEARCH)
+        );
         assertThat(
             thrownException.getMessage(),
             CoreMatchers.is("Validation Failed: 1: Invalid value [search] received. [input_type] is not allowed;")

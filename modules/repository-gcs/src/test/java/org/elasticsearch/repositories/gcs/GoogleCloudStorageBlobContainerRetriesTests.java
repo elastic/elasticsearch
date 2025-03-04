@@ -208,19 +208,21 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         return new GoogleCloudStorageBlobContainer(randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo"), blobStore);
     }
 
-    public void testShouldRetryOnNetworkOutage() {
+    public void testShouldRetryOnConnectionRefused() {
+        // port 1 should never be open
+        endpointUrlOverride = "http://127.0.0.1:1";
+        executeListBlobsAndAssertRetries();
+    }
+
+    public void testShouldRetryOnUnresolvableHost() {
+        // https://www.rfc-editor.org/rfc/rfc2606.html#page-2
+        endpointUrlOverride = "http://unresolvable.invalid";
+        executeListBlobsAndAssertRetries();
+    }
+
+    private void executeListBlobsAndAssertRetries() {
         final int maxRetries = randomIntBetween(3, 5);
-
-        if (randomBoolean()) {
-            logger.info("Failing due to connection refused");
-            endpointUrlOverride = "http://127.0.0.1:1"; // port 1 should never be open
-        } else {
-            logger.info("Failing due to unknown domain");
-            // https://www.rfc-editor.org/rfc/rfc2606.html#page-2
-            endpointUrlOverride = "http://unresolvable.invalid";
-        }
-
-        BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null, null);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null, null);
         try {
             blobContainer.listBlobs(randomPurpose());
             fail("Should have thrown an exception");

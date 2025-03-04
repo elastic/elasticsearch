@@ -17,6 +17,8 @@ import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.util.Optional;
+
 public class IndexingPressureTests extends ESTestCase {
 
     private final Settings settings = Settings.builder()
@@ -58,28 +60,31 @@ public class IndexingPressureTests extends ESTestCase {
                 false
             )
         ) {
-            assertFalse(coordinating1.shouldSplit());
-            assertFalse(coordinating2.shouldSplit());
+            assertFalse(coordinating1.maybeSplit().isPresent());
+            assertFalse(coordinating2.maybeSplit().isPresent());
             assertEquals(indexingPressure.stats().getHighWaterMarkSplits(), 0L);
             assertEquals(indexingPressure.stats().getLowWaterMarkSplits(), 0L);
-            assertTrue(coordinating3.shouldSplit());
-            assertEquals(indexingPressure.stats().getHighWaterMarkSplits(), 0L);
-            assertEquals(indexingPressure.stats().getLowWaterMarkSplits(), 1L);
+            Optional<Releasable> split1 = coordinating3.maybeSplit();
+            assertTrue(split1.isPresent());
+            try (Releasable ignored2 = split1.get()) {
+                assertEquals(indexingPressure.stats().getHighWaterMarkSplits(), 0L);
+                assertEquals(indexingPressure.stats().getLowWaterMarkSplits(), 1L);
 
-            try (
-                Releasable ignored2 = indexingPressure.markCoordinatingOperationStarted(
-                    10,
-                    1 + (9 * 1024) - indexingPressure.stats().getCurrentCoordinatingBytes(),
-                    false
-                )
-            ) {
-                assertFalse(coordinating1.shouldSplit());
-                assertTrue(coordinating2.shouldSplit());
-                assertEquals(indexingPressure.stats().getHighWaterMarkSplits(), 1L);
-                assertEquals(indexingPressure.stats().getLowWaterMarkSplits(), 1L);
-                assertTrue(coordinating3.shouldSplit());
-                assertEquals(indexingPressure.stats().getLowWaterMarkSplits(), 1L);
-                assertEquals(indexingPressure.stats().getHighWaterMarkSplits(), 2L);
+                try (
+                    Releasable ignored3 = indexingPressure.markCoordinatingOperationStarted(
+                        10,
+                        1 + (9 * 1024) - indexingPressure.stats().getCurrentCoordinatingBytes(),
+                        false
+                    )
+                ) {
+                    assertFalse(coordinating1.maybeSplit().isPresent());
+                    Optional<Releasable> split2 = coordinating2.maybeSplit();
+                    assertTrue(split2.isPresent());
+                    try (Releasable ignored4 = split2.get()) {
+                        assertEquals(indexingPressure.stats().getHighWaterMarkSplits(), 1L);
+                        assertEquals(indexingPressure.stats().getLowWaterMarkSplits(), 1L);
+                    }
+                }
             }
         }
     }

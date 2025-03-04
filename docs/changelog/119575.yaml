@@ -1,6 +1,0 @@
-pr: 119575
-summary: Fix realtime get of nested fields with synthetic source
-area: Mapping
-type: bug
-issues:
- - 119553

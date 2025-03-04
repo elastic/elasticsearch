@@ -213,8 +213,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
         if (randomBoolean()) {
             logger.info("Failing due to connection refused");
-            endpointUrlOverride = "http://127.0.0.1:"
-                + randomValueOtherThan(httpServer.getAddress().getPort(), () -> randomIntBetween(49152, 65535));
+            endpointUrlOverride = "http://127.0.0.1:1"; // port 1 should never be open
         } else {
             logger.info("Failing due to unknown domain");
             // https://www.rfc-editor.org/rfc/rfc2606.html#page-2

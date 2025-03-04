@@ -8,7 +8,7 @@
 #
 
 org.elasticsearch.action.bulk.BulkFeatures
-org.elasticsearch.features.FeatureInfrastructureFeatures
+org.elasticsearch.features.InfrastructureFeatures
 org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures
 org.elasticsearch.index.IndexFeatures
 org.elasticsearch.index.mapper.MapperFeatures

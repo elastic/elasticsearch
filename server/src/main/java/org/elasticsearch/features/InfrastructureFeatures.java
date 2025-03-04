@@ -12,9 +12,16 @@ package org.elasticsearch.features;
 import java.util.Set;
 
 /**
- * This class specifies features for the features functionality itself.
+ * This class specifies features for Elasticsearch infrastructure.
  */
-public class FeatureInfrastructureFeatures implements FeatureSpecification {
+public class InfrastructureFeatures implements FeatureSpecification {
+
+    public static final NodeFeature ELASTICSEARCH_V9 = new NodeFeature("es_v9");
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(ELASTICSEARCH_V9);
+    }
 
     @Override
     public Set<NodeFeature> getTestFeatures() {

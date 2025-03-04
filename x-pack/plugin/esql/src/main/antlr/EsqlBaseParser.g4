@@ -61,6 +61,7 @@ processingCommand
     | {this.isDevVersion()}? changePointCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? forkCommand
+    | {this.isDevVersion()}? randomSampleCommand
     ;
 
 whereCommand
@@ -265,4 +266,8 @@ forkSubQueryProcessingCommand
     : whereCommand
     | sortCommand
     | limitCommand
+    ;
+
+randomSampleCommand
+    : DEV_RANDOM_SAMPLE probability=DECIMAL_LITERAL seed=INTEGER_LITERAL?
     ;

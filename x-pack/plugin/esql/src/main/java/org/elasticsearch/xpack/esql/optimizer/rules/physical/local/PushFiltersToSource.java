@@ -102,17 +102,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(newPushable));
             QueryBuilder planQuery = queryDSL.asBuilder();
             var query = Queries.combine(Queries.Clause.FILTER, asList(queryExec.query(), planQuery));
-            queryExec = new EsQueryExec(
-                queryExec.source(),
-                queryExec.indexPattern(),
-                queryExec.indexMode(),
-                queryExec.indexNameWithModes(),
-                queryExec.output(),
-                query,
-                queryExec.limit(),
-                queryExec.sorts(),
-                queryExec.estimatedRowSize()
-            );
+            queryExec = queryExec.withQuery(query);
             // If the eval contains other aliases, not just field attributes, we need to keep them in the plan
             PhysicalPlan plan = evalFields.isEmpty() ? queryExec : new EvalExec(filterExec.source(), queryExec, evalFields);
             if (nonPushable.size() > 0) {

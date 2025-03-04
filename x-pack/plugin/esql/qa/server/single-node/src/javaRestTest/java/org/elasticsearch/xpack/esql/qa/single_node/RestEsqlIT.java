@@ -504,7 +504,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             String description = p.get("description").toString();
             switch (description) {
                 case "data" -> assertMap(sleeps, matchesMap().entry("counts", Map.of()).entry("first", List.of()).entry("last", List.of()));
-                case "node_reduce" -> {
+                case "node_reduce", "final" -> {
                     assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
                     @SuppressWarnings("unchecked")
                     List<Map<String, Object>> first = (List<Map<String, Object>>) sleeps.get("first");
@@ -516,14 +516,6 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     for (Map<String, Object> s : last) {
                         assertMap(s, sleepMatcher);
                     }
-                }
-                case "final" -> {
-                    assertMap(
-                        sleeps,
-                        matchesMap().entry("counts", matchesMap().entry("exchange empty", 1))
-                            .entry("first", List.of(sleepMatcher))
-                            .entry("last", List.of(sleepMatcher))
-                    );
                 }
                 default -> throw new IllegalArgumentException("unknown task: " + description);
             }

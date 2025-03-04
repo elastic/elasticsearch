@@ -1,5 +1,0 @@
-pr: 119831
-summary: Run `TransportClusterGetSettingsAction` on local node
-area: Infra/Settings
-type: enhancement
-issues: []

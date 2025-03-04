@@ -276,6 +276,7 @@ public class VoyageAIService extends SenderService {
         Model model,
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
@@ -291,7 +292,7 @@ public class VoyageAIService extends SenderService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
             inputs.getInputs(),
             getBatchSize(voyageaiModel),
-            voyageaiModel.getConfigurations().getChunkingSettings()
+            chunkingSettings != null ? chunkingSettings : voyageaiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {

@@ -24,7 +24,7 @@ restResources {
   }
 }
 
-if (buildParams.isSnapshotBuild() == false) {
+if (buildParams.snapshotisBuild == false) {
   tasks.named("test").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }

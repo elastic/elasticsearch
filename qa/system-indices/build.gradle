@@ -14,8 +14,8 @@ esplugin {
   name = 'system-indices-qa'
   description = 'Plugin for performing QA of system indices'
   classname ='org.elasticsearch.system.indices.SystemIndicesQA'
-  licenseFile = rootProject.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
-  noticeFile = rootProject.file('NOTICE.txt')
+  licenseFile = layout.settingsDirectory.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
+  noticeFile = layout.settingsDirectory.file('NOTICE.txt').asFile
 }
 
 testClusters.configureEach {

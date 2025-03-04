@@ -320,7 +320,7 @@ Users often disable the `_source` field without thinking about the consequences,
 ::::
 
 ::::{warning}
-Disabling the `_source` field is not supported for indexes configured with `logsdb` or `tsdb` [mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
+Disabling the `_source` field is not supported for indexes configured with `logsdb` or `time_series` [index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
 ::::
 
 

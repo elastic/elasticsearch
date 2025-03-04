@@ -55,8 +55,8 @@ public record AlibabaCloudSearchEmbeddingsRequestEntity(List<String> input, Alib
         }
 
         return switch (inputType) {
-            case INGEST -> SEARCH_DOCUMENT;
-            case SEARCH -> SEARCH_QUERY;
+            case INGEST, INTERNAL_INGEST -> SEARCH_DOCUMENT;
+            case SEARCH, INTERNAL_SEARCH -> SEARCH_QUERY;
             default -> {
                 assert false : invalidInputTypeMessage(inputType);
                 yield null;

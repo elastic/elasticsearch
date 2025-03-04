@@ -47,6 +47,34 @@ public class AlibabaCloudSearchEmbeddingsRequestEntityTests extends ESTestCase {
             {"input":["abc"]}"""));
     }
 
+    public void testXContent_InputType_InternalSearch() throws IOException {
+        var entity = new AlibabaCloudSearchEmbeddingsRequestEntity(
+            List.of("abc"),
+            new AlibabaCloudSearchEmbeddingsTaskSettings(InputType.INTERNAL_SEARCH)
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"input_type":"query"}"""));
+    }
+
+    public void testXContent_InputType_InternalIngest() throws IOException {
+        var entity = new AlibabaCloudSearchEmbeddingsRequestEntity(
+            List.of("abc"),
+            new AlibabaCloudSearchEmbeddingsTaskSettings(InputType.INTERNAL_INGEST)
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"input_type":"document"}"""));
+    }
+
     public void testConvertToString_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
         var thrownException = expectThrows(
             AssertionError.class,

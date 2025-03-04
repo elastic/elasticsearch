@@ -7,13 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
 
 import java.util.Map;
 
@@ -27,7 +32,7 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
         var model = createModel("url", "org", "api_key", "model_name", null);
         var requestTaskSettingsMap = createRequestTaskSettingsMap("user_override");
 
-        var overriddenModel = OpenAiEmbeddingsModel.of(model, requestTaskSettingsMap);
+        var overriddenModel = OpenAiEmbeddingsModel.of(model, requestTaskSettingsMap, InputType.UNSPECIFIED);
 
         assertThat(overriddenModel, is(createModel("url", "org", "api_key", "model_name", "user_override")));
     }
@@ -37,15 +42,37 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
 
         var requestTaskSettingsMap = Map.<String, Object>of();
 
-        var overriddenModel = OpenAiEmbeddingsModel.of(model, requestTaskSettingsMap);
+        var overriddenModel = OpenAiEmbeddingsModel.of(model, requestTaskSettingsMap, InputType.UNSPECIFIED);
         assertThat(overriddenModel, sameInstance(model));
     }
 
     public void testOverrideWith_NullMap() {
         var model = createModel("url", "org", "api_key", "model_name", null);
 
-        var overriddenModel = OpenAiEmbeddingsModel.of(model, null);
+        var overriddenModel = OpenAiEmbeddingsModel.of(model, null, InputType.UNSPECIFIED);
         assertThat(overriddenModel, sameInstance(model));
+    }
+
+    public void testThrowsError_WhenInputTypeSpecified() {
+        var model = createModel("url", "org", "api_key", "model_name", null);
+
+        var thrownException = expectThrows(ValidationException.class, () -> OpenAiEmbeddingsModel.of(model, Map.of(), InputType.SEARCH));
+        assertThat(
+            thrownException.getMessage(),
+            CoreMatchers.is("Validation Failed: 1: Invalid value [search] received. [input_type] is not allowed;")
+        );
+    }
+
+    public void testAcceptsInternalInputType() {
+        var model = createModel("url", "org", "api_key", "model_name", null);
+        var overriddenModel = OpenAiEmbeddingsModel.of(model, Map.of(), InputType.INTERNAL_SEARCH);
+        MatcherAssert.assertThat(overriddenModel, Matchers.is(model));
+    }
+
+    public void testAcceptsNullInputType() {
+        var model = createModel("url", "org", "api_key", "model_name", null);
+        var overriddenModel = OpenAiEmbeddingsModel.of(model, Map.of(), null);
+        MatcherAssert.assertThat(overriddenModel, Matchers.is(model));
     }
 
     public static OpenAiEmbeddingsModel createModel(

@@ -81,7 +81,7 @@ public class MistralService extends SenderService {
         var actionCreator = new MistralActionCreator(getSender(), getServiceComponents());
 
         if (model instanceof MistralEmbeddingsModel mistralEmbeddingsModel) {
-            var action = mistralEmbeddingsModel.accept(actionCreator, taskSettings);
+            var action = mistralEmbeddingsModel.accept(actionCreator, taskSettings, inputType);
             action.execute(inputs, timeout, listener);
         } else {
             listener.onFailure(createInvalidModelException(model));
@@ -117,7 +117,7 @@ public class MistralService extends SenderService {
             ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {
-                var action = mistralEmbeddingsModel.accept(actionCreator, taskSettings);
+                var action = mistralEmbeddingsModel.accept(actionCreator, taskSettings, inputType);
                 action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
             }
         } else {

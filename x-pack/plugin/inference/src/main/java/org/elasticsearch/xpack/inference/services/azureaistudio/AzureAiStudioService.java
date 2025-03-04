@@ -102,7 +102,7 @@ public class AzureAiStudioService extends SenderService {
         var actionCreator = new AzureAiStudioActionCreator(getSender(), getServiceComponents());
 
         if (model instanceof AzureAiStudioModel baseAzureAiStudioModel) {
-            var action = baseAzureAiStudioModel.accept(actionCreator, taskSettings);
+            var action = baseAzureAiStudioModel.accept(actionCreator, taskSettings, inputType);
             action.execute(inputs, timeout, listener);
         } else {
             listener.onFailure(createInvalidModelException(model));

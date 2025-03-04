@@ -276,7 +276,7 @@ public class OpenAiService extends SenderService {
         OpenAiModel openAiModel = (OpenAiModel) model;
         var actionCreator = new OpenAiActionCreator(getSender(), getServiceComponents());
 
-        var action = openAiModel.accept(actionCreator, taskSettings);
+        var action = openAiModel.accept(actionCreator, taskSettings, inputType);
         action.execute(inputs, timeout, listener);
     }
 
@@ -326,7 +326,7 @@ public class OpenAiService extends SenderService {
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
-            var action = openAiModel.accept(actionCreator, taskSettings);
+            var action = openAiModel.accept(actionCreator, taskSettings, inputType);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
         }
     }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -73,7 +74,7 @@ public abstract class AmazonBedrockModel extends Model {
         this.rateLimitSettings = serviceSettings.rateLimitSettings();
     }
 
-    public abstract ExecutableAction accept(AmazonBedrockActionVisitor creator, Map<String, Object> taskSettings);
+    public abstract ExecutableAction accept(AmazonBedrockActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
 
     @Override
     public AmazonBedrockServiceSettings getServiceSettings() {

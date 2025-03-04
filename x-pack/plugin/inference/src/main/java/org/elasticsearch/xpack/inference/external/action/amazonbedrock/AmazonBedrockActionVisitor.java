@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.action.amazonbedrock;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
@@ -14,7 +15,7 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.Amazo
 import java.util.Map;
 
 public interface AmazonBedrockActionVisitor {
-    ExecutableAction create(AmazonBedrockEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings);
+    ExecutableAction create(AmazonBedrockEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings, InputType inputType);
 
     ExecutableAction create(AmazonBedrockChatCompletionModel completionModel, Map<String, Object> taskSettings);
 }

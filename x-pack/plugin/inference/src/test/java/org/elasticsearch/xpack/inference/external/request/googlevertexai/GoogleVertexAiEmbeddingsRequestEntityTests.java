@@ -169,6 +169,58 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
             """));
     }
 
+    public void testToXContent_InputType_InternalSearch() throws IOException {
+        var entity = new GoogleVertexAiEmbeddingsRequestEntity(
+            List.of("abc", "def"),
+            new GoogleVertexAiEmbeddingsTaskSettings(null, InputType.INTERNAL_SEARCH)
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "instances": [
+                    {
+                        "content": "abc",
+                        "task_type": "RETRIEVAL_QUERY"
+                    },
+                    {
+                        "content": "def",
+                        "task_type": "RETRIEVAL_QUERY"
+                    }
+                ]
+            }
+            """));
+    }
+
+    public void testToXContent_InputType_InternalIngest() throws IOException {
+        var entity = new GoogleVertexAiEmbeddingsRequestEntity(
+            List.of("abc", "def"),
+            new GoogleVertexAiEmbeddingsTaskSettings(null, InputType.INTERNAL_INGEST)
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "instances": [
+                    {
+                        "content": "abc",
+                        "task_type": "RETRIEVAL_DOCUMENT"
+                    },
+                    {
+                        "content": "def",
+                        "task_type": "RETRIEVAL_DOCUMENT"
+                    }
+                ]
+            }
+            """));
+    }
+
     public void testToXContent_ThrowsIfInputIsNull() {
         expectThrows(
             NullPointerException.class,

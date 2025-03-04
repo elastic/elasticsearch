@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.inference.external.action.mistral;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
 
 import java.util.Map;
 
 public interface MistralActionVisitor {
-    ExecutableAction create(MistralEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings);
+    ExecutableAction create(MistralEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings, InputType inputType);
 }

@@ -115,6 +115,38 @@ public class CohereEmbeddingsRequestEntityTests extends ESTestCase {
             {"texts":["abc"]}"""));
     }
 
+    public void testXContent_InputTypeInternalSearch() throws IOException {
+        var entity = new CohereEmbeddingsRequestEntity(
+            List.of("abc"),
+            new CohereEmbeddingsTaskSettings(InputType.INTERNAL_SEARCH, CohereTruncation.NONE),
+            "model",
+            CohereEmbeddingType.INT8
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"texts":["abc"],"model":"model","input_type":"search_query","embedding_types":["int8"],"truncate":"none"}"""));
+    }
+
+    public void testXContent_InputTypeInternalIngest() throws IOException {
+        var entity = new CohereEmbeddingsRequestEntity(
+            List.of("abc"),
+            new CohereEmbeddingsTaskSettings(InputType.INTERNAL_INGEST, CohereTruncation.NONE),
+            "model",
+            CohereEmbeddingType.INT8
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"texts":["abc"],"model":"model","input_type":"search_document","embedding_types":["int8"],"truncate":"none"}"""));
+    }
+
     public void testConvertToString_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
         var thrownException = expectThrows(
             AssertionError.class,

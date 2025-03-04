@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings;
 
 import org.apache.http.client.utils.URIBuilder;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -19,6 +20,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.ibmwatsonx.IbmWatsonxActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -32,6 +34,16 @@ import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmW
 import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.V1;
 
 public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
+
+    public static IbmWatsonxEmbeddingsModel of(IbmWatsonxEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
+        ValidationException validationException = new ValidationException();
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+
+        return model;
+    }
 
     private URI uri;
 
@@ -120,7 +132,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
 
     @Override
     public ExecutableAction accept(IbmWatsonxActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
-        return visitor.create(this, taskSettings);
+        return visitor.create(this, taskSettings, inputType);
     }
 
     public static URI buildUri(String uri, String apiVersion) throws URISyntaxException {

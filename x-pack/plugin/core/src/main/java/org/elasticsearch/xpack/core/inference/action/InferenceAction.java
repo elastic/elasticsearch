@@ -56,6 +56,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30);
         public static final ParseField INPUT = new ParseField("input");
+        public static final ParseField INPUT_TYPE = new ParseField("input_type");
         public static final ParseField TASK_SETTINGS = new ParseField("task_settings");
         public static final ParseField QUERY = new ParseField("query");
         public static final ParseField TIMEOUT = new ParseField("timeout");
@@ -63,6 +64,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
         static {
             PARSER.declareStringArray(Request.Builder::setInput, INPUT);
+            PARSER.declareString(Request.Builder::setInputType, INPUT_TYPE);
             PARSER.declareObject(Request.Builder::setTaskSettings, (p, c) -> p.mapOrdered(), TASK_SETTINGS);
             PARSER.declareString(Request.Builder::setQuery, QUERY);
             PARSER.declareString(Builder::setInferenceTimeout, TIMEOUT);
@@ -78,8 +80,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             Request.Builder builder = PARSER.apply(parser, null);
             builder.setInferenceEntityId(inferenceEntityId);
             builder.setTaskType(taskType);
-            // For rest requests we won't know what the input type is
-            builder.setInputType(InputType.UNSPECIFIED);
             return builder;
         }
 
@@ -199,6 +199,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 }
             }
 
+            if (taskType.equals(TaskType.TEXT_EMBEDDING) == false && inputType != null) {
+                var e = new ActionRequestValidationException();
+                e.addValidationError(format("Field [input_type] cannot be specified for task type [%s]", taskType));
+                return e;
+            }
+
             return null;
         }
 
@@ -291,6 +297,11 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
             public Builder setInputType(InputType inputType) {
                 this.inputType = inputType;
+                return this;
+            }
+
+            public Builder setInputType(String inputType) {
+                this.inputType = InputType.fromRestString(inputType);
                 return this;
             }
 

@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Collections;
@@ -29,10 +28,8 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     private final Map<String, StackFrame> stackFrames;
     @Nullable
     private final Map<String, String> executables;
-    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // remove this field - it is unused in Kibana
     @Nullable
     private final Map<String, TraceEvent> stackTraceEvents;
-    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // remove this field - it is unused in Kibana
     private final int totalFrames;
     private final double samplingRate;
     private final long totalSamples;
@@ -101,7 +98,6 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
                 stackTraceEvents,
                 (n, v) -> ChunkedToXContentHelper.object(n, v, entry -> (b, p) -> b.field(entry.getKey(), entry.getValue().count))
             ),
-            Iterators.single((b, p) -> b.field("total_frames", totalFrames)),
             Iterators.single((b, p) -> b.field("sampling_rate", samplingRate)),
             // the following fields are intentionally not written to the XContent representation (only needed on the transport layer):
             //

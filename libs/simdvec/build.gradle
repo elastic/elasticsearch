@@ -32,7 +32,7 @@ tasks.matching { it.name == "compileMain21Java" }.configureEach {
 }
 
 tasks.named('test').configure {
-  if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 21) {
+  buildParams.withMinimumJavaRuntimeVersion(JavaVersion.VERSION_21) {
     jvmArgs '--add-modules=jdk.incubator.vector'
   }
 }

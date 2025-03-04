@@ -462,6 +462,6 @@ tests:
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
-  method: testPartialResults
-  issue: https://github.com/elastic/elasticsearch/issues/123101
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=data_stream/140_data_stream_aliases/Create data stream alias}
+  issue: https://github.com/elastic/elasticsearch/issues/122226

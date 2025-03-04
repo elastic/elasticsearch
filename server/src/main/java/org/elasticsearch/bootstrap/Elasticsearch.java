@@ -120,9 +120,9 @@ class Elasticsearch {
         final PrintStream out = getStdout();
         final PrintStream err = getStderr();
         final ServerArgs args;
-        final boolean entitlementsEnabled = Booleans.parseBoolean(System.getProperty("es.entitlements.enabled", "true"));
+        final boolean entitlementsExplicitlyEnabled = Booleans.parseBoolean(System.getProperty("es.entitlements.enabled", "false"));
         // java 24+ only supports entitlements, but it may be enabled on earlier versions explicitly
-        final boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsEnabled;
+        final boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsExplicitlyEnabled;
         try {
             initSecurityProperties();
 

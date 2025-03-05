@@ -185,7 +185,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             .endObject()
             .endObject();
         assertAcked(prepareCreate("new_index").setMapping(newIndexMapping));
-        assertAcked(indicesAdmin().prepareAliases().addAlias("new_index", "current"));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("new_index", "current"));
     }
 
     @Override

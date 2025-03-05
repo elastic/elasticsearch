@@ -760,7 +760,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "profile" : {
                     "drivers" : [
                       {
-                        "task_description" : "test",
+                        "description" : "test",
                         "cluster_name" : "elasticsearch",
                         "node_name" : "node-1",
                         "start_millis" : 1723489812649,

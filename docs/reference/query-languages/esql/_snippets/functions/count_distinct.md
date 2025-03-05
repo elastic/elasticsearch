@@ -112,7 +112,7 @@ For a precision threshold of `c`, the implementation that we are using requires 
 
 The following chart shows how the error varies before and after the threshold:
 
-![cardinality error](../../../../../images/cardinality_error.png "")
+![cardinality error](/images/cardinality_error.png "")
 
 For all 3 thresholds, counts have been accurate up to the configured threshold. Although not guaranteed, this is likely to be the case. Accuracy in practice depends on the dataset in question. In general, most datasets show consistently good accuracy. Also note that even with a threshold as low as 100, the error remains very low (1-6% as seen in the above graph) even when counting millions of items.
 

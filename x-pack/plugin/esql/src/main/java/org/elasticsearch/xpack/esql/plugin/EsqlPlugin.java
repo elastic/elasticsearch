@@ -38,6 +38,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog;
 
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
@@ -102,6 +104,42 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<TimeValue> ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING = Setting.timeSetting(
+        "esql.slowlog.threshold.query.warn",
+        TimeValue.timeValueNanos(-1),
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(Integer.MAX_VALUE),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<TimeValue> ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING = Setting.timeSetting(
+        "esql.slowlog.threshold.query.info",
+        TimeValue.timeValueNanos(-1),
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(Integer.MAX_VALUE),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<TimeValue> ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING = Setting.timeSetting(
+        "esql.slowlog.threshold.query.debug",
+        TimeValue.timeValueNanos(-1),
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(Integer.MAX_VALUE),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<TimeValue> ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING = Setting.timeSetting(
+        "esql.slowlog.threshold.query.trace",
+        TimeValue.timeValueNanos(-1),
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(Integer.MAX_VALUE),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     @Override
     public Collection<?> createComponents(PluginServices services) {
         CircuitBreaker circuitBreaker = services.indicesService().getBigArrays().breakerService().getBreaker("request");
@@ -115,7 +153,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         var blockFactoryProvider = blockFactoryProvider(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
         setupSharedSecrets();
         return List.of(
-            new PlanExecutor(new IndexResolver(services.client()), services.telemetryProvider().getMeterRegistry(), getLicenseState()),
+            new PlanExecutor(
+                new IndexResolver(services.client()),
+                services.telemetryProvider().getMeterRegistry(),
+                getLicenseState(),
+                new EsqlSlowLog(services.clusterService().getClusterSettings())
+            ),
             new ExchangeService(
                 services.clusterService().getSettings(),
                 services.threadPool(),
@@ -151,7 +194,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
      */
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(QUERY_RESULT_TRUNCATION_DEFAULT_SIZE, QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        return List.of(
+            QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
+            QUERY_RESULT_TRUNCATION_MAX_SIZE,
+            ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
+            ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
+            ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
+            ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING
+        );
     }
 
     @Override

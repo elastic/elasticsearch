@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
@@ -42,8 +43,9 @@ public class PlanExecutor {
     private final Metrics metrics;
     private final Verifier verifier;
     private final PlanTelemetryManager planTelemetryManager;
+    private final EsqlSlowLog slowLog;
 
-    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry, XPackLicenseState licenseState) {
+    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry, XPackLicenseState licenseState, EsqlSlowLog slowLog) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
@@ -51,6 +53,7 @@ public class PlanExecutor {
         this.metrics = new Metrics(functionRegistry);
         this.verifier = new Verifier(metrics, licenseState);
         this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
+        this.slowLog = slowLog;
     }
 
     public void esql(
@@ -85,6 +88,7 @@ public class PlanExecutor {
 
         ActionListener<Result> executeListener = wrap(x -> {
             planTelemetryManager.publish(planTelemetry, true);
+            slowLog.onQueryPhase(x, request.query());
             listener.onResponse(x);
         }, ex -> {
             // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request

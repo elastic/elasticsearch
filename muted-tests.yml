@@ -336,6 +336,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.MatchOperatorIT
   method: testScoring_Zero_OutsideQuery
   issue: https://github.com/elastic/elasticsearch/issues/124132
+- class: org.elasticsearch.search.query.QueryPhaseTimeoutTests
+  method: testScorerTimeoutPoints
+  issue: https://github.com/elastic/elasticsearch/issues/124140
+- class: org.elasticsearch.search.query.QueryPhaseTimeoutTests
+  method: testScorerTimeoutTerms
+  issue: https://github.com/elastic/elasticsearch/issues/124141
 
 # Examples:
 #

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.DiffableUtils.KeySerializer;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Metadata.MultiProjectPendingException;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -134,7 +135,7 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
         return switch (routingTables.size()) {
             case 0 -> RoutingTable.EMPTY_ROUTING_TABLE;
             case 1 -> routingTables.values().iterator().next();
-            default -> throw new IllegalStateException("There are multiple project routing tables [" + routingTables.keySet() + "]");
+            default -> throw new MultiProjectPendingException("There are multiple project routing tables [" + routingTables.keySet() + "]");
         };
     }
 

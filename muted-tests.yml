@@ -333,9 +333,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
   issue: https://github.com/elastic/elasticsearch/issues/120814
-- class: org.elasticsearch.test.apmintegration.MetricsApmIT
-  method: testApmIntegration
-  issue: https://github.com/elastic/elasticsearch/issues/124106
 
 # Examples:
 #

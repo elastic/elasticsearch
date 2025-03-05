@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
@@ -35,7 +36,7 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
         var apiKey = "api_key";
         var input = "input";
 
-        var request = createRequest(model, apiKey, input, null, null);
+        var request = createRequest(model, apiKey, input, null, null, null);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -62,7 +63,7 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
         var input = "input";
         var dimensions = 8;
 
-        var request = createRequest(model, apiKey, input, null, dimensions);
+        var request = createRequest(model, apiKey, input, null, dimensions, null);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -90,13 +91,46 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
         );
     }
 
+    public void testCreateRequest_WithInputType() throws IOException {
+        var model = "embedding-001";
+        var apiKey = "api_key";
+        var input = "input";
+
+        var request = createRequest(model, apiKey, input, null, null, InputType.SEARCH);
+        var httpRequest = request.createHttpRequest();
+
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        assertThat(httpPost.getURI().toString(), endsWith(Strings.format("%s=%s", "key", apiKey)));
+        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(requestMap, aMapWithSize(1));
+        assertThat(
+            requestMap.get("requests"),
+            is(
+                List.of(
+                    Map.of(
+                        "model",
+                        Strings.format("%s/%s", "models", model),
+                        "content",
+                        Map.of("parts", List.of(Map.of("text", input))),
+                        "taskType",
+                        "RETRIEVAL_QUERY"
+                    )
+                )
+            )
+        );
+    }
+
     public void testTruncate_ReducesInputTextSizeByHalf() throws IOException {
         var model = "model";
         var apiKey = "api_key";
         var input = "abcd";
         var dimensions = 8;
 
-        var request = createRequest(model, apiKey, input, null, dimensions);
+        var request = createRequest(model, apiKey, input, null, dimensions, null);
         var truncatedRequest = request.truncate();
         var httpRequest = truncatedRequest.createHttpRequest();
 
@@ -127,7 +161,7 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
     }
 
     public void testIsTruncated_ReturnsTrue() {
-        var request = createRequest("model", "api key", "input", null, null);
+        var request = createRequest("model", "api key", "input", null, null, null);
         assertFalse(request.getTruncationInfo()[0]);
 
         var truncatedRequest = request.truncate();
@@ -139,9 +173,10 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
         String apiKey,
         String input,
         @Nullable Integer maxTokens,
-        @Nullable Integer dimensions
+        @Nullable Integer dimensions,
+        @Nullable InputType inputType
     ) {
-        var embeddingsModel = GoogleAiStudioEmbeddingsModelTests.createModel(model, apiKey, maxTokens, dimensions);
+        var embeddingsModel = GoogleAiStudioEmbeddingsModelTests.createModel(model, apiKey, maxTokens, dimensions, inputType);
 
         return new GoogleAiStudioEmbeddingsRequest(
             TruncatorTests.createTruncator(),

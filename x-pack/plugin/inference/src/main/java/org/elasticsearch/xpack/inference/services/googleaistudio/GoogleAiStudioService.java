@@ -291,8 +291,9 @@ public class GoogleAiStudioService extends SenderService {
             );
             action.execute(inputs, timeout, listener);
         } else if (model instanceof GoogleAiStudioEmbeddingsModel embeddingsModel) {
+            var overriddenModel = GoogleAiStudioEmbeddingsModel.of(embeddingsModel, inputType);
             var requestManager = new GoogleAiStudioEmbeddingsRequestManager(
-                embeddingsModel,
+                overriddenModel,
                 getServiceComponents().truncator(),
                 getServiceComponents().threadPool()
             );

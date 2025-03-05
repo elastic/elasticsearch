@@ -44,7 +44,8 @@ public class GoogleAiStudioEmbeddingsRequest implements GoogleAiStudioRequest {
                 new GoogleAiStudioEmbeddingsRequestEntity(
                     truncationResult.input(),
                     model.getServiceSettings().modelId(),
-                    model.getServiceSettings().dimensions()
+                    model.getServiceSettings().dimensions(),
+                    model.inputType()
                 )
             ).getBytes(StandardCharsets.UTF_8)
         );

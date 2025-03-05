@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -684,6 +685,39 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
+    public void testInfer_ThrowsErrorWhenInputTypeIsSpecifiedForModelThatDoesNotAcceptTaskType() throws IOException {
+        var sender = mock(Sender.class);
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var model = GoogleAiStudioCompletionModelTests.createModel("model", getUrl(webServer), "secret");
+
+        try (var service = new GoogleAiStudioService(factory, createWithEmptySettings(threadPool))) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                null,
+                List.of(""),
+                false,
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(thrownException.getMessage(), is("Invalid value [search] received. [input_type] is not allowed;"));
+
+            verify(factory, times(1)).createSender();
+            verify(sender, times(1)).start();
+        }
+
+        verify(sender, times(1)).close();
+        verifyNoMoreInteractions(factory);
+        verifyNoMoreInteractions(sender);
+    }
+
     public void testInfer_SendsCompletionRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
@@ -819,6 +853,68 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                             Strings.format("%s/%s", "models", modelId),
                             "content",
                             Map.of("parts", List.of(Map.of("text", input)))
+                        )
+                    )
+                )
+            );
+        }
+    }
+
+    public void testInfer_SendsEmbeddingsRequestWithInputType() throws IOException {
+        var modelId = "embedding-001";
+        var apiKey = "apiKey";
+        var input = "input";
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+            String responseJson = """
+                {
+                     "embeddings": [
+                         {
+                             "values": [
+                                 0.0123,
+                                 -0.0123
+                             ]
+                         }
+                     ]
+                 }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = GoogleAiStudioEmbeddingsModelTests.createModel(modelId, apiKey, getUrl(webServer));
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                null,
+                List.of(input),
+                false,
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
+            assertThat(webServer.requests(), hasSize(1));
+            assertThat(webServer.requests().get(0).getUri().getQuery(), endsWith(apiKey));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap, aMapWithSize(1));
+            assertThat(
+                requestMap.get("requests"),
+                Matchers.is(
+                    List.of(
+                        Map.of(
+                            "model",
+                            Strings.format("%s/%s", "models", modelId),
+                            "content",
+                            Map.of("parts", List.of(Map.of("text", input))),
+                            "taskType",
+                            "RETRIEVAL_QUERY"
                         )
                     )
                 )

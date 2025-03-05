@@ -458,8 +458,7 @@ public class PolicyManagerTests extends ESTestCase {
                 Set.of()
             )
         );
-        assertThat(iae.getMessage(),
-            containsString("Path [/base/test] is exclusive to plugin2/test.module2 and plugin1/[test.module1]"));
+        assertThat(iae.getMessage(), containsString("Path [/base/test] is exclusive to plugin2/test.module2 and plugin1/[test.module1]"));
 
         iae = expectThrows(
             IllegalArgumentException.class,

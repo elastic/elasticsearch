@@ -71,9 +71,4 @@ public final class EntitledActions {
     public static URLConnection createFtpURLConnection() throws IOException {
         return URI.create("ftp://127.0.0.1:12345/").toURL().openConnection();
     }
-
-    public static URLConnection createFileURLConnection() throws IOException {
-        var fileUrl = createTempFileForWrite().toUri().toURL();
-        return fileUrl.openConnection();
-    }
 }

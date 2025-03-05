@@ -127,23 +127,12 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
         String expectedETLD,
         String expectedSubdomain
     ) throws Exception {
-        testRegisteredDomainProcessor(source, expectedDomain, expectedRegisteredDomain, expectedETLD, expectedSubdomain, true);
-    }
-
-    private void testRegisteredDomainProcessor(
-        Map<String, Object> source,
-        String expectedDomain,
-        String expectedRegisteredDomain,
-        String expectedETLD,
-        String expectedSubdomain,
-        boolean ignoreMissing
-    ) throws Exception {
         String domainField = "url.domain";
         String registeredDomainField = "url.registered_domain";
         String topLevelDomainField = "url.top_level_domain";
         String subdomainField = "url.subdomain";
 
-        var processor = new RegisteredDomainProcessor(null, null, "domain", "url", ignoreMissing);
+        var processor = new RegisteredDomainProcessor(null, null, "domain", "url", true);
 
         IngestDocument document = TestIngestDocument.withDefaultVersion(source);
         processor.execute(document);

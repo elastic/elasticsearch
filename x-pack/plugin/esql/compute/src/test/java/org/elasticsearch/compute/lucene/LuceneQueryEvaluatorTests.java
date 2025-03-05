@@ -197,10 +197,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
     }
 
     protected Operator createOperator(BlockFactory blockFactory, LuceneQueryEvaluator.ShardConfig[] shards) {
-        return new EvalOperator(blockFactory,  new LuceneQueryExpressionEvaluator(
-            blockFactory,
-            shards
-        ));
+        return new EvalOperator(blockFactory, new LuceneQueryExpressionEvaluator(blockFactory, shards));
     }
 
     private List<Page> runQuery(Set<String> values, Query query, boolean shuffleDocs) throws IOException {
@@ -208,10 +205,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
         BlockFactory blockFactory = driverContext.blockFactory();
         return withReader(values, reader -> {
             IndexSearcher searcher = new IndexSearcher(reader);
-            LuceneQueryEvaluator.ShardConfig shard = new LuceneQueryEvaluator.ShardConfig(
-                searcher.rewrite(query),
-                searcher
-            );
+            LuceneQueryEvaluator.ShardConfig shard = new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher);
             List<Operator> operators = new ArrayList<>();
             if (shuffleDocs) {
                 operators.add(new ShuffleDocsOperator(blockFactory));
@@ -232,16 +226,13 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
                     0
                 )
             );
-            LuceneQueryEvaluator.ShardConfig[] shards = new LuceneQueryEvaluator.ShardConfig[] { new LuceneQueryEvaluator.ShardConfig(
-                searcher.rewrite(query),
-                searcher
-            ) };
+            LuceneQueryEvaluator.ShardConfig[] shards = new LuceneQueryEvaluator.ShardConfig[] {
+                new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher) };
             operators.add(createOperator(blockFactory, shards));
             List<Page> results = new ArrayList<>();
             Driver driver = TestDriverFactory.create(
                 driverContext,
-                LuceneQueryEvaluatorTests.luceneOperatorFactory(reader, new MatchAllDocsQuery(), useScoring)
-                    .get(driverContext),
+                LuceneQueryEvaluatorTests.luceneOperatorFactory(reader, new MatchAllDocsQuery(), useScoring).get(driverContext),
                 operators,
                 new TestResultPageSinkOperator(results::add)
             );

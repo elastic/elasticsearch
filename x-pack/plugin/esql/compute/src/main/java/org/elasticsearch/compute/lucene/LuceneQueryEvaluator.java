@@ -53,10 +53,7 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
 
     private final List<ShardState> perShardState;
 
-    protected LuceneQueryEvaluator(
-        BlockFactory blockFactory,
-        ShardConfig[] shards
-    ) {
+    protected LuceneQueryEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {
         this.blockFactory = blockFactory;
         this.shards = shards;
         this.perShardState = new ArrayList<>(Collections.nCopies(shards.length, null));
@@ -165,8 +162,7 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
     }
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 
     private ShardState shardState(int shard) throws IOException {
         ShardState shardState = perShardState.get(shard);
@@ -255,9 +251,15 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
                     return createNoMatchVector(blockFactory, max - min + 1);
                 }
             }
-            try (DenseCollector<T> collector = new DenseCollector<>(min, max,  scoreBuilder,
-                LuceneQueryEvaluator.this::appendNoMatch,
-                LuceneQueryEvaluator.this::appendMatch)) {
+            try (
+                DenseCollector<T> collector = new DenseCollector<>(
+                    min,
+                    max,
+                    scoreBuilder,
+                    LuceneQueryEvaluator.this::appendNoMatch,
+                    LuceneQueryEvaluator.this::appendMatch
+                )
+            ) {
                 bulkScorer.score(collector, ctx.reader().getLiveDocs(), min, max + 1);
                 return collector.build();
             }

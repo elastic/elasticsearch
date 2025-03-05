@@ -20,7 +20,8 @@ public class LuceneQueryExpressionEvaluatorTests extends LuceneQueryEvaluatorTes
             max,
             blockFactory().newBooleanVectorFixedBuilder(max - min + 1),
             b -> b.appendBoolean(false),
-            (b, s) -> b.appendBoolean(true));
+            (b, s) -> b.appendBoolean(true)
+        );
     }
 
     @Override
@@ -42,6 +43,5 @@ public class LuceneQueryExpressionEvaluatorTests extends LuceneQueryEvaluatorTes
     protected Object valueForNoMatch() {
         return false;
     }
-
 
 }

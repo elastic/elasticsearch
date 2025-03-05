@@ -31,10 +31,7 @@ public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<Boolean
     implements
         EvalOperator.ExpressionEvaluator {
 
-    LuceneQueryExpressionEvaluator(
-        BlockFactory blockFactory,
-        ShardConfig[] shards
-    ) {
+    LuceneQueryExpressionEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {
         super(blockFactory, shards);
     }
 

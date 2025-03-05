@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import org.apache.lucene.index.MergePolicy;
+import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -33,6 +34,7 @@ public class MergeMetrics {
     public static final String MERGE_SEGMENTS_QUEUED_USAGE = "es.merge.segments.queued.usage";
     public static final String MERGE_SEGMENTS_RUNNING_USAGE = "es.merge.segments.running.usage";
     public static final String MERGE_SEGMENTS_MERGED_SIZE = "es.merge.segments.merged.size";
+    public static final String MERGE_QUEUED_ESTIMATED_MEMORY_SIZE = "es.merge.segments.memory.size";
     public static final String MERGE_TIME_IN_SECONDS = "es.merge.time";
     public static MergeMetrics NOOP = new MergeMetrics(TelemetryProvider.NOOP.getMeterRegistry());
 
@@ -43,6 +45,7 @@ public class MergeMetrics {
 
     private final AtomicLong runningMergeSizeInBytes = new AtomicLong();
     private final AtomicLong queuedMergeSizeInBytes = new AtomicLong();
+    private final AtomicLong queuedEstimatedMergeMemoryInBytes = new AtomicLong();
 
     public MergeMetrics(MeterRegistry meterRegistry) {
         mergeSizeInBytes = meterRegistry.registerLongCounter(MERGE_SEGMENTS_SIZE, "Total size of segments merged", "bytes");
@@ -65,19 +68,28 @@ public class MergeMetrics {
         );
         mergeNumDocs = meterRegistry.registerLongCounter(MERGE_DOCS_TOTAL, "Total number of documents merged", "documents");
         mergeTimeInSeconds = meterRegistry.registerLongHistogram(MERGE_TIME_IN_SECONDS, "Merge time in seconds", "seconds");
+        meterRegistry.registerLongGauge(
+            MERGE_QUEUED_ESTIMATED_MEMORY_SIZE,
+            "Estimated memory usage for queued merges",
+            "bytes",
+            () -> new LongWithAttributes(runningMergeSizeInBytes.get())
+        );
     }
 
-    public void incrementQueuedMergeBytes(long totalSize) {
-        queuedMergeSizeInBytes.getAndAdd(totalSize);
+    public void incrementQueuedMergeBytes(OnGoingMerge currentMerge, long estimatedMemorySize) {
+        queuedMergeSizeInBytes.getAndAdd(currentMerge.getTotalBytesSize());
+        queuedEstimatedMergeMemoryInBytes.getAndAdd(estimatedMemorySize);
     }
 
-    public void moveQueuedMergeBytesToRunning(long totalSize) {
+    public void moveQueuedMergeBytesToRunning(OnGoingMerge currentMerge, long estimatedMemorySize) {
+        long totalSize = currentMerge.getTotalBytesSize();
         queuedMergeSizeInBytes.getAndAdd(-totalSize);
         runningMergeSizeInBytes.getAndAdd(totalSize);
+        queuedEstimatedMergeMemoryInBytes.getAndAdd(-estimatedMemorySize);
     }
 
-    public void decrementRunningMergeBytes(long totalSize) {
-        runningMergeSizeInBytes.getAndAdd(-totalSize);
+    public void decrementRunningMergeBytes(OnGoingMerge currentMerge) {
+        runningMergeSizeInBytes.getAndAdd(-currentMerge.getTotalBytesSize());
     }
 
     public void markMergeMetrics(MergePolicy.OneMerge currentMerge, long mergedSegmentSize, long tookMillis) {

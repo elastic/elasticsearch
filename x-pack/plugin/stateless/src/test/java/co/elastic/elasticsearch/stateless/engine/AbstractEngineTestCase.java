@@ -47,6 +47,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -490,18 +491,26 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected static Engine.Index randomDoc(String id) throws IOException {
+        CheckedBiConsumer<XContentBuilder, LuceneDocument, IOException> sourceBuilder = (builder, doc) -> {
+            builder.startObject();
+            builder.field("value", randomUnicodeOfCodepointLengthBetween(1, 10));
+            builder.endObject();
+        };
+        return randomDoc(id, sourceBuilder);
+    }
+
+    protected static Engine.Index randomDoc(String id, CheckedBiConsumer<XContentBuilder, LuceneDocument, IOException> sourceBuilder)
+        throws IOException {
         final LuceneDocument document = new LuceneDocument();
         document.add(new StringField("_id", Uid.encodeId(id), Field.Store.YES));
         var version = new NumericDocValuesField("_version", 0);
         document.add(version);
         var seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         seqID.addFields(document);
+
         final BytesReference source;
         try (XContentBuilder builder = jsonBuilder()) {
-            builder.startObject();
-            builder.field("value", randomUnicodeOfCodepointLengthBetween(1, 10));
-            builder.endObject();
-
+            sourceBuilder.accept(builder, document);
             source = BytesReference.bytes(builder);
             document.add(new StoredField(SourceFieldMapper.NAME, source.toBytesRef().bytes, 0, source.length()));
         }

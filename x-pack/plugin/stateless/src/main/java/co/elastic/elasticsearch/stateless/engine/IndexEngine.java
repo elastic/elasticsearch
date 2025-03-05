@@ -36,6 +36,7 @@ import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -758,7 +759,8 @@ public class IndexEngine extends InternalEngine {
                 this::onAfterMerge,
                 this::mergeException,
                 this::onMergeEnqueued,
-                this::onMergeExecutedOrAborted
+                this::onMergeExecutedOrAborted,
+                this::estimateMergeBytes
             );
         } else {
             return super.createMergeScheduler(shardId, indexSettings);
@@ -773,6 +775,15 @@ public class IndexEngine extends InternalEngine {
     private void onMergeExecutedOrAborted(OnGoingMerge merge) {
         var remainingMerges = queuedOrRunningMergesCount.decrementAndGet();
         assert remainingMerges >= 0;
+    }
+
+    private long estimateMergeBytes(MergePolicy.OneMerge merge) {
+        try (Searcher searcher = acquireSearcher("merge_memory_estimation", SearcherScope.INTERNAL)) {
+            return MergeMemoryEstimator.estimateMergeMemory(merge, searcher.getIndexReader());
+        } catch (AlreadyClosedException e) {
+            // Can't estimate if the searcher is closed
+            return 0L;
+        }
     }
 
     public boolean hasQueuedOrRunningMerges() {

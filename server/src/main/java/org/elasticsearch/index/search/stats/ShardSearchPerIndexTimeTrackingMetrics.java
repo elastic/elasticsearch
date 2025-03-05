@@ -44,7 +44,7 @@ public final class ShardSearchPerIndexTimeTrackingMetrics implements SearchOpera
         );
         t.v1().add(tookInNanos);
         t.v2().addValue(tookInNanos);
-        System.out.printf("Query phase took %d nanoseconds\n", tookInNanos);
+        logger.info("Listener : Task execution time for index [{}] is [{}]", indexName, tookInNanos);
     }
 
     /**

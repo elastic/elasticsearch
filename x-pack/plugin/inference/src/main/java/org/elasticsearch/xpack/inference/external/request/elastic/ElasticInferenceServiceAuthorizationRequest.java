@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.inference.external.request.elastic;
 
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -20,12 +20,13 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Objects;
 
-public class ElasticInferenceServiceAuthorizationRequest implements ElasticInferenceServiceRequest {
+public class ElasticInferenceServiceAuthorizationRequest extends ElasticInferenceServiceRequest {
 
     private final URI uri;
     private final TraceContextHandler traceContextHandler;
 
-    public ElasticInferenceServiceAuthorizationRequest(String url, TraceContext traceContext) {
+    public ElasticInferenceServiceAuthorizationRequest(String url, TraceContext traceContext, String productOrigin) {
+        super(productOrigin);
         this.uri = createUri(Objects.requireNonNull(url));
         this.traceContextHandler = new TraceContextHandler(traceContext);
     }
@@ -44,11 +45,11 @@ public class ElasticInferenceServiceAuthorizationRequest implements ElasticInfer
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public HttpRequestBase createHttpRequestBase() {
         var httpGet = new HttpGet(uri);
         traceContextHandler.propagateTraceContext(httpGet);
 
-        return new HttpRequest(httpGet, getInferenceEntityId());
+        return httpGet;
     }
 
     public TraceContext getTraceContext() {

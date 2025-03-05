@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -59,6 +60,8 @@ import static org.mockito.Mockito.when;
 
 public final class Utils {
 
+    public static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
+
     private Utils() {
         throw new UnsupportedOperationException("Utils is a utility class and should not be instantiated");
     }
@@ -76,7 +79,8 @@ public final class Utils {
             ThrottlerManager.getSettingsDefinitions(),
             RetrySettings.getSettingsDefinitions(),
             Truncator.getSettingsDefinitions(),
-            RequestExecutorServiceSettings.getSettingsDefinitions()
+            RequestExecutorServiceSettings.getSettingsDefinitions(),
+            ElasticInferenceServiceSettings.getSettingsDefinitions()
         ).flatMap(Collection::stream).collect(Collectors.toSet());
 
         var cSettings = new ClusterSettings(settings, registeredSettings);

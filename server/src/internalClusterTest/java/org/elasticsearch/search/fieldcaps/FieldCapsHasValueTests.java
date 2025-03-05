@@ -52,7 +52,7 @@ public class FieldCapsHasValueTests extends ESIntegTestCase {
                 .setSettings(indexSettings())
                 .setMapping("nested_type", "type=nested", "object.sub_field", "type=keyword,store=true")
         );
-        assertAcked(indicesAdmin().prepareAliases().addAlias(INDEX1, ALIAS1));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(INDEX1, ALIAS1));
     }
 
     public void testNoFieldsInEmptyIndex() {

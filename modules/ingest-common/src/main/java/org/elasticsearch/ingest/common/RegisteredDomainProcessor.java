@@ -47,11 +47,11 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        DomainInfo info = getRegisteredDomain(ingestDocument);
+    public IngestDocument execute(IngestDocument document) throws Exception {
+        DomainInfo info = getRegisteredDomain(document);
         if (info == null) {
             if (ignoreMissing) {
-                return ingestDocument;
+                return document;
             } else {
                 throw new IllegalArgumentException("unable to set domain information for document");
             }
@@ -66,22 +66,22 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         String topLevelDomainTarget = fieldPrefix + "top_level_domain";
 
         if (info.getDomain() != null) {
-            ingestDocument.setFieldValue(domainTarget, info.getDomain());
+            document.setFieldValue(domainTarget, info.getDomain());
         }
         if (info.getRegisteredDomain() != null) {
-            ingestDocument.setFieldValue(registeredDomainTarget, info.getRegisteredDomain());
+            document.setFieldValue(registeredDomainTarget, info.getRegisteredDomain());
         }
         if (info.getETLD() != null) {
-            ingestDocument.setFieldValue(topLevelDomainTarget, info.getETLD());
+            document.setFieldValue(topLevelDomainTarget, info.getETLD());
         }
         if (info.getSubdomain() != null) {
-            ingestDocument.setFieldValue(subdomainTarget, info.getSubdomain());
+            document.setFieldValue(subdomainTarget, info.getSubdomain());
         }
-        return ingestDocument;
+        return document;
     }
 
-    private DomainInfo getRegisteredDomain(IngestDocument d) {
-        String fieldString = d.getFieldValue(field, String.class, ignoreMissing);
+    private DomainInfo getRegisteredDomain(IngestDocument document) {
+        String fieldString = document.getFieldValue(field, String.class, ignoreMissing);
         if (fieldString == null) {
             return null;
         }
@@ -161,15 +161,15 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         @Override
         public RegisteredDomainProcessor create(
             Map<String, Processor.Factory> registry,
-            String processorTag,
+            String tag,
             String description,
             Map<String, Object> config
         ) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", DEFAULT_TARGET_FIELD);
-            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", true);
+            String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
+            String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field", DEFAULT_TARGET_FIELD);
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", true);
 
-            return new RegisteredDomainProcessor(processorTag, description, field, targetField, ignoreMissing);
+            return new RegisteredDomainProcessor(tag, description, field, targetField, ignoreMissing);
         }
     }
 }

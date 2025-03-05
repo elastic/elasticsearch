@@ -125,7 +125,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
 
         try {
             return new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
-        } catch (NotEntitledException e){
+        } catch (NotEntitledException e) {
             logger.warn("Not entitled to get real path of [{}] [{}]", path, path.toAbsolutePath().normalize(), e);
             throw e;
         }

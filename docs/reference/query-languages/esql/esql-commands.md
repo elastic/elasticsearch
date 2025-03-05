@@ -12,7 +12,7 @@ mapped_pages:
 An {{esql}} source command produces a table, typically with data from {{es}}. An {{esql}} query must start with a source command.
 
 :::{image} ../../../images/source-command.svg
-:alt: A source command producing a table from {es}
+:alt: A source command producing a table from {{es}}
 :::
 
 {{esql}} supports these source commands:

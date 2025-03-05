@@ -1027,7 +1027,12 @@ public class EsqlCapabilities {
         /**
          * Support last_over_time aggregation that gets evaluated per time-series
          */
-        LAST_OVER_TIME(Build.current().isSnapshot());
+        LAST_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support for the RANDOM_SAMPLE command
+         */
+        RANDOM_SAMPLE(Build.current().isSnapshot());
 
         private final boolean enabled;
 

@@ -3485,6 +3485,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM foo* | COMPLETION prompt AS targetField", "line 1:31: mismatched input 'AS' expecting {");
     }
 
+    public void testRandomSample() {
+        expectError("FROM test | RANDOM_SAMPLE .1 2 3", "line 1:32: extraneous input '3' expecting <EOF>");
+        expectError("FROM test | RANDOM_SAMPLE .1 \"2\"", "line 1:30: mismatched input '\"2\"' expecting {INTEGER_LITERAL, '+', '-'}");
+        expectError("FROM test | RANDOM_SAMPLE 1", "line 1:27: mismatched input '1' expecting {DECIMAL_LITERAL, '+', '-'}");
+        expectError("FROM test | RANDOM_SAMPLE", "line 1:26: mismatched input '<EOF>' expecting {DECIMAL_LITERAL, '+', '-'}");
+        expectError("FROM test | RANDOM_SAMPLE -.1", "line 1:30: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");
+        expectError("FROM test | RANDOM_SAMPLE +.1 2147483648", "line 1:31: seed must be an integer, provided [2147483648] of type [LONG]");
+    }
+
     static Alias alias(String name, Expression value) {
         return new Alias(EMPTY, name, value);
     }

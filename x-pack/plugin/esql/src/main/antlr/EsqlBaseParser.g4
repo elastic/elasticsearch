@@ -304,5 +304,5 @@ completionCommand
     ;
 
 randomSampleCommand
-    : DEV_RANDOM_SAMPLE probability=DECIMAL_LITERAL seed=INTEGER_LITERAL?
+    : DEV_RANDOM_SAMPLE probability=decimalValue seed=integerValue
     ;

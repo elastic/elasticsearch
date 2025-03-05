@@ -13,19 +13,28 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplingQuery.checkProbabilityRange;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSamplingQueryBuilder> {
 
     public static final String NAME = "random_sampling";
+    static final ParseField PROBABILITY = new ParseField("query");
+    static final ParseField SEED = new ParseField("seed");
+    static final ParseField HASH = new ParseField("hash");
 
     private final double probability;
     private int seed = Randomness.get().nextInt();
@@ -42,9 +51,28 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
         return this;
     }
 
+    public RandomSamplingQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        this.probability = in.readDouble();
+        this.seed = in.readInt();
+        this.hash = in.readInt();
+    }
+
     public RandomSamplingQueryBuilder hash(Integer hash) {
         this.hash = hash;
         return this;
+    }
+
+    public double probability() {
+        return probability;
+    }
+
+    public int seed() {
+        return seed;
+    }
+
+    public int hash() {
+        return hash;
     }
 
     @Override
@@ -57,11 +85,35 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("probability", probability);
-        builder.field("seed", seed);
-        builder.field("hash", hash);
+        builder.field(PROBABILITY.getPreferredName(), probability);
+        builder.field(SEED.getPreferredName(), seed);
+        builder.field(HASH.getPreferredName(), hash);
         builder.endObject();
+    }
 
+    private static final ConstructingObjectParser<RandomSamplingQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        false,
+        args -> {
+            var randomSamplingQueryBuilder = new RandomSamplingQueryBuilder((double) args[0]);
+            if (args[1] != null) {
+                randomSamplingQueryBuilder.seed((int) args[1]);
+            }
+            if (args[2] != null) {
+                randomSamplingQueryBuilder.hash((int) args[2]);
+            }
+            return randomSamplingQueryBuilder;
+        }
+    );
+
+    static {
+        PARSER.declareDouble(constructorArg(), PROBABILITY);
+        PARSER.declareInt(optionalConstructorArg(), SEED);
+        PARSER.declareInt(optionalConstructorArg(), HASH);
+    }
+
+    public static RandomSamplingQueryBuilder fromXContent(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null);
     }
 
     @Override
@@ -92,6 +144,6 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
      */
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersions.RANDOM_SAMPLER_QUERY_BUILDER;
     }
 }

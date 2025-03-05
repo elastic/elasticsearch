@@ -19,9 +19,9 @@ import org.elasticsearch.ingest.Processor;
 import java.util.Map;
 
 public class RegisteredDomainProcessor extends AbstractProcessor {
-    private static final PublicSuffixMatcher SUFFIX_MATCHER = PublicSuffixMatcherLoader.getDefault();
 
     public static final String TYPE = "registered_domain";
+    private static final PublicSuffixMatcher SUFFIX_MATCHER = PublicSuffixMatcherLoader.getDefault();
 
     private final String field;
     private final String targetField;

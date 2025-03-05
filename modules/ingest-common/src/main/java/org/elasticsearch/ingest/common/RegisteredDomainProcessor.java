@@ -57,7 +57,7 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
             }
         }
         String fieldPrefix = targetField;
-        if (fieldPrefix.equals("") == false) {
+        if (fieldPrefix.isEmpty() == false) {
             fieldPrefix += ".";
         }
         String domainTarget = fieldPrefix + "domain";

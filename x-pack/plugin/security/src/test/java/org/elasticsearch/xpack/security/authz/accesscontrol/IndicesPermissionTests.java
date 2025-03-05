@@ -705,6 +705,7 @@ public class IndicesPermissionTests extends ESTestCase {
         );
         IndicesPermission.IsResourceAuthorizedPredicate predicate = new IndicesPermission.IsResourceAuthorizedPredicate(
             StringMatcher.of("other"),
+            StringMatcher.of(),
             StringMatcher.of(dataStreamName, backingIndex.getName(), concreteIndex.getName(), alias.getName())
         );
         assertThat(predicate.test(dataStream), is(false));
@@ -720,10 +721,12 @@ public class IndicesPermissionTests extends ESTestCase {
     public void testResourceAuthorizedPredicateAnd() {
         IndicesPermission.IsResourceAuthorizedPredicate predicate1 = new IndicesPermission.IsResourceAuthorizedPredicate(
             StringMatcher.of("c", "a"),
+            StringMatcher.of(),
             StringMatcher.of("b", "d")
         );
         IndicesPermission.IsResourceAuthorizedPredicate predicate2 = new IndicesPermission.IsResourceAuthorizedPredicate(
             StringMatcher.of("c", "b"),
+            StringMatcher.of(),
             StringMatcher.of("a", "d")
         );
         Metadata.Builder mb = Metadata.builder(

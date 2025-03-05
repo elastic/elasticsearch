@@ -72,6 +72,7 @@ public class IndexAbstractionResolver {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
                 for (String authorizedIndex : allAuthorizedAndAvailable.get()) {
+                    // TODO properly handle failure selector here
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
                             indexAbstraction,
@@ -102,12 +103,13 @@ public class IndexAbstractionResolver {
                 resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                 if (minus) {
                     finalIndices.removeAll(resolvedIndices);
-                } else if (indicesOptions.ignoreUnavailable() == false || isAuthorized.test(indexAbstraction)) {
-                    // Unauthorized names are considered unavailable, so if `ignoreUnavailable` is `true` they should be silently
-                    // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action
-                    // handler, see: https://github.com/elastic/elasticsearch/issues/90215
-                    finalIndices.addAll(resolvedIndices);
-                }
+                } else if (indicesOptions.ignoreUnavailable() == false
+                    || isAuthorized.test(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, selectorString))) {
+                        // Unauthorized names are considered unavailable, so if `ignoreUnavailable` is `true` they should be silently
+                        // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action
+                        // handler, see: https://github.com/elastic/elasticsearch/issues/90215
+                        finalIndices.addAll(resolvedIndices);
+                    }
             }
         }
         return finalIndices;

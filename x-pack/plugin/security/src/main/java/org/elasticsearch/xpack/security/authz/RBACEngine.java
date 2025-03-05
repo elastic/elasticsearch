@@ -31,9 +31,11 @@ import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -875,18 +877,27 @@ public class RBACEngine implements AuthorizationEngine {
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    if (predicate.test(indexAbstraction)) {
+                    boolean dataAccessGranted = predicate.test(indexAbstraction);
+                    // TODO can we also skip if the data stream does not have failure indices?
+                    boolean failureAccessGranted = (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM)
+                        && predicate.test(
+                            IndexNameExpressionResolver.combineSelector(indexAbstraction.getName(), IndexComponentSelector.FAILURES),
+                            indexAbstraction
+                        );
+                    if (dataAccessGranted) {
                         indicesAndAliases.add(indexAbstraction.getName());
                         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                             // add data stream and its backing indices for any authorized data streams
                             for (Index index : indexAbstraction.getIndices()) {
                                 indicesAndAliases.add(index.getName());
                             }
-                            // also add failure indices; if the role doesn't grant access to them via applicable privileges, these will
-                            // be denied later (see `IndicesPermissions#authorize`)
-                            for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
-                                indicesAndAliases.add(index.getName());
-                            }
+                        }
+                    }
+                    if (failureAccessGranted) {
+                        // TODO we probably need to add this in _with_ the ::failures selector...
+                        indicesAndAliases.add(indexAbstraction.getName());
+                        for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
+                            indicesAndAliases.add(index.getName());
                         }
                     }
                 }

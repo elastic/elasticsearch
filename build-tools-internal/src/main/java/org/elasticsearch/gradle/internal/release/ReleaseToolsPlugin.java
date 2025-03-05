@@ -80,26 +80,17 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             task.setReleaseNotesIndexTemplate(projectDirectory.file(RESOURCES + "templates/release-notes-index.asciidoc"));
             task.setReleaseNotesIndexFile(projectDirectory.file("docs/reference/release-notes.asciidoc"));
 
-            task.setReleaseNotesTemplate(projectDirectory.file(RESOURCES + "templates/release-notes.asciidoc"));
+            task.setReleaseNotesTemplate(projectDirectory.file(RESOURCES + "templates/release-notes.md"));
             task.setReleaseNotesFile(
-                projectDirectory.file(
-                    String.format(
-                        "docs/reference/release-notes/%d.%d.%d.asciidoc",
-                        version.getMajor(),
-                        version.getMinor(),
-                        version.getRevision()
-                    )
-                )
+                projectDirectory.file("docs/release-notes/index.md")
             );
 
             task.setReleaseHighlightsTemplate(projectDirectory.file(RESOURCES + "templates/release-highlights.asciidoc"));
             task.setReleaseHighlightsFile(projectDirectory.file("docs/reference/release-notes/highlights.asciidoc"));
 
-            task.setBreakingChangesTemplate(projectDirectory.file(RESOURCES + "templates/breaking-changes.asciidoc"));
+            task.setBreakingChangesTemplate(projectDirectory.file(RESOURCES + "templates/breaking-changes.md"));
             task.setBreakingChangesMigrationFile(
-                projectDirectory.file(
-                    String.format("docs/reference/migration/migrate_%d_%d.asciidoc", version.getMajor(), version.getMinor())
-                )
+                projectDirectory.file("docs/release-notes/breaking-changes.md")
             );
             task.setMigrationIndexTemplate(projectDirectory.file(RESOURCES + "templates/migration-index.asciidoc"));
             task.setMigrationIndexFile(projectDirectory.file("docs/reference/migration/index.asciidoc"));

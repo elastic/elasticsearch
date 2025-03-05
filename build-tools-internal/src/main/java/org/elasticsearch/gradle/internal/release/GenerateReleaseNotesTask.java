@@ -139,10 +139,11 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             );
 
             LOGGER.info("Generating breaking changes / deprecations notes...");
-            BreakingChangesGenerator.update(
+            ReleaseNotesGenerator.update(
                 this.breakingChangesTemplate.get().getAsFile(),
                 this.breakingChangesMigrationFile.get().getAsFile(),
-                entries
+                qualifiedVersion,
+                changelogsByVersion.getOrDefault(qualifiedVersion, Set.of())
             );
 
             LOGGER.info("Updating migration/index...");

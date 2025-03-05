@@ -10,7 +10,7 @@
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 tasks.named('yamlRestTest').configure {
-  it.onlyIf("snapshot build") { buildParams.isSnapshotBuild() }
+  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
 }
 
 esplugin {

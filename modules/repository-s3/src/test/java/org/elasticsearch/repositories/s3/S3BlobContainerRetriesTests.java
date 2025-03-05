@@ -1113,7 +1113,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     public void testTrimmedLogAndCappedSuppressedErrorOnMultiObjectDeletionException() {
         final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
-        int maxBulkDeleteSize = randomIntBetween(10, 20);
+        int maxBulkDeleteSize = randomIntBetween(10, 30);
         final BlobContainer blobContainer = createBlobContainer(1, readTimeout, true, null, maxBulkDeleteSize);
 
         final Pattern pattern = Pattern.compile("<Key>(.+?)</Key>");
@@ -1129,7 +1129,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     deletes.append("<Error>");
                     deletes.append("<Code>").append(randomAlphaOfLength(10)).append("</Code>");
                     deletes.append("<Key>").append(key).append("</Key>");
-                    deletes.append("<Message>").append(randomAlphaOfLength(200)).append("</Message>");
+                    deletes.append("<Message>").append(randomAlphaOfLength(40)).append("</Message>");
                     deletes.append("</Error>");
                 }
                 deletes.append("</DeleteResult>");
@@ -1150,7 +1150,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     "deletion log",
                     S3BlobStore.class.getCanonicalName(),
                     Level.WARN,
-                    "Failed to delete some blobs [*... (* in total, * omitted)"
+                    blobs.size() > S3BlobStore.MAX_DELETE_EXCEPTIONS
+                        ? "Failed to delete some blobs [*... (* in total, * omitted)"
+                        : "Failed to delete some blobs [*]"
                 )
             );
             var exception = expectThrows(

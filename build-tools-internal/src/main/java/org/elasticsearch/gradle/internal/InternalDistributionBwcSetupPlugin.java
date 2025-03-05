@@ -340,8 +340,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             } else {
                 c.getOutputs().files(expectedOutputFile);
             }
-c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.getCi() == false);
-c.getArgs().add(projectPath.replace('/', ':') + ":" + assembleTaskName);
+            c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.getCi() == false);
+            c.getArgs().add(projectPath.replace('/', ':') + ":" + assembleTaskName);
             if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
                 c.getArgs().add("--build-cache");
             }

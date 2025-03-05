@@ -1,5 +1,0 @@
-pr: 114813
-summary: Retry `S3BlobContainer#getRegister` on all exceptions
-area: Snapshot/Restore
-type: enhancement
-issues: []

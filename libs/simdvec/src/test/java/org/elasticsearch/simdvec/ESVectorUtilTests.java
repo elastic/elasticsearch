@@ -32,9 +32,26 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     public void testIpFloatBit() {
         float[] q = new float[16];
         byte[] d = new byte[] { (byte) Integer.parseInt("01100010", 2), (byte) Integer.parseInt("10100111", 2) };
-        random().nextFloat();
+        for (int i = 0; i < q.length; i++) {
+            q[i] = random().nextFloat();
+        }
         float expected = q[1] + q[2] + q[6] + q[8] + q[10] + q[13] + q[14] + q[15];
         assertEquals(expected, ESVectorUtil.ipFloatBit(q, d), 1e-6);
+    }
+
+    public void testIpFloatByte() {
+        float[] q = new float[16];
+        byte[] d = new byte[16];
+        for (int i = 0; i < q.length; i++) {
+            q[i] = random().nextFloat();
+        }
+        random().nextBytes(d);
+
+        float expected = 0;
+        for (int i = 0; i < q.length; i++) {
+            expected += q[i] * d[i];
+        }
+        assertEquals(expected, ESVectorUtil.ipFloatByte(q, d), 1e-6);
     }
 
     public void testBitAndCount() {

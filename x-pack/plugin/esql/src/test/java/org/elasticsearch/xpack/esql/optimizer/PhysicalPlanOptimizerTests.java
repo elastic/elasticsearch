@@ -1132,6 +1132,45 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(rq.to(), nullValue());
     }
 
+    public void testPushMultipleFunctions() {
+        var plan = physicalPlan("""
+            from airports
+            | where starts_with(first_name, "*Firs") or ends_with(first_name, "irst*")
+            | where ends_with(last_name, "ast")
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var source = source(fieldExtract.child());
+        assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES));
+
+        var andBool = as(source.query(), BoolQueryBuilder.class);
+        assertThat(andBool.must(), hasSize(2));
+        assertThat(andBool.should(), hasSize(0));
+
+        var orBool = as(andBool.must().get(0), BoolQueryBuilder.class);
+        assertThat(orBool.should(), hasSize(2));
+        assertThat(orBool.must(), hasSize(0));
+
+        var orStartsWith = as(sv(orBool.should().get(0), "first_name"), WildcardQueryBuilder.class);
+        assertThat(orStartsWith.fieldName(), equalTo("first_name"));
+        assertThat(orStartsWith.caseInsensitive(), equalTo(false));
+        assertThat(orStartsWith.value(), equalTo("\\*Firs*"));
+
+        var orEndsWith = as(sv(orBool.should().get(1), "first_name"), WildcardQueryBuilder.class);
+        assertThat(orEndsWith.fieldName(), equalTo("first_name"));
+        assertThat(orEndsWith.caseInsensitive(), equalTo(false));
+        assertThat(orEndsWith.value(), equalTo("*irst\\*"));
+
+        var andEndsWith = as(sv(andBool.must().get(1), "last_name"), WildcardQueryBuilder.class);
+        assertThat(andEndsWith.fieldName(), equalTo("last_name"));
+        assertThat(andEndsWith.caseInsensitive(), equalTo(false));
+        assertThat(andEndsWith.value(), equalTo("*ast"));
+    }
+
     public void testLimit() {
         var optimized = optimizedPlan(physicalPlan("""
             from test

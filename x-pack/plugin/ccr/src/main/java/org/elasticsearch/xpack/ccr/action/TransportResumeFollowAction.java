@@ -130,7 +130,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        final IndexMetadata followerIndexMetadata = state.getMetadata().index(request.getFollowerIndex());
+        final IndexMetadata followerIndexMetadata = state.getMetadata().getProject().index(request.getFollowerIndex());
         if (followerIndexMetadata == null) {
             listener.onFailure(new IndexNotFoundException(request.getFollowerIndex()));
             return;

@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 
 import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import org.elasticsearch.gradle.util.GradleUtils
@@ -120,10 +121,10 @@ tasks.register("updateCIBwcVersions") {
     outputFile.text = "# This file is auto-generated. See ${pipelineTemplatePath}\n" + pipeline
   }
 
-  // Writes a Buildkite pipelime from a template, and replaces $BWC_LIST with an array of versions
+  // Writes a Buildkite pipelime from a template, and replaces a variable with an array of versions
   // Useful for writing a list of versions in a matrix configuration
-  def expandBwcList = { String outputFilePath, String pipelineTemplatePath, List<Version> versions ->
-    writeBuildkitePipeline(outputFilePath, pipelineTemplatePath, [new ListExpansion(versions: versions, variable: "BWC_LIST")])
+  def expandList = { String outputFilePath, String pipelineTemplatePath, String variable, List<Version> versions ->
+    writeBuildkitePipeline(outputFilePath, pipelineTemplatePath, [new ListExpansion(versions: versions, variable: variable)])
   }
 
   // Writes a Buildkite pipeline from a template, and replaces $BWC_STEPS with a list of steps, one for each version
@@ -140,10 +141,17 @@ tasks.register("updateCIBwcVersions") {
   doLast {
     writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.indexCompatible))
     writeVersions(file(".ci/snapshotBwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible))
-    expandBwcList(
+    expandList(
       ".buildkite/pipelines/intake.yml",
       ".buildkite/pipelines/intake.template.yml",
+      "BWC_LIST",
       filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible)
+    )
+    expandList(
+      ".buildkite/pipelines/periodic-fwc.yml",
+      ".buildkite/pipelines/periodic-fwc.template.yml",
+      "FWC_LIST",
+      buildParams.bwcVersions.released.findAll { it.major == VersionProperties.elasticsearchVersion.major && it.minor == VersionProperties.elasticsearchVersion.minor }
     )
     writeBuildkitePipeline(
       ".buildkite/pipelines/periodic.yml",
@@ -219,6 +227,22 @@ tasks.register("verifyVersions") {
       )
     }
   }
+}
+
+def generateUpgradeCompatibilityFile = tasks.register("generateUpgradeCompatibilityFile") {
+  def outputFile = project.layout.buildDirectory.file("rolling-upgrade-compatible-${VersionProperties.elasticsearch}.json")
+  def rollingUpgradeCompatibleVersions = buildParams.bwcVersions.wireCompatible - VersionProperties.elasticsearchVersion
+  inputs.property("rollingUpgradeCompatibleVersions", rollingUpgradeCompatibleVersions)
+  outputs.file(outputFile)
+  doLast {
+    def versionsString = rollingUpgradeCompatibleVersions.collect { "\"${it.toString()}\"" }.join(', ')
+    outputFile.get().asFile.write("""{"rolling_upgrade_compatible_versions" : [${versionsString}]}""")
+  }
+}
+
+def upgradeCompatibilityZip = tasks.register("upgradeCompatibilityZip", Zip) {
+  archiveFile.set(project.layout.buildDirectory.file("rolling-upgrade-compatible-${VersionProperties.elasticsearch}.zip"))
+  from(generateUpgradeCompatibilityFile)
 }
 
 // TODO: This flag existed as a mechanism to disable bwc tests during a backport. It is no
@@ -475,6 +499,7 @@ tasks.register("buildReleaseArtifacts").configure {
   }
     .collect { GradleUtils.findByName(it.tasks, 'assemble') }
     .findAll { it != null }
+  dependsOn upgradeCompatibilityZip
 }
 
 tasks.register("spotlessApply").configure {

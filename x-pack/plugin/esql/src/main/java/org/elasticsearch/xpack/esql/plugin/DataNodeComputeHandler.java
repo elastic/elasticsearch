@@ -131,10 +131,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
                         if (allowPartialResults) {
-                            groupTask = computeService.createGroupTask(
-                                parentTask,
-                                () -> "compute group: data-node [" + node.getName() + "], " + shardIds + " [" + shardIds + "]"
-                            );
+                            try {
+                                groupTask = computeService.createGroupTask(
+                                    parentTask,
+                                    () -> "compute group: data-node [" + node.getName() + "], " + shardIds + " [" + shardIds + "]"
+                                );
+                            } catch (TaskCancelledException e) {
+                                l.onFailure(e);
+                                return;
+                            }
                             onGroupFailure = computeService.cancelQueryOnFailure(groupTask);
                             l = ActionListener.runAfter(l, () -> transportService.getTaskManager().unregister(groupTask));
                         } else {
@@ -185,7 +190,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             clusterAlias,
             concreteIndices,
             originalIndices,
-            PlannerUtils.requestTimestampFilter(dataNodePlan, foldContext),
+            PlannerUtils.canMatchFilter(dataNodePlan, foldContext),
             runOnTaskFailure,
             ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())
         );

@@ -320,7 +320,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         return examplePlugin;
     }
 
-    private static void  configureVMWrapperTasks(
+    private static void configureVMWrapperTasks(
         Project project,
         List<TaskProvider<Test>> destructiveTasks,
         Map<String, TaskProvider<?>> depsTasks,
@@ -337,7 +337,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 t.setTaskName(destructiveTaskName);
                 t.extraArg("-D'" + IN_VM_SYSPROP + "'");
                 TaskProvider<?> taskDependencies = depsTasks.get(destructiveTaskName);
-                if(taskDependencies != null) {
+                if (taskDependencies != null) {
                     t.dependsOn(taskDependencies);
                 }
                 t.setLogLevel(project.getGradle().getStartParameter().getLogLevel().toString());

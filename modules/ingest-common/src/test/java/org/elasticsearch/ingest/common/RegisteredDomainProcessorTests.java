@@ -28,39 +28,30 @@ import static org.hamcrest.Matchers.is;
  *   https://publicsuffix.org/learn/
  */
 public class RegisteredDomainProcessorTests extends ESTestCase {
-    private Map<String, Object> buildEvent(String domain) {
-        return Map.of("domain", domain);
-    }
 
     public void testBasic() throws Exception {
-        testRegisteredDomainProcessor(buildEvent("www.google.com"), "www.google.com", "google.com", "com", "www");
-        testRegisteredDomainProcessor(buildEvent("google.com"), "google.com", "google.com", "com", null);
-        testRegisteredDomainProcessor(buildEvent(""), null, null, null, null);
-        testRegisteredDomainProcessor(buildEvent("."), null, null, null, null);
-        testRegisteredDomainProcessor(buildEvent("$"), null, null, null, null);
-        testRegisteredDomainProcessor(buildEvent("foo.bar.baz"), null, null, null, null);
-        testRegisteredDomainProcessor(buildEvent("www.books.amazon.co.uk"), "www.books.amazon.co.uk", "amazon.co.uk", "co.uk", "www.books");
+        testRegisteredDomainProcessor("www.google.com", "www.google.com", "google.com", "com", "www");
+        testRegisteredDomainProcessor("google.com", "google.com", "google.com", "com", null);
+        testRegisteredDomainProcessor("", null, null, null, null);
+        testRegisteredDomainProcessor(".", null, null, null, null);
+        testRegisteredDomainProcessor("$", null, null, null, null);
+        testRegisteredDomainProcessor("foo.bar.baz", null, null, null, null);
+        testRegisteredDomainProcessor("www.books.amazon.co.uk", "www.books.amazon.co.uk", "amazon.co.uk", "co.uk", "www.books");
         // Verify "com" is returned as the eTLD, for that FQDN or subdomain
-        testRegisteredDomainProcessor(buildEvent("com"), "com", null, "com", null);
-        testRegisteredDomainProcessor(buildEvent("example.com"), "example.com", "example.com", "com", null);
-        testRegisteredDomainProcessor(buildEvent("googleapis.com"), "googleapis.com", "googleapis.com", "com", null);
+        testRegisteredDomainProcessor("com", "com", null, "com", null);
+        testRegisteredDomainProcessor("example.com", "example.com", "example.com", "com", null);
+        testRegisteredDomainProcessor("googleapis.com", "googleapis.com", "googleapis.com", "com", null);
         testRegisteredDomainProcessor(
-            buildEvent("content-autofill.googleapis.com"),
+            "content-autofill.googleapis.com",
             "content-autofill.googleapis.com",
             "googleapis.com",
             "com",
             "content-autofill"
         );
         // Verify "ssl.fastly.net" is returned as the eTLD, for that FQDN or subdomain
+        testRegisteredDomainProcessor("global.ssl.fastly.net", "global.ssl.fastly.net", "global.ssl.fastly.net", "ssl.fastly.net", null);
         testRegisteredDomainProcessor(
-            buildEvent("global.ssl.fastly.net"),
-            "global.ssl.fastly.net",
-            "global.ssl.fastly.net",
-            "ssl.fastly.net",
-            null
-        );
-        testRegisteredDomainProcessor(
-            buildEvent("1.www.global.ssl.fastly.net"),
+            "1.www.global.ssl.fastly.net",
             "1.www.global.ssl.fastly.net",
             "global.ssl.fastly.net",
             "ssl.fastly.net",
@@ -121,7 +112,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
     }
 
     private void testRegisteredDomainProcessor(
-        Map<String, Object> source,
+        String fqdn,
         String expectedDomain,
         String expectedRegisteredDomain,
         String expectedETLD,
@@ -134,7 +125,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
 
         var processor = new RegisteredDomainProcessor(null, null, "domain", "url", true);
 
-        IngestDocument document = TestIngestDocument.withDefaultVersion(source);
+        IngestDocument document = TestIngestDocument.withDefaultVersion(Map.of("domain", fqdn));
         processor.execute(document);
 
         String domain = document.getFieldValue(domainField, String.class, expectedDomain == null);

@@ -107,8 +107,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             mb.put(backingIndices[k], false);
         }
 
-        DataStream dataStream = DataStream.builder(dataStreamName,
-            Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList())
+        DataStream dataStream = DataStream.builder(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList())
             .setSystem(true)
             .setHidden(true)
             .build();

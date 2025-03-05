@@ -53,7 +53,7 @@ public class DeprecatedIndexPredicateTests extends ESTestCase {
     }
 
     public void testReindexIsRequiredOnSystemIndexWhenExplicitlyIncluded() {
-        IndexVersion previousVersion =IndexVersion.getMinimumCompatibleIndexVersion(IndexVersion.current().id());
+        IndexVersion previousVersion = IndexVersion.getMinimumCompatibleIndexVersion(IndexVersion.current().id());
 
         IndexMetadata indexMetadata = Mockito.mock(IndexMetadata.class);
         Mockito.when(indexMetadata.getCreationVersion()).thenReturn(previousVersion);
@@ -85,9 +85,7 @@ public class DeprecatedIndexPredicateTests extends ESTestCase {
         Mockito.when(indexMetadata.getCreationVersion()).thenReturn(previousVersion);
         Mockito.when(indexMetadata.isSystem()).thenReturn(false);
         Mockito.when(indexMetadata.isSearchableSnapshot()).thenReturn(false);
-        Mockito.when(indexMetadata.getSettings()).thenReturn(Settings.builder()
-            .put(VERIFIED_READ_ONLY_SETTING.getKey(), true)
-            .build());
+        Mockito.when(indexMetadata.getSettings()).thenReturn(Settings.builder().put(VERIFIED_READ_ONLY_SETTING.getKey(), true).build());
 
         boolean reindexRequired = DeprecatedIndexPredicate.reindexRequired(indexMetadata, false, false);
         assertFalse(reindexRequired);
@@ -100,9 +98,7 @@ public class DeprecatedIndexPredicateTests extends ESTestCase {
         Mockito.when(indexMetadata.getCreationVersion()).thenReturn(previousVersion);
         Mockito.when(indexMetadata.isSystem()).thenReturn(false);
         Mockito.when(indexMetadata.isSearchableSnapshot()).thenReturn(false);
-        Mockito.when(indexMetadata.getSettings()).thenReturn(Settings.builder()
-            .put(VERIFIED_READ_ONLY_SETTING.getKey(), true)
-            .build());
+        Mockito.when(indexMetadata.getSettings()).thenReturn(Settings.builder().put(VERIFIED_READ_ONLY_SETTING.getKey(), true).build());
 
         boolean reindexRequired = DeprecatedIndexPredicate.reindexRequired(indexMetadata, true, false);
         assertTrue(reindexRequired);

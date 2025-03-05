@@ -4,6 +4,5 @@
 * [`IS NULL` and `IS NOT NULL` predicates](../../esql-functions-operators.md#esql-predicates)
 * [`Cast (::)`](../../esql-functions-operators.md#esql-cast-operator)
 * [`IN`](../../esql-functions-operators.md#esql-in-operator)
-* [`LIKE`](../../esql-functions-operators.md#esql-like-operator)
-* [`RLIKE`](../../esql-functions-operators.md#esql-rlike-operator)
+* [`LIKE` and `RLIKE`](../../esql-functions-operators.md#esql-like-operators)
 * [preview] [Search operators](../../esql-functions-operators.md#esql-search-operators)

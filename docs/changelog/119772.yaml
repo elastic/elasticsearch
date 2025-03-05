@@ -1,6 +1,0 @@
-pr: 119772
-summary: ESQL Support IN operator for Date nanos
-area: ES|QL
-type: enhancement
-issues:
- - 118578

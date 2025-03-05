@@ -70,18 +70,18 @@ public class AsyncTaskMaintenanceServiceTests extends ESTestCase {
         final Metadata.Builder metadataBuilder = Metadata.builder();
         final GlobalRoutingTable.Builder grtBuilder = GlobalRoutingTable.builder();
 
-        final ProjectId p1 = new ProjectId("p1");
+        final ProjectId p1 = ProjectId.fromId("p1");
         metadataBuilder.put(ProjectMetadata.builder(p1).put(getIndexMetadata(), false));
         grtBuilder.put(p1, buildRoutingTableWithIndex(localNodeId));
 
-        final ProjectId p2 = new ProjectId("p2");
+        final ProjectId p2 = ProjectId.fromId("p2");
         metadataBuilder.put(ProjectMetadata.builder(p2).put(getIndexMetadata(), false));
         grtBuilder.put(p2, buildRoutingTableWithIndex(alternateNodeId));
 
-        final ProjectId p3 = new ProjectId("p3");
+        final ProjectId p3 = ProjectId.fromId("p3");
         grtBuilder.put(p3, RoutingTable.builder());
 
-        final ProjectId p4 = new ProjectId("p4");
+        final ProjectId p4 = ProjectId.fromId("p4");
         metadataBuilder.put(ProjectMetadata.builder(p4).put(getIndexMetadata(), false));
         grtBuilder.put(p4, buildRoutingTableWithIndex(localNodeId));
 

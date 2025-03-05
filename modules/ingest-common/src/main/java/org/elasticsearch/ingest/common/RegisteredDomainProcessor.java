@@ -83,7 +83,8 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
     }
 
     @Nullable
-    private static DomainInfo getRegisteredDomain(@Nullable String fqdn) {
+    // visible for testing
+    static DomainInfo getRegisteredDomain(@Nullable String fqdn) {
         if (fqdn == null) {
             return null;
         }
@@ -106,7 +107,8 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    private record DomainInfo(
+    // visible for testing
+    record DomainInfo(
         String domain,
         String registeredDomain,
         String eTLD, // n.b. https://developer.mozilla.org/en-US/docs/Glossary/eTLD

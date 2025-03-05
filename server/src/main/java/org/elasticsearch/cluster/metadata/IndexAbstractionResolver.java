@@ -72,8 +72,11 @@ public class IndexAbstractionResolver {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
                 for (String authorizedIndex : allAuthorizedAndAvailable.get()) {
-                    // TODO properly handle failure selector here
-                    if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
+                    Tuple<String, String> tuple = IndexNameExpressionResolver.splitSelectorExpression(authorizedIndex);
+                    authorizedIndex = tuple.v1();
+                    String authorizedSelectorString = tuple.v2();
+                    if (selectorsMatch(selectorString, authorizedSelectorString)
+                        && Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
                             indexAbstraction,
                             selectorString,
@@ -113,6 +116,16 @@ public class IndexAbstractionResolver {
             }
         }
         return finalIndices;
+    }
+
+    boolean selectorsMatch(String selectorString, String authorizedSelectorString) {
+        IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString) == null
+            ? IndexComponentSelector.DATA
+            : IndexComponentSelector.getByKey(selectorString);
+        IndexComponentSelector authorizedSelector = IndexComponentSelector.getByKey(authorizedSelectorString) == null
+            ? IndexComponentSelector.DATA
+            : IndexComponentSelector.getByKey(authorizedSelectorString);
+        return selector == authorizedSelector;
     }
 
     private static void resolveSelectorsAndCollect(

@@ -38,6 +38,7 @@ import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.SERVER_COMPONENT_NAME;
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -412,9 +413,9 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testFilesEntitlementsWithExclusive() {
-        var baseTestPath = Path.of("/tmp").toAbsolutePath();
-        var testPath1 = Path.of("/tmp/test").toAbsolutePath();
-        var testPath2 = Path.of("/tmp/test/foo").toAbsolutePath();
+        var baseTestPath = Path.of("/base").toAbsolutePath();
+        var testPath1 = Path.of("/base/test").toAbsolutePath();
+        var testPath2 = Path.of("/base/test/foo").toAbsolutePath();
         var iae = expectThrows(
             IllegalArgumentException.class,
             () -> new PolicyManager(
@@ -426,7 +427,7 @@ public class PolicyManagerTests extends ESTestCase {
                         "test",
                         List.of(
                             new Scope(
-                                "test",
+                                "test.module1",
                                 List.of(
                                     new FilesEntitlement(
                                         List.of(FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ).withExclusive(true))
@@ -440,7 +441,7 @@ public class PolicyManagerTests extends ESTestCase {
                         "test",
                         List.of(
                             new Scope(
-                                "test",
+                                "test.module2",
                                 List.of(
                                     new FilesEntitlement(
                                         List.of(FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ).withExclusive(true))
@@ -457,8 +458,8 @@ public class PolicyManagerTests extends ESTestCase {
                 Set.of()
             )
         );
-        assertTrue(iae.getMessage().contains("duplicate/overlapping exclusive paths found in files entitlements:"));
-        assertTrue(iae.getMessage().contains(Strings.format("[test] [%s]]", testPath1.toString())));
+        assertThat(iae.getMessage(),
+            containsString("Path [/base/test] is exclusive to plugin2/test.module2 and plugin1/[test.module1]"));
 
         iae = expectThrows(
             IllegalArgumentException.class,

@@ -47,7 +47,7 @@ public final class FileAccessTree {
 
         @Override
         public String toString() {
-            return "[[" + componentName + "] [" + moduleNames + "] [" + path + "]]";
+            return "[[" + componentName + "] " + moduleNames + " [" + path + "]]";
         }
     }
 

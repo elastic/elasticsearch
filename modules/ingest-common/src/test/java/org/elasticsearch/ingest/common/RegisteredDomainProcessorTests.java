@@ -11,14 +11,17 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.TestIngestDocument;
+import org.elasticsearch.ingest.common.RegisteredDomainProcessor.DomainInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.Map;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.ingest.common.RegisteredDomainProcessor.getRegisteredDomain;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Test parsing of an eTLD from a FQDN. The list of eTLDs is maintained here:
@@ -29,33 +32,33 @@ import static org.hamcrest.Matchers.is;
  */
 public class RegisteredDomainProcessorTests extends ESTestCase {
 
-    public void testGetRegisteredDomain() throws Exception {
-        testRegisteredDomainProcessor("www.google.com", "www.google.com", "google.com", "com", "www");
-        testRegisteredDomainProcessor("google.com", "google.com", "google.com", "com", null);
-        testRegisteredDomainProcessor("", null, null, null, null);
-        testRegisteredDomainProcessor(".", null, null, null, null);
-        testRegisteredDomainProcessor("$", null, null, null, null);
-        testRegisteredDomainProcessor("foo.bar.baz", null, null, null, null);
-        testRegisteredDomainProcessor("www.books.amazon.co.uk", "www.books.amazon.co.uk", "amazon.co.uk", "co.uk", "www.books");
+    public void testGetRegisteredDomain() {
+        assertThat(getRegisteredDomain("www.google.com"), is(new DomainInfo("www.google.com", "google.com", "com", "www")));
+        assertThat(getRegisteredDomain("google.com"), is(new DomainInfo("google.com", "google.com", "com", null)));
+        assertThat(getRegisteredDomain(""), nullValue());
+        assertThat(getRegisteredDomain("."), nullValue());
+        assertThat(getRegisteredDomain("$"), nullValue());
+        assertThat(getRegisteredDomain("foo.bar.baz"), nullValue());
+        assertThat(
+            getRegisteredDomain("www.books.amazon.co.uk"),
+            is(new DomainInfo("www.books.amazon.co.uk", "amazon.co.uk", "co.uk", "www.books"))
+        );
         // Verify "com" is returned as the eTLD, for that FQDN or subdomain
-        testRegisteredDomainProcessor("com", "com", null, "com", null);
-        testRegisteredDomainProcessor("example.com", "example.com", "example.com", "com", null);
-        testRegisteredDomainProcessor("googleapis.com", "googleapis.com", "googleapis.com", "com", null);
-        testRegisteredDomainProcessor(
-            "content-autofill.googleapis.com",
-            "content-autofill.googleapis.com",
-            "googleapis.com",
-            "com",
-            "content-autofill"
+        assertThat(getRegisteredDomain("com"), is(new DomainInfo("com", null, "com", null)));
+        assertThat(getRegisteredDomain("example.com"), is(new DomainInfo("example.com", "example.com", "com", null)));
+        assertThat(getRegisteredDomain("googleapis.com"), is(new DomainInfo("googleapis.com", "googleapis.com", "com", null)));
+        assertThat(
+            getRegisteredDomain("content-autofill.googleapis.com"),
+            is(new DomainInfo("content-autofill.googleapis.com", "googleapis.com", "com", "content-autofill"))
         );
         // Verify "ssl.fastly.net" is returned as the eTLD, for that FQDN or subdomain
-        testRegisteredDomainProcessor("global.ssl.fastly.net", "global.ssl.fastly.net", "global.ssl.fastly.net", "ssl.fastly.net", null);
-        testRegisteredDomainProcessor(
-            "1.www.global.ssl.fastly.net",
-            "1.www.global.ssl.fastly.net",
-            "global.ssl.fastly.net",
-            "ssl.fastly.net",
-            "1.www"
+        assertThat(
+            getRegisteredDomain("global.ssl.fastly.net"),
+            is(new DomainInfo("global.ssl.fastly.net", "global.ssl.fastly.net", "ssl.fastly.net", null))
+        );
+        assertThat(
+            getRegisteredDomain("1.www.global.ssl.fastly.net"),
+            is(new DomainInfo("1.www.global.ssl.fastly.net", "global.ssl.fastly.net", "ssl.fastly.net", "1.www"))
         );
     }
 

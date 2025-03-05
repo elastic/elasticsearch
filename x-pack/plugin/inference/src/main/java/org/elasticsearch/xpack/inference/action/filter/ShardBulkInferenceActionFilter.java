@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -46,6 +45,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
@@ -290,14 +290,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                         request.field
                                     );
                                 } else {
-                                    failure = exc instanceof ElasticsearchException
-                                        ? exc
-                                        : new ElasticsearchException(
-                                            "Error loading inference for inference id [{}] on field [{}]",
-                                            exc,
-                                            inferenceId,
-                                            request.field
-                                        );
+                                    failure = new InferenceException(
+                                        "Error loading inference for inference id [{}] on field [{}]",
+                                        exc,
+                                        inferenceId,
+                                        request.field
+                                    );
                                 }
                                 inferenceResults.get(request.index).failures.add(failure);
                             }
@@ -321,14 +319,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             var acc = inferenceResults.get(request.index);
                             if (result instanceof ChunkedInferenceError error) {
                                 acc.addFailure(
-                                    error.exception() instanceof ElasticsearchException
-                                        ? error.exception()
-                                        : new ElasticsearchException(
-                                            "Exception when running inference id [{}] on field [{}]",
-                                            error.exception(),
-                                            inferenceProvider.model.getInferenceEntityId(),
-                                            request.field
-                                        )
+                                    new InferenceException(
+                                        "Exception when running inference id [{}] on field [{}]",
+                                        error.exception(),
+                                        inferenceProvider.model.getInferenceEntityId(),
+                                        request.field
+                                    )
                                 );
                             } else {
                                 acc.addOrUpdateResponse(
@@ -355,14 +351,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         for (FieldInferenceRequest request : requests) {
                             addInferenceResponseFailure(
                                 request.index,
-                                exc instanceof ElasticsearchException
-                                    ? exc
-                                    : new ElasticsearchException(
-                                        "Exception when running inference id [{}] on field [{}]",
-                                        exc,
-                                        inferenceProvider.model.getInferenceEntityId(),
-                                        request.field
-                                    )
+                                new InferenceException(
+                                    "Exception when running inference id [{}] on field [{}]",
+                                    exc,
+                                    inferenceProvider.model.getInferenceEntityId(),
+                                    request.field
+                                )
                             );
                         }
                     } finally {

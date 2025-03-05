@@ -121,6 +121,6 @@ public class RuleQueryRankDoc extends RankDoc {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.QUERY_RULES_RETRIEVER;
+        return TransportVersions.V_8_17_0;
     }
 }

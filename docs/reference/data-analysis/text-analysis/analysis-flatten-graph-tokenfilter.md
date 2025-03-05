@@ -25,7 +25,7 @@ The `flatten_graph` filter uses Lucene’s [FlattenGraphFilter](https://lucene.a
 
 To see how the `flatten_graph` filter works, you first need to produce a token graph containing multi-position tokens.
 
-The following [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) request uses the `synonym_graph` filter to add `dns` as a multi-position synonym for `domain name system` in the text `domain name system is fragile`:
+The following [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) request uses the `synonym_graph` filter to add `internet phonebook` as a multi-position synonym for `domain name system` in the text `domain name system is fragile`:
 
 ```console
 GET /_analyze
@@ -34,17 +34,17 @@ GET /_analyze
   "filter": [
     {
       "type": "synonym_graph",
-      "synonyms": [ "dns, domain name system" ]
+      "synonyms": [ "internet phonebook, domain name system" ]
     }
   ],
   "text": "domain name system is fragile"
 }
 ```
 
-The filter produces the following token graph with `dns` as a multi-position token.
+The filter produces the following token graph with `internet phonebook` as a multi-position token.
 
-:::{image} ../../../images/token-graph-dns-synonym-ex.svg
-:alt: token graph dns synonym ex
+:::{image} ../../../images/token-graph-dns-synonym-ex2.svg
+:alt: token graph dns synonym example
 :::
 
 Indexing does not support token graphs containing multi-position tokens. To make this token graph suitable for indexing, it needs to be flattened.
@@ -58,7 +58,7 @@ GET /_analyze
   "filter": [
     {
       "type": "synonym_graph",
-      "synonyms": [ "dns, domain name system" ]
+      "synonyms": [ "internet phonebook, domain name system" ]
     },
     "flatten_graph"
   ],
@@ -68,8 +68,8 @@ GET /_analyze
 
 The filter produces the following flattened token graph, which is suitable for indexing.
 
-:::{image} ../../../images/token-graph-dns-invalid-ex.svg
-:alt: token graph dns invalid ex
+:::{image} ../../../images/token-graph-dns-synonym-flattened-ex2.svg
+:alt: token graph dns flattened example
 :::
 
 

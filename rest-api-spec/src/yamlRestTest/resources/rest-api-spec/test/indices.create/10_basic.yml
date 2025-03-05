@@ -282,7 +282,7 @@
           path: /{index}
           capabilities: [ poorly_formatted_bad_request ]
       reason: "requires poorly_formatted_bad_request bug fix"
-      
+
   - do:
       catch: bad_request
       indices.create:
@@ -311,7 +311,7 @@
         index: test_index
         body:
           aliases: "bad alias"
-----
+---
 "Create index with hunspell missing dict":
   - requires:
       test_runner_features: [ capabilities ]

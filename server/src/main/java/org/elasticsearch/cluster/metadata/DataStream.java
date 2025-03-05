@@ -9,6 +9,9 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.ElasticsearchException;
@@ -84,6 +87,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
     public static final Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
         try {
+            FieldInfo info = r.getFieldInfos().fieldInfo(TIMESTAMP_FIELD_NAME);
+            if (info != null && info.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE) {
+                DocValuesSkipper skipper = r.getDocValuesSkipper(TIMESTAMP_FIELD_NAME);
+                return skipper.maxValue();
+            }
+
             PointValues points = r.getPointValues(TIMESTAMP_FIELD_NAME);
             if (points != null) {
                 byte[] sortValue = points.getMaxPackedValue();

@@ -1,0 +1,5 @@
+pr: 123763
+summary: Handle empty input inference
+area: Relevance
+type: enhancement
+issues: []

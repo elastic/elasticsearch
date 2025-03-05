@@ -248,6 +248,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
         // Define (but don't run) the search request, expecting a partial shard failure. We will run it later.
         Thread searchThread = new Thread(() -> {
+            logger.info("Executing search");
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
                 prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
@@ -285,11 +286,13 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         }
 
         // Now run the search request.
+        logger.info("Starting search thread");
         searchThread.start();
 
         try {
             assertBusy(() -> {
                 final List<SearchTask> coordinatorSearchTask = getCoordinatorSearchTasks();
+                logger.info("Checking tasks: {}", coordinatorSearchTask);
                 assertThat("The Coordinator should have one SearchTask.", coordinatorSearchTask, hasSize(1));
                 assertTrue("The SearchTask should be cancelled.", coordinatorSearchTask.get(0).isCancelled());
                 for (var shardQueryTask : getShardQueryTasks()) {

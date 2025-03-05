@@ -1009,8 +1009,8 @@ setup:
 ---
 "Empty semantic_text field skips embedding generation":
   - requires:
-      cluster_features: "semantic_text.skips_generating_embeddings_fix"
-      reason: skips generating embeddings when field value is whitespace and/or empty string
+      cluster_features: "semantic_text.handle_empty_input"
+      reason: skips generating embeddings when semantic_text field is contains empty or whitespace only input
 
   - do:
       index:
@@ -1018,6 +1018,7 @@ setup:
         id: doc_1
         body:
           sparse_field: ""
+        refresh: true
 
   - do:
       search:
@@ -1027,14 +1028,15 @@ setup:
           query:
             match_all: { }
 
+  - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.sparse_field: "" }
   - not_exists: hits.hits.0._source._inference_fields
 
 ---
 "Whitespace-Only semantic_text field skips embedding generation":
   - requires:
-      cluster_features: "semantic_text.skips_generating_embeddings_fix"
-      reason: skips generating embeddings when field value is whitespace and/or empty string
+      cluster_features: "semantic_text.handle_empty_input"
+      reason: skips generating embeddings when semantic_text field is contains empty or whitespace only input
 
   - do:
       index:
@@ -1042,6 +1044,7 @@ setup:
         id: doc_1
         body:
           sparse_field: "   "
+        refresh: true
 
   - do:
       search:
@@ -1051,14 +1054,15 @@ setup:
           query:
             match_all: { }
 
+  - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.sparse_field: "   " }
   - not_exists: hits.hits.0._source._inference_fields
 
 ---
 "Reindexing with empty or whitespace semantic_text skips embedding generation":
   - requires:
-      cluster_features: "semantic_text.skips_generating_embeddings_fix"
-      reason: skips generating embeddings when field value is whitespace and/or empty string
+      cluster_features: "semantic_text.handle_empty_input"
+      reason: skips generating embeddings when semantic_text field is contains empty or whitespace only input
 
   - do:
       index:
@@ -1113,8 +1117,8 @@ setup:
 ---
 "Empty Multi-Field skips embedding generation":
   - requires:
-      cluster_features: "semantic_text.skips_generating_embeddings_fix"
-      reason: skips generating embeddings when field value is whitespace and/or empty string
+      cluster_features: "semantic_text.handle_empty_input"
+      reason: skips generating embeddings when semantic_text field is contains empty or whitespace only input
 
   - do:
       indices.create:

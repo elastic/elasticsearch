@@ -8,11 +8,20 @@
  */
 
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+  it.onlyIf("snapshot build") { buildParams.isSnapshotBuild() }
+}
 
 tasks.named('yamlRestTest').configure {
   it.onlyIf("snapshot build") { buildParams.isSnapshotBuild() }
 }
 
+dependencies {
+  api project(':test:framework')
+}
 esplugin {
   description = 'A test module that exposes a way to simulate search shard failures and warnings'
   classname ='org.elasticsearch.test.errorquery.ErrorQueryPlugin'

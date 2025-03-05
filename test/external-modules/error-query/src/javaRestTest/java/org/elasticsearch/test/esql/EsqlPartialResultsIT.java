@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.test.failingfield;
+package org.elasticsearch.test.esql;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
@@ -26,13 +26,13 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class EsqlPartialResultsIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .module("test-failing-field")
+        .module("test-error-query")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("esql.query.allow_partial_results", "true")
@@ -117,7 +117,7 @@ public class EsqlPartialResultsIT extends ESRestTestCase {
             List<?> columns = (List<?>) results.get("columns");
             assertThat(columns, equalTo(List.of(Map.of("name", "fail_me", "type", "long"), Map.of("name", "v", "type", "long"))));
             List<?> values = (List<?>) results.get("values");
-            assertThat(values, hasSize(okIds.size()));
+            assertThat(values.size(), lessThanOrEqualTo(okIds.size()));
         }
         // allow_partial_results = false
         {

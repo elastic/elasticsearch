@@ -9,8 +9,8 @@
 
 package org.elasticsearch.test.errorquery;
 
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.test.FailingFieldPlugin;
 
 import java.util.List;
 
@@ -19,7 +19,7 @@ import static java.util.Collections.singletonList;
 /**
  * Test plugin that exposes a way to simulate search shard failures and warnings.
  */
-public class ErrorQueryPlugin extends Plugin implements SearchPlugin {
+public class ErrorQueryPlugin extends FailingFieldPlugin implements SearchPlugin {
     public ErrorQueryPlugin() {}
 
     @Override

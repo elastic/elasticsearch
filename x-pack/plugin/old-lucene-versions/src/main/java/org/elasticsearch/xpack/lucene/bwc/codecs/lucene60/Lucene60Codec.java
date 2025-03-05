@@ -69,8 +69,9 @@ public class Lucene60Codec extends BWCCodec {
     };
 
     /**
-     * Instantiates a new codec.
+     * Instantiates a new codec. Called by SPI.
      */
+    @SuppressWarnings("unused")
     public Lucene60Codec() {
         super("Lucene60");
         this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);

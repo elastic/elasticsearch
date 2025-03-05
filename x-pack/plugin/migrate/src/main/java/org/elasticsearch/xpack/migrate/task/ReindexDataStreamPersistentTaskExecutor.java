@@ -280,6 +280,14 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         }));
     }
 
+    /**
+     * If ILM runs an async action on the source index shortly before reindexing, the results of the async action
+     * may not yet be in the source index. For example, if a force merge has just been started by ILM, the reindex
+     * will see the un-force-merged index. But the ILM state will be copied to destination index saying that an
+     * async action was started, and so ILM won't force merge the destination index. To be sure that the async
+     * action is run on the destination index, we force a retry on async actions after adding the ILM policy
+     * to the destination index.
+     */
     private void maybeRunILMAsyncAction(String newIndex, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
         var retryActionRequest = new RetryActionRequest(TimeValue.MAX_VALUE, TimeValue.MAX_VALUE, newIndex);
         retryActionRequest.setParentTask(parentTaskId);

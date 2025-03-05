@@ -34,6 +34,11 @@ import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Concrete representation of a connection to the EC2 API service: exposes an {@link AmazonEc2Reference} via {@link #client()} and allows
+ * to refresh the client settings via {@link #refreshAndClearCache}.
+ */
+// This is kinda pointless extra indirection; TODO fold it into Ec2DiscoveryPlugin
 class AwsEc2ServiceImpl implements AwsEc2Service {
 
     private static final Logger LOGGER = LogManager.getLogger(AwsEc2ServiceImpl.class);

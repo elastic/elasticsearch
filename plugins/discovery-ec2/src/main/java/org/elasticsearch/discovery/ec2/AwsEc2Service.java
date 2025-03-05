@@ -16,6 +16,11 @@ import org.elasticsearch.core.TimeValue;
 import java.io.Closeable;
 import java.util.List;
 
+/**
+ * Abstract representation of a connection to the EC2 API service: exposes an {@link AmazonEc2Reference} via {@link #client()} and allows
+ * to refresh the client settings via {@link #refreshAndClearCache}.
+ */
+// This is kinda pointless extra indirection and only has one implementation; TODO fold it into Ec2DiscoveryPlugin
 interface AwsEc2Service extends Closeable {
     Setting<Boolean> AUTO_ATTRIBUTE_SETTING = Setting.boolSetting("cloud.node.auto_attributes", false, Property.NodeScope);
 

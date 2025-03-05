@@ -40,6 +40,9 @@ import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_DNS;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_IP;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.TAG_PREFIX;
 
+/**
+ * A {@link SeedHostsProvider} which provides the seed host addresses for discovery by calling the AWS EC2 {@code DescribeInstances} API.
+ */
 class AwsEc2SeedHostsProvider implements SeedHostsProvider {
 
     private static final Logger logger = LogManager.getLogger(AwsEc2SeedHostsProvider.class);

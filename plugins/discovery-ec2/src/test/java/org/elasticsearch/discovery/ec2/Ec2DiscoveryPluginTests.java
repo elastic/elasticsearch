@@ -53,6 +53,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Mostly just testing that the various plugin settings (see reference docs) result in appropriate calls on the client builder, using mocks.
+ */
 public class Ec2DiscoveryPluginTests extends ESTestCase {
 
     private static void assertNodeAttributes(Settings settings, String expected) {
@@ -80,21 +83,6 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
                 }
             }
         );
-    }
-
-    private static void runPluginMockTest(Settings.Builder settings, CheckedConsumer<Ec2DiscoveryPluginMock, Exception> pluginConsumer) {
-        final var httpClientBuilder = mock(ApacheHttpClient.Builder.class);
-        final var ec2ClientBuilder = mock(Ec2ClientBuilder.class);
-        when(ec2ClientBuilder.build()).thenReturn(mock(Ec2Client.class));
-
-        try (
-            var plugin = new Ec2DiscoveryPluginMock(settings.build(), httpClientBuilder, ec2ClientBuilder);
-            var ignored = plugin.ec2Service.client()
-        ) {
-            pluginConsumer.accept(plugin);
-        } catch (Exception e) {
-            throw new AssertionError("unexpected", e);
-        }
     }
 
     public void testDefaultEndpoint() {
@@ -132,6 +120,9 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
     }
 
     public void testSpecificProxyConfiguration() {
+        // generates a random proxy configuration (i.e. randomly setting/omitting all the settings) and verifies that the resulting
+        // ProxyConfiguration is as expected with a sequence of assertions that match the configuration we generated
+
         final var argumentCaptor = ArgumentCaptor.forClass(ProxyConfiguration.class);
 
         final var proxySettings = Settings.builder();
@@ -141,6 +132,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
         proxySettings.put(PROXY_HOST_SETTING.getKey(), proxyHost);
         assertions.add(proxyConfiguration -> assertEquals(proxyHost, proxyConfiguration.host()));
 
+        // randomly set, or not, the port
         if (randomBoolean()) {
             final var proxyPort = between(1, 65535);
             proxySettings.put(PROXY_PORT_SETTING.getKey(), proxyPort);
@@ -149,6 +141,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
             assertions.add(proxyConfiguration -> assertEquals((int) PROXY_PORT_SETTING.get(Settings.EMPTY), proxyConfiguration.port()));
         }
 
+        // randomly set, or not, the scheme
         if (randomBoolean()) {
             final var proxyScheme = randomFrom("http", "https");
             proxySettings.put(PROXY_SCHEME_SETTING.getKey(), proxyScheme);
@@ -159,6 +152,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
             );
         }
 
+        // randomly set, or not, the credentials
         if (randomBoolean()) {
             final var secureSettings = new MockSecureSettings();
             final var proxyUsername = randomSecretKey();
@@ -173,6 +167,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
             assertions.add(proxyConfiguration -> assertEquals("", proxyConfiguration.password()));
         }
 
+        // now verify
         runPluginMockTest(proxySettings, plugin -> verify(plugin.httpClientBuilder, times(1)).proxyConfiguration(argumentCaptor.capture()));
         final var proxyConfiguration = argumentCaptor.getValue();
         assertions.forEach(a -> a.accept(proxyConfiguration));
@@ -226,6 +221,24 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
         assertEquals(accessKey, awsCredentials.accessKeyId());
         assertEquals(secretKey, awsCredentials.secretAccessKey());
         assertEquals(sessionToken, awsCredentials.sessionToken());
+    }
+
+    /**
+     * Sets up a plugin with the given {@code settings}, using mocks, and then calls the {@code pluginConsumer} on it.
+     */
+    private static void runPluginMockTest(Settings.Builder settings, CheckedConsumer<Ec2DiscoveryPluginMock, Exception> pluginConsumer) {
+        final var httpClientBuilder = mock(ApacheHttpClient.Builder.class);
+        final var ec2ClientBuilder = mock(Ec2ClientBuilder.class);
+        when(ec2ClientBuilder.build()).thenReturn(mock(Ec2Client.class));
+
+        try (
+            var plugin = new Ec2DiscoveryPluginMock(settings.build(), httpClientBuilder, ec2ClientBuilder);
+            var ignored = plugin.ec2Service.client()
+        ) {
+            pluginConsumer.accept(plugin);
+        } catch (Exception e) {
+            throw new AssertionError("unexpected", e);
+        }
     }
 
     public void testLoneAccessKeyError() {

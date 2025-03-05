@@ -18,6 +18,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import java.util.Map;
 
+/**
+ * Verifies that the special network addresses {@code _ec2:*_} work by retrieving information from the IMDS. See {@code discovery-ec2}
+ * plugin docs for more information.
+ */
 public class DiscoveryEc2SpecialNetworkAddressesIT extends DiscoveryEc2NetworkAddressesTestCase {
 
     private final String imdsAddressName;

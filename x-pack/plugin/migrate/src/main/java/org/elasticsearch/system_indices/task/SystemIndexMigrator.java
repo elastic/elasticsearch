@@ -55,11 +55,11 @@ import org.elasticsearch.xpack.migrate.task.ReindexDataStreamEnrichedStatus;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -91,7 +91,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     // NOTE: This queue is not a thread-safe class. Use `synchronized (migrationQueue)` whenever you access this. I chose this rather than
     // a synchronized/concurrent collection or an AtomicReference because we often need to do compound operations, which are much simpler
     // with `synchronized` blocks than when only the collection accesses are protected.
-    private final Deque<SystemResourceMigrationInfo> migrationQueue = new ArrayDeque<>();
+    private final Queue<SystemResourceMigrationInfo> migrationQueue = new ArrayDeque<>();
     private final AtomicReference<Map<String, Object>> currentFeatureCallbackMetadata = new AtomicReference<>();
 
     public SystemIndexMigrator(
@@ -177,11 +177,11 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 // installed on the previous node vs. this one.
                 assert nextMigrationInfo.getFeatureName().equals(stateFeatureName)
                     && nextMigrationInfo.getCurrentResourceName().equals(stateIndexName)
-                    : "index name ["
+                    : "system index/data stream name ["
                         + stateIndexName
                         + "] or feature name ["
                         + stateFeatureName
-                        + "] from task state did not match first index ["
+                        + "] from task state did not match first index/data stream ["
                         + nextMigrationInfo.getCurrentResourceName()
                         + "] and feature ["
                         + nextMigrationInfo.getFeatureName()

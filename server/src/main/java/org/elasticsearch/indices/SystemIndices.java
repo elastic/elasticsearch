@@ -887,7 +887,8 @@ public class SystemIndices {
         }
 
         /**
-         * Returns descriptors of all system resources - indices and data streams. Doesn't include associated indices.
+         * Returns descriptors of all system resources - indices and data streams.
+         * Doesn't include associated indices ({@link AssociatedIndexDescriptor}.
          */
         public Collection<SystemResourceDescriptor> getSystemResourceDescriptors() {
             return Stream.concat(indexDescriptors.stream(), dataStreamDescriptors.stream()).toList();

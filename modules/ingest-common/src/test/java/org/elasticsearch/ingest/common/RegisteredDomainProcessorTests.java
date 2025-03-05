@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.is;
  */
 public class RegisteredDomainProcessorTests extends ESTestCase {
 
-    public void testBasic() throws Exception {
+    public void testGetRegisteredDomain() throws Exception {
         testRegisteredDomainProcessor("www.google.com", "www.google.com", "google.com", "com", "www");
         testRegisteredDomainProcessor("google.com", "google.com", "google.com", "com", null);
         testRegisteredDomainProcessor("", null, null, null, null);

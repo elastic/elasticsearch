@@ -137,6 +137,7 @@ public class MockScriptEngine implements ScriptEngine {
                             Map<String, Object> vars = new HashMap<>(parameters);
                             vars.put("params", parameters);
                             vars.put("doc", getDoc());
+                            vars.put("_score", get_score());
                             return ((Number) script.apply(vars)).doubleValue();
                         }
                     };
@@ -881,6 +882,7 @@ public class MockScriptEngine implements ScriptEngine {
                     Map<String, Object> vars = new HashMap<>(parameters);
                     vars.put("params", parameters);
                     vars.put("doc", getDoc());
+                    vars.put("_score", get_score());
                     return String.valueOf(script.apply(vars));
                 }
             };
@@ -907,6 +909,7 @@ public class MockScriptEngine implements ScriptEngine {
                     Map<String, Object> vars = new HashMap<>(parameters);
                     vars.put("params", parameters);
                     vars.put("doc", getDoc());
+                    vars.put("_score", get_score());
                     return (BytesRefProducer) script.apply(vars);
                 }
             };

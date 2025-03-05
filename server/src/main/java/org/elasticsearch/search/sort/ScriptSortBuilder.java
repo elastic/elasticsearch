@@ -285,7 +285,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
-                        StringSortScript leafScript = getLeafScript(context);
+                        StringSortScript leafScript = leafScripts.computeIfAbsent(context.id(), o -> {
+                            try {
+                                return searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        });
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
 
@@ -306,17 +312,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                     @Override
                     protected void setScorer(LeafReaderContext context, Scorable scorer) {
-                        // getLeafScript(context).setScorer(scorer);
-                    }
-
-                    StringSortScript getLeafScript(LeafReaderContext context) {
-                        return leafScripts.computeIfAbsent(context.id(), o -> {
-                            try {
-                                return searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        });
+                        leafScripts.get(context.id()).setScorer(scorer);
                     }
 
                     @Override
@@ -339,13 +335,19 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             case NUMBER -> {
                 final NumberSortScript.Factory numberSortFactory = context.compile(script, NumberSortScript.CONTEXT);
                 // searchLookup is unnecessary here, as it's just used for expressions
-                final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), searchLookup);
+                final NumberSortScript.LeafFactory numberSortScriptFactory = numberSortFactory.newFactory(script.getParams(), searchLookup);
                 return new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
                     final Map<Object, NumberSortScript> leafScripts = ConcurrentCollections.newConcurrentMap();
 
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) {
-                        NumberSortScript leafScript = getLeafScript(context);
+                        NumberSortScript leafScript = leafScripts.computeIfAbsent(context.id(), o -> {
+                            try {
+                                return numberSortScriptFactory.newInstance(new DocValuesDocReader(searchLookup, context));
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        });
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
                             public boolean advanceExact(int doc) {
@@ -363,17 +365,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                     @Override
                     protected void setScorer(LeafReaderContext context, Scorable scorer) {
-                        // getLeafScript(context).setScorer(scorer);
-                    }
-
-                    NumberSortScript getLeafScript(LeafReaderContext context) {
-                        return leafScripts.computeIfAbsent(context.id(), o -> {
-                            try {
-                                return numberSortScript.newInstance(new DocValuesDocReader(searchLookup, context));
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        });
+                        leafScripts.get(context.id()).setScorer(scorer);
                     }
                 };
             }
@@ -385,7 +377,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
-                        BytesRefSortScript leafScript = getLeafScript(context);
+                        BytesRefSortScript leafScript = leafScripts.computeIfAbsent(context.id(), o -> {
+                            try {
+                                return searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        });
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
 
                             @Override
@@ -415,18 +413,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                     @Override
                     protected void setScorer(LeafReaderContext context, Scorable scorer) {
-                        // getLeafScript(context).setScorer(scorer);
+                        leafScripts.get(context.id()).setScorer(scorer);
                     }
 
-                    BytesRefSortScript getLeafScript(LeafReaderContext context) {
-                        return leafScripts.computeIfAbsent(context.id(), o -> {
-                            try {
-                                return searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        });
-                    }
 
                     @Override
                     public BucketedSort newBucketedSort(

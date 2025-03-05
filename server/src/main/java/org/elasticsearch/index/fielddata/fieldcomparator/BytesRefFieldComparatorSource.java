@@ -123,6 +123,12 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 LeafFieldComparator leafComparator = super.getLeafComparator(context);
+                // TopFieldCollector interacts with inter-segment concurrency by creating a FieldValueHitQueue per slice, each one with a
+                // specific instance of the FieldComparator. This ensures sequential execution across LeafFieldComparators returned by
+                // the same parent FieldComparator. That allows for effectively sharing the same instance of leaf comparator, like in this
+                // case in the Lucene code. That's fine dealing with sorting by field, but not when using script sorting, because we then
+                // need to set to Scorer to the specific leaf comparator, to make the _score variable available in sort scripts. The
+                // setScorer call happens concurrently across slices and needs to target the specific leaf context that is being searched.
                 return new LeafFieldComparator() {
                     @Override
                     public void setBottom(int slot) throws IOException {
@@ -145,11 +151,10 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                     }
 
                     @Override
-                    public void setScorer(Scorable scorer) throws IOException {
+                    public void setScorer(Scorable scorer) {
                         // this ensures that the scorer is set for the specific leaf comparator
                         // corresponding to the leaf context we are scoring
-                        // BytesRefFieldComparatorSource.this.setScorer(context, scorer);
-                        // TODO just an experiment to make sure that some test fails without it!
+                        BytesRefFieldComparatorSource.this.setScorer(context, scorer);
                     }
                 };
             }

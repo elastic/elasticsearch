@@ -15,7 +15,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
-import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.BitSet;
@@ -110,11 +109,6 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
                         return LongValuesComparatorSource.this.getNumericDocValues(context, lMissingValue);
-                    }
-
-                    @Override
-                    public void setScorer(Scorable scorer) throws IOException {
-                        // TODO why is this missing?
                     }
                 };
             }

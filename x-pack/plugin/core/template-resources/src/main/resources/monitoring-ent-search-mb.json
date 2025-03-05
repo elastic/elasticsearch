@@ -1,5 +1,5 @@
 {
-  "index_patterns": [".monitoring-ent-search-8-*"],
+  "index_patterns": [".monitoring-ent-search-${xpack.stack.monitoring.template.version}-*"],
   "version": ${xpack.stack.monitoring.template.release.version},
   "_meta": {
     "description": "Template used by Enterprise Search Metricbeat module monitoring information for Stack Monitoring",

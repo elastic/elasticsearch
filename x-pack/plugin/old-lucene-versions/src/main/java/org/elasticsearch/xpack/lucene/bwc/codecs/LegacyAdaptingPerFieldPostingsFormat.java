@@ -30,7 +30,6 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Terms;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.UpdateForV10;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.BWCLucene50PostingsFormat;
 
 import java.io.IOException;
 import java.util.Collections;

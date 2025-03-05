@@ -98,7 +98,7 @@ public class BWCLucene50PostingsFormat extends PostingsFormat {
         PostingsReaderBase postingsReader = new org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsReader(state);
         boolean success = false;
         try {
-            //The Lucene40BlockTreeTermsReader is a fork
+            // The Lucene40BlockTreeTermsReader is a fork
             FieldsProducer ret = new Lucene40BlockTreeTermsReader(postingsReader, state);
             success = true;
             return ret;

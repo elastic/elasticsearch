@@ -84,7 +84,6 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         DateFieldType ft = new DateFieldType("my_date", Resolution.NANOSECONDS);
         isFieldWithinRangeTestCase(ft);
     }
-
     public void isFieldWithinRangeTestCase(DateFieldType ft) throws IOException {
 
         Directory dir = newDirectory();

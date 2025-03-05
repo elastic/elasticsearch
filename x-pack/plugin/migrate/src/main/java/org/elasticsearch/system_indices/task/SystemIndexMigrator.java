@@ -519,7 +519,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             .mapping(migrationInfo.getMappings())
             .settings(Objects.requireNonNullElse(settingsBuilder.build(), Settings.EMPTY));
 
-        baseClient.admin().indices().create(createIndexRequest, listener);
+        migrationInfo.createClient(baseClient).admin().indices().create(createIndexRequest, listener);
     }
 
     private void createIndexRetryOnFailure(SystemIndexMigrationInfo migrationInfo, ActionListener<CreateIndexResponse> listener) {
@@ -547,7 +547,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     private <T> void deleteIndex(SystemIndexMigrationInfo migrationInfo, ActionListener<AcknowledgedResponse> listener) {
         logger.info("removing index [{}] from feature [{}]", migrationInfo.getNextIndexName(), migrationInfo.getFeatureName());
         String newIndexName = migrationInfo.getNextIndexName();
-        baseClient.admin().indices().prepareDelete(newIndexName).execute(ActionListener.wrap(ackedResponse -> {
+        migrationInfo.createClient(baseClient).admin().indices().prepareDelete(newIndexName).execute(ActionListener.wrap(ackedResponse -> {
             if (ackedResponse.isAcknowledged()) {
                 logger.info("successfully removed index [{}]", newIndexName);
                 listener.onResponse(ackedResponse);

@@ -226,7 +226,7 @@ public class InternalUsers {
                         TransportSearchScrollAction.TYPE.name(),
                         ModifyDataStreamsAction.NAME
                     )
-                    .allowRestrictedIndices(false)
+                    .allowRestrictedIndices(true)
                     .build() },
             null,
             null,

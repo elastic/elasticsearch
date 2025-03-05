@@ -59,12 +59,23 @@ public final class FileAccessTree {
                     List<Path> paths = fd.resolvePaths(pathLookup).toList();
                     for (Path path : paths) {
                         String normalizedPath = normalizePath(path);
-                        var exclusivePath = exclusivePaths.computeIfAbsent(normalizedPath,
-                            k -> new ExclusivePath(efe.componentName(), new HashSet<>(), normalizedPath));
+                        var exclusivePath = exclusivePaths.computeIfAbsent(
+                            normalizedPath,
+                            k -> new ExclusivePath(efe.componentName(), new HashSet<>(), normalizedPath)
+                        );
                         if (exclusivePath.componentName().equals(efe.componentName()) == false) {
-                            throw new IllegalArgumentException("Path [" + normalizedPath + "] is exclusive to "
-                                + efe.componentName() + "/" + efe.moduleName() + " and "
-                                + exclusivePath.componentName() + "/" + exclusivePath.moduleNames);
+                            throw new IllegalArgumentException(
+                                "Path ["
+                                    + normalizedPath
+                                    + "] is exclusive to "
+                                    + efe.componentName()
+                                    + "/"
+                                    + efe.moduleName()
+                                    + " and "
+                                    + exclusivePath.componentName()
+                                    + "/"
+                                    + exclusivePath.moduleNames
+                            );
                         }
                         exclusivePath.moduleNames.add(efe.moduleName());
                     }

@@ -11,6 +11,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -130,6 +131,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
     static final String SIMULATED_PIPELINE_ID = "_simulate_pipeline";
 
     static Parsed parseWithPipelineId(
+        ProjectId projectId,
         String pipelineId,
         Map<String, Object> config,
         boolean verbose,
@@ -139,7 +141,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         if (pipelineId == null) {
             throw new IllegalArgumentException("param [pipeline] is null");
         }
-        Pipeline pipeline = ingestService.getPipeline(pipelineId);
+        Pipeline pipeline = ingestService.getPipeline(projectId, pipelineId);
         if (pipeline == null) {
             throw new IllegalArgumentException("pipeline [" + pipelineId + "] does not exist");
         }

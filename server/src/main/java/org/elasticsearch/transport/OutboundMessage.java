@@ -43,26 +43,20 @@ abstract class OutboundMessage extends NetworkMessage {
 
     BytesReference serialize(RecyclerBytesStreamOutput bytesStream) throws IOException {
         bytesStream.setTransportVersion(version);
-        bytesStream.skip(TcpHeader.headerSize(version));
+        bytesStream.skip(TcpHeader.HEADER_SIZE);
 
         // The compressible bytes stream will not close the underlying bytes stream
         BytesReference reference;
-        int variableHeaderLength = -1;
         final long preHeaderPosition = bytesStream.position();
 
-        if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-            writeVariableHeader(bytesStream);
-            variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
-        }
+        writeVariableHeader(bytesStream);
+        int variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
 
         final boolean compress = TransportStatus.isCompress(status);
         final StreamOutput stream = compress ? wrapCompressed(bytesStream) : bytesStream;
         final ReleasableBytesReference zeroCopyBuffer;
         try {
             stream.setTransportVersion(version);
-            if (variableHeaderLength == -1) {
-                writeVariableHeader(stream);
-            }
             if (message instanceof BytesTransportRequest bRequest) {
                 bRequest.writeThin(stream);
                 zeroCopyBuffer = bRequest.bytes;
@@ -89,7 +83,7 @@ abstract class OutboundMessage extends NetworkMessage {
         }
 
         bytesStream.seek(0);
-        final int contentSize = reference.length() - TcpHeader.headerSize(version);
+        final int contentSize = reference.length() - TcpHeader.HEADER_SIZE;
         TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
         return reference;
     }

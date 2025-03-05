@@ -23,7 +23,7 @@ import java.util.Objects;
 public class RetryActionRequest extends AcknowledgedRequest<RetryActionRequest> implements IndicesRequest.Replaceable {
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
-    private boolean requireError = false;
+    private boolean requireError = true;
 
     public RetryActionRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout, String... indices) {
         super(masterNodeTimeout, ackTimeout);

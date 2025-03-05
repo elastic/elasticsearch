@@ -109,6 +109,7 @@ public class ServerProcessBuilder {
             esHome.resolve("lib").toString(),
             // Special circumstances require some modules (not depended on by the main server module) to be explicitly added:
             "--add-modules=jdk.net", // needed to reflectively set extended socket options
+            "--add-modules=jdk.management.agent", // needed by external debug tools to grab thread and heap dumps
             // we control the module path, which may have additional modules not required by server
             "--add-modules=ALL-MODULE-PATH",
             "-m",

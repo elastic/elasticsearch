@@ -16,11 +16,13 @@ import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.store.MergeInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -28,7 +30,11 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -72,14 +78,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             for (int i = 0; i < mergeCount; i++) {
                 MergeSource mergeSource = mock(MergeSource.class);
                 OneMerge oneMerge = mock(OneMerge.class);
-                when(oneMerge.getStoreMergeInfo()).thenReturn(
-                    new MergeInfo(
-                        randomNonNegativeInt(),
-                        randomLongBetween(1L, 10L),
-                        randomBoolean(),
-                        randomFrom(-1, randomNonNegativeInt())
-                    )
-                );
+                when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
                 when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
                 when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
                 doAnswer(invocation -> {
@@ -103,6 +102,73 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         assertTrue(threadPoolMergeExecutorService.allDone());
     }
 
+    public void testMergeSourceWithFollowUpMergesRunSequentially() throws Exception {
+        // test with min 2 allowed concurrent merges
+        int mergeExecutorThreadCount = randomIntBetween(2, 5);
+        Settings settings = Settings.builder()
+            .put(settingsWithMergeScheduler)
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), mergeExecutorThreadCount)
+            .build();
+        try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
+                .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
+            assertNotNull(threadPoolMergeExecutorService);
+            assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
+            try (
+                ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
+                    new ShardId("index", "_na_", 1),
+                    IndexSettingsModule.newIndexSettings("index", settings),
+                    threadPoolMergeExecutorService
+                )
+            ) {
+                MergeSource mergeSource = mock(MergeSource.class);
+                OneMerge firstMerge = mock(OneMerge.class);
+                when(firstMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
+                when(firstMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
+                // at least one followup merge + null (i.e. no more followups)
+                int followUpMergeCount = randomIntBetween(2, 10);
+                OneMerge[] followUpMerges = new OneMerge[followUpMergeCount];
+                followUpMerges[followUpMergeCount - 1] = null;
+                for (int i = 0; i < followUpMergeCount - 1; i++) {
+                    OneMerge oneMerge = mock(OneMerge.class);
+                    when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
+                    when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
+                    followUpMerges[i] = oneMerge;
+                }
+                when(mergeSource.getNextMerge()).thenReturn(firstMerge, followUpMerges);
+                AtomicBoolean isMergeInProgress = new AtomicBoolean();
+                AtomicInteger runMergeIdx = new AtomicInteger();
+                Semaphore runMergeSemaphore = new Semaphore(0);
+                Semaphore nextMergeSemaphore = new Semaphore(0);
+                doAnswer(invocation -> {
+                    // assert only one merge can be in-progress at any point-in-time
+                    assertTrue(isMergeInProgress.compareAndSet(false, true));
+                    OneMerge mergeInvocation = (OneMerge) invocation.getArguments()[0];
+                    assertFalse(mergeInvocation.isAborted());
+                    // assert merges run in the order they are submitted
+                    if (runMergeIdx.get() == 0) {
+                        assertThat(mergeInvocation, is(firstMerge));
+                    } else {
+                        assertThat(mergeInvocation, is(followUpMerges[runMergeIdx.get() - 1]));
+                    }
+                    runMergeIdx.incrementAndGet();
+                    // await before returning from the merge in order to really ensure that follow-up merges don't run concurrently
+                    nextMergeSemaphore.release();
+                    runMergeSemaphore.acquire();
+                    assertTrue(isMergeInProgress.compareAndSet(true, false));
+                    return null;
+                }).when(mergeSource).merge(any(OneMerge.class));
+                threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
+                do {
+                    nextMergeSemaphore.acquire();
+                    runMergeSemaphore.release();
+                } while (runMergeIdx.get() < followUpMergeCount);
+                assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
+            }
+        }
+    }
+
     public void testAutoIOThrottleForMergeTasksWhenSchedulerDisablesIt() throws Exception {
         // merge scheduler configured with auto IO throttle disabled
         Settings settings = Settings.builder()
@@ -113,9 +179,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
         MergePolicy.OneMergeProgress oneMergeProgress = new MergePolicy.OneMergeProgress();
         OneMerge oneMerge = mock(OneMerge.class);
-        when(oneMerge.getStoreMergeInfo()).thenReturn(
-            new MergeInfo(randomNonNegativeInt(), randomNonNegativeLong(), randomBoolean(), randomFrom(-1, randomNonNegativeInt()))
-        );
+        when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomNonNegativeLong()));
         when(oneMerge.getMergeProgress()).thenReturn(oneMergeProgress);
         MergeSource mergeSource = mock(MergeSource.class);
         when(mergeSource.getNextMerge()).thenReturn(oneMerge);
@@ -148,9 +212,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         MergePolicy.OneMergeProgress oneMergeProgress = new MergePolicy.OneMergeProgress();
         OneMerge oneMerge = mock(OneMerge.class);
         // forced merge with a set number of segments
-        when(oneMerge.getStoreMergeInfo()).thenReturn(
-            new MergeInfo(randomNonNegativeInt(), randomNonNegativeLong(), randomBoolean(), randomNonNegativeInt())
-        );
+        when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomNonNegativeLong(), randomNonNegativeInt()));
         when(oneMerge.getMergeProgress()).thenReturn(oneMergeProgress);
         MergeSource mergeSource = mock(MergeSource.class);
         when(mergeSource.getNextMerge()).thenReturn(oneMerge);
@@ -169,7 +231,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             assertFalse(submittedMergeTaskCaptor.getValue().supportsIOThrottling());
         }
         // NOT a forced merge
-        when(oneMerge.getStoreMergeInfo()).thenReturn(new MergeInfo(randomNonNegativeInt(), randomNonNegativeLong(), randomBoolean(), -1));
+        when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomNonNegativeLong(), -1));
         threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
         try (
             ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
@@ -204,5 +266,18 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             // merge tasks should be auto IO throttled
             assertTrue(submittedMergeTaskCaptor.getValue().supportsIOThrottling());
         }
+    }
+
+    private static MergeInfo getNewMergeInfo(long estimatedMergeBytes) {
+        return getNewMergeInfo(estimatedMergeBytes, randomFrom(-1, randomNonNegativeInt()));
+    }
+
+    private static MergeInfo getNewMergeInfo(long estimatedMergeBytes, int maxNumSegments) {
+        return new MergeInfo(
+                randomNonNegativeInt(),
+                estimatedMergeBytes,
+                randomBoolean(),
+                maxNumSegments
+        );
     }
 }

@@ -35,7 +35,9 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
     public void testGetRegisteredDomain() {
         assertThat(getRegisteredDomain("www.google.com"), is(new DomainInfo("www.google.com", "google.com", "com", "www")));
         assertThat(getRegisteredDomain("google.com"), is(new DomainInfo("google.com", "google.com", "com", null)));
+        assertThat(getRegisteredDomain(null), nullValue());
         assertThat(getRegisteredDomain(""), nullValue());
+        assertThat(getRegisteredDomain(" "), nullValue());
         assertThat(getRegisteredDomain("."), nullValue());
         assertThat(getRegisteredDomain("$"), nullValue());
         assertThat(getRegisteredDomain("foo.bar.baz"), nullValue());

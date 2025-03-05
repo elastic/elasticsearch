@@ -127,8 +127,8 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
-        return CountAggregatorFunction.supplier(inputChannels);
+    public AggregatorFunctionSupplier supplier() {
+        return CountAggregatorFunction.supplier();
     }
 
     @Override

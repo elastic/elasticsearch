@@ -70,7 +70,7 @@ public class LuceneMaxDoubleOperatorTests extends LuceneMaxOperatorTestCase {
 
             @Override
             public AggregatorFunction newAggregatorFunction(DriverContext context) {
-                return new MaxDoubleAggregatorFunctionSupplier(List.of(0, 1)).aggregator(context);
+                return new MaxDoubleAggregatorFunctionSupplier().aggregator(context, List.of(0, 1));
             }
 
             @Override

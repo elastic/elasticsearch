@@ -122,6 +122,7 @@ import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
+import org.elasticsearch.index.search.stats.ShardSearchPerIndexTimeTrackingMetrics;
 import org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -825,8 +826,7 @@ class NodeConstruction {
         );
         MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics);
         final List<SearchOperationListener> searchOperationListeners = List.of(
-            new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
-        );
+            new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry()), new ShardSearchPerIndexTimeTrackingMetrics());
 
         List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call

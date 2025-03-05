@@ -9,6 +9,7 @@ package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -17,8 +18,6 @@ import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
-
-import java.util.function.BiFunction;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} to run a Lucene {@link Query} during
@@ -31,17 +30,21 @@ public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator impleme
 
     public static final double NO_MATCH_SCORE = 0.0;
 
-    private LuceneQueryExpressionEvaluator(
+    LuceneQueryExpressionEvaluator(
         BlockFactory blockFactory,
-        ShardConfig[] shards,
-        BiFunction<BlockFactory, Integer, ScoreVectorBuilder> scoreVectorBuilderSupplier
+        ShardConfig[] shards
     ) {
-        super(blockFactory, shards, scoreVectorBuilderSupplier);
+        super(blockFactory, shards, BooleanScoreVectorBuilder::new);
     }
 
     @Override
     public Block eval(Page page) {
         return executeQuery(page);
+    }
+
+    @Override
+    protected ScoreMode scoreMode() {
+        return ScoreMode.COMPLETE_NO_SCORES;
     }
 
     public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -53,11 +56,11 @@ public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator impleme
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            return new LuceneQueryExpressionEvaluator(context.blockFactory(), shardConfigs, BooleanScoreVectorBuilder::new);
+            return new LuceneQueryExpressionEvaluator(context.blockFactory(), shardConfigs);
         }
     }
 
-    private static class BooleanScoreVectorBuilder implements ScoreVectorBuilder {
+    static class BooleanScoreVectorBuilder implements ScoreVectorBuilder {
 
         private final BlockFactory blockFactory;
         private final int size;
@@ -76,7 +79,8 @@ public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator impleme
 
         @Override
         public void initVector() {
-            builder = blockFactory.newBooleanVectorBuilder(size);
+            assert builder == null : "initVector called twice";
+            builder = blockFactory.newBooleanVectorFixedBuilder(size);
         }
 
         @Override

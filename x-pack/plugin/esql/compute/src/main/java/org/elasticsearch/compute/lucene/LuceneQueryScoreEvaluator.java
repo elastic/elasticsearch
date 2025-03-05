@@ -9,6 +9,7 @@ package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -33,7 +34,7 @@ public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator implements S
 
     public static final double NO_MATCH_SCORE = 0.0;
 
-    private LuceneQueryScoreEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {
+    LuceneQueryScoreEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {
         super(blockFactory, shards, DoubleScoreVectorBuilder::new);
     }
 
@@ -42,7 +43,12 @@ public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator implements S
         return (DoubleBlock) executeQuery(page);
     }
 
-    private static class DoubleScoreVectorBuilder implements ScoreVectorBuilder {
+    @Override
+    protected ScoreMode scoreMode() {
+        return ScoreMode.COMPLETE;
+    }
+
+    static class DoubleScoreVectorBuilder implements ScoreVectorBuilder {
 
         private final BlockFactory blockFactory;
         private final int size;

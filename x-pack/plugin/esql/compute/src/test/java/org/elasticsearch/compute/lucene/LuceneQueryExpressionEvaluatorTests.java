@@ -31,7 +31,7 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.DenseCollector;
+import org.elasticsearch.compute.lucene.LuceneQueryEvaluator.DenseCollector;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -58,13 +58,19 @@ import static org.hamcrest.Matchers.equalTo;
 public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
     private static final String FIELD = "g";
 
-    public void testDenseCollectorSmall() {
-        try (DenseCollector collector = new DenseCollector(blockFactory(), 0, 2)) {
+    public void testDenseCollectorSmall() throws IOException {
+        try (
+            DenseCollector collector = new DenseCollector(
+                0,
+                2,
+                new LuceneQueryExpressionEvaluator.BooleanScoreVectorBuilder(blockFactory(), 3)
+            )
+        ) {
             collector.collect(0);
             collector.collect(1);
             collector.collect(2);
             collector.finish();
-            try (BooleanVector result = collector.build()) {
+            try (BooleanVector result = (BooleanVector) collector.build()) {
                 for (int i = 0; i <= 2; i++) {
                     assertThat(result.getBoolean(i), equalTo(true));
                 }
@@ -72,12 +78,18 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
         }
     }
 
-    public void testDenseCollectorSimple() {
-        try (DenseCollector collector = new DenseCollector(blockFactory(), 0, 10)) {
+    public void testDenseCollectorSimple() throws IOException {
+        try (
+            DenseCollector collector = new DenseCollector(
+                0,
+                10,
+                new LuceneQueryExpressionEvaluator.BooleanScoreVectorBuilder(blockFactory(), 11)
+            )
+        ) {
             collector.collect(2);
             collector.collect(5);
             collector.finish();
-            try (BooleanVector result = collector.build()) {
+            try (BooleanVector result = (BooleanVector) collector.build()) {
                 for (int i = 0; i < 11; i++) {
                     assertThat(result.getBoolean(i), equalTo(i == 2 || i == 5));
                 }
@@ -85,12 +97,18 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
         }
     }
 
-    public void testDenseCollector() {
+    public void testDenseCollector() throws IOException {
         int length = between(1, 10_000);
         int min = between(0, Integer.MAX_VALUE - length - 1);
-        int max = min + length + 1;
+        int max = min + length;
         boolean[] expected = new boolean[length];
-        try (DenseCollector collector = new DenseCollector(blockFactory(), min, max)) {
+        try (
+            DenseCollector collector = new DenseCollector(
+                min,
+                max,
+                new LuceneQueryExpressionEvaluator.BooleanScoreVectorBuilder(blockFactory(), max - min + 1)
+            )
+        ) {
             for (int i = 0; i < length; i++) {
                 expected[i] = randomBoolean();
                 if (expected[i]) {
@@ -98,7 +116,7 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
                 }
             }
             collector.finish();
-            try (BooleanVector result = collector.build()) {
+            try (BooleanVector result = (BooleanVector) collector.build()) {
                 for (int i = 0; i < length; i++) {
                     assertThat(result.getBoolean(i), equalTo(expected[i]));
                 }
@@ -178,14 +196,13 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
         BlockFactory blockFactory = driverContext.blockFactory();
         return withReader(values, reader -> {
             IndexSearcher searcher = new IndexSearcher(reader);
-            LuceneQueryExpressionEvaluator.ShardConfig shard = new LuceneQueryExpressionEvaluator.ShardConfig(
+            LuceneQueryEvaluator.ShardConfig shard = new LuceneQueryEvaluator.ShardConfig(
                 searcher.rewrite(query),
                 searcher
             );
             LuceneQueryExpressionEvaluator luceneQueryEvaluator = new LuceneQueryExpressionEvaluator(
                 blockFactory,
-                new LuceneQueryExpressionEvaluator.ShardConfig[] { shard }
-
+                new LuceneQueryEvaluator.ShardConfig[] { shard }
             );
 
             List<Operator> operators = new ArrayList<>();

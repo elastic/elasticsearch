@@ -23,11 +23,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -43,7 +41,7 @@ import java.util.function.BiFunction;
  * {@link LuceneSourceOperator} or the like, but sometimes this isn't possible. So
  * this evaluator is here to save the day.
  */
-public class LuceneQueryEvaluator implements Releasable {
+public abstract class LuceneQueryEvaluator implements Releasable {
 
     public static final double NO_MATCH_SCORE = 0.0;
 
@@ -146,6 +144,7 @@ public class LuceneQueryEvaluator implements Releasable {
         int prevSegment = -1;
         SegmentState segmentState = null;
         try (ScoreVectorBuilder scoreBuilder = scoreVectorBuilderSupplier.apply(blockFactory, docs.getPositionCount())) {
+            scoreBuilder.initVector();
             for (int i = 0; i < docs.getPositionCount(); i++) {
                 int shard = docs.shards().getInt(docs.shards().getInt(map[i]));
                 int segment = docs.segments().getInt(map[i]);
@@ -171,6 +170,8 @@ public class LuceneQueryEvaluator implements Releasable {
     public void close() {
     }
 
+    protected abstract ScoreMode scoreMode();
+
     private ShardState shardState(int shard) throws IOException {
         if (shard >= perShardState.length) {
             perShardState = ArrayUtil.grow(perShardState, shard + 1);
@@ -181,13 +182,13 @@ public class LuceneQueryEvaluator implements Releasable {
         return perShardState[shard];
     }
 
-    private static class ShardState {
+    private class ShardState {
         private final Weight weight;
         private final IndexSearcher searcher;
         private SegmentState[] perSegmentState = EMPTY_SEGMENT_STATES;
 
         ShardState(ShardConfig config) throws IOException {
-            weight = config.searcher.createWeight(config.query, ScoreMode.COMPLETE_NO_SCORES, 0.0f);
+            weight = config.searcher.createWeight(config.query, scoreMode(), 1.0f);
             searcher = config.searcher;
         }
 
@@ -244,7 +245,6 @@ public class LuceneQueryEvaluator implements Releasable {
          * than using {@link #scoreSparse} for dense doc ids.
          */
         Vector scoreDense(ScoreVectorBuilder scoreBuilder, int min, int max) throws IOException {
-            int length = max - min + 1;
             if (noMatch) {
                 return scoreBuilder.createNoMatchVector();
             }
@@ -363,19 +363,6 @@ public class LuceneQueryEvaluator implements Releasable {
         }
     }
 
-    public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final ShardConfig[] shardConfigs;
-
-        public Factory(ShardConfig[] shardConfigs) {
-            this.shardConfigs = shardConfigs;
-        }
-
-        @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            return new LuceneQueryEvaluatorTemp(context.blockFactory(), shardConfigs, BooleanScoreVectorBuilder::new);
-        }
-    }
-
     public interface ScoreVectorBuilder extends Releasable {
         Vector createNoMatchVector();
 
@@ -386,51 +373,5 @@ public class LuceneQueryEvaluator implements Releasable {
         void appendMatch(Scorable scorer) throws IOException;
 
         Vector build();
-    }
-
-    private static class BooleanScoreVectorBuilder implements ScoreVectorBuilder {
-
-        private final BlockFactory blockFactory;
-        private final int size;
-
-        private BooleanVector.Builder builder;
-
-        BooleanScoreVectorBuilder(BlockFactory blockFactory, int size) {
-            this.blockFactory = blockFactory;
-            this.size = size;
-        }
-
-        @Override
-        public Vector createNoMatchVector() {
-            return blockFactory.newConstantBooleanVector(false, size);
-        }
-
-        @Override
-        public void initVector() {
-            builder = blockFactory.newBooleanVectorBuilder(size);
-        }
-
-        @Override
-        public void appendNoMatch() {
-            assert builder != null : "appendNoMatch called before initVector";
-            builder.appendBoolean(false);
-        }
-
-        @Override
-        public void appendMatch(Scorable scorer) {
-            assert builder != null : "appendMatch called before initVector";
-            builder.appendBoolean(true);
-        }
-
-        @Override
-        public Vector build() {
-            assert builder != null : "build called before initVector";
-            return builder.build();
-        }
-
-        @Override
-        public void close() {
-            Releasables.closeExpectNoException(builder);
-        }
     }
 }

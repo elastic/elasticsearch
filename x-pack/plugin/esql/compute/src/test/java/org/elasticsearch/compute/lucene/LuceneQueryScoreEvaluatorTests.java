@@ -31,8 +31,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.ShardConfig;
-import org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator.DenseCollector;
+import org.elasticsearch.compute.lucene.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -44,7 +43,6 @@ import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 
 import java.io.IOException;
@@ -71,13 +69,19 @@ public class LuceneQueryScoreEvaluatorTests extends ComputeTestCase {
     public static final double TEST_SCORE = 1.0;
 
     public void testDenseCollectorSmall() throws IOException {
-        try (DenseCollector collector = new DenseCollector(blockFactory(), 0, 2)) {
+        try (
+            LuceneQueryEvaluator.DenseCollector collector = new LuceneQueryEvaluator.DenseCollector(
+                0,
+                2,
+                new LuceneQueryScoreEvaluator.DoubleScoreVectorBuilder(blockFactory(), 3)
+            )
+        ) {
             collector.setScorer(CONSTANT_SCORER);
             collector.collect(0);
             collector.collect(1);
             collector.collect(2);
             collector.finish();
-            try (DoubleVector result = collector.build()) {
+            try (DoubleVector result = (DoubleVector) collector.build()) {
                 for (int i = 0; i <= 2; i++) {
                     assertThat(result.getDouble(i), equalTo(TEST_SCORE));
                 }
@@ -86,12 +90,18 @@ public class LuceneQueryScoreEvaluatorTests extends ComputeTestCase {
     }
 
     public void testDenseCollectorSimple() throws IOException {
-        try (DenseCollector collector = new DenseCollector(blockFactory(), 0, 10)) {
+        try (
+            LuceneQueryEvaluator.DenseCollector collector = new LuceneQueryEvaluator.DenseCollector(
+                0,
+                10,
+                new LuceneQueryScoreEvaluator.DoubleScoreVectorBuilder(blockFactory(), 11)
+            )
+        ) {
             collector.setScorer(CONSTANT_SCORER);
             collector.collect(2);
             collector.collect(5);
             collector.finish();
-            try (DoubleVector result = collector.build()) {
+            try (DoubleVector result = (DoubleVector) collector.build()) {
                 for (int i = 0; i < 11; i++) {
                     assertThat(result.getDouble(i), equalTo((i == 2 || i == 5) ? TEST_SCORE : 0.0));
                 }
@@ -104,7 +114,13 @@ public class LuceneQueryScoreEvaluatorTests extends ComputeTestCase {
         int min = between(0, Integer.MAX_VALUE - length - 1);
         int max = min + length + 1;
         double[] expected = new double[length];
-        try (DenseCollector collector = new DenseCollector(blockFactory(), min, max)) {
+        try (
+            LuceneQueryEvaluator.DenseCollector collector = new LuceneQueryEvaluator.DenseCollector(
+                min,
+                max,
+                new LuceneQueryScoreEvaluator.DoubleScoreVectorBuilder(blockFactory(), max - min + 1)
+            )
+        ) {
             collector.setScorer(CONSTANT_SCORER);
             for (int i = 0; i < length; i++) {
                 boolean isScored = randomBoolean();
@@ -114,7 +130,7 @@ public class LuceneQueryScoreEvaluatorTests extends ComputeTestCase {
                 }
             }
             collector.finish();
-            try (DoubleVector result = collector.build()) {
+            try (DoubleVector result = (DoubleVector) collector.build()) {
                 for (int i = 0; i < length; i++) {
                     assertThat(result.getDouble(i), equalTo(expected[i]));
                 }

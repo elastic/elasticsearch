@@ -81,7 +81,9 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
         );
         assertThat(
             thrownException.getMessage(),
-            CoreMatchers.is("Validation Failed: 1: Invalid value [search] received. [input_type] is not allowed;")
+            CoreMatchers.is(
+                "Validation Failed: 1: Invalid value [search] received. [input_type] is not allowed for provider [amazontitan];"
+            )
         );
     }
 

@@ -559,7 +559,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 List.of("abc"),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -588,19 +588,23 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
         try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+            var thrownException = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    model,
+                    null,
+                    List.of("abc"),
+                    false,
+                    new HashMap<>(),
+                    InputType.INGEST,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
             );
-
-            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(thrownException.getMessage(), is("Invalid value [search] received. [input_type] is not allowed;"));
+            assertThat(
+                thrownException.getMessage(),
+                is("Validation Failed: 1: Invalid value [ingest] received. [input_type] is not allowed;")
+            );
         }
     }
 
@@ -802,7 +806,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 null,
                 List.of("abc"),
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -855,7 +859,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 null,
                 List.of("abc"),
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );

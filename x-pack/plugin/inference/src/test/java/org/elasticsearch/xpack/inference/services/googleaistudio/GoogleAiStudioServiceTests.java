@@ -691,23 +691,27 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        var model = GoogleAiStudioCompletionModelTests.createModel("model", getUrl(webServer), "secret");
+        var model = GoogleAiStudioEmbeddingsModelTests.createModel("model", getUrl(webServer), "secret");
 
         try (var service = new GoogleAiStudioService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+            var thrownException = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    model,
+                    null,
+                    List.of(""),
+                    false,
+                    new HashMap<>(),
+                    InputType.INGEST,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
             );
-
-            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(thrownException.getMessage(), is("Invalid value [search] received. [input_type] is not allowed;"));
+            assertThat(
+                thrownException.getMessage(),
+                is("Validation Failed: 1: Invalid value [ingest] received. [input_type] is not allowed for model [model];")
+            );
 
             verify(factory, times(1)).createSender();
             verify(sender, times(1)).start();
@@ -831,7 +835,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 List.of(input),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -891,7 +895,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 List.of(input),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -967,7 +971,15 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INGEST, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            service.chunkedInfer(
+                model,
+                null,
+                input,
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(2));

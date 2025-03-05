@@ -42,7 +42,7 @@ public class AzureAiStudioEmbeddingsModelTests extends ESTestCase {
         );
 
         var requestTaskSettingsMap = getTaskSettingsMap("override_user");
-        var overriddenModel = AzureAiStudioEmbeddingsModel.of(model, requestTaskSettingsMap);
+        var overriddenModel = AzureAiStudioEmbeddingsModel.of(model, requestTaskSettingsMap, null);
 
         assertThat(
             overriddenModel,
@@ -80,7 +80,7 @@ public class AzureAiStudioEmbeddingsModelTests extends ESTestCase {
         );
 
         var requestTaskSettingsMap = getTaskSettingsMap(null);
-        var overriddenModel = AzureAiStudioEmbeddingsModel.of(model, requestTaskSettingsMap);
+        var overriddenModel = AzureAiStudioEmbeddingsModel.of(model, requestTaskSettingsMap, null);
 
         assertThat(overriddenModel, sameInstance(overriddenModel));
     }

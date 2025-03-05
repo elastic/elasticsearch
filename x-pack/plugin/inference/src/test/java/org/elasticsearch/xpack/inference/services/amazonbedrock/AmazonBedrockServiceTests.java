@@ -973,19 +973,24 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
         try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+            var thrownException = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    model,
+                    null,
+                    List.of(""),
+                    false,
+                    new HashMap<>(),
+                    InputType.INGEST,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
             );
-
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(thrownException.getMessage(), is("Invalid value [search] received. [input_type] is not allowed;"));
+            System.out.println(thrownException.getMessage());
+            assertThat(
+                thrownException.getMessage(),
+                is("Validation Failed: 1: Invalid value [ingest] received. [input_type] is not allowed for provider [amazontitan];")
+            );
 
             verify(factory, times(1)).createSender();
             verify(sender, times(1)).start();
@@ -1027,7 +1032,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     List.of("abc"),
                     false,
                     new HashMap<>(),
-                    InputType.INGEST,
+                    InputType.INTERNAL_INGEST,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
                     listener
                 );
@@ -1412,7 +1417,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 List.of("abc"),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -1488,7 +1493,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     null,
                     List.of("abc", "xyz"),
                     new HashMap<>(),
-                    InputType.INGEST,
+                    InputType.INTERNAL_INGEST,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
                     listener
                 );

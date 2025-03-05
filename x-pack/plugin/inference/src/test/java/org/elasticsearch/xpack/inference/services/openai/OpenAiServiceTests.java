@@ -885,19 +885,23 @@ public class OpenAiServiceTests extends ESTestCase {
 
         try (var service = new OpenAiService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+            var thrownException = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    model,
+                    null,
+                    List.of(""),
+                    false,
+                    new HashMap<>(),
+                    InputType.INGEST,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
             );
-
-            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(thrownException.getMessage(), is("Invalid value [search] received. [input_type] is not allowed;"));
+            assertThat(
+                thrownException.getMessage(),
+                is("Validation Failed: 1: Invalid value [ingest] received. [input_type] is not allowed;")
+            );
 
             verify(factory, times(1)).createSender();
             verify(sender, times(1)).start();
@@ -1023,7 +1027,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 List.of("abc"),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -1793,7 +1797,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 List.of("abc"),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -1893,7 +1897,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 null,
                 List.of("foo", "bar"),
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );

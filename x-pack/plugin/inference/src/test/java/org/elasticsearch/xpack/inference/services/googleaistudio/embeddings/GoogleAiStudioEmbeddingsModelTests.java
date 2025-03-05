@@ -136,15 +136,14 @@ public class GoogleAiStudioEmbeddingsModelTests extends ESTestCase {
         var thrownException = expectThrows(ValidationException.class, () -> GoogleAiStudioEmbeddingsModel.of(model, InputType.SEARCH));
         assertThat(
             thrownException.getMessage(),
-            CoreMatchers.is("Validation Failed: 1: Invalid value [search] received. [input_type] is not allowed;")
+            CoreMatchers.is("Validation Failed: 1: Invalid value [search] received. [input_type] is not allowed for model [model];")
         );
     }
 
     public void testInputTypeInternal_WhenModelIdDoesNotAllowTaskType() {
         var model = createModel("model", "api_key", null, null);
         var overriddenModel = GoogleAiStudioEmbeddingsModel.of(model, InputType.INTERNAL_SEARCH);
-        var expectedModel = createModel(MODEL_ID_WITH_TASK_TYPE, "api_key", null, null, InputType.INTERNAL_SEARCH);
-        MatcherAssert.assertThat(overriddenModel, Matchers.is(expectedModel));
+        MatcherAssert.assertThat(overriddenModel, Matchers.is(model));
     }
 
     public void testInputTypeNull_WhenModelIdDoesNotAllowTaskType() {

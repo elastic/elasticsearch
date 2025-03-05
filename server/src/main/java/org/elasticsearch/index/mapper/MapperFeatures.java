@@ -58,8 +58,7 @@ public class MapperFeatures implements FeatureSpecification {
             SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
             ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
             UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE,
-            DOC_VALUES_SKIPPER,
-            DateFieldMapper.INVALID_DATE_FIX
+            DOC_VALUES_SKIPPER
         );
     }
 }

@@ -110,9 +110,8 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
             builder.field("element_type", model1.getServiceSettings().elementType().name());
             builder.endObject();
             if (chunkingSettings != null) {
-                builder.startObject("chunking_settings");
+                builder.field("chunking_settings");
                 chunkingSettings.toXContent(builder, null);
-                builder.endObject();
             }
             builder.endObject();
 
@@ -123,9 +122,8 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
             builder.field("task_type", model2.getTaskType().name());
             builder.endObject();
             if (chunkingSettings != null) {
-                builder.startObject("chunking_settings");
+                builder.field("chunking_settings");
                 chunkingSettings.toXContent(builder, null);
-                builder.endObject();
             }
             builder.endObject();
 

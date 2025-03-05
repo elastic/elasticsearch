@@ -56,7 +56,14 @@ public class Median extends AggregateFunction implements SurrogateExpression {
                 tag = "docsStatsMedianNestedExpression"
             ), }
     )
-    public Median(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
+    public Median(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long" },
+            description = "Expression that outputs values to calculate the median of."
+        ) Expression field
+    ) {
         this(source, field, Literal.TRUE);
     }
 

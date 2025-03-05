@@ -91,14 +91,17 @@ tasks.named("test").configure {
         it.delete("build/testrun/test/temp/esql/functions")
       }
     }
-    File functionsFolder = file("build/testrun/test/temp/esql/functions")
-    File typesFolder = file("build/testrun/test/temp/esql/functions/types")
-    def functionsDocFolder = file("${rootDir}/docs/reference/esql/functions")
+    File imagesFolder = file("build/testrun/test/temp/esql/images")
+    File snippetsFolder = file("build/testrun/test/temp/esql/_snippets")
+    def imagesDocFolder = file("${rootDir}/docs/reference/query-languages/esql/images")
+    def snippetsDocFolder = file("${rootDir}/docs/reference/query-languages/esql/_snippets")
     def effectiveProjectDir = projectDir
 
     doLast {
-      List types = typesFolder.list().findAll {it.endsWith("asciidoc")}
-      int count = types == null ? 0 : types.size()
+      List snippets = fileTree(snippetsFolder).matching {
+        include "**/*.md"  // Recursively include all MD files
+      }.files.collect { it.name }
+      int countSnippets = snippets.size()
       Closure readExample = line -> {
         line.replaceAll(/read-example::([^\[]+)\[tag=([^,\]]+)(, ?json)?\]/, {
           String file = it[1]
@@ -121,28 +124,41 @@ tasks.named("test").configure {
           return example;
         })
       }
-      if (count == 0) {
-        logger.quiet("ESQL Docs: No function signatures created. Skipping sync.")
-      } else if (count == 1) {
-        logger.quiet("ESQL Docs: Only files related to $types, patching them into place")
+      if (countSnippets == 0) {
+        logger.quiet("ESQL Docs: No function/operator snippets created. Skipping sync.")
+      } else {
+        logger.quiet("ESQL Docs: Found $countSnippets generated markdown files to patch into docs")
         injected.fs.sync {
-          from functionsFolder
-          into functionsDocFolder
+          from snippetsFolder
+          into snippetsDocFolder
           include '**/*.asciidoc', '**/*.svg', '**/*.md', '**/*.json'
           preserve {
             include '/*.asciidoc', '**/*.asciidoc', '**/*.md', '**/*.json', '**/*.svg', 'README.md'
           }
           filter readExample
         }
+      }
+
+      List images = fileTree(imagesFolder).matching {
+        include "**/*.svg"  // Recursively include all SVG files
+      }.files.collect { it.name }
+      int countImages = images.size()
+      Closure replaceFont = line -> {
+        // The es-docs team has a recommended set of fonts for use with code, and they size similarly to the previous Roboto Mono, which is no longer available in the docs webpage
+        line.replaceAll(/font-family:\s*Roboto Mono[^;]*;/, 'font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;')
+      }
+      if (countImages == 0) {
+        logger.quiet("ESQL Docs: No function signatures created. Skipping sync.")
       } else {
+        logger.quiet("ESQL Docs: Found $countImages generated SVG files to patch into docs")
         injected.fs.sync {
-          from functionsFolder
-          into functionsDocFolder
-          include '**/*.asciidoc', '**/*.svg', '**/*.md', '**/*.json'
+          from imagesFolder
+          into imagesDocFolder
+          include '**/*.svg'
           preserve {
-            include '/*.asciidoc', 'README.md'
+            include '**/*.svg'
           }
-          filter readExample
+          filter replaceFont
         }
       }
     }

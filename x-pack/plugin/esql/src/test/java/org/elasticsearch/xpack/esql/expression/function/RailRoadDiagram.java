@@ -123,21 +123,7 @@ public class RailRoadDiagram {
         toSvg.setLiteralFont(FONT.getOrCompute());
 
         toSvg.setRuleFont(FONT.getOrCompute());
-        return tightenStyles(toSvg.convert(rrDiagram));
-    }
-
-    /**
-     * "Tighten" the styles in the SVG so they beat the styles sitting in the
-     * main page. We need this because we're embedding the SVG into the page.
-     * We need to embed the SVG into the page so it can get fonts loaded in the
-     * primary stylesheet. We need to load a font so they images are consistent
-     * on all clients.
-     */
-    private static String tightenStyles(String svg) {
-        for (String c : new String[] { "c", "k", "s", "j", "l" }) {
-            svg = svg.replace("." + c, "#guide ." + c);
-        }
-        return svg;
+        return toSvg.convert(rrDiagram);
     }
 
     /**

@@ -656,7 +656,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         }
 
         try {
-            return new URL(spec.substring(0, separator + 1));
+            return new URL(spec.substring(0, separator));
         } catch (MalformedURLException e) {
             return null;
         }

@@ -180,7 +180,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private record FieldInferenceResponseAccumulator(
         int id,
         Map<String, List<FieldInferenceResponse>> responses,
-        List<Exception> failures
+        List<Exception> failures,
+        Map<String, Object> source
     ) {
         void addOrUpdateResponse(FieldInferenceResponse response) {
             synchronized (this) {
@@ -376,17 +377,17 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 .chunkedInfer(inferenceProvider.model(), null, inputs, Map.of(), InputType.INGEST, TimeValue.MAX_VALUE, completionListener);
         }
 
-        private FieldInferenceResponseAccumulator ensureResponseAccumulatorSlot(int id) {
+        private FieldInferenceResponseAccumulator ensureResponseAccumulatorSlot(int id, Map<String, Object> source) {
             FieldInferenceResponseAccumulator acc = inferenceResults.get(id);
             if (acc == null) {
-                acc = new FieldInferenceResponseAccumulator(id, new HashMap<>(), new ArrayList<>());
+                acc = new FieldInferenceResponseAccumulator(id, new HashMap<>(), new ArrayList<>(), source);
                 inferenceResults.set(id, acc);
             }
             return acc;
         }
 
         private void addInferenceResponseFailure(int id, Exception failure) {
-            var acc = ensureResponseAccumulatorSlot(id);
+            var acc = ensureResponseAccumulatorSlot(id, null);
             acc.addFailure(failure);
         }
 
@@ -404,7 +405,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
 
             final IndexRequest indexRequest = getIndexRequestOrNull(item.request());
-            var newDocMap = indexRequest.sourceAsMap();
+            var newDocMap = response.source();
             Map<String, Object> inferenceFieldsMap = new HashMap<>();
             for (var entry : response.responses.entrySet()) {
                 var fieldName = entry.getKey();
@@ -542,7 +543,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                              * This ensures that the field is treated as intentionally cleared,
                              * preventing any unintended carryover of prior inference results.
                              */
-                            var slot = ensureResponseAccumulatorSlot(itemIndex);
+                            var slot = ensureResponseAccumulatorSlot(itemIndex, docMap);
                             slot.addOrUpdateResponse(
                                 new FieldInferenceResponse(field, sourceField, null, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
                             );
@@ -563,7 +564,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             }
                             continue;
                         }
-                        ensureResponseAccumulatorSlot(itemIndex);
+                        ensureResponseAccumulatorSlot(itemIndex, docMap);
                         final List<String> values;
                         try {
                             values = SemanticTextUtils.nodeStringValues(field, valueObj);

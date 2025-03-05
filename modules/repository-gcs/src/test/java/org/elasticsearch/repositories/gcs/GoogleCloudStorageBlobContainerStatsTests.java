@@ -18,6 +18,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -42,6 +43,7 @@ import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -50,6 +52,10 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROJECT_ID_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation.GET_OBJECT;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation.MULTIPART_UPLOAD;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation.RESUMABLE_UPLOAD;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStatsTests.StatsMap;
 
 @SuppressForbidden(reason = "Uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
@@ -61,6 +67,37 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
     private GoogleCloudStorageService googleCloudStorageService;
     private GoogleCloudStorageHttpHandler googleCloudStorageHttpHandler;
     private ContainerAndBlobStore containerAndStore;
+
+    // A utility method that prints nicer diff messages, rather than dumping entire map, like this:
+    // Stats counts do not match:
+    // {SNAPSHOT_DATA_RESUMABLE_UPLOAD=Diff[wantOps=1, gotOps=1, diffOps=0, wantReqs=3, gotReqs=2, diffReqs=1]}
+    static void assertStatsEquals(Map<String, BlobStoreActionStats> want, Map<String, BlobStoreActionStats> got) {
+        assert want.keySet().equals(got.keySet());
+        record Diff(long wantOps, long gotOps, long diffOps, long wantReqs, long gotReqs, long diffReqs) {}
+        var diff = new HashMap<String, Diff>();
+        for (var wkey : want.keySet()) {
+            if (got.containsKey(wkey)) {
+                var gotStat = got.get(wkey);
+                var wantStat = want.get(wkey);
+                if (gotStat.equals(wantStat) == false) {
+                    diff.put(
+                        wkey,
+                        new Diff(
+                            wantStat.operations(),
+                            gotStat.operations(),
+                            wantStat.operations() - gotStat.operations(),
+                            wantStat.requests(),
+                            gotStat.requests(),
+                            wantStat.requests() - gotStat.requests()
+                        )
+                    );
+                }
+            }
+        }
+        if (diff.size() > 0) {
+            fail("Stats counts do not match:\n" + diff);
+        }
+    }
 
     @Before
     public void createStorageService() throws Exception {
@@ -86,16 +123,18 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         final GoogleCloudStorageBlobContainer container = containerAndStore.blobContainer();
         final GoogleCloudStorageBlobStore store = containerAndStore.blobStore();
 
+        final OperationPurpose purpose = randomPurpose();
         final String blobName = randomIdentifier();
         final int blobLength = randomIntBetween(1, (int) store.getLargeBlobThresholdInBytes() - 1);
         final BytesArray blobContents = new BytesArray(randomByteArrayOfLength(blobLength));
-        container.writeBlob(randomPurpose(), blobName, blobContents, true);
-        assertEquals(createStats(1, 0, 0), store.stats());
+        container.writeBlob(purpose, blobName, blobContents, true);
 
-        try (InputStream is = container.readBlob(randomPurpose(), blobName)) {
+        var wantStats = new StatsMap();
+        assertStatsEquals(wantStats.add(purpose, MULTIPART_UPLOAD, 1, 1), store.stats());
+        try (InputStream is = container.readBlob(purpose, blobName)) {
             assertEquals(blobContents, Streams.readFully(is));
         }
-        assertEquals(createStats(1, 0, 1), store.stats());
+        assertStatsEquals(wantStats.add(purpose, GET_OBJECT, 1, 1), store.stats());
     }
 
     @Test
@@ -103,16 +142,25 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         final GoogleCloudStorageBlobContainer container = containerAndStore.blobContainer();
         final GoogleCloudStorageBlobStore store = containerAndStore.blobStore();
 
+        final OperationPurpose purpose = randomPurpose();
         final String blobName = randomIdentifier();
-        final int size = randomIntBetween((int) store.getLargeBlobThresholdInBytes(), (int) store.getLargeBlobThresholdInBytes() * 2);
+        final int parts = between(1, 10);
+        final int maxPartSize = GoogleCloudStorageBlobStore.SDK_DEFAULT_CHUNK_SIZE;
+        final int size = (parts - 1) * maxPartSize + between(1, maxPartSize);
+        assert size >= store.getLargeBlobThresholdInBytes();
         final BytesArray blobContents = new BytesArray(randomByteArrayOfLength(size));
-        container.writeBlob(randomPurpose(), blobName, blobContents, true);
-        assertEquals(createStats(1, 0, 0), store.stats());
+        container.writeBlob(purpose, blobName, blobContents, true);
 
-        try (InputStream is = container.readBlob(randomPurpose(), blobName)) {
+        // a resumable upload sends at least 2 requests, a POST with metadata only and multiple PUTs with SDK_DEFAULT_CHUNK_SIZE
+        // the +1 means a POST request with metadata without PAYLOAD
+        var totalRequests = parts + 1;
+        var wantStats = new StatsMap();
+        assertStatsEquals(wantStats.add(purpose, RESUMABLE_UPLOAD, 1, totalRequests), store.stats());
+
+        try (InputStream is = container.readBlob(purpose, blobName)) {
             assertEquals(blobContents, Streams.readFully(is));
         }
-        assertEquals(createStats(1, 0, 1), store.stats());
+        assertStatsEquals(wantStats.add(purpose, GET_OBJECT, 1, 1), store.stats());
     }
 
     @Test
@@ -189,16 +237,6 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         );
     }
 
-    private record ContainerAndBlobStore(GoogleCloudStorageBlobContainer blobContainer, GoogleCloudStorageBlobStore blobStore)
-        implements
-            Closeable {
-
-        @Override
-        public void close() {
-            blobStore.close();
-        }
-    }
-
     private ContainerAndBlobStore createBlobContainer(final String repositoryName) throws Exception {
         final String clientName = randomIdentifier();
 
@@ -235,5 +273,15 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
     protected String getEndpointForServer(final HttpServer server) {
         final InetSocketAddress address = server.getAddress();
         return "http://" + address.getHostString() + ":" + address.getPort();
+    }
+
+    private record ContainerAndBlobStore(GoogleCloudStorageBlobContainer blobContainer, GoogleCloudStorageBlobStore blobStore)
+        implements
+            Closeable {
+
+        @Override
+        public void close() {
+            blobStore.close();
+        }
     }
 }

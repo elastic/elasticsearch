@@ -136,6 +136,12 @@ abstract class DataNodeRequestSender {
                         reportedFailure = true;
                         reportFailures(computeListener);
                     } else {
+                        if (pendingShardIds.isEmpty() && shardFailures.isEmpty() == false) {
+                            reportedFailure = true;
+                            reportFailures(computeListener);
+                            return;
+                        }
+
                         for (NodeRequest request : selectNodeRequests(targetShards)) {
                             sendOneNodeRequest(targetShards, computeListener, request);
                         }

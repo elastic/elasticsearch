@@ -465,20 +465,24 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 // operation is billed.
                 stats.trackPutOperation();
                 return;
-            } catch (final StorageException se) {
-                final int errorCode = se.getCode();
-                if (errorCode == HTTP_GONE) {
-                    logger.warn(() -> format("Retrying broken resumable upload session for blob %s", blobInfo), se);
-                    storageException = ExceptionsHelper.useOrSuppress(storageException, se);
-                    inputStream.reset();
-                    continue;
-                } else if (failIfAlreadyExists && errorCode == HTTP_PRECON_FAILED) {
-                    throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
+            } catch (final IOException ioException) {
+                final StorageException se = (StorageException) ExceptionsHelper.unwrap(ioException, StorageException.class);
+                if (se != null) {
+                    final int errorCode = se.getCode();
+                    if (errorCode == HTTP_GONE) {
+                        logger.warn(() -> format("Retrying broken resumable upload session for blob %s", blobInfo), se);
+                        storageException = ExceptionsHelper.useOrSuppress(storageException, se);
+                        inputStream.reset();
+                        continue;
+                    } else if (failIfAlreadyExists && errorCode == HTTP_PRECON_FAILED) {
+                        throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
+                    }
+                    if (storageException != null) {
+                        se.addSuppressed(storageException);
+                    }
+                    throw se;
                 }
-                if (storageException != null) {
-                    se.addSuppressed(storageException);
-                }
-                throw se;
+                throw ioException;
             }
         }
         assert storageException != null;

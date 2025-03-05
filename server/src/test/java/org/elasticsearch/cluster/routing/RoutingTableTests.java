@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
@@ -382,7 +381,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
         final RoutingTableGenerator.ShardCounter counter = new RoutingTableGenerator.ShardCounter();
         final IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetadata, counter);
         indexMetadata = updateActiveAllocations(indexRoutingTable, indexMetadata);
-        var projectId = new ProjectId(randomUUID());
+        var projectId = randomUniqueProjectId();
         ProjectMetadata metadata = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
         // test no validation errors
         assertTrue(indexRoutingTable.validate(metadata));

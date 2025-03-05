@@ -194,6 +194,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         getTestEntries(PathActions.class),
         getTestEntries(SpiActions.class),
         getTestEntries(SystemActions.class),
+        getTestEntries(URLConnectionFileActions.class),
         getTestEntries(URLConnectionNetworkActions.class)
     )
         .flatMap(Function.identity())

@@ -130,9 +130,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/118914
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
-- class: org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapperTests
-  method: testCartesianBoundsBlockLoader
-  issue: https://github.com/elastic/elasticsearch/issues/119201
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test start/stop/start transform}
   issue: https://github.com/elastic/elasticsearch/issues/119508
@@ -266,9 +263,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_488}
   issue: https://github.com/elastic/elasticsearch/issues/121611
-- class: org.elasticsearch.index.mapper.ShapeGeometryFieldMapperTests
-  method: testCartesianBoundsBlockLoader
-  issue: https://github.com/elastic/elasticsearch/issues/122661
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_408}
   issue: https://github.com/elastic/elasticsearch/issues/122681
@@ -330,6 +324,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testLookupExplosionNoFetch
   issue: https://github.com/elastic/elasticsearch/issues/123432
+- class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
+  method: testDuplicatePrunedPaths
+  issue: https://github.com/elastic/elasticsearch/issues/124006
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/41_knn_search_bbq_hnsw/Vector rescoring has same scoring as exact search for kNN section}
+  issue: https://github.com/elastic/elasticsearch/issues/124052
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
+  issue: https://github.com/elastic/elasticsearch/issues/120814
+- class: org.elasticsearch.xpack.esql.plugin.MatchOperatorIT
+  method: testScoring_Zero_OutsideQuery
+  issue: https://github.com/elastic/elasticsearch/issues/124132
 
 # Examples:
 #

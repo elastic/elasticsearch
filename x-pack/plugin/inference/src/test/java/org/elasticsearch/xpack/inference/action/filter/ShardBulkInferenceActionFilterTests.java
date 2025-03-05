@@ -367,7 +367,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void testSkipGeneratingInference() throws Exception {
+    public void testHandleEmptyInput() throws Exception {
         StaticModel model = StaticModel.createRandomInstance();
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
@@ -383,37 +383,33 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
                 IndexRequest actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[0].request());
 
-                // Create: Empty string
-                assertThat(XContentMapValues.extractValue("obj", actualRequest.sourceAsMap(), EXPLICIT_NULL), equalTo(""));
-                assertNull(XContentMapValues.extractValue(InferenceMetadataFieldsMapper.NAME, actualRequest.sourceAsMap(), EXPLICIT_NULL));
+                // Create with Empty string
+                assertInferenceResults(useLegacyFormat, actualRequest, "semantic_text_field", useLegacyFormat ? EXPLICIT_NULL: "", 0);
 
-                // Create: whitespace only
+                // Create with whitespace only
                 actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[1].request());
-                assertThat(XContentMapValues.extractValue("obj.field", actualRequest.sourceAsMap(), EXPLICIT_NULL), equalTo(""));
-                assertNull(XContentMapValues.extractValue(InferenceMetadataFieldsMapper.NAME, actualRequest.sourceAsMap(), EXPLICIT_NULL));
+                assertInferenceResults(useLegacyFormat, actualRequest, "semantic_text_field", useLegacyFormat ? EXPLICIT_NULL: " ", 0);
 
-                // Update: Empty string
+                // Update with multiple Whitespaces
                 actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[2].request());
-                assertThat(XContentMapValues.extractValue("obj", actualRequest.sourceAsMap(), EXPLICIT_NULL), equalTo(" "));
-                assertNull(XContentMapValues.extractValue(InferenceMetadataFieldsMapper.NAME, actualRequest.sourceAsMap(), EXPLICIT_NULL));
-
-                // Update: whitespace only
-                actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[3].request());
-                assertThat(XContentMapValues.extractValue("obj.field", actualRequest.sourceAsMap(), EXPLICIT_NULL), equalTo(" "));
-                assertNull(XContentMapValues.extractValue(InferenceMetadataFieldsMapper.NAME, actualRequest.sourceAsMap(), EXPLICIT_NULL));
+                assertInferenceResults(useLegacyFormat, actualRequest, "semantic_text_field", useLegacyFormat ? EXPLICIT_NULL: "  ", 0);
             } finally {
                 chainExecuted.countDown();
             }
         };
         ActionListener actionListener = mock(ActionListener.class);
         Task task = mock(Task.class);
+        Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
+            "semantic_text_field",
+            new InferenceFieldMetadata("semantic_text_field", model.getInferenceEntityId(), new String[] { "semantic_text_field" })
+        );
 
-        BulkItemRequest[] items = new BulkItemRequest[4];
-        items[0] = new BulkItemRequest(0, new IndexRequest("index").source(Map.of("obj", "")));
-        items[1] = new BulkItemRequest(1, new IndexRequest("index").source(Map.of("obj", Map.of("field", ""))));
-        items[2] = new BulkItemRequest(2, new UpdateRequest().doc(new IndexRequest("index").source(Map.of("obj", " "))));
-        items[3] = new BulkItemRequest(3, new UpdateRequest().doc(new IndexRequest("index").source(Map.of("obj", Map.of("field", " ")))));
+        BulkItemRequest[] items = new BulkItemRequest[3];
+        items[0] = new BulkItemRequest(0, new IndexRequest("index").source(Map.of("semantic_text_field", "")));
+        items[1] = new BulkItemRequest(1, new IndexRequest("index").source(Map.of("semantic_text_field", " ")));
+        items[2] = new BulkItemRequest(2, new UpdateRequest().doc(new IndexRequest("index").source(Map.of("semantic_text_field", "  "))));
         BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        request.setInferenceFieldMap(inferenceFieldMap);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
     }
@@ -655,9 +651,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 assertNotNull(chunks);
                 assertThat(chunks.size(), equalTo(expectedChunkCount));
             } else {
-                // If the expected chunk count is 0, we expect that no inference has been performed. In this case, the source should not be
-                // transformed, and thus the semantic text field structure should not be created.
-                assertNull(chunks);
+                // If the expected chunk count is 0, we expect that no inference has been performed.
+                assertTrue(chunks == null || chunks.isEmpty());
             }
         } else {
             assertThat(XContentMapValues.extractValue(fieldName, requestMap, EXPLICIT_NULL), equalTo(expectedOriginalValue));

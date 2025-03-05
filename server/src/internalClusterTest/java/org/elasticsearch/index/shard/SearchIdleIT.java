@@ -235,6 +235,15 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
     }
 
     public void testSearchIdleBoolQueryMatchOneIndex() throws InterruptedException {
+        checkSearchIdleBoolQueryMatchOneIndex(IndexSettings.DOC_VALUES_SKIPPER.isEnabled());
+    }
+
+    public void testSearchIdleBoolQueryMatchOneIndexWithDocValuesSkipper() throws InterruptedException {
+        assumeTrue("doc values skipper feature should be enabled", IndexSettings.DOC_VALUES_SKIPPER.isEnabled());
+        checkSearchIdleBoolQueryMatchOneIndex(false);
+    }
+
+    private void checkSearchIdleBoolQueryMatchOneIndex(boolean disableDocValuesSkippers) throws InterruptedException {
         // GIVEN
         final String idleIndex = "test1";
         final String activeIndex = "test2";
@@ -259,7 +268,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-12T00:00:00.000Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-05-13T23:59:59.999Z");
 
-        if (IndexSettings.DOC_VALUES_SKIPPER.isEnabled()) {
+        if (disableDocValuesSkippers) {
             idleIndexSettingsBuilder.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
             activeIndexSettingsBuilder.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
         }

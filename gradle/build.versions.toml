@@ -46,3 +46,6 @@ spock-platform = { group = "org.spockframework", name="spock-bom", version.ref="
 spotless-plugin = "com.diffplug.spotless:spotless-plugin-gradle:6.25.0"
 wiremock = "com.github.tomakehurst:wiremock-jre8-standalone:2.23.2"
 xmlunit-core = "org.xmlunit:xmlunit-core:2.8.2"
+
+[plugins]
+ospackage = { id = "com.netflix.nebula.ospackage-base", version = "11.11.1" }

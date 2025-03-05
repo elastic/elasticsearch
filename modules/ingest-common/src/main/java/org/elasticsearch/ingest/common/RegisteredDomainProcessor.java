@@ -65,17 +65,17 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         String subdomainTarget = fieldPrefix + "subdomain";
         String topLevelDomainTarget = fieldPrefix + "top_level_domain";
 
-        if (info.getDomain() != null) {
-            document.setFieldValue(domainTarget, info.getDomain());
+        if (info.domain() != null) {
+            document.setFieldValue(domainTarget, info.domain());
         }
-        if (info.getRegisteredDomain() != null) {
-            document.setFieldValue(registeredDomainTarget, info.getRegisteredDomain());
+        if (info.registeredDomain() != null) {
+            document.setFieldValue(registeredDomainTarget, info.registeredDomain());
         }
-        if (info.getETLD() != null) {
-            document.setFieldValue(topLevelDomainTarget, info.getETLD());
+        if (info.eTLD() != null) {
+            document.setFieldValue(topLevelDomainTarget, info.eTLD());
         }
-        if (info.getSubdomain() != null) {
-            document.setFieldValue(subdomainTarget, info.getSubdomain());
+        if (info.subdomain() != null) {
+            document.setFieldValue(subdomainTarget, info.subdomain());
         }
         return document;
     }
@@ -88,7 +88,7 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         String registeredDomain = SUFFIX_MATCHER.getDomainRoot(fieldString);
         if (registeredDomain == null) {
             if (SUFFIX_MATCHER.matches(fieldString)) {
-                return new DomainInfo(fieldString);
+                return DomainInfo.of(fieldString);
             }
             return null;
         }
@@ -96,7 +96,7 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
             // we have domain with no matching public suffix, but "." in it
             return null;
         }
-        return new DomainInfo(registeredDomain, fieldString);
+        return DomainInfo.of(registeredDomain, fieldString);
     }
 
     @Override
@@ -104,53 +104,25 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    private static class DomainInfo {
-        private final String domain;
-        private final String registeredDomain;
-        private final String eTLD;
-        private final String subdomain;
-
-        private DomainInfo(String eTLD) {
-            this.domain = eTLD;
-            this.eTLD = eTLD;
-            this.registeredDomain = null;
-            this.subdomain = null;
+    private record DomainInfo(
+        String domain,
+        String registeredDomain,
+        String eTLD, // n.b. https://developer.mozilla.org/en-US/docs/Glossary/eTLD
+        String subdomain
+    ) {
+        static DomainInfo of(final String eTLD) {
+            return new DomainInfo(eTLD, null, eTLD, null);
         }
 
-        private DomainInfo(String registeredDomain, String domain) {
+        static DomainInfo of(final String registeredDomain, final String domain) {
             int index = registeredDomain.indexOf('.') + 1;
             if (index > 0 && index < registeredDomain.length()) {
-                this.domain = domain;
-                this.eTLD = registeredDomain.substring(index);
-                this.registeredDomain = registeredDomain;
                 int subdomainIndex = domain.lastIndexOf("." + registeredDomain);
-                if (subdomainIndex > 0) {
-                    this.subdomain = domain.substring(0, subdomainIndex);
-                } else {
-                    this.subdomain = null;
-                }
+                final String subdomain = subdomainIndex > 0 ? domain.substring(0, subdomainIndex) : null;
+                return new DomainInfo(domain, registeredDomain, registeredDomain.substring(index), subdomain);
             } else {
-                this.domain = null;
-                this.eTLD = null;
-                this.registeredDomain = null;
-                this.subdomain = null;
+                return new DomainInfo(null, null, null, null);
             }
-        }
-
-        public String getDomain() {
-            return domain;
-        }
-
-        public String getSubdomain() {
-            return subdomain;
-        }
-
-        public String getRegisteredDomain() {
-            return registeredDomain;
-        }
-
-        public String getETLD() {
-            return eTLD;
         }
     }
 

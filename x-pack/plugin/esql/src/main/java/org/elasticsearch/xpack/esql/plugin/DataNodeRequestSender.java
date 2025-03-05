@@ -199,6 +199,11 @@ abstract class DataNodeRequestSender {
                 }
                 onAfter(List.of());
             }
+
+            @Override
+            public void onSkip() {
+                onAfter(List.of());
+            }
         });
     }
 
@@ -208,6 +213,8 @@ abstract class DataNodeRequestSender {
         void onResponse(DataNodeComputeResponse response);
 
         void onFailure(Exception e, boolean receivedData);
+
+        void onSkip();
     }
 
     private static Exception unwrapFailure(Exception e) {

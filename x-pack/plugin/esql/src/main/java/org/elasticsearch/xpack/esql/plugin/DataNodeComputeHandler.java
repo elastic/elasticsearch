@@ -113,7 +113,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 NodeListener nodeListener
             ) {
                 if (exchangeSource.isFinished()) {
-                    nodeListener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                    nodeListener.onSkip();
                     return;
                 }
 

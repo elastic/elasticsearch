@@ -16,7 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Test parsing of an eTLD from a FQDN. The list of eTLDs is maintained here:
@@ -80,13 +80,13 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
         IngestDocument output = processor.execute(input);
 
         String domain = output.getFieldValue(domainField, String.class);
-        assertThat(domain, equalTo("www.google.co.uk"));
+        assertThat(domain, is("www.google.co.uk"));
         String registeredDomain = output.getFieldValue(registeredDomainField, String.class);
-        assertThat(registeredDomain, equalTo("google.co.uk"));
+        assertThat(registeredDomain, is("google.co.uk"));
         String eTLD = output.getFieldValue(topLevelDomainField, String.class);
-        assertThat(eTLD, equalTo("co.uk"));
+        assertThat(eTLD, is("co.uk"));
         String subdomain = output.getFieldValue(subdomainField, String.class);
-        assertThat(subdomain, equalTo("www"));
+        assertThat(subdomain, is("www"));
     }
 
     public void testError() throws Exception {
@@ -131,12 +131,12 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
         IngestDocument output = processor.execute(input);
 
         String domain = output.getFieldValue(domainField, String.class, expectedDomain == null);
-        assertThat(domain, equalTo(expectedDomain));
+        assertThat(domain, is(expectedDomain));
         String registeredDomain = output.getFieldValue(registeredDomainField, String.class, expectedRegisteredDomain == null);
-        assertThat(registeredDomain, equalTo(expectedRegisteredDomain));
+        assertThat(registeredDomain, is(expectedRegisteredDomain));
         String eTLD = output.getFieldValue(topLevelDomainField, String.class, expectedETLD == null);
-        assertThat(eTLD, equalTo(expectedETLD));
+        assertThat(eTLD, is(expectedETLD));
         String subdomain = output.getFieldValue(subdomainField, String.class, expectedSubdomain == null);
-        assertThat(subdomain, equalTo(expectedSubdomain));
+        assertThat(subdomain, is(expectedSubdomain));
     }
 }

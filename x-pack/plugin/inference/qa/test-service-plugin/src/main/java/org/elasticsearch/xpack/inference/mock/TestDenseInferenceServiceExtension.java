@@ -36,9 +36,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

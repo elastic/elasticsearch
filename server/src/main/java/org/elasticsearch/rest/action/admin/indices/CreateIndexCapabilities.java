@@ -32,7 +32,6 @@ public class CreateIndexCapabilities {
 
     private static final String HUNSPELL_DICT_400 = "hunspell_dict_400";
 
-
     public static final Set<String> CAPABILITIES = Set.of(
         LOGSDB_INDEX_MODE_CAPABILITY,
         LOOKUP_INDEX_MODE_CAPABILITY,

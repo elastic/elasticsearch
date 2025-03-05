@@ -177,7 +177,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             for (int j = 0; j < values.length; j++) {
                 values[j] = randomByte();
             }
-            chunks.add(new TextEmbeddingByteResults.Chunk(values, input, new ChunkedInference.TextOffset(0, input.length())));
+            chunks.add(new TextEmbeddingByteResults.Chunk(values, new ChunkedInference.TextOffset(0, input.length())));
         }
         return new ChunkedInferenceEmbedding(chunks);
     }
@@ -189,7 +189,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             for (int j = 0; j < values.length; j++) {
                 values[j] = randomFloat();
             }
-            chunks.add(new TextEmbeddingFloatResults.Chunk(values, input, new ChunkedInference.TextOffset(0, input.length())));
+            chunks.add(new TextEmbeddingFloatResults.Chunk(values, new ChunkedInference.TextOffset(0, input.length())));
         }
         return new ChunkedInferenceEmbedding(chunks);
     }
@@ -205,7 +205,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             for (var token : input.split("\\s+")) {
                 tokens.add(new WeightedToken(token, withFloats ? randomFloat() : randomIntBetween(1, 255)));
             }
-            chunks.add(new SparseEmbeddingResults.Chunk(tokens, input, new ChunkedInference.TextOffset(0, input.length())));
+            chunks.add(new SparseEmbeddingResults.Chunk(tokens, new ChunkedInference.TextOffset(0, input.length())));
         }
         return new ChunkedInferenceEmbedding(chunks);
     }
@@ -243,7 +243,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         final List<SemanticTextField.Chunk> chunks = new ArrayList<>(inputs.size());
         int offsetAdjustment = 0;
         Iterator<String> inputsIt = inputs.iterator();
-        Iterator<ChunkedInference.Chunk> chunkIt = results.chunksAsMatchedTextAndByteReference(contentType.xContent());
+        Iterator<ChunkedInference.Chunk> chunkIt = results.chunksAsByteReference(contentType.xContent());
         while (inputsIt.hasNext() && chunkIt.hasNext()) {
             String input = inputsIt.next();
             var chunk = chunkIt.next();
@@ -308,7 +308,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                         String matchedText = matchedTextIt.next();
                         ChunkedInference.TextOffset offset = createOffset(useLegacyFormat, chunk, matchedText);
                         var tokens = parseWeightedTokens(chunk.rawEmbeddings(), field.contentType());
-                        chunks.add(new SparseEmbeddingResults.Chunk(tokens, matchedText, offset));
+                        chunks.add(new SparseEmbeddingResults.Chunk(tokens, offset));
                     }
                 }
                 return new ChunkedInferenceEmbedding(chunks);
@@ -329,7 +329,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                             field.inference().modelSettings().dimensions(),
                             field.contentType()
                         );
-                        chunks.add(new TextEmbeddingFloatResults.Chunk(FloatConversionUtils.floatArrayOf(values), matchedText, offset));
+                        chunks.add(new TextEmbeddingFloatResults.Chunk(FloatConversionUtils.floatArrayOf(values), offset));
                     }
                 }
                 return new ChunkedInferenceEmbedding(chunks);

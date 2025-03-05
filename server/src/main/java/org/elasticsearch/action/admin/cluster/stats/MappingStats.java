@@ -291,8 +291,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
     }
 
     private static boolean canReadOrWriteSourceModeTelemetry(TransportVersion version) {
-        return version.isPatchFrom(TransportVersions.SOURCE_MODE_TELEMETRY_FIX_8_17)
-            || version.onOrAfter(TransportVersions.SOURCE_MODE_TELEMETRY);
+        return version.isPatchFrom(TransportVersions.V_8_17_0) || version.onOrAfter(TransportVersions.SOURCE_MODE_TELEMETRY);
     }
 
     private static OptionalLong ofNullable(Long l) {

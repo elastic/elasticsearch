@@ -186,7 +186,7 @@ public class DateUtils {
 
     /**
      * convert a java time instant to a long value which is stored in lucene
-     * the long value resembles the nanoseconds since the epoch
+     * the long value represents the nanoseconds since the epoch
      *
      * @param instant the instant to convert
      * @return        the nano seconds and seconds as a single long
@@ -207,7 +207,7 @@ public class DateUtils {
 
     /**
      * Convert a java time instant to a long value which is stored in lucene,
-     * the long value resembles the milliseconds since the epoch
+     * the long value represents the milliseconds since epoch
      *
      * @param instant the instant to convert
      * @return        the total milliseconds as a single long
@@ -233,7 +233,7 @@ public class DateUtils {
     /**
      * Returns an instant that is with valid nanosecond resolution. If
      * the parameter is before the valid nanosecond range then this returns
-     * the minimum {@linkplain Instant} valid for nanosecond resultion. If
+     * the minimum {@linkplain Instant} valid for nanosecond resolution. If
      * the parameter is after the valid nanosecond range then this returns
      * the maximum {@linkplain Instant} valid for nanosecond resolution.
      * <p>

@@ -52,14 +52,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -638,51 +631,49 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String repoName = "test-repo";
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "mock", repoPath);
-        maybeInitWithOldSnapshotVersion(repoName, repoPath);
 
         // Create a successful snapshot
         String successSnapshot = "snapshot-success";
         createFullSnapshot(repoName, successSnapshot);
+
+        // Fetch snapshots with state=SUCCESS
+        GetSnapshotsResponse responseSuccess = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
+            .setState(EnumSet.of(SnapshotState.SUCCESS))
+            .get();
+        assertThat(responseSuccess.getSnapshots(), hasSize(1));
+        assertThat(responseSuccess.getSnapshots().get(0).state(), is(SnapshotState.SUCCESS));
 
         // Create a snapshot in progress
         String inProgressSnapshot = "snapshot-in-progress";
         blockAllDataNodes(repoName);
         startFullSnapshot(repoName, inProgressSnapshot);
         awaitNumberOfSnapshotsInProgress(1);
-        awaitClusterState(
-            state -> SnapshotsInProgress.get(state)
-                .asStream()
-                .flatMap(s -> s.shards().entrySet().stream())
-                .allMatch(
-                    e -> e.getKey().getIndexName().equals("test-index-1") == false
-                        || e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS
-                )
-        );
-
-        // Fetch all snapshots
-        GetSnapshotsResponse responseAll = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get();
-        assertThat(responseAll.getSnapshots(), hasSize(2));
-
-        // Fetch snapshots with state=SUCCESS
-        GetSnapshotsResponse responseSuccess = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
-            .setState(String.valueOf(SnapshotState.SUCCESS))
-            .get();
-        assertThat(responseSuccess.getSnapshots(), hasSize(1));
-        assertThat(responseSuccess.getSnapshots().get(0).state(), is(SnapshotState.SUCCESS));
 
         // Fetch snapshots with state=IN_PROGRESS
         GetSnapshotsResponse responseInProgress = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
-            .setState(String.valueOf(SnapshotState.IN_PROGRESS))
+            .setState(EnumSet.of(SnapshotState.IN_PROGRESS))
             .get();
         assertThat(responseInProgress.getSnapshots(), hasSize(1));
         assertThat(responseInProgress.getSnapshots().get(0).state(), is(SnapshotState.IN_PROGRESS));
 
-        // Fetch snapshots with invalid state
+        // Fetch snapshots with multiple states (SUCCESS, IN_PROGRESS)
+        GetSnapshotsResponse responseMultipleStates = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
+            .setState(EnumSet.of(SnapshotState.SUCCESS, SnapshotState.IN_PROGRESS))
+            .get();
+        assertThat(responseMultipleStates.getSnapshots(), hasSize(2));
+        assertTrue(responseMultipleStates.getSnapshots().stream().map(SnapshotInfo::state).toList().contains(SnapshotState.SUCCESS));
+        assertTrue(responseMultipleStates.getSnapshots().stream().map(SnapshotInfo::state).toList().contains(SnapshotState.IN_PROGRESS));
+
+        // Fetch all snapshots (without state)
+        GetSnapshotsResponse responseAll = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get();
+        assertThat(responseAll.getSnapshots(), hasSize(2));
+
+        // Fetch snapshots with an invalid state
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).setState("INVALID_STATE").get()
+            () -> clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).setState(EnumSet.of(SnapshotState.of("FOO"))).get()
         );
-        assertThat(e.getMessage(), containsString("state must be SUCCESS, IN_PROGRESS, FAILED, PARTIAL, or INCOMPATIBLE"));
+        assertThat(e.getMessage(), containsString("Unknown state name [FOO]"));
     }
 
     // Create a snapshot that is guaranteed to have a unique start time and duration for tests around ordering by either.
@@ -964,9 +955,15 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         // INDICES and by SHARDS. The actual sorting behaviour for these cases is tested elsewhere, here we're just checking that sorting
         // interacts correctly with the other parameters to the API.
 
+        final EnumSet<SnapshotState> state = EnumSet.of(randomFrom(SnapshotState.values()));
+        // Note: The selected state may not match any existing snapshots.
+        // The actual filtering behaviour for such cases is tested in the dedicated test.
+        // Here we're just checking that state interacts correctly with the other parameters to the API.
+
         // compute the ordered sequence of snapshots which match the repository/snapshot name filters and SLM policy filter
         final var selectedSnapshots = snapshotInfos.stream()
             .filter(snapshotInfoPredicate)
+            .filter(s -> state.contains(s.state()))
             .sorted(sortKey.getSnapshotInfoComparator(order))
             .toList();
 
@@ -975,7 +972,8 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         )
             // apply sorting params
             .sort(sortKey)
-            .order(order);
+            .order(order)
+            .state(state);
 
         // sometimes use ?from_sort_value to skip some items; note that snapshots skipped in this way are subtracted from
         // GetSnapshotsResponse.totalCount whereas snapshots skipped by ?after and ?offset are not
@@ -1062,7 +1060,8 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .sort(sortKey)
                 .order(order)
                 .size(nextSize)
-                .after(SnapshotSortKey.decodeAfterQueryParam(nextRequestAfter));
+                .after(SnapshotSortKey.decodeAfterQueryParam(nextRequestAfter))
+                .state(state);
             final GetSnapshotsResponse nextResponse = safeAwait(l -> client().execute(TransportGetSnapshotsAction.TYPE, nextRequest, l));
 
             assertEquals(

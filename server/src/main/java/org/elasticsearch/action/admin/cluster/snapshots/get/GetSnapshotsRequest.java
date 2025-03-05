@@ -26,6 +26,7 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -79,7 +80,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private boolean includeIndexNames = true;
 
-    private String state;
+    private EnumSet<SnapshotState> state = EnumSet.noneOf(SnapshotState.class);
 
     public GetSnapshotsRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
@@ -123,7 +124,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             includeIndexNames = in.readBoolean();
         }
         if (in.getTransportVersion().onOrAfter(STATE_FLAG_VERSION)) {
-            state = in.readOptionalString();
+            state = in.readEnumSet(SnapshotState.class);
         }
     }
 
@@ -145,7 +146,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             out.writeBoolean(includeIndexNames);
         }
         if (out.getTransportVersion().onOrAfter(STATE_FLAG_VERSION)) {
-            out.writeOptionalString(state);
+            out.writeEnumSet(state);
         }
     }
 
@@ -186,12 +187,6 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             }
         } else if (after != null && fromSortValue != null) {
             validationException = addValidationError("can't use after and from_sort_value simultaneously", validationException);
-        }
-        if (state != null && Arrays.stream(SnapshotState.values()).noneMatch(s -> s.name().equalsIgnoreCase(state))) {
-            validationException = addValidationError(
-                "state must be SUCCESS, IN_PROGRESS, FAILED, PARTIAL, or INCOMPATIBLE",
-                validationException
-            );
         }
         return validationException;
     }
@@ -358,11 +353,11 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return verbose;
     }
 
-    public String state() {
+    public EnumSet<SnapshotState> state() {
         return state;
     }
 
-    public GetSnapshotsRequest state(String state) {
+    public GetSnapshotsRequest state(EnumSet<SnapshotState> state) {
         this.state = state;
         return this;
     }

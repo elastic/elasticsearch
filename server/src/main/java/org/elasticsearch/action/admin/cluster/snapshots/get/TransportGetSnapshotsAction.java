@@ -41,25 +41,14 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.ResolvedRepositories;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotMissingException;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.*;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
@@ -182,7 +171,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final SnapshotNamePredicate snapshotNamePredicate;
         private final SnapshotPredicates fromSortValuePredicates;
         private final Predicate<String> slmPolicyPredicate;
-        private final String state;
+        private final EnumSet<SnapshotState> state;
 
         // snapshot ordering/pagination
         private final SnapshotSortKey sortBy;
@@ -227,7 +216,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             SnapshotsInProgress snapshotsInProgress,
             boolean verbose,
             boolean indices,
-            String state
+            EnumSet<SnapshotState> state
         ) {
             this.cancellableTask = cancellableTask;
             this.repositories = repositories;
@@ -562,21 +551,22 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 return false;
             }
 
+            final var details = repositoryData.getSnapshotDetails(snapshotId);
+
+            if (!state.isEmpty() && !state.contains(details.getSnapshotState())) {
+                return false;
+            }
+
             if (slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES) {
                 return true;
             }
 
-            final var details = repositoryData.getSnapshotDetails(snapshotId);
             return details == null || details.getSlmPolicy() == null || slmPolicyPredicate.test(details.getSlmPolicy());
         }
 
         private boolean matchesPredicates(SnapshotInfo snapshotInfo) {
             if (fromSortValuePredicates.test(snapshotInfo) == false) {
                 return false;
-            }
-
-            if (state != null) {
-                return state.equalsIgnoreCase(snapshotInfo.state().toString());
             }
 
             if (slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES) {

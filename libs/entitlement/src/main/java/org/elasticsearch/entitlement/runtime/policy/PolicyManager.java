@@ -36,6 +36,7 @@ import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -324,28 +325,30 @@ public class PolicyManager {
         return true;
     }
 
-    public void checkFileRead(Class<?> callerClass, Path path) {
-        if (isPathOnDefaultFilesystem(path) == false) {
-            return;
-        }
-        var requestingClass = requestingClass(callerClass);
-        if (isTriviallyAllowed(requestingClass)) {
-            return;
-        }
+    public void checkFileRead(Class<?> callerClass, Path... paths) {
+        for (var path : paths) {
+            if (isPathOnDefaultFilesystem(path) == false) {
+                return;
+            }
+            var requestingClass = requestingClass(callerClass);
+            if (isTriviallyAllowed(requestingClass)) {
+                return;
+            }
 
-        ModuleEntitlements entitlements = getEntitlements(requestingClass);
-        if (entitlements.fileAccess().canRead(path) == false) {
-            logger.info(entitlements.fileAccess().toDebugString());
-            notEntitled(
-                Strings.format(
-                    "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
-                    entitlements.componentName(),
-                    requestingClass.getModule().getName(),
-                    requestingClass,
-                    FileAccessTree.normalizePath(path)
-                ),
-                callerClass
-            );
+            ModuleEntitlements entitlements = getEntitlements(requestingClass);
+            if (entitlements.fileAccess().canRead(path) == false) {
+                logger.info(entitlements.fileAccess().toDebugString());
+                notEntitled(
+                    Strings.format(
+                        "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
+                        entitlements.componentName(),
+                        requestingClass.getModule().getName(),
+                        requestingClass,
+                        Arrays.stream(paths).map(FileAccessTree::normalizePath).collect(Collectors.joining(", "))
+                    ),
+                    callerClass
+                );
+            }
         }
     }
 

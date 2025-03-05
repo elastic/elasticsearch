@@ -2762,7 +2762,9 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         }
         if (followLinks) {
             try {
-                policyManager.checkFileRead(callerClass, Files.readSymbolicLink(that));
+                Path symbolicLink = Files.readSymbolicLink(that);
+                policyManager.checkFileRead(callerClass, that, symbolicLink);
+                return;
             } catch (IOException | UnsupportedOperationException e) {
                 // that is not a link, or unrelated IOException or unsupported
             }

@@ -59,6 +59,70 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
         );
     }
 
+    public void testBasic() throws Exception {
+        var processor = new RegisteredDomainProcessor(null, null, "input", "output", false);
+        {
+            IngestDocument document = TestIngestDocument.withDefaultVersion(Map.of("input", "www.google.co.uk"));
+            processor.execute(document);
+            assertThat(
+                document.getSource(),
+                is(
+                    Map.ofEntries(
+                        entry("input", "www.google.co.uk"),
+                        entry(
+                            "output",
+                            Map.ofEntries(
+                                entry("domain", "www.google.co.uk"),
+                                entry("registered_domain", "google.co.uk"),
+                                entry("top_level_domain", "co.uk"),
+                                entry("subdomain", "www")
+                            )
+                        )
+                    )
+                )
+            );
+        }
+        {
+            IngestDocument document = TestIngestDocument.withDefaultVersion(Map.of("input", "example.com"));
+            processor.execute(document);
+            assertThat(
+                document.getSource(),
+                is(
+                    Map.ofEntries(
+                        entry("input", "example.com"),
+                        entry(
+                            "output",
+                            Map.ofEntries(
+                                entry("domain", "example.com"),
+                                entry("registered_domain", "example.com"),
+                                entry("top_level_domain", "com")
+                            )
+                        )
+                    )
+                )
+            );
+        }
+        {
+            IngestDocument document = TestIngestDocument.withDefaultVersion(Map.of("input", "com"));
+            processor.execute(document);
+            assertThat(
+                document.getSource(),
+                is(
+                    Map.ofEntries(
+                        entry("input", "com"),
+                        entry(
+                            "output",
+                            Map.ofEntries(
+                                entry("domain", "com"), //
+                                entry("top_level_domain", "com")
+                            )
+                        )
+                    )
+                )
+            );
+        }
+    }
+
     public void testUseRoot() throws Exception {
         var processor = new RegisteredDomainProcessor(null, null, "domain", "", false);
         IngestDocument document = TestIngestDocument.withDefaultVersion(Map.of("domain", "www.google.co.uk"));

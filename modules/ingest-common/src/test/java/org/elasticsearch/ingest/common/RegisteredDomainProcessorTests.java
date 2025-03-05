@@ -177,31 +177,4 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
             assertThat(document.getSource(), is(Collections.singletonMap("domain", null)));
         }
     }
-
-    private void testRegisteredDomainProcessor(
-        String fqdn,
-        String expectedDomain,
-        String expectedRegisteredDomain,
-        String expectedETLD,
-        String expectedSubdomain
-    ) throws Exception {
-        String domainField = "url.domain";
-        String registeredDomainField = "url.registered_domain";
-        String topLevelDomainField = "url.top_level_domain";
-        String subdomainField = "url.subdomain";
-
-        var processor = new RegisteredDomainProcessor(null, null, "domain", "url", true);
-
-        IngestDocument document = TestIngestDocument.withDefaultVersion(Map.of("domain", fqdn));
-        processor.execute(document);
-
-        String domain = document.getFieldValue(domainField, String.class, expectedDomain == null);
-        assertThat(domain, is(expectedDomain));
-        String registeredDomain = document.getFieldValue(registeredDomainField, String.class, expectedRegisteredDomain == null);
-        assertThat(registeredDomain, is(expectedRegisteredDomain));
-        String eTLD = document.getFieldValue(topLevelDomainField, String.class, expectedETLD == null);
-        assertThat(eTLD, is(expectedETLD));
-        String subdomain = document.getFieldValue(subdomainField, String.class, expectedSubdomain == null);
-        assertThat(subdomain, is(expectedSubdomain));
-    }
 }

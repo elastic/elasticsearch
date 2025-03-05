@@ -17,6 +17,7 @@ import java.util.function.ToDoubleBiFunction;
 import java.util.function.ToLongBiFunction;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
+import static org.hamcrest.Matchers.closeTo;
 
 public class ESVectorUtilTests extends BaseVectorizationTests {
 
@@ -49,6 +50,8 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
     private void testIpFloatByteImpl(ToDoubleBiFunction<float[], byte[]> impl) {
         int vectorSize = randomIntBetween(1, 1024);
+        // scale the delta according to the vector size
+        double delta = 1e-5 * vectorSize;
 
         float[] q = new float[vectorSize];
         byte[] d = new byte[vectorSize];
@@ -61,7 +64,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         for (int i = 0; i < q.length; i++) {
             expected += q[i] * d[i];
         }
-        assertEquals(expected, impl.applyAsDouble(q, d), 1e-2);
+        assertThat(impl.applyAsDouble(q, d), closeTo(expected, delta));
     }
 
     public void testBitAndCount() {

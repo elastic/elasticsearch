@@ -8,7 +8,7 @@
  */
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
-
+apply plugin: 'elasticsearch.internal-es-plugin'
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution()

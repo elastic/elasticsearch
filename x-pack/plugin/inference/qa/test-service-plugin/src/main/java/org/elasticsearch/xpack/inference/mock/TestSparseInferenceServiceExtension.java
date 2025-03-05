@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
@@ -166,29 +167,24 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             return new SparseEmbeddingResults(embeddings);
         }
 
-        private List<ChunkedInference> makeChunkedResults(List<String> input, ChunkingSettings chunkingSettings) {
-            List<String> chunkedInputs = chunkInputs(input, chunkingSettings);
-            return makeChunkedResults(chunkedInputs);
-        }
-
-        private List<ChunkedInference> makeChunkedResults(List<String> input) {
+        private List<ChunkedInference> makeChunkedResults(List<String> inputs, ChunkingSettings chunkingSettings) {
             List<ChunkedInference> results = new ArrayList<>();
-            for (int i = 0; i < input.size(); i++) {
+            for (int i = 0; i < inputs.size(); i++) {
+                String input = inputs.get(i);
                 var tokens = new ArrayList<WeightedToken>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
+                    tokens.add(new WeightedToken("feature_" + j, generateEmbedding(input, j)));
                 }
-                results.add(
-                    new ChunkedInferenceEmbedding(
-                        List.of(
-                            new SparseEmbeddingResults.Chunk(
-                                tokens,
-                                input.get(i),
-                                new ChunkedInference.TextOffset(0, input.get(i).length())
-                            )
-                        )
-                    )
-                );
+                List<String> chunkedInput = chunkInputs(input, chunkingSettings);
+                List<SparseEmbeddingResults.Chunk> chunks = new ArrayList<>();
+                int offset = 0;
+                for (String c : chunkedInput) {
+                    offset = input.indexOf(c, offset);
+                    int endOffset = offset + c.length();
+                    chunks.add(new SparseEmbeddingResults.Chunk(tokens, c, new ChunkedInference.TextOffset(offset, endOffset)));
+                }
+                ChunkedInferenceEmbedding chunkedInferenceEmbedding = new ChunkedInferenceEmbedding(chunks);
+                results.add(chunkedInferenceEmbedding);
             }
             return results;
         }

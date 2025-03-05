@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -111,25 +112,24 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     @Override
     public void close() throws IOException {}
 
-    protected List<String> chunkInputs(List<String> input, ChunkingSettings chunkingSettings) {
+    protected List<String> chunkInputs(String input, ChunkingSettings chunkingSettings) {
         if (chunkingSettings == null) {
-            return input;
+            return Collections.singletonList(input);
         }
         List<String> chunkedInputs = new ArrayList<>();
         ChunkingStrategy chunkingStrategy = chunkingSettings.getChunkingStrategy();
         if (chunkingStrategy == ChunkingStrategy.WORD) {
             WordBoundaryChunker chunker = new WordBoundaryChunker();
-            for (String inputString : input) {
-                WordBoundaryChunkingSettings wordBoundaryChunkingSettings = (WordBoundaryChunkingSettings) chunkingSettings;
-                List<WordBoundaryChunker.ChunkOffset> offsets = chunker.chunk(
-                    inputString,
-                    wordBoundaryChunkingSettings.maxChunkSize(),
-                    wordBoundaryChunkingSettings.overlap()
-                );
-                for (WordBoundaryChunker.ChunkOffset offset : offsets) {
-                    chunkedInputs.add(inputString.substring(offset.start(), offset.end()));
-                }
+            WordBoundaryChunkingSettings wordBoundaryChunkingSettings = (WordBoundaryChunkingSettings) chunkingSettings;
+            List<WordBoundaryChunker.ChunkOffset> offsets = chunker.chunk(
+                input,
+                wordBoundaryChunkingSettings.maxChunkSize(),
+                wordBoundaryChunkingSettings.overlap()
+            );
+            for (WordBoundaryChunker.ChunkOffset offset : offsets) {
+                chunkedInputs.add(input.substring(offset.start(), offset.end()));
             }
+
         } else {
             // Won't implement till we need it
             throw new UnsupportedOperationException("Test inference service only supports word chunking strategies");

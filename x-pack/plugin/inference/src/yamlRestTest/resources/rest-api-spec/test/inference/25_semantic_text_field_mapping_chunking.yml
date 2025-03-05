@@ -76,6 +76,22 @@ setup:
                   overlap: 1
 
   - do:
+      indices.create:
+        index: custom-chunking-dense
+        body:
+          mappings:
+            properties:
+              keyword_field:
+                type: keyword
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                chunking_settings:
+                  strategy: word
+                  max_chunk_size: 10
+                  overlap: 1
+
+  - do:
       index:
         index: default-chunking-sparse
         id: doc_1
@@ -93,6 +109,24 @@ setup:
           inference_field: "Elasticsearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides."
         refresh: true
 
+  - do:
+      index:
+        index: default-chunking-dense
+        id: doc_3
+        body:
+          keyword_field: "default sentence chunking"
+          inference_field: "Elasticsearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides."
+        refresh: true
+
+  - do:
+      index:
+        index: custom-chunking-dense
+        id: doc_4
+        body:
+          keyword_field: "custom word chunking"
+          inference_field: "Elasticsearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides."
+        refresh: true
+
 ---
 "We return chunking configurations with mappings":
 
@@ -100,18 +134,32 @@ setup:
       indices.get_mapping:
         index: default-chunking-sparse
 
-  - is_false: default-chunking.mappings.properties.inference_field.chunking_settings
+  - is_false: default-chunking-sparse.mappings.properties.inference_field.chunking_settings
 
   - do:
       indices.get_mapping:
         index: custom-chunking-sparse
 
-  - match: { "custom-chunking.mappings.properties.inference_field.chunking_settings.strategy": "word" }
-  - match: { "custom-chunking.mappings.properties.inference_field.chunking_settings.max_chunk_size": 10 }
-  - match: { "custom-chunking.mappings.properties.inference_field.chunking_settings.overlap": 5 }
+  - match: { "custom-chunking-sparse.mappings.properties.inference_field.chunking_settings.strategy": "word" }
+  - match: { "custom-chunking-sparse.mappings.properties.inference_field.chunking_settings.max_chunk_size": 10 }
+  - match: { "custom-chunking-sparse.mappings.properties.inference_field.chunking_settings.overlap": 1 }
+
+  - do:
+      indices.get_mapping:
+        index: default-chunking-dense
+
+  - is_false: default-chunking-dense.mappings.properties.inference_field.chunking_settings
+
+  - do:
+      indices.get_mapping:
+        index: custom-chunking-dense
+
+  - match: { "custom-chunking-dense.mappings.properties.inference_field.chunking_settings.strategy": "word" }
+  - match: { "custom-chunking-dense.mappings.properties.inference_field.chunking_settings.max_chunk_size": 10 }
+  - match: { "custom-chunking-dense.mappings.properties.inference_field.chunking_settings.overlap": 1 }
 
 ---
-"We return different chunks based on configured chunking overrides or model defaults":
+"We return different chunks based on configured chunking overrides or model defaults for sparse embeddings":
 
   - do:
       search:
@@ -149,6 +197,47 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_2" }
   - length: { hits.hits.0.highlight.inference_field: 2 }
-  - match: { hits.hits.0.highlight.inference_field.0: "Elasticsearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all" }
-  - match: { hits.hits.0.highlight.inference_field.1: " the features it provides." }
+  - match: { hits.hits.0.highlight.inference_field.0: "Elasticsearch is an open source, distributed, RESTful, search engine which" }
+  - match: { hits.hits.0.highlight.inference_field.1: " which is built on top of Lucene internally and enjoys" }
 
+---
+"We return different chunks based on configured chunking overrides or model defaults for dense embeddings":
+
+  - do:
+      search:
+        index: default-chunking-dense
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "What is Elasticsearch?"
+          highlight:
+            fields:
+              inference_field:
+                type: "semantic"
+                number_of_fragments: 2
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_3" }
+  - length: { hits.hits.0.highlight.inference_field: 1 }
+  - match: { hits.hits.0.highlight.inference_field.0: "Elasticsearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+
+  - do:
+      search:
+        index: custom-chunking-dense
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "What is Elasticsearch?"
+          highlight:
+            fields:
+              inference_field:
+                type: "semantic"
+                number_of_fragments: 2
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_4" }
+  - length: { hits.hits.0.highlight.inference_field: 2 }
+  - match: { hits.hits.0.highlight.inference_field.0: "Elasticsearch is an open source, distributed, RESTful, search engine which" }
+  - match: { hits.hits.0.highlight.inference_field.1: " which is built on top of Lucene internally and enjoys" }

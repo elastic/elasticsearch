@@ -15,7 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
+import static java.util.Map.entry;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -67,39 +67,38 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
     }
 
     public void testUseRoot() throws Exception {
-        Map<String, Object> source = buildEvent("www.google.co.uk");
-
-        String domainField = "domain";
-        String registeredDomainField = "registered_domain";
-        String topLevelDomainField = "top_level_domain";
-        String subdomainField = "subdomain";
-
         var processor = new RegisteredDomainProcessor(null, null, "domain", "", false);
-
-        IngestDocument document = TestIngestDocument.withDefaultVersion(source);
+        IngestDocument document = TestIngestDocument.withDefaultVersion(Map.of("domain", "www.google.co.uk"));
         processor.execute(document);
-
-        String domain = document.getFieldValue(domainField, String.class);
-        assertThat(domain, is("www.google.co.uk"));
-        String registeredDomain = document.getFieldValue(registeredDomainField, String.class);
-        assertThat(registeredDomain, is("google.co.uk"));
-        String eTLD = document.getFieldValue(topLevelDomainField, String.class);
-        assertThat(eTLD, is("co.uk"));
-        String subdomain = document.getFieldValue(subdomainField, String.class);
-        assertThat(subdomain, is("www"));
+        assertThat(
+            document.getSource(),
+            is(
+                Map.ofEntries(
+                    entry("domain", "www.google.co.uk"),
+                    entry("registered_domain", "google.co.uk"),
+                    entry("top_level_domain", "co.uk"),
+                    entry("subdomain", "www")
+                )
+            )
+        );
     }
 
     public void testError() throws Exception {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> testRegisteredDomainProcessor(buildEvent("foo.bar.baz"), null, null, null, null, false)
-        );
-        assertThat(e.getMessage(), containsString("unable to set domain information for document"));
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> testRegisteredDomainProcessor(buildEvent("$"), null, null, null, null, false)
-        );
-        assertThat(e.getMessage(), containsString("unable to set domain information for document"));
+        var processor = new RegisteredDomainProcessor(null, null, "domain", "", false);
+
+        {
+            IngestDocument document = TestIngestDocument.withDefaultVersion(Map.of("domain", "foo.bar.baz"));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(document));
+            assertThat(e.getMessage(), is("unable to set domain information for document"));
+            assertThat(document.getSource(), is(Map.of("domain", "foo.bar.baz")));
+        }
+
+        {
+            IngestDocument document = TestIngestDocument.withDefaultVersion(Map.of("domain", "$"));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(document));
+            assertThat(e.getMessage(), is("unable to set domain information for document"));
+            assertThat(document.getSource(), is(Map.of("domain", "$")));
+        }
     }
 
     private void testRegisteredDomainProcessor(

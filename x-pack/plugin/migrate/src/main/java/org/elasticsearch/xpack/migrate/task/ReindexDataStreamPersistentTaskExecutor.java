@@ -40,6 +40,8 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.RetryActionRequest;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexAction;
 
 import java.util.ArrayList;
@@ -265,11 +267,24 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
                 var settings = Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, lifecycleName).build();
                 var updateSettingsRequest = new UpdateSettingsRequest(settings, newIndex);
                 updateSettingsRequest.setParentTask(parentTaskId);
-                client.execute(TransportUpdateSettingsAction.TYPE, updateSettingsRequest, delegate);
+                client.execute(
+                    TransportUpdateSettingsAction.TYPE,
+                    updateSettingsRequest,
+                    delegate.delegateFailure((delegate2, response2) -> {
+                        maybeRunILMAsyncAction(newIndex, delegate2, parentTaskId);
+                    })
+                );
             } else {
                 delegate.onResponse(null);
             }
         }));
+    }
+
+    private void maybeRunILMAsyncAction(String newIndex, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
+        var retryActionRequest = new RetryActionRequest(TimeValue.MAX_VALUE, TimeValue.MAX_VALUE, newIndex);
+        retryActionRequest.setParentTask(parentTaskId);
+        retryActionRequest.requireError(false);
+        client.execute(ILMActions.RETRY, retryActionRequest, listener);
     }
 
     private void deleteIndex(String indexName, TaskId parentTaskId, ActionListener<AcknowledgedResponse> listener) {

@@ -29,6 +29,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -43,6 +44,17 @@ import static org.elasticsearch.upgrades.IndexingIT.assertCount;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
+
+    @Before
+    public void setupILMSettings() throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity(
+            """
+            { "persistent": {"indices.lifecycle.poll_interval": "1s"} }
+            """
+        );
+        assertOK(client().performRequest(request));
+    }
 
     public void testDataStreams() throws IOException {
         if (CLUSTER_TYPE == ClusterType.OLD) {
@@ -193,15 +205,26 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         String dataStreamName = "reindex_test_data_stream";
         String dataStreamFromNonDataStreamIndices = "index_first_reindex_test_data_stream";
         int numRollovers = randomIntBetween(0, 5);
+        boolean hasILMPolicy = randomBoolean();
+        boolean ilmEnabled = hasILMPolicy && randomBoolean();
+
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            createAndRolloverDataStream(dataStreamName, numRollovers);
+            createAndRolloverDataStream(dataStreamName, numRollovers, hasILMPolicy, ilmEnabled);
             createDataStreamFromNonDataStreamIndices(dataStreamFromNonDataStreamIndices);
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+            if (ilmEnabled) {
+                enableILM();
+            }
             Map<String, Map<String, Object>> oldIndicesMetadata = getIndicesMetadata(dataStreamName);
             upgradeDataStream(dataStreamName, numRollovers, numRollovers + 1, 0);
             upgradeDataStream(dataStreamFromNonDataStreamIndices, 0, 1, 0);
             Map<String, Map<String, Object>> upgradedIndicesMetadata = getIndicesMetadata(dataStreamName);
-            compareIndexMetadata(oldIndicesMetadata, upgradedIndicesMetadata);
+
+            if (ilmEnabled) {
+                checkILMPhase(dataStreamName, upgradedIndicesMetadata);
+            } else {
+                compareIndexMetadata(oldIndicesMetadata, upgradedIndicesMetadata);
+            }
         }
     }
 
@@ -231,6 +254,24 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private void checkILMPhase(String dataStreamName, Map<String, Map<String, Object>> upgradedIndicesMetadata) throws Exception {
+        var writeIndex = getWriteIndexFromDataStreamIndexMetadata(upgradedIndicesMetadata);
+        assertBusy(() -> {
+
+            Request request = new Request("GET", dataStreamName + "/_ilm/explain");
+            Response response = client().performRequest(request);
+            Map<String, Object> responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), false);
+            Map<String, Object> indices = (Map<String, Object>) responseMap.get("indices");
+            for (var index : indices.keySet()) {
+                if (index.equals(writeIndex) == false) {
+                    Map<String, Object> ilmInfo = (Map<String, Object>) indices.get(index);
+                    assertThat("Index has not moved to cold ILM phase", ilmInfo.get("phase"), equalTo("cold"));
+                }
+            }
+        });
+    }
+
     private String getWriteIndexFromDataStreamIndexMetadata(Map<String, Map<String, Object>> indexMetadataForDataStream) {
         return indexMetadataForDataStream.entrySet()
             .stream()
@@ -238,6 +279,11 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             .map(Map.Entry::getKey)
             .findFirst()
             .get();
+    }
+
+    private void enableILM() throws IOException {
+        var request = new Request("POST", "/_ilm/start");
+        assertOK(client().performRequest(request));
     }
 
     @SuppressWarnings("unchecked")
@@ -273,9 +319,8 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         return (Map<String, Object>) ((Map<String, Object>) indexMetadata.get("settings")).get("index");
     }
 
-    private void createAndRolloverDataStream(String dataStreamName, int numRollovers) throws IOException {
-        boolean useIlm = randomBoolean();
-        if (useIlm) {
+    private void createAndRolloverDataStream(String dataStreamName, int numRollovers, boolean hasILMPolicy, boolean ilmEnabled) throws IOException {
+        if (hasILMPolicy) {
             createIlmPolicy();
         }
         // We want to create a data stream and roll it over several times so that we have several indices to upgrade
@@ -333,7 +378,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 }
             }
             """;
-        if (useIlm) {
+        if (hasILMPolicy) {
             template = template.replace("$ILM_SETTING", """
                 "lifecycle.name": "test-lifecycle-policy",
                 """);
@@ -359,7 +404,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         bulkLoadData(dataStreamName);
         for (int i = 0; i < numRollovers; i++) {
             String oldIndexName = rollover(dataStreamName);
-            if (randomBoolean()) {
+            if (ilmEnabled ==false && randomBoolean()) {
                 closeIndex(oldIndexName);
             }
             bulkLoadData(dataStreamName);
@@ -371,21 +416,18 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             {
               "policy": {
                 "phases": {
-                  "hot": {
+                  "warm": {
+                    "min_age": "1s",
                     "actions": {
-                      "rollover": {
-                        "max_primary_shard_size": "50kb"
+                      "forcemerge": {
+                        "max_num_segments": 1
                       }
                     }
                   },
-                  "warm": {
-                    "min_age": "30d",
+                  "cold": {
                     "actions": {
-                      "shrink": {
-                        "number_of_shards": 1
-                      },
-                      "forcemerge": {
-                        "max_num_segments": 1
+                      "set_priority" : {
+                        "priority": 50
                       }
                     }
                   }

@@ -397,7 +397,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                     reservedStateMetadata
                 );
         } else {
-            throw new UnsupportedOperationException("There are multiple projects " + projectMetadata.keySet());
+            throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
         }
     }
 
@@ -1310,7 +1310,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             if (projectMetadata.isEmpty()) {
                 createDefaultProject();
             } else if (projectMetadata.size() != 1) {
-                throw new UnsupportedOperationException("There are multiple projects " + projectMetadata.keySet());
+                throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
             }
             return projectMetadata.values().iterator().next();
         }

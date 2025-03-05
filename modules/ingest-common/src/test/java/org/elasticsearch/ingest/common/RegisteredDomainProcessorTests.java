@@ -13,9 +13,11 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.Map;
 
 import static java.util.Map.entry;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -98,6 +100,23 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(document));
             assertThat(e.getMessage(), is("unable to set domain information for document"));
             assertThat(document.getSource(), is(Map.of("domain", "$")));
+        }
+    }
+
+    public void testIgnoreMissing() throws Exception {
+        {
+            var processor = new RegisteredDomainProcessor(null, null, "domain", "", false);
+            IngestDocument document = TestIngestDocument.withDefaultVersion(Map.of());
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(document));
+            assertThat(e.getMessage(), is("field [domain] not present as part of path [domain]"));
+            assertThat(document.getSource(), is(anEmptyMap()));
+        }
+
+        {
+            var processor = new RegisteredDomainProcessor(null, null, "domain", "", true);
+            IngestDocument document = TestIngestDocument.withDefaultVersion(Collections.singletonMap("domain", null));
+            processor.execute(document);
+            assertThat(document.getSource(), is(Collections.singletonMap("domain", null)));
         }
     }
 

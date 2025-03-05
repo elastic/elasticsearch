@@ -48,7 +48,8 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
-        DomainInfo info = getRegisteredDomain(document);
+        final String fieldString = document.getFieldValue(field, String.class, ignoreMissing);
+        final DomainInfo info = getRegisteredDomain(fieldString);
         if (info == null) {
             if (ignoreMissing) {
                 return document;
@@ -80,8 +81,7 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         return document;
     }
 
-    private DomainInfo getRegisteredDomain(IngestDocument document) {
-        String fieldString = document.getFieldValue(field, String.class, ignoreMissing);
+    private DomainInfo getRegisteredDomain(String fieldString) {
         if (fieldString == null) {
             return null;
         }

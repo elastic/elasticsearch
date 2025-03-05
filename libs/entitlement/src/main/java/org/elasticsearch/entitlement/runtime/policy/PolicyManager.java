@@ -31,12 +31,13 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.StackWalker.StackFrame;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -325,30 +326,52 @@ public class PolicyManager {
         return true;
     }
 
-    public void checkFileRead(Class<?> callerClass, Path... paths) {
-        for (var path : paths) {
-            if (isPathOnDefaultFilesystem(path) == false) {
-                return;
-            }
-            var requestingClass = requestingClass(callerClass);
-            if (isTriviallyAllowed(requestingClass)) {
-                return;
-            }
+    public void checkFileRead(Class<?> callerClass, Path path) {
+        checkFileRead(callerClass, path, false);
+    }
 
-            ModuleEntitlements entitlements = getEntitlements(requestingClass);
-            if (entitlements.fileAccess().canRead(path) == false) {
-                logger.info(entitlements.fileAccess().toDebugString());
-                notEntitled(
-                    Strings.format(
-                        "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
-                        entitlements.componentName(),
-                        requestingClass.getModule().getName(),
-                        requestingClass,
-                        Arrays.stream(paths).map(FileAccessTree::normalizePath).collect(Collectors.joining(", "))
-                    ),
-                    callerClass
-                );
+    public void checkFileRead(Class<?> callerClass, Path path, boolean followLinks) {
+        if (isPathOnDefaultFilesystem(path) == false) {
+            return;
+        }
+        var requestingClass = requestingClass(callerClass);
+        if (isTriviallyAllowed(requestingClass)) {
+            return;
+        }
+
+        ModuleEntitlements entitlements = getEntitlements(requestingClass);
+
+        Path realPath = null, symbolicLinkPath = null;
+        boolean canRead = entitlements.fileAccess().canRead(path);
+
+        if (canRead && followLinks) {
+            try {
+                realPath = path.toRealPath();
+            } catch (IOException e) {}
+            try {
+                symbolicLinkPath = Files.readSymbolicLink(path);
+                canRead = entitlements.fileAccess.canRead(symbolicLinkPath);
+            } catch (IOException e) {}
+
+            if (canRead == false) {
+                logger.warn("Cannot read symbolic link [{} -> {}]: [real path: {}]", path, symbolicLinkPath, realPath);
             }
+        }
+
+        if (canRead == false) {
+            logger.info(entitlements.fileAccess().toDebugString());
+            notEntitled(
+                Strings.format(
+                    "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
+                    entitlements.componentName(),
+                    requestingClass.getModule().getName(),
+                    requestingClass,
+                    symbolicLinkPath == null
+                        ? FileAccessTree.normalizePath(path)
+                        : FileAccessTree.normalizePath(path) + " -> " + FileAccessTree.normalizePath(symbolicLinkPath)
+                ),
+                callerClass
+            );
         }
     }
 
@@ -612,7 +635,7 @@ public class PolicyManager {
     /**
      * @return true if permission is granted regardless of the entitlement
      */
-    private static boolean isTriviallyAllowed(Class<?> requestingClass) {
+    protected static boolean isTriviallyAllowed(Class<?> requestingClass) {
         if (logger.isTraceEnabled()) {
             logger.trace("Stack trace for upcoming trivially-allowed check", new Exception());
         }

@@ -19,7 +19,6 @@ import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileFilter;
 import java.io.FilenameFilter;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -71,7 +70,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitor;
-import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
@@ -2760,16 +2758,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
                 followLinks = false;
             }
         }
-        if (followLinks) {
-            try {
-                Path symbolicLink = Files.readSymbolicLink(that);
-                policyManager.checkFileRead(callerClass, that, symbolicLink);
-                return;
-            } catch (IOException | UnsupportedOperationException e) {
-                // that is not a link, or unrelated IOException or unsupported
-            }
-        }
-        policyManager.checkFileRead(callerClass, that);
+        policyManager.checkFileRead(callerClass, that, followLinks);
     }
 
     @Override

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.MergePolicy.OneMerge;
 import org.apache.lucene.index.MergeScheduler.MergeSource;
 import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.store.MergeInfo;
@@ -66,11 +67,11 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 threadPoolMergeExecutorService
             )
         ) {
-            List<MergePolicy.OneMerge> executedMergesList = new ArrayList<>();
+            List<OneMerge> executedMergesList = new ArrayList<>();
             int mergeCount = randomIntBetween(2, 10);
             for (int i = 0; i < mergeCount; i++) {
                 MergeSource mergeSource = mock(MergeSource.class);
-                MergePolicy.OneMerge oneMerge = mock(MergePolicy.OneMerge.class);
+                OneMerge oneMerge = mock(OneMerge.class);
                 when(oneMerge.getStoreMergeInfo()).thenReturn(
                     new MergeInfo(
                         randomNonNegativeInt(),
@@ -80,11 +81,13 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     )
                 );
                 when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
-                when(mergeSource.getNextMerge()).thenReturn(oneMerge, (MergePolicy.OneMerge) null);
+                when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
                 doAnswer(invocation -> {
-                    executedMergesList.add((MergePolicy.OneMerge) invocation.getArguments()[0]);
+                    OneMerge merge = (OneMerge) invocation.getArguments()[0];
+                    assertFalse(merge.isAborted());
+                    executedMergesList.add(merge);
                     return null;
-                }).when(mergeSource).merge(any(MergePolicy.OneMerge.class));
+                }).when(mergeSource).merge(any(OneMerge.class));
                 threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
             }
             deterministicTaskQueue.runAllTasks();
@@ -109,7 +112,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
         MergePolicy.OneMergeProgress oneMergeProgress = new MergePolicy.OneMergeProgress();
-        MergePolicy.OneMerge oneMerge = mock(MergePolicy.OneMerge.class);
+        OneMerge oneMerge = mock(OneMerge.class);
         when(oneMerge.getStoreMergeInfo()).thenReturn(
             new MergeInfo(randomNonNegativeInt(), randomNonNegativeLong(), randomBoolean(), randomFrom(-1, randomNonNegativeInt()))
         );
@@ -143,7 +146,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         }
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
         MergePolicy.OneMergeProgress oneMergeProgress = new MergePolicy.OneMergeProgress();
-        MergePolicy.OneMerge oneMerge = mock(MergePolicy.OneMerge.class);
+        OneMerge oneMerge = mock(OneMerge.class);
         // forced merge with a set number of segments
         when(oneMerge.getStoreMergeInfo()).thenReturn(
             new MergeInfo(randomNonNegativeInt(), randomNonNegativeLong(), randomBoolean(), randomNonNegativeInt())

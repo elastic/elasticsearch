@@ -17,27 +17,36 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public class BooleanFieldDataGenerator implements FieldDataGenerator {
-    private final Supplier<Object> valueGenerator;
-    private final Supplier<Object> valueGeneratorWithMalformed;
+    private final DataSource dataSource;
+    private final Supplier<Object> booleans;
+    private final Supplier<Object> booleansWithStrings;
+    private final Supplier<Object> booleansWithStringsAndMalformed;
 
     public BooleanFieldDataGenerator(DataSource dataSource) {
+        this.dataSource = dataSource;
+
         var booleans = dataSource.get(new DataSourceRequest.BooleanGenerator()).generator();
+        this.booleans = booleans::get;
+
         // produces "true" and "false" strings
         var toStringTransform = dataSource.get(new DataSourceRequest.TransformWrapper(0.5, Object::toString)).wrapper();
-        var booleansWithStrings = toStringTransform.apply(booleans::get);
-
-        this.valueGenerator = Wrappers.defaults(booleansWithStrings, dataSource);
+        this.booleansWithStrings = toStringTransform.apply(this.booleans::get);
 
         var strings = dataSource.get(new DataSourceRequest.StringGenerator()).generator();
-        this.valueGeneratorWithMalformed = Wrappers.defaultsWithMalformed(booleansWithStrings, strings::get, dataSource);
+        this.booleansWithStringsAndMalformed = Wrappers.defaultsWithMalformed(booleansWithStrings, strings::get, dataSource);
     }
 
     @Override
     public Object generateValue(Map<String, Object> fieldMapping) {
-        if (fieldMapping != null && (Boolean) fieldMapping.getOrDefault("ignore_malformed", false)) {
-            return valueGeneratorWithMalformed.get();
+        if (fieldMapping == null) {
+            // dynamically mapped, use booleans only to avoid mapping the field as string
+            return Wrappers.defaults(booleans, dataSource).get();
         }
 
-        return valueGenerator.get();
+        if ((Boolean) fieldMapping.getOrDefault("ignore_malformed", false)) {
+            return booleansWithStringsAndMalformed.get();
+        }
+
+        return Wrappers.defaults(booleansWithStrings, dataSource).get();
     }
 }

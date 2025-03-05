@@ -113,8 +113,9 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
         boolean createSourceIndexAlias
     ) {
         String sourceIndexName = sourceIndex.getIndex().getName();
-        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().masterNodeTimeout(TimeValue.MAX_VALUE)
-            .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(sourceIndexName));
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest(TimeValue.MAX_VALUE, TimeValue.THIRTY_SECONDS).addAliasAction(
+            IndicesAliasesRequest.AliasActions.removeIndex().index(sourceIndexName)
+        );
 
         if (createSourceIndexAlias) {
             // create an alias with the same name as the source index and link it to the target index

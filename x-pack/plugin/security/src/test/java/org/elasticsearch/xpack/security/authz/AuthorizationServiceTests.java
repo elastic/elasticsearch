@@ -271,7 +271,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     @Before
     public void setup() {
-        projectId = new ProjectId(randomUUID());
+        projectId = randomUniqueProjectId();
         fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         rolesStore = mock(CompositeRolesStore.class);
         clusterService = mock(ClusterService.class);
@@ -1208,7 +1208,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         metadataBuilder.put(ProjectMetadata.builder(projectId).put(createIndexMetadata(indexName), true));
 
         for (int p = 0; p < additionalProjects; p++) {
-            ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(new ProjectId(randomUUID()));
+            ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomUniqueProjectId());
             int indices = randomIntBetween(1, 3);
             for (int i = 0; i < indices; i++) {
                 projectBuilder.put(createIndexMetadata(i == 0 ? indexName : randomAlphaOfLength(12)), true);
@@ -2116,7 +2116,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         requests.add(
             new Tuple<>(
                 TransportIndicesAliasesAction.NAME,
-                new IndicesAliasesRequest().addAliasAction(AliasActions.add().alias("security_alias").index(INTERNAL_SECURITY_MAIN_INDEX_7))
+                new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(
+                    AliasActions.add().alias("security_alias").index(INTERNAL_SECURITY_MAIN_INDEX_7)
+                )
             )
         );
         requests.add(
@@ -2388,7 +2390,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         requests.add(
             new Tuple<>(
                 TransportIndicesAliasesAction.NAME,
-                new IndicesAliasesRequest().addAliasAction(AliasActions.add().alias("security_alias").index(INTERNAL_SECURITY_MAIN_INDEX_7))
+                new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(
+                    AliasActions.add().alias("security_alias").index(INTERNAL_SECURITY_MAIN_INDEX_7)
+                )
             )
         );
         requests.add(

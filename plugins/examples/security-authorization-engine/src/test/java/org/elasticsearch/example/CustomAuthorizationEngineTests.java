@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
@@ -119,7 +120,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
     public void testAuthorizeIndexAction() {
         CustomAuthorizationEngine engine = new CustomAuthorizationEngine();
-        Metadata metadata = Metadata.builder().put(IndexMetadata.builder("index")
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(IndexMetadata.builder("index")
                 .settings(Settings.builder().put("index.version.created", IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
@@ -139,7 +140,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             PlainActionFuture<IndexAuthorizationResult> resultFuture = new PlainActionFuture<>();
             engine.authorizeIndexAction(requestInfo, authzInfo,
                 listener -> listener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
-                metadata, resultFuture);
+                project, resultFuture);
             IndexAuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(true));
             IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();
@@ -159,7 +160,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             PlainActionFuture<IndexAuthorizationResult> resultFuture = new PlainActionFuture<>();
             engine.authorizeIndexAction(requestInfo, authzInfo,
                 listener -> listener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
-                metadata, resultFuture);
+                project, resultFuture);
             IndexAuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(false));
             IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();

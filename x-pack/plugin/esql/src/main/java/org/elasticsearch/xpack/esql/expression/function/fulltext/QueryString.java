@@ -138,25 +138,27 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
                     name = "allow_leading_wildcard",
                     type = "boolean",
                     valueHint = { "true", "false" },
-                    description = "If true, the wildcard characters * and ? are allowed as the first character of the query string."
+                    description = "If true, the wildcard characters * and ? are allowed as the first character of the query string. "
+                        + "Defaults to true."
                 ),
                 @MapParam.MapParamEntry(
                     name = "allow_wildcard",
                     type = "boolean",
                     valueHint = { "false", "true" },
-                    description = "If true, the query attempts to analyze wildcard terms in the query string."
+                    description = "If true, the query attempts to analyze wildcard terms in the query string. Defaults to false. "
                 ),
                 @MapParam.MapParamEntry(
                     name = "analyzer",
                     type = "keyword",
                     valueHint = { "standard" },
-                    description = "Analyzer used to convert the text in the query value into token."
+                    description = "Analyzer used to convert the text in the query value into token. "
+                        + "Defaults to the index-time analyzer mapped for the default_field."
                 ),
                 @MapParam.MapParamEntry(
                     name = "auto_generate_synonyms_phrase_query",
                     type = "boolean",
                     valueHint = { "true", "false" },
-                    description = "If true, match phrase queries are automatically created for multi-term synonyms."
+                    description = "If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true."
                 ),
                 @MapParam.MapParamEntry(
                     name = "fuzziness",
@@ -204,13 +206,15 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
                     name = "fuzzy_transpositions",
                     type = "boolean",
                     valueHint = { "true", "false" },
-                    description = "If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba)."
+                    description = "If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba). "
+                        + "Defaults to true."
                 ),
                 @MapParam.MapParamEntry(
                     name = "lenient",
                     type = "boolean",
                     valueHint = { "true", "false" },
-                    description = "If false, format-based errors, such as providing a text query value for a numeric field, are returned."
+                    description = "If false, format-based errors, such as providing a text query value for a numeric field, are returned. "
+                        + "Defaults to false."
                 ),
                 @MapParam.MapParamEntry(
                     name = "max_determinized_states",
@@ -228,13 +232,15 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
                     name = "quote_analyzer",
                     type = "keyword",
                     valueHint = { "standard" },
-                    description = "Analyzer used to convert quoted text in the query string into tokens."
+                    description = "Analyzer used to convert quoted text in the query string into tokens. "
+                        + "Defaults to the search_quote_analyzer mapped for the default_field."
                 ),
                 @MapParam.MapParamEntry(
                     name = "phrase_slop",
                     type = "integer",
                     valueHint = { "0" },
-                    description = "Maximum number of positions allowed between matching tokens for phrases."
+                    description = "Maximum number of positions allowed between matching tokens for phrases. "
+                        + "Defaults to 0 (which means exact matches are required)."
                 ),
                 @MapParam.MapParamEntry(
                     name = "quote_field_suffix",

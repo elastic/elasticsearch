@@ -448,6 +448,6 @@ class URLConnectionNetworkActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void sunMailToURLConnectionGetOutputStream() throws Exception {
-        withJdkMailToConnection(URLConnection::connect);
+        withJdkMailToConnection(URLConnection::getOutputStream);
     }
 }

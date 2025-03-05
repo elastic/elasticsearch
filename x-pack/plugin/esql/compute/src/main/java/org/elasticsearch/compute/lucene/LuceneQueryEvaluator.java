@@ -16,8 +16,8 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -32,7 +32,10 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.function.BiFunction;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} to run a Lucene {@link Query} during
@@ -41,26 +44,22 @@ import java.util.function.BiFunction;
  * {@link LuceneSourceOperator} or the like, but sometimes this isn't possible. So
  * this evaluator is here to save the day.
  */
-public abstract class LuceneQueryEvaluator implements Releasable {
-
-    public static final double NO_MATCH_SCORE = 0.0;
+public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements Releasable {
 
     public record ShardConfig(Query query, IndexSearcher searcher) {}
 
     private final BlockFactory blockFactory;
     private final ShardConfig[] shards;
-    private final BiFunction<BlockFactory, Integer, ScoreVectorBuilder> scoreVectorBuilderSupplier;
 
-    private ShardState[] perShardState = EMPTY_SHARD_STATES;
+    private final List<ShardState> perShardState;
 
     protected LuceneQueryEvaluator(
         BlockFactory blockFactory,
-        ShardConfig[] shards,
-        BiFunction<BlockFactory, Integer, ScoreVectorBuilder> scoreVectorBuilderSupplier
+        ShardConfig[] shards
     ) {
         this.blockFactory = blockFactory;
         this.shards = shards;
-        this.scoreVectorBuilderSupplier = scoreVectorBuilderSupplier;
+        this.perShardState = new ArrayList<>(Collections.nCopies(shards.length, null));
     }
 
     public Block executeQuery(Page page) {
@@ -115,7 +114,7 @@ public abstract class LuceneQueryEvaluator implements Releasable {
         int min = docs.docs().getInt(0);
         int max = docs.docs().getInt(docs.getPositionCount() - 1);
         int length = max - min + 1;
-        try (ScoreVectorBuilder scoreBuilder = scoreVectorBuilderSupplier.apply(blockFactory, length)) {
+        try (T scoreBuilder = createBuilder(blockFactory, length)) {
             if (length == docs.getPositionCount() && length > 1) {
                 return segmentState.scoreDense(scoreBuilder, min, max);
             }
@@ -143,8 +142,7 @@ public abstract class LuceneQueryEvaluator implements Releasable {
         int prevShard = -1;
         int prevSegment = -1;
         SegmentState segmentState = null;
-        try (ScoreVectorBuilder scoreBuilder = scoreVectorBuilderSupplier.apply(blockFactory, docs.getPositionCount())) {
-            scoreBuilder.initVector();
+        try (T scoreBuilder = createBuilder(blockFactory, docs.getPositionCount())) {
             for (int i = 0; i < docs.getPositionCount(); i++) {
                 int shard = docs.shards().getInt(docs.shards().getInt(map[i]));
                 int segment = docs.segments().getInt(map[i]);
@@ -155,7 +153,7 @@ public abstract class LuceneQueryEvaluator implements Releasable {
                     prevSegment = segment;
                 }
                 if (segmentState.noMatch) {
-                    scoreBuilder.appendNoMatch();
+                    appendNoMatch(scoreBuilder);
                 } else {
                     segmentState.scoreSingleDocWithScorer(scoreBuilder, docs.docs().getInt(map[i]));
                 }
@@ -170,40 +168,39 @@ public abstract class LuceneQueryEvaluator implements Releasable {
     public void close() {
     }
 
-    protected abstract ScoreMode scoreMode();
-
     private ShardState shardState(int shard) throws IOException {
-        if (shard >= perShardState.length) {
-            perShardState = ArrayUtil.grow(perShardState, shard + 1);
-        } else if (perShardState[shard] != null) {
-            return perShardState[shard];
+        ShardState shardState = perShardState.get(shard);
+        if (shardState != null) {
+            return shardState;
         }
-        perShardState[shard] = new ShardState(shards[shard]);
-        return perShardState[shard];
+        shardState = new ShardState(shards[shard]);
+        perShardState.set(shard, shardState);
+        return shardState;
     }
 
     private class ShardState {
         private final Weight weight;
         private final IndexSearcher searcher;
-        private SegmentState[] perSegmentState = EMPTY_SEGMENT_STATES;
+        private final List<SegmentState> perSegmentState;
 
         ShardState(ShardConfig config) throws IOException {
             weight = config.searcher.createWeight(config.query, scoreMode(), 1.0f);
             searcher = config.searcher;
+            perSegmentState = new ArrayList<>(Collections.nCopies(searcher.getLeafContexts().size(), null));
         }
 
         SegmentState segmentState(int segment) throws IOException {
-            if (segment >= perSegmentState.length) {
-                perSegmentState = ArrayUtil.grow(perSegmentState, segment + 1);
-            } else if (perSegmentState[segment] != null) {
-                return perSegmentState[segment];
+            SegmentState segmentState = perSegmentState.get(segment);
+            if (segmentState != null) {
+                return segmentState;
             }
-            perSegmentState[segment] = new SegmentState(weight, searcher.getLeafContexts().get(segment));
-            return perSegmentState[segment];
+            segmentState = new SegmentState(weight, searcher.getLeafContexts().get(segment));
+            perSegmentState.set(segment, segmentState);
+            return segmentState;
         }
     }
 
-    private static class SegmentState {
+    private class SegmentState {
         private final Weight weight;
         private final LeafReaderContext ctx;
 
@@ -244,9 +241,9 @@ public abstract class LuceneQueryEvaluator implements Releasable {
          * Score a range using the {@link BulkScorer}. This should be faster
          * than using {@link #scoreSparse} for dense doc ids.
          */
-        Vector scoreDense(ScoreVectorBuilder scoreBuilder, int min, int max) throws IOException {
+        Vector scoreDense(T scoreBuilder, int min, int max) throws IOException {
             if (noMatch) {
-                return scoreBuilder.createNoMatchVector();
+                return createNoMatchVector(blockFactory, max - min + 1);
             }
             if (bulkScorer == null ||  // The bulkScorer wasn't initialized
                 Thread.currentThread() != bulkScorerThread // The bulkScorer was initialized on a different thread
@@ -255,10 +252,12 @@ public abstract class LuceneQueryEvaluator implements Releasable {
                 bulkScorer = weight.bulkScorer(ctx);
                 if (bulkScorer == null) {
                     noMatch = true;
-                    return scoreBuilder.createNoMatchVector();
+                    return createNoMatchVector(blockFactory, max - min + 1);
                 }
             }
-            try (DenseCollector collector = new DenseCollector(min, max, scoreBuilder)) {
+            try (DenseCollector<T> collector = new DenseCollector<>(min, max,  scoreBuilder,
+                LuceneQueryEvaluator.this::appendNoMatch,
+                LuceneQueryEvaluator.this::appendMatch)) {
                 bulkScorer.score(collector, ctx.reader().getLiveDocs(), min, max + 1);
                 return collector.build();
             }
@@ -268,12 +267,11 @@ public abstract class LuceneQueryEvaluator implements Releasable {
          * Score a vector of doc ids using {@link Scorer}. If you have a dense range of
          * doc ids it'd be faster to use {@link #scoreDense}.
          */
-        Vector scoreSparse(ScoreVectorBuilder scoreBuilder, IntVector docs) throws IOException {
+        Vector scoreSparse(T scoreBuilder, IntVector docs) throws IOException {
             initScorer(docs.getInt(0));
             if (noMatch) {
-                return scoreBuilder.createNoMatchVector();
+                return createNoMatchVector(blockFactory, docs.getPositionCount());
             }
-            scoreBuilder.initVector();
             for (int i = 0; i < docs.getPositionCount(); i++) {
                 scoreSingleDocWithScorer(scoreBuilder, docs.getInt(i));
             }
@@ -296,41 +294,47 @@ public abstract class LuceneQueryEvaluator implements Releasable {
             }
         }
 
-        private void scoreSingleDocWithScorer(ScoreVectorBuilder builder, int doc) throws IOException {
+        private void scoreSingleDocWithScorer(T builder, int doc) throws IOException {
             if (scorer.iterator().docID() == doc) {
-                builder.appendMatch(scorer);
+                appendMatch(builder, scorer);
             } else if (scorer.iterator().docID() > doc) {
-                builder.appendNoMatch();
+                appendNoMatch(builder);
             } else {
                 if (scorer.iterator().advance(doc) == doc) {
-                    builder.appendMatch(scorer);
+                    appendMatch(builder, scorer);
                 } else {
-                    builder.appendNoMatch();
+                    appendNoMatch(builder);
                 }
             }
         }
     }
-
-    private static final ShardState[] EMPTY_SHARD_STATES = new ShardState[0];
-    private static final SegmentState[] EMPTY_SEGMENT_STATES = new SegmentState[0];
 
     /**
      * Collects matching information for dense range of doc ids. This assumes that
      * doc ids are sent to {@link LeafCollector#collect(int)} in ascending order
      * which isn't documented, but @jpountz swears is true.
      */
-    static class DenseCollector implements LeafCollector, Releasable {
-        private final ScoreVectorBuilder scoreBuilder;
+    static class DenseCollector<U extends Vector.Builder> implements LeafCollector, Releasable {
+        private final U scoreBuilder;
         private final int max;
-        private Scorable scorer;
+        private final Consumer<U> appendNoMatch;
+        private final CheckedBiConsumer<U, Scorable, IOException> appendMatch;
 
+        private Scorable scorer;
         int next;
 
-        DenseCollector(int min, int max, ScoreVectorBuilder scoreBuilder) {
+        DenseCollector(
+            int min,
+            int max,
+            U scoreBuilder,
+            Consumer<U> appendNoMatch,
+            CheckedBiConsumer<U, Scorable, IOException> appendMatch
+        ) {
             this.scoreBuilder = scoreBuilder;
-            scoreBuilder.initVector();
             this.max = max;
             next = min;
+            this.appendNoMatch = appendNoMatch;
+            this.appendMatch = appendMatch;
         }
 
         @Override
@@ -341,9 +345,9 @@ public abstract class LuceneQueryEvaluator implements Releasable {
         @Override
         public void collect(int doc) throws IOException {
             while (next++ < doc) {
-                scoreBuilder.appendNoMatch();
+                appendNoMatch.accept(scoreBuilder);
             }
-            scoreBuilder.appendMatch(scorer);
+            appendMatch.accept(scoreBuilder, scorer);
         }
 
         public Vector build() {
@@ -353,7 +357,7 @@ public abstract class LuceneQueryEvaluator implements Releasable {
         @Override
         public void finish() {
             while (next++ <= max) {
-                scoreBuilder.appendNoMatch();
+                appendNoMatch.accept(scoreBuilder);
             }
         }
 
@@ -363,15 +367,13 @@ public abstract class LuceneQueryEvaluator implements Releasable {
         }
     }
 
-    public interface ScoreVectorBuilder extends Releasable {
-        Vector createNoMatchVector();
+    protected abstract ScoreMode scoreMode();
 
-        void initVector();
+    protected abstract Vector createNoMatchVector(BlockFactory blockFactory, int size);
 
-        void appendNoMatch();
+    protected abstract T createBuilder(BlockFactory blockFactory, int size);
 
-        void appendMatch(Scorable scorer) throws IOException;
+    protected abstract void appendNoMatch(T builder);
 
-        Vector build();
-    }
+    protected abstract void appendMatch(T builder, Scorable scorer) throws IOException;
 }

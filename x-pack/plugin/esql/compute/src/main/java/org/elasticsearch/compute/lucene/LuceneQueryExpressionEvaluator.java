@@ -17,7 +17,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.core.Releasables;
+
+import java.io.IOException;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} to run a Lucene {@link Query} during
@@ -26,15 +27,15 @@ import org.elasticsearch.core.Releasables;
  * {@link LuceneSourceOperator} or the like, but sometimes this isn't possible. So
  * this evaluator is here to save the day.
  */
-public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator implements EvalOperator.ExpressionEvaluator {
-
-    public static final double NO_MATCH_SCORE = 0.0;
+public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<BooleanVector.Builder>
+    implements
+        EvalOperator.ExpressionEvaluator {
 
     LuceneQueryExpressionEvaluator(
         BlockFactory blockFactory,
         ShardConfig[] shards
     ) {
-        super(blockFactory, shards, BooleanScoreVectorBuilder::new);
+        super(blockFactory, shards);
     }
 
     @Override
@@ -47,63 +48,30 @@ public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator impleme
         return ScoreMode.COMPLETE_NO_SCORES;
     }
 
-    public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final ShardConfig[] shardConfigs;
+    @Override
+    protected Vector createNoMatchVector(BlockFactory blockFactory, int size) {
+        return blockFactory.newConstantBooleanVector(false, size);
+    }
 
-        public Factory(ShardConfig[] shardConfigs) {
-            this.shardConfigs = shardConfigs;
-        }
+    @Override
+    protected BooleanVector.Builder createBuilder(BlockFactory blockFactory, int size) {
+        return blockFactory.newBooleanVectorFixedBuilder(size);
+    }
 
+    @Override
+    protected void appendNoMatch(BooleanVector.Builder builder) {
+        builder.appendBoolean(false);
+    }
+
+    @Override
+    protected void appendMatch(BooleanVector.Builder builder, Scorable scorer) throws IOException {
+        builder.appendBoolean(true);
+    }
+
+    public record Factory(ShardConfig[] shardConfigs) implements EvalOperator.ExpressionEvaluator.Factory {
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
             return new LuceneQueryExpressionEvaluator(context.blockFactory(), shardConfigs);
-        }
-    }
-
-    static class BooleanScoreVectorBuilder implements ScoreVectorBuilder {
-
-        private final BlockFactory blockFactory;
-        private final int size;
-
-        private BooleanVector.Builder builder;
-
-        BooleanScoreVectorBuilder(BlockFactory blockFactory, int size) {
-            this.blockFactory = blockFactory;
-            this.size = size;
-        }
-
-        @Override
-        public Vector createNoMatchVector() {
-            return blockFactory.newConstantBooleanVector(false, size);
-        }
-
-        @Override
-        public void initVector() {
-            assert builder == null : "initVector called twice";
-            builder = blockFactory.newBooleanVectorFixedBuilder(size);
-        }
-
-        @Override
-        public void appendNoMatch() {
-            assert builder != null : "appendNoMatch called before initVector";
-            builder.appendBoolean(false);
-        }
-
-        @Override
-        public void appendMatch(Scorable scorer) {
-            assert builder != null : "appendMatch called before initVector";
-            builder.appendBoolean(true);
-        }
-
-        @Override
-        public Vector build() {
-            assert builder != null : "build called before initVector";
-            return builder.build();
-        }
-
-        @Override
-        public void close() {
-            Releasables.closeExpectNoException(builder);
         }
     }
 }

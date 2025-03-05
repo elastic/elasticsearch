@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
-import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 
@@ -30,12 +29,12 @@ import java.io.IOException;
  * {@link LuceneSourceOperator} or the like, but sometimes this isn't possible. So
  * this evaluator is here to save the day.
  */
-public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator implements ScoreOperator.ExpressionScorer {
+public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator<DoubleVector.Builder> implements ScoreOperator.ExpressionScorer {
 
     public static final double NO_MATCH_SCORE = 0.0;
 
     LuceneQueryScoreEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {
-        super(blockFactory, shards, DoubleScoreVectorBuilder::new);
+        super(blockFactory, shards);
     }
 
     @Override
@@ -48,59 +47,27 @@ public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator implements S
         return ScoreMode.COMPLETE;
     }
 
-    static class DoubleScoreVectorBuilder implements ScoreVectorBuilder {
-
-        private final BlockFactory blockFactory;
-        private final int size;
-
-        private DoubleVector.Builder builder;
-
-        DoubleScoreVectorBuilder(BlockFactory blockFactory, int size) {
-            this.blockFactory = blockFactory;
-            this.size = size;
-        }
-
-        @Override
-        public Vector createNoMatchVector() {
-            return blockFactory.newConstantDoubleVector(NO_MATCH_SCORE, size);
-        }
-
-        @Override
-        public void initVector() {
-            builder = blockFactory.newDoubleVectorFixedBuilder(size);
-        }
-
-        @Override
-        public void appendNoMatch() {
-            assert builder != null : "appendNoMatch called before initVector";
-            builder.appendDouble(NO_MATCH_SCORE);
-        }
-
-        @Override
-        public void appendMatch(Scorable scorer) throws IOException {
-            assert builder != null : "appendMatch called before initVector";
-            builder.appendDouble(scorer.score());
-        }
-
-        @Override
-        public Vector build() {
-            assert builder != null : "build called before initVector";
-            return builder.build();
-        }
-
-        @Override
-        public void close() {
-            Releasables.closeExpectNoException(builder);
-        }
+    @Override
+    protected Vector createNoMatchVector(BlockFactory blockFactory, int size) {
+        return blockFactory.newConstantDoubleVector(NO_MATCH_SCORE, size);
     }
 
-    public static class Factory implements ScoreOperator.ExpressionScorer.Factory {
-        private final ShardConfig[] shardConfigs;
+    @Override
+    protected DoubleVector.Builder createBuilder(BlockFactory blockFactory, int size) {
+        return blockFactory.newDoubleVectorFixedBuilder(size);
+    }
 
-        public Factory(ShardConfig[] shardConfigs) {
-            this.shardConfigs = shardConfigs;
-        }
+    @Override
+    protected void appendNoMatch(DoubleVector.Builder builder) {
+        builder.appendDouble(NO_MATCH_SCORE);
+    }
 
+    @Override
+    protected void appendMatch(DoubleVector.Builder builder, Scorable scorer) throws IOException {
+        builder.appendDouble(scorer.score());
+    }
+
+    public record Factory(ShardConfig[] shardConfigs) implements ScoreOperator.ExpressionScorer.Factory {
         @Override
         public ScoreOperator.ExpressionScorer get(DriverContext context) {
             return new LuceneQueryScoreEvaluator(context.blockFactory(), shardConfigs);

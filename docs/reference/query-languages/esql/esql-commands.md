@@ -717,15 +717,7 @@ FROM app_logs
 In case of name collisions, the newly created columns will override existing columns.
 
 ```esql
-FROM Left
-| WHERE Language IS NOT NULL // works and filter TLD UK
-| LOOKUP JOIN Right ON Key
 
-// same semantics and result when moving the WHERE clause after the filter
-// in fact the optimizer will move the filter before the lookup
-FROM Left
-| LOOKUP JOIN Right ON Key
-| WHERE Language IS NOT NULL 
 ```
 
 ## `MV_EXPAND` [esql-mv_expand]

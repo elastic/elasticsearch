@@ -405,7 +405,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
 
         final SemanticTextFieldMapper mapper;
-        if (fieldType().getModelSettings() == null) {
+        if (fieldType().getModelSettings() == null && field.inference().modelSettings() != null) {
             mapper = addDynamicUpdate(context, field);
         } else {
             Conflicts conflicts = new Conflicts(fullFieldName);

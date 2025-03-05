@@ -427,7 +427,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         final int numberOfProjects = randomIntBetween(2, 10);
         int shardCount = 0;
         for (int i = 1; i <= numberOfProjects; i++) {
-            var projectId = new ProjectId("p" + i);
+            var projectId = ProjectId.fromId("p" + i);
             mb.put(
                 ProjectMetadata.builder(projectId)
                     .put(

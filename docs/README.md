@@ -17,7 +17,7 @@ Docs live in **three places**:
 
 1. **Reference content** lives in this repo. This covers low-level stuff like settings and configuration information that is tightly coupled to code.
 - 👩🏽‍💻 **Engineers** own the bulk of this content.
-2.  **API reference docs** live in the [Elasticsearch specification](https://github.com/elastic/elasticsearch-specification)
+2.  **API reference docs** live in the [Elasticsearch specification](https://github.com/elastic/elasticsearch-specification/blob/main/README.md#how-to-generate-the-openapi-representation)
     - This is where you need to update API docs published in the [new API docs system](https://www.elastic.co/docs/api/doc/elasticsearch/v8/)
 - 👩🏽‍💻 **Engineers** own this content.
 3. **Narrative, overview, and conceptual content** mostly lives in the [`docs-content`](https://github.com/elastic/docs-content/) repo. 

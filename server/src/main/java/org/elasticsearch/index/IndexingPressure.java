@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -189,7 +190,7 @@ public class IndexingPressure {
             return coordinating.currentOperationsSize;
         }
 
-        public boolean shouldSplit() {
+        public Optional<Releasable> maybeSplit() {
             long currentUsage = (currentCombinedCoordinatingAndPrimaryBytes.get() + currentReplicaBytes.get());
             long currentOperationsSize = coordinating.currentOperationsSize;
             if (currentUsage >= highWatermark && currentOperationsSize >= highWatermarkSize) {
@@ -201,7 +202,7 @@ public class IndexingPressure {
                         currentOperationsSize
                     )
                 );
-                return true;
+                return Optional.of(split());
             }
             if (currentUsage >= lowWatermark && currentOperationsSize >= lowWatermarkSize) {
                 lowWaterMarkSplits.getAndIncrement();
@@ -212,12 +213,12 @@ public class IndexingPressure {
                         currentOperationsSize
                     )
                 );
-                return true;
+                return Optional.of(split());
             }
-            return false;
+            return Optional.empty();
         }
 
-        public Coordinating split() {
+        public Releasable split() {
             Coordinating toReturn = coordinating;
             coordinating = new Coordinating(forceExecution);
             return toReturn;

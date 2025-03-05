@@ -7846,7 +7846,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         )) {
             var query = "FROM TEST | " + command + " | RANDOM_SAMPLE .5";
             var optimized = optimizedPlan(query);
-            System.err.println(optimized);
 
             var limit = as(optimized, Limit.class);
             var randomSample = as(limit.child(), RandomSample.class);

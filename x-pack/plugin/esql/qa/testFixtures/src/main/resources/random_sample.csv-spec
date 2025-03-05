@@ -3,6 +3,7 @@
 row
 
 ROW x = 1
+required_capability: random_sample
 | RANDOM_SAMPLE .9 9
 ;
 

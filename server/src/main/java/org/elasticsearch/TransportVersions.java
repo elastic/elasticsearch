@@ -57,7 +57,6 @@ public class TransportVersions {
     public static final TransportVersion V_7_3_0 = def(7_03_00_99);
     public static final TransportVersion V_7_3_2 = def(7_03_02_99);
     public static final TransportVersion V_7_4_0 = def(7_04_00_99);
-    public static final TransportVersion V_7_6_0 = def(7_06_00_99);
     public static final TransportVersion V_7_8_0 = def(7_08_00_99);
     public static final TransportVersion V_7_8_1 = def(7_08_01_99);
     public static final TransportVersion V_7_9_0 = def(7_09_00_99);
@@ -99,9 +98,7 @@ public class TransportVersions {
     public static final TransportVersion V_8_15_0 = def(8_702_0_02);
     public static final TransportVersion V_8_15_2 = def(8_702_0_03);
     public static final TransportVersion V_8_16_0 = def(8_772_0_01);
-    public static final TransportVersion ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO_BACKPORT_8_16 = def(8_772_0_02);
-    public static final TransportVersion SKIP_INNER_HITS_SEARCH_SOURCE_BACKPORT_8_16 = def(8_772_0_03);
-    public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_16 = def(8_772_0_04);
+    public static final TransportVersion V_8_16_1 = def(8_772_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_5 = def(8_772_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_6 = def(8_772_0_06);
     public static final TransportVersion REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_773_0_00);
@@ -187,6 +184,7 @@ public class TransportVersions {
     public static final TransportVersion MULTI_PROJECT = def(9_018_0_00);
     public static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH = def(9_019_0_00);
     public static final TransportVersion JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_020_0_00);
+    public static final TransportVersion RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(9_021_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

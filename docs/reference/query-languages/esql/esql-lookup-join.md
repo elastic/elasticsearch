@@ -10,7 +10,7 @@ The {{esql}} [`LOOKUP join`](/reference/query-languages/esql/esql-commands.md#es
 
 For example, you can use `LOOKUP JOIN` to:
 
-* Pull in environment or ownership details for each host to correlate your metrics data.
+* Retrieve environment or ownership details for each host to correlate your metrics data.
 * Quickly see if any source IPs match known malicious addresses.
 * Tag logs with the owning team or escalation info for faster triage and incident response.
 
@@ -96,7 +96,7 @@ The following are the current limitations with `LOOKUP JOIN`
 
 * `LOOKUP JOIN` will be sucessfull if both left and right type of the join are both `KEYWORD` types or if the left type is of `TEXT` and the right type is `KEYWORD`.
 * Indices in [lookup](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) mode are always single-sharded.
-* Cross cluster search is unsupported. Both source and lookup indicies must be local.
+* Cross cluster search is unsupported. Both source and lookup indices must be local.
 * `LOOKUP JOIN` can only use a single match field, and can only use a single index. Wildcards, aliases, datemath, and datastreams are not supported.
 * The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require renames or evals to achieve.
 * The query will circuit break if many documents from the lookup index have the same key. A large heap is needed to manage results of multiple megabytes per key.

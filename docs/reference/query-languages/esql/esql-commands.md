@@ -665,7 +665,7 @@ FROM employees
 
 ## `LOOKUP JOIN` [esql-lookup-join]
 
-`LOOKUP JOIN` is useful for any scenario where you need to pull in information from a lookup index to streamline data enrichment and analysis.
+`LOOKUP JOIN` enables you to add data from another index, AKA a 'lookup' index, to your {esql} query results, simplifying data enrichment and analysis workflows.
 
 **Syntax**
 
@@ -681,7 +681,10 @@ TBD
 
 **Description**
 
-TBD
+The `LOOKUP JOIN` command adds new columns to your {esql} query results table by finding documents in a lookup index that share the same join field value as your result rows.
+
+For each row in your results table that matches a document in the lookup index based on the join field, all fields from the matching document are added as new columns to that row.
+If multiple documents in the lookup index match a single row in your results, the output will contain one row for each matching combination.
 
 **Examples**
 

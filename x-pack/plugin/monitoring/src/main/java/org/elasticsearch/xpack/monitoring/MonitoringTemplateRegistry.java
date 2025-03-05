@@ -111,7 +111,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
     );
 
     //////////////////////////////////////////////////////////
-    // Beats template (for matching ".monitoring-beats-8-*" indices)
+    // Beats template (for matching ".monitoring-beats-${version}-*" indices)
     //////////////////////////////////////////////////////////
     public static final String BEATS_INDEX_TEMPLATE_NAME = ".monitoring-beats";
     public static final IndexTemplateConfig BEATS_INDEX_TEMPLATE = new IndexTemplateConfig(

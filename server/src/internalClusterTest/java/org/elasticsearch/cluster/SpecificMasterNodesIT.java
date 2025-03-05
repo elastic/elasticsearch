@@ -281,7 +281,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
                 }
               }
             }"""));
-        indicesAdmin().prepareAliases()
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .addAlias(
                 "test",
                 "a_test",

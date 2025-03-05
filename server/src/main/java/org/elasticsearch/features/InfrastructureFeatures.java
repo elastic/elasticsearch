@@ -9,6 +9,8 @@
 
 package org.elasticsearch.features;
 
+import org.elasticsearch.core.RestApiVersion;
+
 import java.util.Set;
 
 /**
@@ -16,11 +18,34 @@ import java.util.Set;
  */
 public class InfrastructureFeatures implements FeatureSpecification {
 
-    public static final NodeFeature ELASTICSEARCH_V9 = new NodeFeature("es_v9");
+    /*
+     * These features are auto-generated from the constants in RestApiVersion.
+     *
+     * When there's a new major version, CURRENT becomes N+1 and PREVIOUS becomes N.
+     * Because PREVIOUS is marked as assumed, this doesn't stop N+1 nodes from joining the cluster.
+     * A little table helps:
+     *
+     * Major    |  8  |  9  |  10
+     * ---------|-----|-----|-----
+     * CURRENT  |  8  |  9  |  10
+     * PREVIOUS |  7  |  8  |  9
+     *
+     * v9 knows about REST API 9 and 8. v10 knows about REST API 10 and 9.
+     * A v10 node can join a v9 cluster, as the ES_V_8 feature known by v9 is assumed.
+     * But the v9 nodes don't know about ES_V_10, so that feature isn't active
+     * on the v10 nodes until the cluster is fully upgraded,
+     * at which point the ES_V_8 feature also disappears from the cluster.
+     *
+     * One thing you must not do is check the PREVIOUS_VERSION feature existence on the cluster,
+     * as the answer will be wrong (eg v9 nodes will assume that v10 nodes have the v8 feature) - hence why it is private.
+     * That feature only exists here so that upgrades work to remove the feature from the cluster.
+     */
+    public static final NodeFeature CURRENT_VERSION = new NodeFeature("ES_" + RestApiVersion.current());
+    private static final NodeFeature PREVIOUS_VERSION = new NodeFeature("ES_" + RestApiVersion.previous(), true);
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(ELASTICSEARCH_V9);
+        return Set.of(CURRENT_VERSION, PREVIOUS_VERSION);
     }
 
     @Override

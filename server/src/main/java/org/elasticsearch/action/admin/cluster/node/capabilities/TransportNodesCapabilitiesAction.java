@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.InfrastructureFeatures;
 import org.elasticsearch.injection.guice.Inject;
@@ -77,18 +76,18 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
 
     @Override
     protected NodeCapabilitiesRequest newNodeRequest(NodesCapabilitiesRequest request) {
-        @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)  // rather than v8/v9, this should handle v9/v10
         RestApiVersion restVersion;
         if (request.restApiVersion().isPresent()) {
             // explicit version - just use it, and see what happens
             restVersion = request.restApiVersion().get();
-        } else if (featureService.clusterHasFeature(clusterService.state(), InfrastructureFeatures.ELASTICSEARCH_V9)) {
-            restVersion = RestApiVersion.V_9; // every node is at least v9, so use that
+        } else if (featureService.clusterHasFeature(clusterService.state(), InfrastructureFeatures.CURRENT_VERSION)) {
+            restVersion = RestApiVersion.current(); // every node is at least this major version, so use that
         } else {
-            // not all nodes are v9. v8 nodes do not understand v9 rest API, so query using v8.
+            // not all nodes are the current version. previous major version nodes do not understand
+            // the new REST API version, so query using the previous version.
             // Capabilities can come and go, so it's ok for the response to change
             // when the nodes change
-            restVersion = RestApiVersion.V_8;
+            restVersion = RestApiVersion.previous();
         }
 
         return new NodeCapabilitiesRequest(request.method(), request.path(), request.parameters(), request.capabilities(), restVersion);

@@ -48,7 +48,6 @@ public class SpatialExtentTests extends AbstractAggregationTestCase {
         ).flatMap(List::stream).map(SpatialExtentTests::makeSupplier).toList();
 
         // The withNoRowsExpectingNull() cases don't work here, as this aggregator doesn't return nulls.
-        // return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
     }
 

@@ -328,7 +328,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * A shard iterator with just this shard in it.
      */
     public ShardIterator shardsIt() {
-        return new PlainShardIterator(shardId, List.of(this));
+        return new ShardIterator(shardId, List.of(this));
     }
 
     public ShardRouting(ShardId shardId, StreamInput in) throws IOException {

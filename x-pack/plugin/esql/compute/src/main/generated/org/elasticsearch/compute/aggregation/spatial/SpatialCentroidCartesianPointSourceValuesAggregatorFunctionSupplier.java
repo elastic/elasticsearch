@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -16,22 +17,28 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
+  public SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier() {
+  }
 
-  public SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier(
-      List<Integer> channels) {
-    this.channels = channels;
+  @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return SpatialCentroidCartesianPointSourceValuesAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
   public SpatialCentroidCartesianPointSourceValuesAggregatorFunction aggregator(
-      DriverContext driverContext) {
+      DriverContext driverContext, List<Integer> channels) {
     return SpatialCentroidCartesianPointSourceValuesAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
   public SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
+      DriverContext driverContext, List<Integer> channels) {
     return SpatialCentroidCartesianPointSourceValuesGroupingAggregatorFunction.create(channels, driverContext);
   }
 

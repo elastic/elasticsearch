@@ -113,6 +113,7 @@ POST _tasks/<task_id>/_cancel
 ==== Perform hybrid search
 
 After reindexing the data into the `semantic-embeddings` index, you can perform hybrid search by using <<rrf,reciprocal rank fusion (RRF)>>. RRF is a technique that merges the rankings from both semantic and lexical queries, giving more weight to results that rank high in either search. This ensures that the final results are balanced and relevant.
+To extract the most relevant fragments from the original text and query, you can use the <<highlighting,highlight parameter>>:
 
 [source,console]
 ------------------------------------------------------------
@@ -142,6 +143,13 @@ GET semantic-embeddings/_search
         }
       ]
     }
+  },
+  "highlight": {
+    "fields": {
+        "semantic_text": {
+            "number_of_fragments": 2  <5>
+        }
+    }
   }
 }
 ------------------------------------------------------------
@@ -150,7 +158,7 @@ GET semantic-embeddings/_search
 <2> Lexical search is performed on the `content` field using the specified phrase.
 <3> The second `standard` retriever refers to the semantic search.
 <4> The `semantic_text` field is used to perform the semantic search.
-
+<5> Specifies the maximum number of fragments to return. See <<semantic-text-highlighting, semantic text highlighting>> for a more complete example.
 
 After performing the hybrid search, the query will return the top 10 documents that match both semantic and lexical search criteria. The results include detailed information about each document:
 
@@ -178,36 +186,14 @@ After performing the hybrid search, the query will return the top 10 documents t
         "_score": 0.032786883,
         "_rank": 1,
         "_source": {
-          "semantic_text": {
-            "inference": {
-              "inference_id": "my-elser-endpoint",
-              "model_settings": {
-                "task_type": "sparse_embedding"
-              },
-              "chunks": [
-                {
-                  "text": "What so many out there do not realize is the importance of what you do after you work out. You may have done the majority of the work, but how you treat your body in the minutes and hours after you exercise has a direct effect on muscle soreness, muscle strength and growth, and staying hydrated. Cool Down. After your last exercise, your workout is not over. The first thing you need to do is cool down. Even if running was all that you did, you still should do light cardio for a few minutes. This brings your heart rate down at a slow and steady pace, which helps you avoid feeling sick after a workout.",
-                  "embeddings": {
-                    "exercise": 1.571044,
-                    "after": 1.3603843,
-                    "sick": 1.3281639,
-                    "cool": 1.3227621,
-                    "muscle": 1.2645415,
-                    "sore": 1.2561599,
-                    "cooling": 1.2335974,
-                    "running": 1.1750668,
-                    "hours": 1.1104802,
-                    "out": 1.0991782,
-                    "##io": 1.0794281,
-                    "last": 1.0474665,
-                   (...) 
-                  }
-                }
-              ]
-            }
-          },
           "id": 8408852,
           "content": "What so many out there do not realize is the importance of (...)"
+        },
+        "highlight" : {
+            "semantic_text" : [
+                "... fragment_1 ...",
+                "... fragment_2 ..."
+            ]
         }
       }
     ]

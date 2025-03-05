@@ -701,7 +701,7 @@ public class EnrichPolicyRunner {
      * guard against accidental removal and recreation during policy execution.
      */
     private void validateIndexBeforePromotion(String destinationIndexName, ClusterState clusterState) {
-        IndexMetadata destinationIndex = clusterState.metadata().index(destinationIndexName);
+        IndexMetadata destinationIndex = clusterState.metadata().getProject().index(destinationIndexName);
         if (destinationIndex == null) {
             throw new IndexNotFoundException(
                 "was not able to promote it as part of executing enrich policy [" + policyName + "]",
@@ -753,8 +753,8 @@ public class EnrichPolicyRunner {
         validateIndexBeforePromotion(enrichIndexName, clusterState);
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(clusterState, aliasRequest);
         String[] aliases = aliasRequest.aliases();
-        IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();
-        String[] indices = clusterState.metadata().findAliases(aliases, concreteIndices).keySet().toArray(new String[0]);
+        IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest(ENRICH_MASTER_REQUEST_TIMEOUT, ENRICH_MASTER_REQUEST_TIMEOUT);
+        String[] indices = clusterState.metadata().getProject().findAliases(aliases, concreteIndices).keySet().toArray(new String[0]);
         if (indices.length > 0) {
             aliasToggleRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().indices(indices).alias(enrichIndexBase));
         }

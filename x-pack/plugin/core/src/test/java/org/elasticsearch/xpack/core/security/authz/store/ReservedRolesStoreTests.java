@@ -2633,7 +2633,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 .authorize(
                     indexMonitoringActionName,
                     Sets.newHashSet(internalSecurityIndex, TestRestrictedIndices.SECURITY_MAIN_ALIAS, asyncSearchIndex),
-                    metadata,
+                    metadata.getProject(),
                     fieldPermissionsCache
                 );
             assertThat(iac.hasIndexPermissions(internalSecurityIndex), is(true));
@@ -2829,7 +2829,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
         );
-        final Metadata metadata = new Metadata.Builder().put(
+        final var metadata = new Metadata.Builder().put(
             new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),
             true
         )
@@ -2853,7 +2853,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
                     .build(),
                 true
             )
-            .build();
+            .build()
+            .getProject();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         IndicesAccessControl iac = superuserRole.indices()
@@ -4140,7 +4141,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
-        assertTrue(role.cluster().check("cluster:monitor/xpack/inference", request, authentication));
+        assertTrue(role.cluster().check("cluster:monitor/xpack/inference/post", request, authentication));
         assertTrue(role.cluster().check("cluster:monitor/xpack/inference/get", request, authentication));
         assertTrue(role.cluster().check("cluster:admin/xpack/inference/put", request, authentication));
         assertTrue(role.cluster().check("cluster:admin/xpack/inference/delete", request, authentication));
@@ -4160,10 +4161,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
-        assertTrue(role.cluster().check("cluster:monitor/xpack/inference", request, authentication));
+        assertTrue(role.cluster().check("cluster:monitor/xpack/inference/post", request, authentication));
         assertTrue(role.cluster().check("cluster:monitor/xpack/inference/get", request, authentication));
         assertFalse(role.cluster().check("cluster:admin/xpack/inference/put", request, authentication));
-        assertTrue(role.cluster().check("cluster:monitor/xpack/inference/unified", request, authentication));
         assertFalse(role.cluster().check("cluster:admin/xpack/inference/delete", request, authentication));
         assertTrue(role.cluster().check("cluster:monitor/xpack/ml/trained_models/deployment/infer", request, authentication));
         assertFalse(role.cluster().check("cluster:admin/xpack/ml/trained_models/deployment/start", request, authentication));

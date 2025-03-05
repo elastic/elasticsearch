@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -26,10 +26,12 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -39,7 +41,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 /**
  * Full text function that performs a {@link TermQuery} .
  */
-public class Term extends FullTextFunction implements PostOptimizationVerificationAware {
+public class Term extends FullTextFunction implements PostAnalysisPlanVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Term", Term::readFrom);
 
@@ -104,18 +106,23 @@ public class Term extends FullTextFunction implements PostOptimizationVerificati
     }
 
     @Override
-    public void postOptimizationVerification(Failures failures) {
-        if (field instanceof FieldAttribute == false) {
-            failures.add(
-                Failure.fail(
-                    field,
-                    "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
-                    functionName(),
-                    functionType(),
-                    field.sourceText()
-                )
-            );
-        }
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return (plan, failures) -> {
+            super.postAnalysisPlanVerification().accept(plan, failures);
+            plan.forEachExpression(Term.class, t -> {
+                if (t.field() instanceof FieldAttribute == false) { // TODO: is a conversion possible, similar to Match's case?
+                    failures.add(
+                        Failure.fail(
+                            t.field(),
+                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
+                            t.functionName(),
+                            t.functionType(),
+                            t.field().sourceText()
+                        )
+                    );
+                }
+            });
+        };
     }
 
     @Override

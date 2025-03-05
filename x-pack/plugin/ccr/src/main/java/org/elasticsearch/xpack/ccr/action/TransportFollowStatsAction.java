@@ -124,7 +124,9 @@ public class TransportFollowStatsAction extends TransportTasksAction<
     }
 
     static Set<String> findFollowerIndicesFromShardFollowTasks(ClusterState state, String[] indices) {
-        final PersistentTasksCustomMetadata persistentTasksMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksCustomMetadata persistentTasksMetadata = state.metadata()
+            .getProject()
+            .custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasksMetadata == null) {
             return Collections.emptySet();
         }
@@ -137,7 +139,8 @@ public class TransportFollowStatsAction extends TransportTasksAction<
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
                 return shardFollowTask.getFollowShardId().getIndex();
             })
-            .filter(followerIndex -> metadata.index(followerIndex) != null) // hide tasks that are orphaned (see ShardFollowTaskCleaner)
+            .filter(followerIndex -> metadata.getProject().index(followerIndex) != null) // hide tasks that are orphaned (see
+                                                                                         // ShardFollowTaskCleaner)
             .map(Index::getName)
             .filter(followerIndex -> Strings.isAllOrWildcard(indices) || requestedFollowerIndices.contains(followerIndex))
             .collect(Collectors.toSet());

@@ -72,7 +72,12 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 MergeSource mergeSource = mock(MergeSource.class);
                 MergePolicy.OneMerge oneMerge = mock(MergePolicy.OneMerge.class);
                 when(oneMerge.getStoreMergeInfo()).thenReturn(
-                        new MergeInfo(randomNonNegativeInt(), randomLongBetween(1L, 10L), randomBoolean(), randomFrom(-1, randomNonNegativeInt()))
+                    new MergeInfo(
+                        randomNonNegativeInt(),
+                        randomLongBetween(1L, 10L),
+                        randomBoolean(),
+                        randomFrom(-1, randomNonNegativeInt())
+                    )
                 );
                 when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
                 when(mergeSource.getNextMerge()).thenReturn(oneMerge, (MergePolicy.OneMerge) null);
@@ -86,8 +91,10 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             assertThat(executedMergesList.size(), is(mergeCount));
             // assert merges are executed in ascending size order
             for (int i = 1; i < mergeCount; i++) {
-                assertThat(executedMergesList.get(i - 1).getStoreMergeInfo().estimatedMergeBytes(),
-                        lessThanOrEqualTo(executedMergesList.get(i).getStoreMergeInfo().estimatedMergeBytes()));
+                assertThat(
+                    executedMergesList.get(i - 1).getStoreMergeInfo().estimatedMergeBytes(),
+                    lessThanOrEqualTo(executedMergesList.get(i).getStoreMergeInfo().estimatedMergeBytes())
+                );
             }
         }
         assertTrue(threadPoolMergeExecutorService.allDone());

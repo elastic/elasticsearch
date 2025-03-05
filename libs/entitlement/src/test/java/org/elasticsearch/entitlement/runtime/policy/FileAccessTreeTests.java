@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.hamcrest.Matchers.equalTo;
@@ -400,7 +401,7 @@ public class FileAccessTreeTests extends ESTestCase {
     static List<ExclusivePath> exclusivePaths(String componentName, String moduleName, String... paths) {
         List<ExclusivePath> exclusivePaths = new ArrayList<>();
         for (String path : paths) {
-            exclusivePaths.add(new ExclusivePath(componentName, moduleName, path(path).toString()));
+            exclusivePaths.add(new ExclusivePath(componentName, Set.of(moduleName), path(path).toString()));
         }
         return exclusivePaths;
     }

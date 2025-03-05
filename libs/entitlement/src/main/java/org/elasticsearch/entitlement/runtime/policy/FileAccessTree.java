@@ -22,8 +22,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
@@ -39,31 +43,35 @@ public final class FileAccessTree {
     /**
      * An intermediary structure to help globally validate exclusive paths, and then build exclusive paths for individual modules.
      */
-    record ExclusivePath(String componentName, String moduleName, String path) {
+    record ExclusivePath(String componentName, Set<String> moduleNames, String path) {
 
         @Override
         public String toString() {
-            return "[[" + componentName + "] [" + moduleName + "] [" + path + "]]";
+            return "[[" + componentName + "] [" + moduleNames + "] [" + path + "]]";
         }
     }
 
     static List<ExclusivePath> buildExclusivePathList(List<ExclusiveFileEntitlement> exclusiveFileEntitlements, PathLookup pathLookup) {
-        List<ExclusivePath> exclusivePaths = new ArrayList<>();
+        Map<String, ExclusivePath> exclusivePaths = new HashMap<>();
         for (ExclusiveFileEntitlement efe : exclusiveFileEntitlements) {
             for (FilesEntitlement.FileData fd : efe.filesEntitlement().filesData()) {
                 if (fd.exclusive()) {
-                    logger.info("Adding exclusive entitlement " + fd);
                     List<Path> paths = fd.resolvePaths(pathLookup).toList();
                     for (Path path : paths) {
-                        var exclusivePath = new ExclusivePath(efe.componentName(), efe.moduleName(), normalizePath(path));
-                        logger.info("Adding exclusive path " + exclusivePath);
-                        exclusivePaths.add(exclusivePath);
+                        String normalizedPath = normalizePath(path);
+                        var exclusivePath = exclusivePaths.computeIfAbsent(normalizedPath,
+                            k -> new ExclusivePath(efe.componentName(), new HashSet<>(), normalizedPath));
+                        if (exclusivePath.componentName().equals(efe.componentName()) == false) {
+                            throw new IllegalArgumentException("Path [" + normalizedPath + "] is exclusive to "
+                                + efe.componentName() + "/" + efe.moduleName() + " and "
+                                + exclusivePath.componentName() + "/" + exclusivePath.moduleNames);
+                        }
+                        exclusivePath.moduleNames.add(efe.moduleName());
                     }
                 }
             }
         }
-        exclusivePaths.sort((ep1, ep2) -> PATH_ORDER.compare(ep1.path(), ep2.path()));
-        return exclusivePaths;
+        return exclusivePaths.values().stream().sorted((ep1, ep2) -> PATH_ORDER.compare(ep1.path(), ep2.path())).toList();
     }
 
     static void validateExclusivePaths(List<ExclusivePath> exclusivePaths) {
@@ -97,7 +105,7 @@ public final class FileAccessTree {
     ) {
         List<String> updatedExclusivePaths = new ArrayList<>();
         for (ExclusivePath exclusivePath : exclusivePaths) {
-            if (exclusivePath.componentName().equals(componentName) == false || exclusivePath.moduleName().equals(moduleName) == false) {
+            if (exclusivePath.componentName().equals(componentName) == false || exclusivePath.moduleNames().contains(moduleName) == false) {
                 updatedExclusivePaths.add(exclusivePath.path());
             }
         }

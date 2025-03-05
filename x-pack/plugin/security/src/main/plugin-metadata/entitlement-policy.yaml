@@ -28,6 +28,10 @@ org.elasticsearch.security:
         basedir_if_relative: config
         mode: read
         exclusive: true
+      - path_setting: xpack.security.authc.realms.saml.*.idp.metadata.path
+        basedir_if_relative: config
+        mode: read
+        exclusive: true
 
 io.netty.transport:
   - manage_threads

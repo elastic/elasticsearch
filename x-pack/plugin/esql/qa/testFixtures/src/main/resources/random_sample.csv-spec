@@ -1,0 +1,190 @@
+// Tests focused on the RANDOM_SAMPLE command
+
+row
+
+ROW x = 1
+| RANDOM_SAMPLE .9 9
+;
+
+x:integer
+1
+;
+
+topN_PushedDown
+required_capability: random_sample
+
+FROM employees
+| RANDOM_SAMPLE .5 0
+| KEEP emp_no, last_name
+| SORT emp_no
+| LIMIT 5
+;
+
+emp_no:integer |last_name:keyword
+10003          |Bamford
+10004          |Koblick
+10007          |Zielinski
+10008          |Kalloufi
+10009          |Peac
+;
+
+topN_Operator
+required_capability: random_sample
+
+FROM employees
+| WHERE LENGTH(CONCAT(last_name, "foo")) > 3
+| RANDOM_SAMPLE .5 0
+| KEEP emp_no, last_name
+| SORT emp_no
+| LIMIT 5
+;
+
+emp_no:integer |last_name:keyword
+10003          |Bamford
+10004          |Koblick
+10007          |Zielinski
+10008          |Kalloufi
+10009          |Peac
+;
+
+aggCount_PushedDown
+required_capability: random_sample
+
+FROM employees
+| RANDOM_SAMPLE .5 123
+| STATS c=COUNT(*)
+;
+
+c:long
+55
+;
+
+aggCount_Operator
+required_capability: random_sample
+
+FROM employees
+| WHERE LENGTH(CONCAT(last_name, "foo")) > 3
+| RANDOM_SAMPLE .5 123
+| STATS c=COUNT(*)
+;
+
+c:long
+55
+;
+
+aggCountNoSeed_PushedDown
+required_capability: random_sample
+
+FROM employees
+| RANDOM_SAMPLE .5
+| STATS c=COUNT(*)
+| EVAL inRange = c > 30 AND c < 70
+| KEEP inRange
+;
+
+inRange:boolean
+true
+;
+
+aggCountNoSeed_Operator
+required_capability: random_sample
+
+FROM employees
+| WHERE LENGTH(CONCAT(last_name, "foo")) > 3
+| RANDOM_SAMPLE .5
+| STATS c=COUNT(*)
+| EVAL inRange = c > 30 AND c < 70
+| KEEP inRange
+;
+
+inRange:boolean
+true
+;
+
+withPostFilter_PushDown
+required_capability: random_sample
+
+FROM employees
+| RANDOM_SAMPLE .5 0
+| WHERE emp_no > 10050
+| STATS c=COUNT(*)
+;
+
+c:long
+25
+;
+
+withPostFilter_Operator
+required_capability: random_sample
+
+FROM employees
+| WHERE LENGTH(CONCAT(last_name, "foo")) > 3
+| RANDOM_SAMPLE .5 0
+| WHERE emp_no > 10050
+| STATS c=COUNT(*)
+;
+
+c:long
+25
+;
+
+combined_PushDown
+required_capability: random_sample
+
+FROM employees
+| RANDOM_SAMPLE .6 11
+| EVAL e1 = emp_no + 1
+| RANDOM_SAMPLE .7 11111
+| STATS c=COUNT(e1)
+;
+
+c:long
+42
+;
+
+combined_Operator
+required_capability: random_sample
+
+FROM employees
+| WHERE LENGTH(CONCAT(last_name, "foo")) > 3
+| RANDOM_SAMPLE .6 11
+| EVAL e1 = emp_no + 1
+| RANDOM_SAMPLE .7 11111
+| STATS c=COUNT(e1)
+;
+
+c:long
+42
+;
+
+combined2_PushDown
+required_capability: random_sample
+
+FROM employees
+| RANDOM_SAMPLE .6 11
+| EVAL e1 = emp_no + 1
+| RANDOM_SAMPLE .7 11111
+| EVAL e1s = e1::KEYWORD
+| RANDOM_SAMPLE .1
+| STATS c=COUNT(e1s)
+;
+
+c:long
+4
+;
+combined2_Operator
+required_capability: random_sample
+
+FROM employees
+| WHERE LENGTH(CONCAT(last_name, "foo")) > 3
+| RANDOM_SAMPLE .6 11
+| EVAL e1 = emp_no + 1
+| RANDOM_SAMPLE .7 11111
+| EVAL e1s = e1::KEYWORD
+| RANDOM_SAMPLE .1
+| STATS c=COUNT(e1s)
+;
+
+c:long
+4
+;

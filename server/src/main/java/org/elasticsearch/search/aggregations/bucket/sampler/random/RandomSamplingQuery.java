@@ -56,8 +56,20 @@ public final class RandomSamplingQuery extends Query {
      */
     public static void checkProbabilityRange(double p) throws IllegalArgumentException {
         if (p <= 0.0 || p >= 1.0) {
-            throw new IllegalArgumentException("RandomSampling probability must be between 0.0 and 1.0, was [" + p + "]");
+            throw new IllegalArgumentException("RandomSampling probability must be strictly between 0.0 and 1.0, was [" + p + "]");
         }
+    }
+
+    public double probability() {
+        return p;
+    }
+
+    public int seed() {
+        return seed;
+    }
+
+    public int hash() {
+        return hash;
     }
 
     @Override

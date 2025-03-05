@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplingQueryBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -7712,6 +7713,38 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
         AggregateExec reductionAggs = as(reduction, AggregateExec.class);
         assertThat(reductionAggs.estimatedRowSize(), equalTo(58)); // double and keyword
+    }
+
+    /*
+     *    LimitExec[1000[INTEGER]]
+     *    \_ExchangeExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, hire_date{f}#9, job{f}#10, job.raw{f}#11, langua
+     *              ges{f}#5, last_name{f}#6, long_noidx{f}#12, salary{f}#7],false]
+     *      \_ProjectExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gender{f}#4, hire_date{f}#9, job{f}#10, job.raw{f}#11, langua
+     *              ges{f}#5, last_name{f}#6, long_noidx{f}#12, salary{f}#7]]
+     *        \_FieldExtractExec[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, gen..]<[],[]>
+     *          \_EsQueryExec[test], indexMode[standard],
+     *                  query[{"bool":{"filter":[{"random_sampling":{"probability":0.1,"seed":234,"hash":0}}],"boost":1.0}}]
+     *                  [_doc{f}#24], limit[1000], sort[] estimatedRowSize[332]
+     */
+    public void testRandomSamplePushDown() {
+        var plan = physicalPlan("""
+            FROM test
+            | RANDOM_SAMPLE +0.1 -234
+            """);
+        var optimized = optimizedPlan(plan);
+
+        var limit = as(optimized, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var esQuery = as(fieldExtract.child(), EsQueryExec.class);
+
+        var boolQuery = as(esQuery.query(), BoolQueryBuilder.class);
+        var filter = boolQuery.filter();
+        var randomSampling = as(filter.get(0), RandomSamplingQueryBuilder.class);
+        assertThat(randomSampling.probability(), equalTo(0.1));
+        assertThat(randomSampling.seed(), equalTo(-234));
+        assertThat(randomSampling.hash(), equalTo(0));
     }
 
     @SuppressWarnings("SameParameterValue")

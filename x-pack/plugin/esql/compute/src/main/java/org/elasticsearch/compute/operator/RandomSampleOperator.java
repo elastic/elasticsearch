@@ -33,6 +33,9 @@ public class RandomSampleOperator implements Operator {
 
     // The threshold for the number of rows to collect in a batch before starting sampling it.
     private static final int ROWS_BATCH_THRESHOLD = 10_000;
+    // How many batches can be to keep in memory and still accept new input Pages.
+    // Besides these many buffered batches, the operator holds an additional batch that's being sampled.
+    private static final int MAX_BUFFERED_BATCHES = 1;
 
     private final double probability;
     private final int seed;
@@ -55,7 +58,7 @@ public class RandomSampleOperator implements Operator {
         this.probability = probability;
         this.seed = seed;
         // TODO derive the threshold from the probability and a max cap
-        pageBatching = new PageBatching(ROWS_BATCH_THRESHOLD);
+        pageBatching = new PageBatching(ROWS_BATCH_THRESHOLD, MAX_BUFFERED_BATCHES);
     }
 
     public record Factory(double probability, int seed) implements OperatorFactory {
@@ -76,7 +79,7 @@ public class RandomSampleOperator implements Operator {
      */
     @Override
     public boolean needsInput() {
-        return collecting;
+        return collecting && pageBatching.capacityAvailable();
     }
 
     /**
@@ -204,14 +207,16 @@ public class RandomSampleOperator implements Operator {
     private static class PageBatching {
 
         private final int collectingRowThreshold;
+        private final int maxBufferedBatches;
 
         private final List<PagesBatch> batches = new ArrayList<>();
 
         private int collectingBatchRowCount = 0;
         private ArrayDeque<Page> collectingBatch = new ArrayDeque<>();
 
-        PageBatching(int collectingRowThreshold) {
+        PageBatching(int collectingRowThreshold, int maxBufferedBatches) {
             this.collectingRowThreshold = collectingRowThreshold;
+            this.maxBufferedBatches = maxBufferedBatches;
         }
 
         void addPage(Page page) {
@@ -234,6 +239,10 @@ public class RandomSampleOperator implements Operator {
 
         PagesBatch next() {
             return batches.removeFirst();
+        }
+
+        public boolean capacityAvailable() {
+            return batches.size() < maxBufferedBatches;
         }
 
         void flush() {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -30,15 +31,8 @@ public class PushDownAndCombineRandomSample extends OptimizerRules.Parameterized
         LogicalPlan plan = randomSample;
         var child = randomSample.child();
         if (child instanceof RandomSample rsChild) {
-            var parentProbability = (double) Foldables.valueOf(context.foldCtx(), randomSample.probability());
-            var childProbability = (double) Foldables.valueOf(context.foldCtx(), rsChild.probability());
-            var probability = Literal.of(randomSample.probability(), parentProbability * childProbability);
-
-            var parentSeed = randomSample.seed() != null ? (int) Foldables.valueOf(context.foldCtx(), randomSample.seed()) : null;
-            var childSeed = rsChild.seed() != null ? (int) Foldables.valueOf(context.foldCtx(), rsChild.seed()) : null;
-            var seedValue = parentSeed != null ? Integer.valueOf(childSeed != null ? parentSeed ^ childSeed : parentSeed) : childSeed;
-            var seed = seedValue != null ? Literal.of(randomSample.seed(), seedValue) : null;
-
+            var probability = combinedProbability(context, randomSample, rsChild);
+            var seed = combinedSeed(context, randomSample, rsChild);
             plan = new RandomSample(randomSample.source(), probability, seed, rsChild.child());
         } else if (child instanceof Enrich
             || child instanceof Eval
@@ -49,5 +43,29 @@ public class PushDownAndCombineRandomSample extends OptimizerRules.Parameterized
                 plan = unaryChild.replaceChild(randomSample.replaceChild(unaryChild.child()));
             }
         return plan;
+    }
+
+    private static Expression combinedProbability(LogicalOptimizerContext context, RandomSample parent, RandomSample child) {
+        var parentProbability = (double) Foldables.valueOf(context.foldCtx(), parent.probability());
+        var childProbability = (double) Foldables.valueOf(context.foldCtx(), child.probability());
+        return Literal.of(parent.probability(), parentProbability * childProbability);
+    }
+
+    private static Expression combinedSeed(LogicalOptimizerContext context, RandomSample parent, RandomSample child) {
+        var parentSeed = parent.seed();
+        var childSeed = child.seed();
+        Expression seed;
+        if (parentSeed != null) {
+            if (childSeed != null) {
+                var seedValue = (int) Foldables.valueOf(context.foldCtx(), parentSeed);
+                seedValue ^= (int) Foldables.valueOf(context.foldCtx(), childSeed);
+                seed = Literal.of(parentSeed, seedValue);
+            } else {
+                seed = parentSeed;
+            }
+        } else {
+            seed = childSeed;
+        }
+        return seed;
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class RandomSampleExec extends UnaryExec {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -75,5 +76,24 @@ public class RandomSampleExec extends UnaryExec {
 
     public Expression seed() {
         return seed;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(child(), probability, seed);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        var other = (RandomSampleExec) obj;
+
+        return Objects.equals(child(), other.child()) && Objects.equals(probability, other.probability) && Objects.equals(seed, other.seed);
     }
 }

@@ -101,7 +101,7 @@ public class RandomSample extends UnaryPlan implements TelemetryAware, PostAnaly
             return false;
         }
 
-        RandomSample other = (RandomSample) obj;
+        var other = (RandomSample) obj;
 
         return Objects.equals(probability, other.probability) && Objects.equals(seed, other.seed) && Objects.equals(child(), other.child());
     }

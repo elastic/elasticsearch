@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 
 import java.io.IOException;
 import java.nio.file.ClosedWatchServiceException;
@@ -122,7 +123,12 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
             return null;
         }
 
-        return new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
+        try {
+            return new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
+        } catch (NotEntitledException e){
+            logger.warn("Not entitled to get real path of [{}] [{}]", path, path.toAbsolutePath().normalize(), e);
+            throw e;
+        }
     }
 
     // platform independent way to tell if a file changed

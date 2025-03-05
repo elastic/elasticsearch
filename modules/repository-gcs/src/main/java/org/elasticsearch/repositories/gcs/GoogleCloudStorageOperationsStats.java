@@ -24,13 +24,14 @@ final class GoogleCloudStorageOperationsStats {
      * Represented by {@code Map<Purpose,Map<Operation,Counters>>}
      * <pre>
      * {@code
-     * | Purpose      | Operation   | OperationsCnt |  RequestCnt |
-     * |--------------+-------------+---------------+-------------|
-     * | SnapshotData | GetObject   |            10 |          10 |
-     * | SnapshotData | ListObjects |            20 | 21(1 retry) |
-     * | SnapshotData | ...         |               |             |
-     * | Translog     | GetObject   |             5 |           5 |
-     * | ...          |             |               |             |
+     * | Purpose      | Operation       | OperationsCnt | RequestCnt |
+     * |--------------+-----------------+---------------+------------|
+     * | SnapshotData | GetObject       |             1 |          1 |
+     * | SnapshotData | ListObjects     |             2 |          2 |
+     * | SnapshotData | ResumableUpload |             1 |         10 |
+     * | SnapshotData | ...             |               |            |
+     * | Translog     | GetObject       |             5 |          5 |
+     * | ...          |                 |               |            |
      * }
      * </pre>
      */

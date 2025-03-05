@@ -751,7 +751,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                         Storage.BlobTargetOption.generationMatch()
                     )
                 );
-                stats.trackOperation(OperationPurpose.SNAPSHOT_DATA, Operation.MULTIPART_UPLOAD);
+                stats.trackOperation(purpose, Operation.MULTIPART_UPLOAD);
                 return OptionalBytesReference.of(expected);
             } catch (Exception e) {
                 final var serviceException = unwrapServiceException(e);

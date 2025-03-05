@@ -52,10 +52,10 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROJECT_ID_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation.GET_OBJECT;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation.MULTIPART_UPLOAD;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation.RESUMABLE_UPLOAD;
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStatsTests.StatsMap;
 
 @SuppressForbidden(reason = "Uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
@@ -273,6 +273,21 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
     protected String getEndpointForServer(final HttpServer server) {
         final InetSocketAddress address = server.getAddress();
         return "http://" + address.getHostString() + ":" + address.getPort();
+    }
+
+    static class StatsMap extends HashMap<String, BlobStoreActionStats> {
+        StatsMap() {
+            for (var purpose : OperationPurpose.values()) {
+                for (var operation : Operation.values()) {
+                    put(purpose + "_" + operation, new BlobStoreActionStats(0, 0));
+                }
+            }
+        }
+
+        StatsMap add(OperationPurpose purpose, Operation operation, long ops, long reqs) {
+            put(purpose + "_" + operation, new BlobStoreActionStats(ops, reqs));
+            return this;
+        }
     }
 
     private record ContainerAndBlobStore(GoogleCloudStorageBlobContainer blobContainer, GoogleCloudStorageBlobStore blobStore)

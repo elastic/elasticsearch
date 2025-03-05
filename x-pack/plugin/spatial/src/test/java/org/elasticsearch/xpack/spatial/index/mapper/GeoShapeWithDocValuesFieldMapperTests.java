@@ -569,7 +569,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     @Override
     protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
         // Synthetic source is currently not supported.
-        return new BlockReaderSupport(false, false, mapper, loaderFieldName);
+        return new BlockReaderSupport(false, true, mapper, loaderFieldName);
     }
 
     @Override

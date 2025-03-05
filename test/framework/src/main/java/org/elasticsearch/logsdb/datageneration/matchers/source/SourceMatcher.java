@@ -95,6 +95,10 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
                     new FieldSpecificMatcher.CountedKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
                 );
                 put("boolean", new FieldSpecificMatcher.BooleanMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put(
+                    "geo_shape",
+                    new FieldSpecificMatcher.GeoShapeMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
+                );
             }
         };
         this.dynamicFieldMatcher = new DynamicFieldMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);

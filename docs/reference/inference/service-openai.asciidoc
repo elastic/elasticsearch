@@ -38,7 +38,7 @@ Available task types:
 
 [NOTE]
 ====
-The `chat_completion` task type only supports streaming and only through the `_unified` API.
+The `chat_completion` task type only supports streaming and only through the `_stream` API.
 
 include::inference-shared.asciidoc[tag=chat-completion-docs]
 ====

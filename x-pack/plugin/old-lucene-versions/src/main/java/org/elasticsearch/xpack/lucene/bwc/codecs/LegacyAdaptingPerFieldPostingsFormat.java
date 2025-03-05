@@ -105,8 +105,7 @@ public final class LegacyAdaptingPerFieldPostingsFormat extends PostingsFormat {
             segment = other.segment;
         }
 
-        FieldsReader(final SegmentReadState readState)
-            throws IOException {
+        FieldsReader(final SegmentReadState readState) throws IOException {
 
             // Read _X.per and init each format:
             boolean success = false;

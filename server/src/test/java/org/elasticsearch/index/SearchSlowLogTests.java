@@ -218,6 +218,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                         .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                         .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING.getKey(), "40nanos")
                         .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "40nanos")
+                        .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_WARN_SETTING.getKey(), "40nanos")
                 ),
                 Settings.EMPTY
             );
@@ -231,6 +232,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                         .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                         .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(), "10nanos")
                         .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "10nanos")
+                        .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_TRACE_SETTING.getKey(), "10nanos")
                 ),
                 Settings.EMPTY
             );
@@ -242,11 +244,15 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 assertNull(appender.getLastEventAndReset());
                 log1.onFetchPhase(ctx1, 11L);
                 assertNull(appender.getLastEventAndReset());
+                log1.onDfsPhase(ctx1, 11L);
+                assertNull(appender.getLastEventAndReset());
 
                 // threshold set on TRACE, should log
                 log2.onQueryPhase(ctx2, 11L);
                 assertNotNull(appender.getLastEventAndReset());
                 log2.onFetchPhase(ctx2, 11L);
+                assertNotNull(appender.getLastEventAndReset());
+                log2.onDfsPhase(ctx2, 11L);
                 assertNotNull(appender.getLastEventAndReset());
             }
         }

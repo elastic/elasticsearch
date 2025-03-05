@@ -160,6 +160,9 @@ import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.search.SearchService.SearchOperationType.QUERY;
+import static org.elasticsearch.search.SearchService.SearchOperationType.FETCH;
+import static org.elasticsearch.search.SearchService.SearchOperationType.DFS;
 import static org.elasticsearch.search.rank.feature.RankFeatureShardPhase.EMPTY_RESULT;
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
@@ -577,7 +580,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Releasable scope = tracer.withScope(task);
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false);
-            SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, false, true, System.nanoTime())
+            SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, DFS, System.nanoTime())
         ) {
             DfsPhase.execute(context);
             executor.success();
@@ -828,7 +831,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime) {
         try (
             Releasable scope = tracer.withScope(context.getTask());
-            SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)
+            SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, FETCH, afterQueryTime)
         ) {
             fetchPhase.execute(context, shortcutDocIdsToLoad(context), null);
             if (reader.singleSession()) {
@@ -992,7 +995,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     try (
                         SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(
                             searchContext,
-                            true,
+                            FETCH,
                             System.nanoTime()
                         )
                     ) {
@@ -1975,6 +1978,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         };
     }
 
+    enum SearchOperationType {
+        QUERY, FETCH, DFS
+    }
+
     /**
      * This helper class ensures we only execute either the success or the failure path for {@link SearchOperationListener}.
      * This is crucial for some implementations like {@link org.elasticsearch.index.search.stats.ShardSearchStats}.
@@ -1983,28 +1990,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         private final SearchOperationListener listener;
         private final SearchContext context;
         private final long time;
-        private final boolean fetch;
-        private final boolean dfs;
+        private final SearchOperationType searchType;
         private long afterQueryTime = -1;
         private boolean closed = false;
 
         SearchOperationListenerExecutor(SearchContext context) {
-            this(context, false, System.nanoTime());
+            this(context, QUERY, System.nanoTime());
         }
 
-        SearchOperationListenerExecutor(SearchContext context, boolean fetch, long startTime) {
-            this(context, fetch, false, startTime);
-        }
-
-        SearchOperationListenerExecutor(SearchContext context, boolean fetch, boolean dfs, long startTime) {
+        SearchOperationListenerExecutor(SearchContext context, SearchOperationType searchType, long startTime) {
             this.listener = context.indexShard().getSearchOperationListener();
             this.context = context;
             time = startTime;
-            this.fetch = fetch;
-            this.dfs = dfs;
-            if (fetch) {
+            this.searchType = searchType;
+            if (this.searchType == FETCH) {
                 listener.onPreFetchPhase(context);
-            } else {
+            } else if (this.searchType == QUERY) {
                 listener.onPreQueryPhase(context);
             }
         }
@@ -2019,17 +2020,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (closed == false) {
                 closed = true;
                 if (afterQueryTime != -1) {
-                    if (fetch) {
+                    if (this.searchType == FETCH) {
                         listener.onFetchPhase(context, afterQueryTime - time);
-                    } else if (dfs) {
+                    } else if (this.searchType == DFS) {
                         listener.onDfsPhase(context, afterQueryTime - time);
                     } else {
                         listener.onQueryPhase(context, afterQueryTime - time);
                     }
                 } else {
-                    if (fetch) {
+                    if (this.searchType == FETCH) {
                         listener.onFailedFetchPhase(context);
-                    } else {
+                    } else if (this.searchType == QUERY) {
                         listener.onFailedQueryPhase(context);
                     }
                 }

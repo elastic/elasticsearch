@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
-import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.ShardConfig;
+import org.elasticsearch.compute.lucene.LuceneQueryEvaluator;
+import org.elasticsearch.compute.lucene.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
@@ -302,7 +302,7 @@ public abstract class FullTextFunction extends Function
         for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
             shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
         }
-        return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
+        return new LuceneQueryEvaluator.Factory(shardConfigs);
     }
 
     @Override

@@ -39,13 +39,13 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        final Map<String, DataStream> dataStreams = state.metadata().dataStreams();
+        final Map<String, DataStream> dataStreams = state.metadata().getProject().dataStreams();
         long backingIndicesCounter = 0;
         long failureStoreExplicitlyEnabledCounter = 0;
         long failureStoreEffectivelyEnabledCounter = 0;

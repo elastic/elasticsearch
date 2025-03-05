@@ -1,13 +1,11 @@
 ---
 navigation_title: "IP range"
-mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-iprange-aggregation.html
 ---
 
 # IP range aggregation [search-aggregations-bucket-iprange-aggregation]
 
 
-Just like the dedicated [date](/reference/data-analysis/aggregations/search-aggregations-bucket-daterange-aggregation.md) range aggregation, there is also a dedicated range aggregation for IP typed fields:
+Just like the dedicated [date](search-aggregations-bucket-daterange-aggregation.md) range aggregation, there is also a dedicated range aggregation for IP typed fields:
 
 Example:
 
@@ -30,6 +28,8 @@ GET /ip_addresses/_search
   }
 }
 ```
+
+%  TEST[setup:iprange]
 
 Response:
 
@@ -56,6 +56,8 @@ Response:
 }
 ```
 
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
 IP ranges can also be defined as CIDR masks:
 
 $$$ip-range-cidr-example$$$
@@ -77,6 +79,8 @@ GET /ip_addresses/_search
   }
 }
 ```
+
+%  TEST[setup:iprange]
 
 Response:
 
@@ -105,6 +109,8 @@ Response:
 }
 ```
 
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
 ## Keyed Response [_keyed_response_3]
 
 Setting the `keyed` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
@@ -130,6 +136,8 @@ GET /ip_addresses/_search
 }
 ```
 
+%  TEST[setup:iprange]
+
 Response:
 
 ```console-result
@@ -152,6 +160,8 @@ Response:
   }
 }
 ```
+
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 It is also possible to customize the key for each range:
 
@@ -176,6 +186,8 @@ GET /ip_addresses/_search
 }
 ```
 
+%  TEST[setup:iprange]
+
 Response:
 
 ```console-result
@@ -198,5 +210,7 @@ Response:
   }
 }
 ```
+
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 

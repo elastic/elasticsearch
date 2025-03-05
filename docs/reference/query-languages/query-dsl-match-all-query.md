@@ -1,7 +1,5 @@
 ---
 navigation_title: "Match all"
-mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-match-all-query.html
 ---
 
 # Match all query [query-dsl-match-all-query]
@@ -30,7 +28,7 @@ GET /_search
 ```
 
 
-## Match None Query [query-dsl-match-none-query]
+## Match None Query [query-dsl-match-none-query] 
 
 This is the inverse of the `match_all` query, which matches no documents.
 

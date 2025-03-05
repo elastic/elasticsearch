@@ -1,13 +1,11 @@
 ---
 navigation_title: "Auto-interval date histogram"
-mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-autodatehistogram-aggregation.html
 ---
 
 # Auto-interval date histogram aggregation [search-aggregations-bucket-autodatehistogram-aggregation]
 
 
-A multi-bucket aggregation similar to the [Date histogram](/reference/data-analysis/aggregations/search-aggregations-bucket-datehistogram-aggregation.md) except instead of providing an interval to use as the width of each bucket, a target number of buckets is provided indicating the number of buckets needed and the interval of the buckets is automatically chosen to best achieve that target. The number of buckets returned will always be less than or equal to this target number.
+A multi-bucket aggregation similar to the [Date histogram](search-aggregations-bucket-datehistogram-aggregation.md) except instead of providing an interval to use as the width of each bucket, a target number of buckets is provided indicating the number of buckets needed and the interval of the buckets is automatically chosen to best achieve that target. The number of buckets returned will always be less than or equal to this target number.
 
 The buckets field is optional, and will default to 10 buckets if not specified.
 
@@ -29,12 +27,14 @@ POST /sales/_search?size=0
 }
 ```
 
+%  TEST[setup:sales]
+
 ## Keys [_keys]
 
 Internally, a date is represented as a 64 bit number representing a timestamp in milliseconds-since-the-epoch. These timestamps are returned as the bucket `key`s. The `key_as_string` is the same timestamp converted to a formatted date string using the format specified with the `format` parameter:
 
-::::{tip}
-If no `format` is specified, then it will use the first date [format](/reference/elasticsearch/mapping-reference/mapping-date-format.md) specified in the field mapping.
+::::{tip} 
+If no `format` is specified, then it will use the first date [format](mapping-date-format.md) specified in the field mapping.
 ::::
 
 
@@ -55,7 +55,9 @@ POST /sales/_search?size=0
 }
 ```
 
-1. Supports expressive date [format pattern](/reference/data-analysis/aggregations/search-aggregations-bucket-daterange-aggregation.md#date-format-pattern)
+%  TEST[setup:sales]
+
+1. Supports expressive date [format pattern](search-aggregations-bucket-daterange-aggregation.md#date-format-pattern)
 
 
 Response:
@@ -87,6 +89,8 @@ Response:
   }
 }
 ```
+
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 
 ## Intervals [_intervals]
@@ -183,6 +187,8 @@ UTC is used if no time zone is specified, three 1-hour buckets are returned star
 }
 ```
 
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
 If a `time_zone` of `-01:00` is specified, then midnight starts at one hour before midnight UTC:
 
 ```console
@@ -199,6 +205,8 @@ GET my-index-000001/_search?size=0
   }
 }
 ```
+
+%  TEST[continued]
 
 Now three 1-hour buckets are still returned but the first bucket starts at 11:00pm on 30 September 2015 since that is the local time for the bucket in the specified time zone.
 
@@ -230,10 +238,12 @@ Now three 1-hour buckets are still returned but the first bucket starts at 11:00
 }
 ```
 
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
 1. The `key_as_string` value represents midnight on each day in the specified time zone.
 
 
-::::{warning}
+::::{warning} 
 When using time zones that follow DST (daylight savings time) changes, buckets close to the moment when those changes happen can have slightly different sizes than neighbouring buckets. For example, consider a DST start in the `CET` time zone: on 27 March 2016 at 2am, clocks were turned forward 1 hour to 3am local time. If the result of the aggregation was daily buckets, the bucket covering that day will only hold data for 23 hours instead of the usual 24 hours for other buckets. The same is true for shorter intervals like e.g. 12h. Here, we will have only a 11h bucket on the morning of 27 March when the DST shift happens.
 ::::
 
@@ -269,6 +279,8 @@ POST /sales/_search?size=0
 }
 ```
 
+%  TEST[setup:sales]
+
 
 ## Missing value [_missing_value]
 
@@ -290,6 +302,8 @@ POST /sales/_search?size=0
   }
 }
 ```
+
+%  TEST[setup:sales]
 
 1. Documents without a value in the `publish_date` field will fall into the same bucket as documents that have the value `2000-01-01`.
 

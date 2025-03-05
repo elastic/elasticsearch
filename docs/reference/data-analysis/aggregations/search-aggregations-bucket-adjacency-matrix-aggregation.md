@@ -1,7 +1,5 @@
 ---
 navigation_title: "Adjacency matrix"
-mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-adjacency-matrix-aggregation.html
 ---
 
 # Adjacency matrix aggregation [search-aggregations-bucket-adjacency-matrix-aggregation]
@@ -88,6 +86,12 @@ The response contains buckets with document counts for each filter and combinati
 }
 ```
 
+%  TESTRESPONSE[s/"took": 9/"took": $body.took/]
+
+%  TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+
+%  TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+
 
 ## Parameters [adjacency-matrix-agg-params]
 
@@ -96,9 +100,9 @@ The response contains buckets with document counts for each filter and combinati
 
     ::::{dropdown} Properties of `filters`
     `<filter>`
-    :   (Required, [Query DSL object](/reference/query-languages/querydsl.md)) Query used to filter documents. The key is the filter name.
+    :   (Required, [Query DSL object](query-dsl.md)) Query used to filter documents. The key is the filter name.
 
-        At least one filter is required. The total number of filters cannot exceed the [`indices.query.bool.max_clause_count`](/reference/elasticsearch/configuration-reference/search-settings.md#indices-query-bool-max-clause-count) setting. See [Filter limits](#adjacency-matrix-agg-filter-limits).
+        At least one filter is required. The total number of filters cannot exceed the [`indices.query.bool.max_clause_count`](search-settings.md#indices-query-bool-max-clause-count) setting. See [Filter limits](search-aggregations-bucket-adjacency-matrix-aggregation.md#adjacency-matrix-agg-filter-limits).
 
 
     ::::

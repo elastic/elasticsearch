@@ -1,13 +1,11 @@
 ---
-navigation_title: "more_like_this"
-mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-mlt-query.html
+navigation_title: "More like this"
 ---
 
-# more_like_this query [query-dsl-mlt-query]
+# More like this query [query-dsl-mlt-query]
 
 
-The `more_like_this` query finds documents that are "like" a given set of documents. To do so, MLT selects a set of representative terms of these input documents, forms a query using these terms, executes the query and returns the results. The user controls the input documents, how the terms should be selected and how the query is formed.
+The More Like This Query finds documents that are "like" a given set of documents. In order to do so, MLT selects a set of representative terms of these input documents, forms a query using these terms, executes the query and returns the results. The user controls the input documents, how the terms should be selected and how the query is formed.
 
 The simplest use case consists of asking for documents that are similar to a provided piece of text. Here, we are asking for all movies that have some text similar to "Once upon a time" in their "title" and in their "description" fields, limiting the number of selected terms to 12.
 
@@ -25,7 +23,7 @@ GET /_search
 }
 ```
 
-A more complicated use case consists of mixing texts with documents already existing in the index. In this case, the syntax to specify a document is similar to the one used in the [Multi GET API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-mget).
+A more complicated use case consists of mixing texts with documents already existing in the index. In this case, the syntax to specify a document is similar to the one used in the [Multi GET API](docs-multi-get.md).
 
 ```console
 GET /_search
@@ -51,7 +49,7 @@ GET /_search
 }
 ```
 
-Finally, users can mix some texts, a chosen set of documents but also provide documents not necessarily present in the index. To provide documents not present in the index, the syntax is similar to [artificial documents](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-termvectors).
+Finally, users can mix some texts, a chosen set of documents but also provide documents not necessarily present in the index. To provide documents not present in the index, the syntax is similar to [artificial documents](docs-termvectors.md#docs-termvectors-artificial-doc).
 
 ```console
 GET /_search
@@ -82,11 +80,11 @@ GET /_search
 }
 ```
 
-## How it works [_how_it_works]
+## How it Works [_how_it_works]
 
-Suppose we wanted to find all documents similar to a given input document. Obviously, the input document itself should be its best match for that type of query. And the reason would be mostly, according to [Lucene scoring formula](https://lucene.apache.org/core/8_7_0/core/org/apache/lucene/search/similarities/TFIDFSimilarity.html), due to the terms with the highest tf-idf. Therefore, the terms of the input document that have the highest tf-idf are good representatives of that document, and could be used within a disjunctive query (or `OR`) to retrieve similar documents. The MLT query simply extracts the text from the input document, analyzes it, usually using the same analyzer at the field, then selects the top K terms with highest tf-idf to form a disjunctive query of these terms.
+Suppose we wanted to find all documents similar to a given input document. Obviously, the input document itself should be its best match for that type of query. And the reason would be mostly, according to [Lucene scoring formula](https://lucene.apache.org/core/4_9_0/core/org/apache/lucene/search/similarities/TFIDFSimilarity.md), due to the terms with the highest tf-idf. Therefore, the terms of the input document that have the highest tf-idf are good representatives of that document, and could be used within a disjunctive query (or `OR`) to retrieve similar documents. The MLT query simply extracts the text from the input document, analyzes it, usually using the same analyzer at the field, then selects the top K terms with highest tf-idf to form a disjunctive query of these terms.
 
-::::{important}
+::::{important} 
 The fields on which to perform MLT must be indexed and of type `text` or `keyword`. Additionally, when using `like` with documents, either `_source` must be enabled or the fields must be `stored` or store `term_vector`. In order to speed up analysis, it could help to store term vectors at index time.
 ::::
 
@@ -126,19 +124,19 @@ PUT /imdb
 The only required parameter is `like`, all other parameters have sensible defaults. There are three types of parameters: one to specify the document input, the other one for term selection and for query formation.
 
 
-### Document input parameters [_document_input_parameters]
+### Document Input Parameters [_document_input_parameters] 
 
 `like`
-:   The only **required** parameter of the MLT query is `like` and follows a versatile syntax, in which the user can specify free form text and/or a single or multiple documents (see examples above). The syntax to specify documents is similar to the one used by the [Multi GET API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-mget). When specifying documents, the text is fetched from `fields` unless overridden in each document request. The text is analyzed by the analyzer at the field, but could also be overridden. The syntax to override the analyzer at the field follows a similar syntax to the `per_field_analyzer` parameter of the [Term Vectors API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-termvectors). Additionally, to provide documents not necessarily present in the index, [artificial documents](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-termvectors) are also supported.
+:   The only **required** parameter of the MLT query is `like` and follows a versatile syntax, in which the user can specify free form text and/or a single or multiple documents (see examples above). The syntax to specify documents is similar to the one used by the [Multi GET API](docs-multi-get.md). When specifying documents, the text is fetched from `fields` unless overridden in each document request. The text is analyzed by the analyzer at the field, but could also be overridden. The syntax to override the analyzer at the field follows a similar syntax to the `per_field_analyzer` parameter of the [Term Vectors API](docs-termvectors.md#docs-termvectors-per-field-analyzer). Additionally, to provide documents not necessarily present in the index, [artificial documents](docs-termvectors.md#docs-termvectors-artificial-doc) are also supported.
 
 `unlike`
 :   The `unlike` parameter is used in conjunction with `like` in order not to select terms found in a chosen set of documents. In other words, we could ask for documents `like: "Apple"`, but `unlike: "cake crumble tree"`. The syntax is the same as `like`.
 
 `fields`
-:   A list of fields to fetch and analyze the text from. Defaults to the `index.query.default_field` index setting, which has a default value of `*`. The `*` value matches all fields eligible for [term-level queries](/reference/query-languages/term-level-queries.md), excluding metadata fields.
+:   A list of fields to fetch and analyze the text from. Defaults to the `index.query.default_field` index setting, which has a default value of `*`. The `*` value matches all fields eligible for [term-level queries](term-level-queries.md), excluding metadata fields.
 
 
-### Term selection parameters [mlt-query-term-selection]
+### Term Selection Parameters [mlt-query-term-selection] 
 
 `max_query_terms`
 :   The maximum number of query terms that will be selected. Increasing this value gives greater accuracy at the expense of query execution speed. Defaults to `25`.
@@ -165,10 +163,10 @@ The only required parameter is `like`, all other parameters have sensible defaul
 :   The analyzer that is used to analyze the free form text. Defaults to the analyzer associated with the first field in `fields`.
 
 
-### Query formation parameters [_query_formation_parameters]
+### Query Formation Parameters [_query_formation_parameters] 
 
 `minimum_should_match`
-:   After the disjunctive query has been formed, this parameter controls the number of terms that must match. The syntax is the same as the [minimum should match](/reference/query-languages/query-dsl-minimum-should-match.md). (Defaults to `"30%"`).
+:   After the disjunctive query has been formed, this parameter controls the number of terms that must match. The syntax is the same as the [minimum should match](query-dsl-minimum-should-match.md). (Defaults to `"30%"`).
 
 `fail_on_unsupported_field`
 :   Controls whether the query should fail (throw an exception) if any of the specified fields are not of the supported types (`text` or `keyword`). Set this to `false` to ignore the field and continue processing. Defaults to `true`.
@@ -185,6 +183,6 @@ The only required parameter is `like`, all other parameters have sensible defaul
 
 ## Alternative [_alternative]
 
-To take more control over the construction of a query for similar documents it is worth considering writing custom client code to assemble selected terms from an example document into a Boolean query with the desired settings. The logic in `more_like_this` that selects "interesting" words from a piece of text is also accessible via the [TermVectors API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-termvectors). For example, using the termvectors API it would be possible to present users with a selection of topical keywords found in a document’s text, allowing them to select words of interest to drill down on, rather than using the more "black-box" approach of matching used by `more_like_this`.
+To take more control over the construction of a query for similar documents it is worth considering writing custom client code to assemble selected terms from an example document into a Boolean query with the desired settings. The logic in `more_like_this` that selects "interesting" words from a piece of text is also accessible via the [TermVectors API](docs-termvectors.md). For example, using the termvectors API it would be possible to present users with a selection of topical keywords found in a document’s text, allowing them to select words of interest to drill down on, rather than using the more "black-box" approach of matching used by `more_like_this`.
 
 

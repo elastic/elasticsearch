@@ -1,29 +1,24 @@
----
-mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-allocate.html
----
-
 # Allocate [ilm-allocate]
 
 Phases allowed: warm, cold.
 
 Updates the index settings to change which nodes are allowed to host the index shards and change the number of replicas.
 
-The allocate action is not allowed in the hot phase. The initial allocation for the index must be done manually or via [index templates](docs-content://manage-data/data-store/templates.md).
+The allocate action is not allowed in the hot phase. The initial allocation for the index must be done manually or via [index templates](index-templates.md).
 
-You can configure this action to modify both the allocation rules and number of replicas, only the allocation rules, or only the number of replicas. For more information about how {{es}} uses replicas for scaling, see [Get ready for production](docs-content://deploy-manage/production-guidance/getting-ready-for-production-elasticsearch.md). See [Index-level shard allocation filtering](/reference/elasticsearch/index-settings/shard-allocation.md) for more information about controlling where {{es}} allocates shards of a particular index.
+You can configure this action to modify both the allocation rules and number of replicas, only the allocation rules, or only the number of replicas. For more information about how {{es}} uses replicas for scaling, see [Get ready for production](scalability.md). See [Index-level shard allocation filtering](shard-allocation-filtering.md) for more information about controlling where {{es}} allocates shards of a particular index.
 
 ## Options [ilm-allocate-options]
 
 You must specify the number of replicas or at least one `include`, `exclude`, or `require` option. An empty allocate action is invalid.
 
-For more information about using custom attributes for shard allocation, refer to [](/reference/elasticsearch/index-settings/shard-allocation.md).
+For more information about using custom attributes for shard allocation, see [Index-level shard allocation filtering](shard-allocation-filtering.md).
 
 `number_of_replicas`
 :   (Optional, integer) Number of replicas to assign to the index.
 
 `total_shards_per_node`
-:   (Optional, integer) The maximum number of shards for the index on a single {{es}} node. A value of `-1` is interpreted as unlimited. See [total shards](/reference/elasticsearch/index-settings/total-shards-per-node.md).
+:   (Optional, integer) The maximum number of shards for the index on a single {{es}} node. A value of `-1` is interpreted as unlimited. See [total shards](allocation-total-shards.md).
 
 `include`
 :   (Optional, object) Assigns an index to nodes that have at least *one* of the specified custom attributes.
@@ -61,7 +56,7 @@ PUT _ilm/policy/my_policy
 
 The allocate action in the following policy assigns the index to nodes that have a `box_type` of *hot* or *warm*.
 
-To designate a node’s `box_type`, you set a custom attribute in the node configuration. For example, set `node.attr.box_type: hot` in `elasticsearch.yml`. For more information, refer to [](/reference/elasticsearch/index-settings/shard-allocation.md#index-allocation-filters).
+To designate a node’s `box_type`, you set a custom attribute in the node configuration. For example, set `node.attr.box_type: hot` in `elasticsearch.yml`. For more information, see [Enabling index-level shard allocation filtering](shard-allocation-filtering.md#index-allocation-filters).
 
 ```console
 PUT _ilm/policy/my_policy
@@ -112,7 +107,7 @@ PUT _ilm/policy/my_policy
 
 The allocate action in the following policy updates the index to have one replica per shard and be allocated to nodes that have a `box_type` of *cold*.
 
-To designate a node’s `box_type`, you set a custom attribute in the node configuration. For example, set `node.attr.box_type: cold` in `elasticsearch.yml`. For more information, refer to [](/reference/elasticsearch/index-settings/shard-allocation.md#index-allocation-filters).
+To designate a node’s `box_type`, you set a custom attribute in the node configuration. For example, set `node.attr.box_type: cold` in `elasticsearch.yml`. For more information, see [Enabling index-level shard allocation filtering](shard-allocation-filtering.md#index-allocation-filters).
 
 ```console
 PUT _ilm/policy/my_policy

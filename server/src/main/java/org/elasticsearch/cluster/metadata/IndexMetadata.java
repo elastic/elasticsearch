@@ -1970,12 +1970,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         + "]"
                 );
             }
+            IndexVersion indexVersionCreated = indexCreatedVersion(settings);
             settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, shardCount).build();
             var newPrimaryTerms = new long[shardCount];
             Arrays.fill(newPrimaryTerms, this.primaryTerms.length, newPrimaryTerms.length, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
             System.arraycopy(primaryTerms, 0, newPrimaryTerms, 0, this.primaryTerms.length);
             primaryTerms = newPrimaryTerms;
-            routingNumShards = MetadataCreateIndexService.calculateNumRoutingShards(shardCount, indexCreatedVersion(settings));
+            routingNumShards = MetadataCreateIndexService.calculateNumRoutingShards(shardCount, indexVersionCreated);
             return this;
         }
 

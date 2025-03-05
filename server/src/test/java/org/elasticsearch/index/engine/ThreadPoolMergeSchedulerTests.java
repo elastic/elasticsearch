@@ -273,11 +273,6 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
     }
 
     private static MergeInfo getNewMergeInfo(long estimatedMergeBytes, int maxNumSegments) {
-        return new MergeInfo(
-                randomNonNegativeInt(),
-                estimatedMergeBytes,
-                randomBoolean(),
-                maxNumSegments
-        );
+        return new MergeInfo(randomNonNegativeInt(), estimatedMergeBytes, randomBoolean(), maxNumSegments);
     }
 }

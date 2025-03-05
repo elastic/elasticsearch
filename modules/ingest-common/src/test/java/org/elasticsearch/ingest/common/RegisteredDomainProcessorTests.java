@@ -21,8 +21,8 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Test parsing of an eTLD from a FQDN. The list of eTLDs is maintained here:
  *   https://github.com/publicsuffix/list/blob/master/public_suffix_list.dat
- *
- * Effective TLDs (eTLS) are not the same as DNS TLDs. Uses for eTLDs are listed here.
+ * <p>
+ * Effective TLDs (eTLDs) are not the same as DNS TLDs. Uses for eTLDs are listed here:
  *   https://publicsuffix.org/learn/
  */
 public class RegisteredDomainProcessorTests extends ESTestCase {

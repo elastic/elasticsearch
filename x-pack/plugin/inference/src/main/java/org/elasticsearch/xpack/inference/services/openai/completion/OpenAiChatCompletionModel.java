@@ -95,7 +95,7 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
         );
     }
 
-    private static URI buildDefaultUri() throws URISyntaxException {
+    public static URI buildDefaultUri() throws URISyntaxException {
         return new URIBuilder().setScheme("https")
             .setHost(OpenAiUtils.HOST)
             .setPathSegments(OpenAiUtils.VERSION_1, OpenAiUtils.CHAT_PATH, OpenAiUtils.COMPLETIONS_PATH)

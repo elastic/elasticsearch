@@ -78,7 +78,7 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         );
     }
 
-    private static URI buildDefaultUri() throws URISyntaxException {
+    public static URI buildDefaultUri() throws URISyntaxException {
         return new URIBuilder().setScheme("https")
             .setHost(OpenAiUtils.HOST)
             .setPathSegments(OpenAiUtils.VERSION_1, OpenAiUtils.EMBEDDINGS_PATH)

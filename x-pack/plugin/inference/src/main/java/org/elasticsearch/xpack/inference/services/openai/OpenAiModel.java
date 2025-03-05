@@ -77,4 +77,8 @@ public abstract class OpenAiModel extends RateLimitGroupingModel {
     public RateLimitSettings rateLimitSettings() {
         return rateLimitServiceSettings.rateLimitSettings();
     }
+
+    public URI uri() {
+        return uri;
+    }
 }

@@ -59,16 +59,7 @@ public class Lucene62Codec extends BWCCodec {
             return defaultDocValuesFormat;
         }
     };
-    private final PostingsFormat postingsFormat = new LegacyAdaptingPerFieldPostingsFormat() {
-        @Override
-        protected PostingsFormat getPostingsFormat(String formatName) {
-            if (formatName.equals("Lucene50")) {
-                return new BWCLucene50PostingsFormat();
-            } else {
-                return new EmptyPostingsFormat();
-            }
-        }
-    };
+    private final PostingsFormat postingsFormat = new LegacyAdaptingPerFieldPostingsFormat();
 
     public Lucene62Codec() {
         this(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);

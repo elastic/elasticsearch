@@ -30,6 +30,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Terms;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.BWCLucene50PostingsFormat;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -47,13 +48,11 @@ import java.util.TreeMap;
  * latter only supports Lucene 7 and above (as it was shipped with backwards-codecs of Lucene 9 that
  * only has support for N-2).
  *
- * Swapping out formats can be done via the {@link #getPostingsFormat(String) method}.
- *
  * This class can be removed once Elasticsearch gets upgraded to Lucene 11 and Lucene50PostingsFormat is no longer
  * shipped as part of bwc jars.
  */
 @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)
-public class LegacyAdaptingPerFieldPostingsFormat extends PostingsFormat {
+public final class LegacyAdaptingPerFieldPostingsFormat extends PostingsFormat {
     /** Name of this {@link PostingsFormat}. */
     public static final String PER_FIELD_NAME = "PerField40";
 
@@ -64,7 +63,7 @@ public class LegacyAdaptingPerFieldPostingsFormat extends PostingsFormat {
     public static final String PER_FIELD_SUFFIX_KEY = PerFieldPostingsFormat.class.getSimpleName() + ".suffix";
 
     /** Sole constructor. */
-    protected LegacyAdaptingPerFieldPostingsFormat() {
+    public LegacyAdaptingPerFieldPostingsFormat() {
         super(PER_FIELD_NAME);
     }
 
@@ -72,8 +71,12 @@ public class LegacyAdaptingPerFieldPostingsFormat extends PostingsFormat {
         return formatName + "_" + suffix;
     }
 
-    protected PostingsFormat getPostingsFormat(String formatName) {
-        throw new IllegalArgumentException(formatName);
+    private static PostingsFormat getPostingsFormat(String formatName) {
+        if (formatName.equals("Lucene50")) {
+            return new BWCLucene50PostingsFormat();
+        } else {
+            return new BWCCodec.EmptyPostingsFormat();
+        }
     }
 
     private static class FieldsReader extends FieldsProducer {
@@ -102,7 +105,7 @@ public class LegacyAdaptingPerFieldPostingsFormat extends PostingsFormat {
             segment = other.segment;
         }
 
-        FieldsReader(final SegmentReadState readState, LegacyAdaptingPerFieldPostingsFormat legacyAdaptingPerFieldPostingsFormat)
+        FieldsReader(final SegmentReadState readState)
             throws IOException {
 
             // Read _X.per and init each format:
@@ -119,7 +122,7 @@ public class LegacyAdaptingPerFieldPostingsFormat extends PostingsFormat {
                             if (suffix == null) {
                                 throw new IllegalStateException("missing attribute: " + PER_FIELD_SUFFIX_KEY + " for field: " + fieldName);
                             }
-                            PostingsFormat format = legacyAdaptingPerFieldPostingsFormat.getPostingsFormat(formatName);
+                            PostingsFormat format = getPostingsFormat(formatName);
                             String segmentSuffix = getSuffix(formatName, suffix);
                             if (formats.containsKey(segmentSuffix) == false) {
                                 formats.put(segmentSuffix, format.fieldsProducer(new SegmentReadState(readState, segmentSuffix)));
@@ -178,12 +181,12 @@ public class LegacyAdaptingPerFieldPostingsFormat extends PostingsFormat {
     }
 
     @Override
-    public final FieldsConsumer fieldsConsumer(SegmentWriteState state) {
+    public FieldsConsumer fieldsConsumer(SegmentWriteState state) {
         throw new IllegalStateException("This codec should only be used for reading, not writing");
     }
 
     @Override
-    public final FieldsProducer fieldsProducer(SegmentReadState state) throws IOException {
-        return new FieldsReader(state, this);
+    public FieldsProducer fieldsProducer(SegmentReadState state) throws IOException {
+        return new FieldsReader(state);
     }
 }

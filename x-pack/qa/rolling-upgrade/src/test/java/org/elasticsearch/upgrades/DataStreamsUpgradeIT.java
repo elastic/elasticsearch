@@ -48,11 +48,9 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     @Before
     public void setupILMSettings() throws IOException {
         Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity(
-            """
+        request.setJsonEntity("""
             { "persistent": {"indices.lifecycle.poll_interval": "1s"} }
-            """
-        );
+            """);
         assertOK(client().performRequest(request));
     }
 
@@ -261,7 +259,11 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
             Request request = new Request("GET", dataStreamName + "/_ilm/explain");
             Response response = client().performRequest(request);
-            Map<String, Object> responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), false);
+            Map<String, Object> responseMap = XContentHelper.convertToMap(
+                JsonXContent.jsonXContent,
+                response.getEntity().getContent(),
+                false
+            );
             Map<String, Object> indices = (Map<String, Object>) responseMap.get("indices");
             for (var index : indices.keySet()) {
                 if (index.equals(writeIndex) == false) {
@@ -319,7 +321,8 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         return (Map<String, Object>) ((Map<String, Object>) indexMetadata.get("settings")).get("index");
     }
 
-    private void createAndRolloverDataStream(String dataStreamName, int numRollovers, boolean hasILMPolicy, boolean ilmEnabled) throws IOException {
+    private void createAndRolloverDataStream(String dataStreamName, int numRollovers, boolean hasILMPolicy, boolean ilmEnabled)
+        throws IOException {
         if (hasILMPolicy) {
             createIlmPolicy();
         }
@@ -404,7 +407,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         bulkLoadData(dataStreamName);
         for (int i = 0; i < numRollovers; i++) {
             String oldIndexName = rollover(dataStreamName);
-            if (ilmEnabled ==false && randomBoolean()) {
+            if (ilmEnabled == false && randomBoolean()) {
                 closeIndex(oldIndexName);
             }
             bulkLoadData(dataStreamName);
@@ -581,8 +584,13 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void upgradeDataStream(String dataStreamName, int numRolloversOnOldCluster, int expectedSuccessesCount, int expectedErrorCount, boolean ilmEnabled)
-        throws Exception {
+    private void upgradeDataStream(
+        String dataStreamName,
+        int numRolloversOnOldCluster,
+        int expectedSuccessesCount,
+        int expectedErrorCount,
+        boolean ilmEnabled
+    ) throws Exception {
         Set<String> indicesNeedingUpgrade = getDataStreamIndices(dataStreamName);
         final int explicitRolloverOnNewClusterCount = randomIntBetween(0, 2);
         for (int i = 0; i < explicitRolloverOnNewClusterCount; i++) {

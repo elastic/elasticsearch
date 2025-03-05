@@ -60,7 +60,12 @@ public class TransportRetryAction extends TransportMasterNodeAction<RetryActionR
     }
 
     @Override
-    protected void masterOperation(Task task, RetryActionRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        RetryActionRequest request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         if (request.requireError() == false) {
             maybeRunAsyncAction(state, request.indices());
             listener.onResponse(AcknowledgedResponse.TRUE);
@@ -84,11 +89,7 @@ public class TransportRetryAction extends TransportMasterNodeAction<RetryActionR
             IndexMetadata idxMeta = state.metadata().getProject().index(index);
             if (idxMeta == null) {
                 // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.
-                logger.debug(
-                    "index ["
-                        + index
-                        + "] has been deleted, skipping async action check"
-                );
+                logger.debug("index [" + index + "] has been deleted, skipping async action check");
                 return;
             }
             LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();

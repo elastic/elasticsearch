@@ -128,8 +128,6 @@ tests:
 - class: org.elasticsearch.cluster.service.MasterServiceTests
   method: testThreadContext
   issue: https://github.com/elastic/elasticsearch/issues/118914
-- class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
-  issue: https://github.com/elastic/elasticsearch/issues/115727
 - class: org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapperTests
   method: testCartesianBoundsBlockLoader
   issue: https://github.com/elastic/elasticsearch/issues/119201

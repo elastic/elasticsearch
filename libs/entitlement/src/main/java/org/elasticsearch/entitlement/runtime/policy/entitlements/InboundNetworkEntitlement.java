@@ -15,6 +15,6 @@ import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
  * Describes an entitlement for inbound network actions (listen/accept/receive)
  */
 public record InboundNetworkEntitlement() implements Entitlement {
-    @ExternalEntitlement
+    @ExternalEntitlement(esModulesOnly = false)
     public InboundNetworkEntitlement {}
 }

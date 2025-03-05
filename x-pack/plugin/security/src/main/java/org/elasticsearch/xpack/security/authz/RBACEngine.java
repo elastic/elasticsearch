@@ -894,8 +894,10 @@ public class RBACEngine implements AuthorizationEngine {
                         }
                     }
                     if (failureAccessGranted) {
-                        // TODO we probably need to add this in _with_ the ::failures selector...
-                        indicesAndAliases.add(indexAbstraction.getName());
+                        // TODO hack hack hack
+                        indicesAndAliases.add(
+                            IndexNameExpressionResolver.combineSelector(indexAbstraction.getName(), IndexComponentSelector.FAILURES)
+                        );
                         for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
                             indicesAndAliases.add(index.getName());
                         }
@@ -917,6 +919,17 @@ public class RBACEngine implements AuthorizationEngine {
                 // the action handler must handle the case of accessing resources that do not exist
                 return predicate.test(name, null);
             } else {
+                // TODO remove selector, add selector, remove selector, selectors, selectors, selectors
+                if (indexAbstraction.isFailureIndexOfDataStream()
+                    && predicate.test(
+                        IndexNameExpressionResolver.combineSelector(
+                            indexAbstraction.getParentDataStream().getName(),
+                            IndexComponentSelector.FAILURES
+                        ),
+                        indexAbstraction.getParentDataStream()
+                    )) {
+                    return true;
+                }
                 // We check the parent data stream first if there is one. For testing requested indices, this is most likely
                 // more efficient than checking the index name first because we recommend grant privileges over data stream
                 // instead of backing indices.

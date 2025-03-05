@@ -204,7 +204,7 @@ public final class IndicesPermission {
                 IndexComponentSelector selector = IndexComponentSelector.getByKey(nameWithSelector.v2());
                 assert indexAbstraction == null || indexAbstractionName.equals(indexAbstraction.getName());
                 if (IndexComponentSelector.FAILURES.equals(selector)) {
-                    // TODO assert isPartOfDataStream?
+                    // TODO assert isPartOfDataStream if indexAbstraction is not null
                     return failureAccessNameMatcher.test(indexAbstractionName);
                 }
                 return resourceNameMatcher.test(indexAbstractionName)

@@ -9,9 +9,15 @@
 
 import org.elasticsearch.gradle.internal.info.BuildParams
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+}
 
 tasks.named('yamlRestTest').configure {
-  it.onlyIf("snapshot build") { buildParams.isSnapshotBuild() }
+  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
 }
 
 esplugin {

@@ -114,7 +114,8 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
 
     // package private so it can be replaced by tests
     List<JdkBuild> builds = List.of(
-        getBundledJdkBuild(),
+        // TODO: re-enable once jdk 24 is GA
+        // getBundledJdkBuild(),
         // release candidate of JDK 24
         new ReleaseJdkBuild(JavaLanguageVersion.of(24), "download.java.net", "24", "36", "1f9ff9062db4449d8ca828c504ffae90"),
         new EarlyAccessJdkBuild(JavaLanguageVersion.of(25))

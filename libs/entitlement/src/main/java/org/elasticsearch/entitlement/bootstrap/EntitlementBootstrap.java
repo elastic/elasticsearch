@@ -35,8 +35,7 @@ public class EntitlementBootstrap {
     public record BootstrapArgs(
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
-        Function<String, String> settingResolver,
-        Function<String, Stream<String>> settingGlobResolver,
+        Function<String, Stream<String>> settingResolver,
         Path[] dataDirs,
         Path[] sharedRepoDirs,
         Path configDir,
@@ -51,7 +50,6 @@ public class EntitlementBootstrap {
             requireNonNull(pluginPolicies);
             requireNonNull(pluginResolver);
             requireNonNull(settingResolver);
-            requireNonNull(settingGlobResolver);
             requireNonNull(dataDirs);
             if (dataDirs.length == 0) {
                 throw new IllegalArgumentException("must provide at least one data directory");
@@ -78,8 +76,7 @@ public class EntitlementBootstrap {
      *
      * @param pluginPolicies a map holding policies for plugins (and modules), by plugin (or module) name.
      * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
-     * @param settingResolver a functor to resolve the value of an Elasticsearch setting.
-     * @param settingGlobResolver a functor to resolve a glob expression for one or more Elasticsearch settings.
+     * @param settingResolver a functor to resolve a setting name pattern for one or more Elasticsearch settings.
      * @param dataDirs       data directories for Elasticsearch
      * @param sharedRepoDirs       shared repository directories for Elasticsearch
      * @param configDir      the config directory for Elasticsearch
@@ -93,8 +90,7 @@ public class EntitlementBootstrap {
     public static void bootstrap(
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
-        Function<String, String> settingResolver,
-        Function<String, Stream<String>> settingGlobResolver,
+        Function<String, Stream<String>> settingResolver,
         Path[] dataDirs,
         Path[] sharedRepoDirs,
         Path configDir,
@@ -113,7 +109,6 @@ public class EntitlementBootstrap {
             pluginPolicies,
             pluginResolver,
             settingResolver,
-            settingGlobResolver,
             dataDirs,
             sharedRepoDirs,
             configDir,

@@ -229,9 +229,9 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         final ProjectId project0, project1;
         if (multiProject) {
-            project0 = new ProjectId(randomUUID());
+            project0 = randomUniqueProjectId();
             metadataBuilder.put(ProjectMetadata.builder(project0).put(indexMetadata0, true));
-            project1 = new ProjectId(randomUUID());
+            project1 = randomUniqueProjectId();
             metadataBuilder.put(ProjectMetadata.builder(project1).put(indexMetadata1, true));
         } else {
             project0 = Metadata.DEFAULT_PROJECT_ID;

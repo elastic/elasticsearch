@@ -21,6 +21,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -37,6 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.ESQL_SKIP_ES_INDEX_SERIALIZATION;
+import static org.elasticsearch.xpack.esql.planner.mapper.MapperUtils.hasScoreAttribute;
 
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -202,6 +204,10 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     public static boolean isSourceAttribute(Attribute attr) {
         return DOC_ID_FIELD.getName().equals(attr.name());
+    }
+
+    public boolean hasScoring() {
+        return hasScoreAttribute(attrs);
     }
 
     @Override

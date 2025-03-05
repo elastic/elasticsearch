@@ -186,7 +186,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context.foldCtx()) : NO_LIMIT;
-        boolean scoring = hasScoreAttribute(esQueryExec.attrs());
+        boolean scoring = esQueryExec.hasScoring();
         if ((sorts != null && sorts.isEmpty() == false)) {
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
             for (Sort sort : sorts) {

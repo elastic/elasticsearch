@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -33,7 +34,7 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
 /**
  * Some {@link FullTextFunction} implementations such as {@link org.elasticsearch.xpack.esql.expression.function.fulltext.Match}
  * will be translated to a {@link QueryBuilder} that require a rewrite phase on the coordinator.
- * {@link QueryBuilderResolver#resolveQueryBuilders(LogicalPlan, ActionListener, BiConsumer)} will rewrite the plan by replacing
+ * {@link QueryBuilderResolver#resolveQueryBuilders(LogicalPlan, FoldContext, ActionListener, BiConsumer)} will rewrite the plan by replacing
  * {@link FullTextFunction} expression with new ones that hold rewritten {@link QueryBuilder}s.
  */
 public class QueryBuilderResolver {
@@ -56,6 +57,7 @@ public class QueryBuilderResolver {
 
     public void resolveQueryBuilders(
         LogicalPlan plan,
+        FoldContext foldContext,
         ActionListener<Result> listener,
         BiConsumer<LogicalPlan, ActionListener<Result>> callback
     ) {
@@ -72,7 +74,7 @@ public class QueryBuilderResolver {
             return;
         }
         QueryRewriteContext ctx = queryRewriteContext(indexNames);
-        FullTextFunctionsRewritable rewritable = new FullTextFunctionsRewritable(unresolved);
+        FullTextFunctionsRewritable rewritable = new FullTextFunctionsRewritable(unresolved, foldContext);
         Rewriteable.rewriteAndFetch(rewritable, ctx, new ActionListener<FullTextFunctionsRewritable>() {
             @Override
             public void onResponse(FullTextFunctionsRewritable fullTextFunctionsRewritable) {
@@ -136,11 +138,11 @@ public class QueryBuilderResolver {
             this.queryBuilderMap = queryBuilderMap;
         }
 
-        FullTextFunctionsRewritable(Set<FullTextFunction> functions) {
+        FullTextFunctionsRewritable(Set<FullTextFunction> functions, FoldContext foldContext) {
             this.queryBuilderMap = new HashMap<>();
 
             for (FullTextFunction func : functions) {
-                queryBuilderMap.put(func, TRANSLATOR_HANDLER.asQuery(func).asBuilder());
+                queryBuilderMap.put(func, TRANSLATOR_HANDLER.asQuery(func, foldContext).asBuilder());
             }
         }
 

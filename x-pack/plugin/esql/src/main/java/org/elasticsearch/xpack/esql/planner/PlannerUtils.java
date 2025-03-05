@@ -183,7 +183,7 @@ public class PlannerUtils {
     /**
      * Extracts a filter that can be used to skip unmatched shards on the coordinator.
      */
-    public static QueryBuilder canMatchFilter(PhysicalPlan plan) {
+    public static QueryBuilder canMatchFilter(PhysicalPlan plan, FoldContext foldContext) {
         return detectFilter(plan, CoordinatorRewriteContext.SUPPORTED_FIELDS::contains, foldContext);
     }
 

@@ -48,8 +48,8 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
-        final String fieldString = document.getFieldValue(field, String.class, ignoreMissing);
-        final DomainInfo info = getRegisteredDomain(fieldString);
+        final String fqdn = document.getFieldValue(field, String.class, ignoreMissing);
+        final DomainInfo info = getRegisteredDomain(fqdn);
         if (info == null) {
             if (ignoreMissing) {
                 return document;
@@ -81,14 +81,14 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
         return document;
     }
 
-    private DomainInfo getRegisteredDomain(String fieldString) {
-        if (fieldString == null) {
+    private DomainInfo getRegisteredDomain(String fqdn) {
+        if (fqdn == null) {
             return null;
         }
-        String registeredDomain = SUFFIX_MATCHER.getDomainRoot(fieldString);
+        String registeredDomain = SUFFIX_MATCHER.getDomainRoot(fqdn);
         if (registeredDomain == null) {
-            if (SUFFIX_MATCHER.matches(fieldString)) {
-                return DomainInfo.of(fieldString);
+            if (SUFFIX_MATCHER.matches(fqdn)) {
+                return DomainInfo.of(fqdn);
             }
             return null;
         }
@@ -96,7 +96,7 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
             // we have domain with no matching public suffix, but "." in it
             return null;
         }
-        return DomainInfo.of(registeredDomain, fieldString);
+        return DomainInfo.of(registeredDomain, fqdn);
     }
 
     @Override

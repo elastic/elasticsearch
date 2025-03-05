@@ -76,16 +76,16 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
 
         var processor = new RegisteredDomainProcessor(null, null, "domain", "", false);
 
-        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
-        IngestDocument output = processor.execute(input);
+        IngestDocument document = TestIngestDocument.withDefaultVersion(source);
+        processor.execute(document);
 
-        String domain = output.getFieldValue(domainField, String.class);
+        String domain = document.getFieldValue(domainField, String.class);
         assertThat(domain, is("www.google.co.uk"));
-        String registeredDomain = output.getFieldValue(registeredDomainField, String.class);
+        String registeredDomain = document.getFieldValue(registeredDomainField, String.class);
         assertThat(registeredDomain, is("google.co.uk"));
-        String eTLD = output.getFieldValue(topLevelDomainField, String.class);
+        String eTLD = document.getFieldValue(topLevelDomainField, String.class);
         assertThat(eTLD, is("co.uk"));
-        String subdomain = output.getFieldValue(subdomainField, String.class);
+        String subdomain = document.getFieldValue(subdomainField, String.class);
         assertThat(subdomain, is("www"));
     }
 
@@ -127,16 +127,16 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
 
         var processor = new RegisteredDomainProcessor(null, null, "domain", "url", ignoreMissing);
 
-        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
-        IngestDocument output = processor.execute(input);
+        IngestDocument document = TestIngestDocument.withDefaultVersion(source);
+        processor.execute(document);
 
-        String domain = output.getFieldValue(domainField, String.class, expectedDomain == null);
+        String domain = document.getFieldValue(domainField, String.class, expectedDomain == null);
         assertThat(domain, is(expectedDomain));
-        String registeredDomain = output.getFieldValue(registeredDomainField, String.class, expectedRegisteredDomain == null);
+        String registeredDomain = document.getFieldValue(registeredDomainField, String.class, expectedRegisteredDomain == null);
         assertThat(registeredDomain, is(expectedRegisteredDomain));
-        String eTLD = output.getFieldValue(topLevelDomainField, String.class, expectedETLD == null);
+        String eTLD = document.getFieldValue(topLevelDomainField, String.class, expectedETLD == null);
         assertThat(eTLD, is(expectedETLD));
-        String subdomain = output.getFieldValue(subdomainField, String.class, expectedSubdomain == null);
+        String subdomain = document.getFieldValue(subdomainField, String.class, expectedSubdomain == null);
         assertThat(subdomain, is(expectedSubdomain));
     }
 }

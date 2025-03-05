@@ -495,19 +495,7 @@ public final class DateFieldMapper extends FieldMapper {
             FieldValues<Long> scriptValues,
             Map<String, String> meta
         ) {
-            this(
-                name,
-                isIndexed,
-                isIndexed,
-                isStored,
-                hasDocValues,
-                false,
-                dateTimeFormatter,
-                resolution,
-                nullValue,
-                scriptValues,
-                meta
-            );
+            this(name, isIndexed, isIndexed, isStored, hasDocValues, false, dateTimeFormatter, resolution, nullValue, scriptValues, meta);
         }
 
         public DateFieldType(String name) {

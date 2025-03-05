@@ -76,8 +76,7 @@ public class ProjectId implements Writeable, ToXContent {
     }
 
     public static ProjectId readFrom(StreamInput in) throws IOException {
-        final var id = in.readString();
-        return DEFAULT_STRING.equals(id) ? DEFAULT : new ProjectId(id);
+        return fromId(in.readString());
     }
 
     @Override

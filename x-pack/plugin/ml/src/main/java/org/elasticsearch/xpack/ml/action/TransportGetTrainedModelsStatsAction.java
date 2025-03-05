@@ -506,10 +506,8 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
             long ingestTimeInMillis = this.ingestTimeInMillis.count();
             long ingestCurrent = this.ingestCurrent.count();
             long ingestFailedCount = this.ingestFailedCount.count();
-            if (ingestCount == 0 && ingestTimeInMillis == 0 && ingestCurrent == 0 && ingestFailedCount == 0) {
-                return IngestStats.Stats.IDENTITY;
-            }
-            return new IngestStats.Stats(ingestCount, ingestTimeInMillis, ingestCurrent, ingestFailedCount);
+            var stats = new IngestStats.Stats(ingestCount, ingestTimeInMillis, ingestCurrent, ingestFailedCount);
+            return (stats.equals(IngestStats.Stats.IDENTITY) ? IngestStats.Stats.IDENTITY : stats;
         }
     }
 

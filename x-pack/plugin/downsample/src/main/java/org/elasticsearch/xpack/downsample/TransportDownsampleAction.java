@@ -66,7 +66,6 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -505,7 +504,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 dimensionFields,
                 shardId
             );
-            Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> predicate = runningTask -> {
+            Predicate<PersistentTasksCustomMetadata.PersistentTask<DownsampleShardTaskParams>> predicate = runningTask -> {
                 if (runningTask == null) {
                     // NOTE: don't need to wait if the persistent task completed and was removed
                     return true;
@@ -513,10 +512,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 DownsampleShardPersistentTaskState runningPersistentTaskState = (DownsampleShardPersistentTaskState) runningTask.getState();
                 return runningPersistentTaskState != null && runningPersistentTaskState.done();
             };
-            var taskListener = new PersistentTasksService.WaitForPersistentTaskListener<>() {
+            var taskListener = new PersistentTasksService.WaitForPersistentTaskListener<DownsampleShardTaskParams>() {
 
                 @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask) {
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<DownsampleShardTaskParams> persistentTask) {
                     if (persistentTask != null) {
                         var runningPersistentTaskState = (DownsampleShardPersistentTaskState) persistentTask.getState();
                         if (runningPersistentTaskState != null) {

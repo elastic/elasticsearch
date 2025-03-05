@@ -339,7 +339,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             taskId,
             predicate,
             timeout,
-            new PersistentTasksService.WaitForPersistentTaskListener<TransformTaskParams>() {
+            new PersistentTasksService.WaitForPersistentTaskListener<>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams> persistentTask) {
                     if (predicate.exception != null) {
@@ -374,12 +374,12 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private static class TransformPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
+    private static class TransformPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams>> {
 
         private volatile Exception exception;
 
         @Override
-        public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+        public boolean test(PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams> persistentTask) {
             if (persistentTask == null) {
                 return false;
             }

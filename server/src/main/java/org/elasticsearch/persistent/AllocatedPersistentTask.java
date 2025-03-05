@@ -105,10 +105,10 @@ public class AllocatedPersistentTask extends CancellableTask {
      * @param timeout a timeout for waiting
      * @param listener the callback listener
      */
-    public void waitForPersistentTask(
-        final Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> predicate,
+    public <P extends PersistentTaskParams> void waitForPersistentTask(
+        final Predicate<PersistentTasksCustomMetadata.PersistentTask<P>> predicate,
         final @Nullable TimeValue timeout,
-        final PersistentTasksService.WaitForPersistentTaskListener<?> listener
+        final PersistentTasksService.WaitForPersistentTaskListener<P> listener
     ) {
         persistentTasksService.waitForPersistentTaskCondition(persistentTaskId, predicate, timeout, listener);
     }

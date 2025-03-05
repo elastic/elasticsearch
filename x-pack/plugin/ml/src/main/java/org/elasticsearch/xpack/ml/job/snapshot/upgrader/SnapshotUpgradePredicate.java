@@ -20,7 +20,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.checkAssignmentState;
 
-public class SnapshotUpgradePredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
+public class SnapshotUpgradePredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<SnapshotUpgradeTaskParams>> {
     private final boolean waitForCompletion;
     private final Logger logger;
     private volatile Exception exception;
@@ -50,7 +50,7 @@ public class SnapshotUpgradePredicate implements Predicate<PersistentTasksCustom
     }
 
     @Override
-    public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+    public boolean test(PersistentTasksCustomMetadata.PersistentTask<SnapshotUpgradeTaskParams> persistentTask) {
         // Persistent task being null means it has been removed from state, and is now complete
         if (persistentTask == null) {
             isCompleted = true;
@@ -64,7 +64,7 @@ public class SnapshotUpgradePredicate implements Predicate<PersistentTasksCustom
         PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
         // This logic is only appropriate when opening a job, not when reallocating following a failure,
         // and this is why this class must only be used when opening a job
-        SnapshotUpgradeTaskParams params = (SnapshotUpgradeTaskParams) persistentTask.getParams();
+        SnapshotUpgradeTaskParams params = persistentTask.getParams();
         Optional<ElasticsearchException> assignmentException = checkAssignmentState(assignment, params.getJobId(), logger);
         if (assignmentException.isPresent()) {
             exception = assignmentException.get();

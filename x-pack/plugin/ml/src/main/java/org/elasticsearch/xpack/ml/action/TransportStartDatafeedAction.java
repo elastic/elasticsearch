@@ -369,7 +369,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             taskId,
             predicate,
             params.getTimeout(),
-            new PersistentTasksService.WaitForPersistentTaskListener<StartDatafeedAction.DatafeedParams>() {
+            new PersistentTasksService.WaitForPersistentTaskListener<>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
                     if (predicate.exception != null) {
@@ -711,13 +711,15 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private static class DatafeedPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
+    private static class DatafeedPredicate
+        implements
+            Predicate<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> {
 
         private volatile Exception exception;
         private volatile String node = "";
 
         @Override
-        public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+        public boolean test(PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
             if (persistentTask == null) {
                 return false;
             }

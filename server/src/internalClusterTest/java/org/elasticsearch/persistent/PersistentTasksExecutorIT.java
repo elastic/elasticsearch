@@ -290,7 +290,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             );
 
             int finalI = i;
-            WaitForPersistentTaskFuture<?> future1 = new WaitForPersistentTaskFuture<>();
+            WaitForPersistentTaskFuture<TestParams> future1 = new WaitForPersistentTaskFuture<>();
             waitForPersistentTaskCondition(
                 persistentTasksService,
                 taskId,
@@ -304,7 +304,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             assertThat(future1.get().getId(), equalTo(taskId));
         }
 
-        WaitForPersistentTaskFuture<?> future1 = new WaitForPersistentTaskFuture<>();
+        WaitForPersistentTaskFuture<TestParams> future1 = new WaitForPersistentTaskFuture<>();
         waitForPersistentTaskCondition(persistentTasksService, taskId, task -> false, TimeValue.timeValueMillis(10), future1);
 
         assertFutureThrows(future1, IllegalStateException.class, "timed out after 10ms");
@@ -318,7 +318,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         );
 
         // Wait for the task to disappear
-        WaitForPersistentTaskFuture<?> future2 = new WaitForPersistentTaskFuture<>();
+        WaitForPersistentTaskFuture<TestParams> future2 = new WaitForPersistentTaskFuture<>();
         waitForPersistentTaskCondition(persistentTasksService, taskId, Objects::isNull, TimeValue.timeValueSeconds(10), future2);
 
         logger.info("Completing the running task");
@@ -522,9 +522,9 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
     private void waitForPersistentTaskCondition(
         PersistentTasksService persistentTasksService,
         String taskId,
-        Predicate<PersistentTask<?>> predicate,
+        Predicate<PersistentTask<TestParams>> predicate,
         @Nullable TimeValue timeout,
-        WaitForPersistentTaskListener<?> listener
+        WaitForPersistentTaskListener<TestParams> listener
     ) throws Exception {
         if (scope == PersistentTasksExecutor.Scope.CLUSTER) {
             @FixForMultiProject(description = "can be replaced if PersistentTasksService supports waiting for cluster task conditions")

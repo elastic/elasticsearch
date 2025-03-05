@@ -91,9 +91,20 @@ public class PolicyManager {
         }
     }
 
+    private FileAccessTree getDefaultFileAccess(String componentName) {
+        return FileAccessTree.of(
+            componentName,
+            UNKNOWN_COMPONENT_NAME,
+            FilesEntitlement.EMPTY,
+            pathLookup,
+            bundlesDirs.get(componentName),
+            List.of()
+        );
+    }
+
     // pkg private for testing
     ModuleEntitlements defaultEntitlements(String componentName) {
-        return new ModuleEntitlements(componentName, Map.of(), defaultFileAccess);
+        return new ModuleEntitlements(componentName, Map.of(), getDefaultFileAccess(componentName));
     }
 
     // pkg private for testing
@@ -118,7 +129,6 @@ public class PolicyManager {
     private final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
     private final Function<Class<?>, String> pluginResolver;
     private final PathLookup pathLookup;
-    private final FileAccessTree defaultFileAccess;
     private final Set<Class<?>> mutedClasses;
 
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
@@ -178,14 +188,6 @@ public class PolicyManager {
         this.apmAgentPackageName = apmAgentPackageName;
         this.entitlementsModule = entitlementsModule;
         this.pathLookup = requireNonNull(pathLookup);
-        this.defaultFileAccess = FileAccessTree.of(
-            UNKNOWN_COMPONENT_NAME,
-            UNKNOWN_COMPONENT_NAME,
-            FilesEntitlement.EMPTY,
-            pathLookup,
-            null,
-            List.of()
-        );
         this.mutedClasses = suppressFailureLogClasses;
 
         List<ExclusiveFileEntitlement> exclusiveFileEntitlements = new ArrayList<>();

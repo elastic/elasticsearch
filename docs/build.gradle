@@ -84,7 +84,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     keystorePassword 'keystore-password'
-    if (buildParams.snapshotBuild == false) {
+    if (buildParams.isSnapshotBuild() == false) {
       requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
     }
   }

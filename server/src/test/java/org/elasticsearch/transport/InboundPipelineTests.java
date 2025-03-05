@@ -194,7 +194,7 @@ public class InboundPipelineTests extends ESTestCase {
     }
 
     private static Compression.Scheme getCompressionScheme() {
-        return randomFrom(null, Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
+        return randomFrom((Compression.Scheme)null, Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
     }
 
     public void testDecodeExceptionIsPropagated() throws IOException {

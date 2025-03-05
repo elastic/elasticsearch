@@ -118,7 +118,7 @@ public class IndexAbstractionResolver {
         return finalIndices;
     }
 
-    boolean selectorsMatch(String selectorString, String authorizedSelectorString) {
+    public static boolean selectorsMatch(String selectorString, String authorizedSelectorString) {
         IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString) == null
             ? IndexComponentSelector.DATA
             : IndexComponentSelector.getByKey(selectorString);

@@ -324,15 +324,19 @@ class IndicesAndAliasesResolver {
                 }
                 if (indicesOptions.expandWildcardExpressions()) {
                     for (String authorizedIndex : authorizedIndices.all().get()) {
-                        if (IndexAbstractionResolver.isIndexVisible(
-                            "*",
-                            allIndicesPatternSelector,
-                            authorizedIndex,
-                            indicesOptions,
-                            projectMetadata,
-                            nameExpressionResolver,
-                            indicesRequest.includeDataStreams()
-                        )) {
+                        Tuple<String, String> tuple = IndexNameExpressionResolver.splitSelectorExpression(authorizedIndex);
+                        authorizedIndex = tuple.v1();
+                        String authorizedSelectorString = tuple.v2();
+                        if (IndexAbstractionResolver.selectorsMatch(allIndicesPatternSelector, authorizedSelectorString)
+                            && IndexAbstractionResolver.isIndexVisible(
+                                "*",
+                                allIndicesPatternSelector,
+                                authorizedIndex,
+                                indicesOptions,
+                                projectMetadata,
+                                nameExpressionResolver,
+                                indicesRequest.includeDataStreams()
+                            )) {
                             resolvedIndicesBuilder.addLocal(
                                 IndexNameExpressionResolver.combineSelectorExpression(authorizedIndex, allIndicesPatternSelector)
                             );
@@ -480,6 +484,10 @@ class IndicesAndAliasesResolver {
         List<String> authorizedAliases = new ArrayList<>();
         SortedMap<String, IndexAbstraction> existingAliases = projectMetadata.getIndicesLookup();
         for (String authorizedIndex : authorizedIndices.get()) {
+            Tuple<String, String> tuple = IndexNameExpressionResolver.splitSelectorExpression(authorizedIndex);
+            authorizedIndex = tuple.v1();
+            String authorizedSelectorString = tuple.v2();
+            // TODO skip failures here?
             IndexAbstraction indexAbstraction = existingAliases.get(authorizedIndex);
             if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
                 authorizedAliases.add(authorizedIndex);

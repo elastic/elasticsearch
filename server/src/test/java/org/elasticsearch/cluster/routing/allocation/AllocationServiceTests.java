@@ -123,7 +123,9 @@ public class AllocationServiceTests extends ESTestCase {
         final int numberOfProjects = randomIntBetween(1, 5);
         final List<ProjectMetadata.Builder> projects = numberOfProjects == 1
             ? List.of(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID))
-            : IntStream.range(0, numberOfProjects).mapToObj(n -> ProjectMetadata.builder(new ProjectId(randomUUID() + "-" + n))).toList();
+            : IntStream.range(0, numberOfProjects)
+                .mapToObj(n -> ProjectMetadata.builder(ProjectId.fromId(randomUUID() + "-" + n)))
+                .toList();
 
         // throttle (incoming) recoveries in order to observe the order of operations, but do not throttle outgoing recoveries since
         // the effects of that depend on the earlier (random) allocations
@@ -330,7 +332,7 @@ public class AllocationServiceTests extends ESTestCase {
 
     public void testHealthStatusWithMultipleProjects() {
         final Supplier<ProjectMetadata> buildProject = () -> {
-            final ProjectMetadata.Builder builder = ProjectMetadata.builder(new ProjectId(randomUUID()));
+            final ProjectMetadata.Builder builder = ProjectMetadata.builder(randomUniqueProjectId());
             final Set<String> indices = randomSet(1, 8, () -> randomAlphaOfLengthBetween(3, 12));
             indices.forEach(
                 indexName -> builder.put(
@@ -391,9 +393,9 @@ public class AllocationServiceTests extends ESTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
 
-        final ProjectId project1 = new ProjectId(randomUUID());
-        final var project2 = new ProjectId(randomUUID());
-        final var project3 = new ProjectId(randomUUID());
+        final ProjectId project1 = randomUniqueProjectId();
+        final var project2 = randomUniqueProjectId();
+        final var project3 = randomUniqueProjectId();
 
         // return same cluster state when there are no changes
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)

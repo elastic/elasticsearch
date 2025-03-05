@@ -12,7 +12,11 @@ esplugin {
   name = 'x-pack-slm'
   description = 'Elasticsearch Expanded Pack Plugin - Snapshot Lifecycle Management'
   classname ='org.elasticsearch.xpack.slm.SnapshotLifecycle'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
   hasNativeController =false
   requiresKeystore =true
 }

@@ -13,7 +13,11 @@ esplugin {
   name = 'x-pack-aggregate-metric'
   description = 'Module for the aggregate_metric_double field type, which allows pre-aggregated fields to be stored as a single field'
   classname ='org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
 }
 base {
   archivesName = 'x-pack-aggregate-metric'

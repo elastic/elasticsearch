@@ -5,7 +5,11 @@ esplugin {
   name = 'x-pack-logstash'
   description = 'Elasticsearch Expanded Pack Plugin - Logstash'
   classname ='org.elasticsearch.xpack.logstash.Logstash'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
 }
 
 base {

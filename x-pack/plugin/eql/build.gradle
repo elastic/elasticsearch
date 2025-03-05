@@ -11,7 +11,14 @@ esplugin {
   name = 'x-pack-eql'
   description = 'The Elasticsearch plugin that powers EQL for Elasticsearch'
   classname ='org.elasticsearch.xpack.eql.plugin.EqlPlugin'
-  extendedPlugins = ['x-pack-ql', 'lang-painless']
+  extendedPluginProjects {
+    "x-pack-ql" {
+      path = ':x-pack:plugin:ql'
+    }
+    "lang-painless" {
+      path = ':modules:lang-painless'
+    }
+  }
 }
 
 base {

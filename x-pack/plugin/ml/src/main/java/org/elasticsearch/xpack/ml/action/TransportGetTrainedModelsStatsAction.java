@@ -502,12 +502,13 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         }
 
         IngestStats.Stats build() {
-            long ingestCount = this.ingestCount.count();
-            long ingestTimeInMillis = this.ingestTimeInMillis.count();
-            long ingestCurrent = this.ingestCurrent.count();
-            long ingestFailedCount = this.ingestFailedCount.count();
-            var stats = new IngestStats.Stats(ingestCount, ingestTimeInMillis, ingestCurrent, ingestFailedCount);
-            return (stats.equals(IngestStats.Stats.IDENTITY) ? IngestStats.Stats.IDENTITY : stats;
+            IngestStats.Stats stats = new IngestStats.Stats(
+                ingestCount.count(),
+                ingestTimeInMillis.count(),
+                ingestCurrent.count(),
+                ingestFailedCount.count()
+            );
+            return stats.equals(IngestStats.Stats.IDENTITY) ? IngestStats.Stats.IDENTITY : stats;
         }
     }
 
@@ -527,12 +528,8 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         }
 
         IngestStats.ByteStats buildByteStats() {
-            long ingestBytesConsumed = this.ingestBytesConsumed.count();
-            long ingestBytesProduced = this.ingestBytesProduced.count();
-            if (ingestBytesConsumed == 0 && ingestBytesProduced == 0) {
-                return IngestStats.ByteStats.IDENTITY;
-            }
-            return new IngestStats.ByteStats(ingestBytesConsumed, ingestBytesProduced);
+            IngestStats.ByteStats byteStats = new IngestStats.ByteStats(ingestBytesConsumed.count(), ingestBytesProduced.count());
+            return byteStats.equals(IngestStats.ByteStats.IDENTITY) ? IngestStats.ByteStats.IDENTITY : byteStats;
         }
 
     }

@@ -38,8 +38,6 @@ import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.BWCLucene50PostingsFor
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.Lucene50SegmentInfoFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene54.Lucene54DocValuesFormat;
 
-import java.util.Objects;
-
 /**
  * Implements the Lucene 6.0 index format.
  *
@@ -71,21 +69,12 @@ public class Lucene60Codec extends BWCCodec {
     };
 
     /**
-     * Instantiates a new codec.
+     * Instantiates a new codec. Called by SPI.
      */
+    @SuppressWarnings("unused")
     public Lucene60Codec() {
-        this(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
-    }
-
-    /**
-     * Instantiates a new codec, specifying the stored fields compression
-     * mode to use.
-     * @param mode stored fields compression mode to use for newly
-     *             flushed/merged segments.
-     */
-    public Lucene60Codec(Lucene50StoredFieldsFormat.Mode mode) {
         super("Lucene60");
-        this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Objects.requireNonNull(mode));
+        this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
     }
 
     @Override

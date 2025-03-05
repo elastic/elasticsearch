@@ -35,7 +35,7 @@ public class TestProjectResolversTests extends ESTestCase {
     }
 
     public void testSingleProject() {
-        final ProjectId projectId = new ProjectId(randomUUID());
+        final ProjectId projectId = randomUniqueProjectId();
         final ProjectResolver projectResolver = TestProjectResolvers.singleProject(projectId);
         assertThat(projectResolver.getProjectId(), equalTo(projectId));
 
@@ -44,7 +44,7 @@ public class TestProjectResolversTests extends ESTestCase {
     }
 
     public void testSingleProjectOnly_getProjectIdAndMetadata() {
-        final ProjectId projectId = new ProjectId(randomUUID());
+        final ProjectId projectId = randomUniqueProjectId();
         final ClusterState state = buildClusterState(projectId);
 
         final ProjectResolver projectResolver = TestProjectResolvers.singleProjectOnly();
@@ -60,19 +60,19 @@ public class TestProjectResolversTests extends ESTestCase {
     public void testSingleProjectOnly_getProjectIds() {
         {
             final ProjectResolver projectResolver = TestProjectResolvers.singleProjectOnly();
-            final ProjectId projectId = new ProjectId(randomUUID());
+            final ProjectId projectId = randomUniqueProjectId();
             ClusterState state = buildClusterState(projectId);
             assertThat(state.metadata().projects().values(), hasSize(1));
 
             expectThrows(UnsupportedOperationException.class, () -> projectResolver.getProjectIds(state));
             projectResolver.executeOnProject(projectId, () -> assertThat(projectResolver.getProjectIds(state), contains(projectId)));
-            projectResolver.executeOnProject(new ProjectId(randomUUID()), () -> {
+            projectResolver.executeOnProject(randomUniqueProjectId(), () -> {
                 expectThrows(IllegalArgumentException.class, () -> projectResolver.getProjectIds(state));
             });
         }
         {
             final ProjectResolver projectResolver = TestProjectResolvers.singleProjectOnly();
-            final ProjectId projectId = new ProjectId(randomUUID());
+            final ProjectId projectId = randomUniqueProjectId();
             ClusterState state = buildClusterState(projectId, randomIntBetween(1, 10));
             assertThat(state.metadata().projects().values().size(), greaterThan(1));
 
@@ -95,7 +95,7 @@ public class TestProjectResolversTests extends ESTestCase {
         Metadata.Builder metadata = Metadata.builder();
         metadata.put(ProjectMetadata.builder(projectId).build());
         for (int i = 0; i < numberOfExtraProjects; i++) {
-            metadata.put(ProjectMetadata.builder(new ProjectId("p" + i + "_" + randomAlphaOfLength(8))).build());
+            metadata.put(ProjectMetadata.builder(ProjectId.fromId("p" + i + "_" + randomAlphaOfLength(8))).build());
         }
         return ClusterState.builder(new ClusterName(randomAlphaOfLengthBetween(4, 8))).metadata(metadata).build();
     }
@@ -103,7 +103,7 @@ public class TestProjectResolversTests extends ESTestCase {
     private ClusterState buildClusterState(int numberOfProjects) {
         Metadata.Builder metadata = Metadata.builder();
         for (int i = 0; i < numberOfProjects; i++) {
-            metadata.put(ProjectMetadata.builder(new ProjectId("p" + i + "_" + randomAlphaOfLength(8))).build());
+            metadata.put(ProjectMetadata.builder(ProjectId.fromId("p" + i + "_" + randomAlphaOfLength(8))).build());
         }
         return ClusterState.builder(new ClusterName(randomAlphaOfLengthBetween(4, 8))).metadata(metadata).build();
     }

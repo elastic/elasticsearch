@@ -842,8 +842,13 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
 
     void onRolloversBulkResponse(Collection<RolloverResponse> rolloverResponses) {
         for (RolloverResponse rolloverResponse : rolloverResponses) {
-            if (rolloverResponse.isRolledOver() == false) {
-                logger.warn("rollover of the [{}] index [{}] failed", getOrigin(), rolloverResponse.getOldIndex());
+            if (rolloverResponse.isRolledOver() == false && rolloverResponse.isLazy() == false) {
+                logger.warn(
+                    "rollover of the [{}] index [{}] failed, rollover response was [{}]",
+                    getOrigin(),
+                    rolloverResponse.getOldIndex(),
+                    rolloverResponse
+                );
             }
         }
     }

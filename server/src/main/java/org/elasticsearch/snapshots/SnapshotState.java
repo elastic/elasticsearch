@@ -89,4 +89,21 @@ public enum SnapshotState {
             default -> throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
         };
     }
+
+    /**
+     * Generate snapshot state from a string (case-insensitive)
+     *
+     * @param name the state name
+     * @return state
+     */
+    public static SnapshotState of(String name) {
+        return switch (name.toUpperCase()) {
+            case "IN_PROGRESS" -> IN_PROGRESS;
+            case "SUCCESS" -> SUCCESS;
+            case "FAILED" -> FAILED;
+            case "PARTIAL" -> PARTIAL;
+            case "INCOMPATIBLE" -> INCOMPATIBLE;
+            default -> throw new IllegalArgumentException("Unknown state name [" + name + "]");
+        };
+    }
 }

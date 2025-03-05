@@ -20,8 +20,11 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.snapshots.SnapshotState;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
@@ -82,6 +85,14 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         final SortOrder order = SortOrder.fromString(request.param("order", getSnapshotsRequest.order().toString()));
         getSnapshotsRequest.order(order);
         getSnapshotsRequest.includeIndexNames(request.paramAsBoolean(INDEX_NAMES_XCONTENT_PARAM, getSnapshotsRequest.includeIndexNames()));
+
+        final String stateString = request.param("state");
+        if (stateString == null || stateString.isEmpty()) {
+            getSnapshotsRequest.state(EnumSet.noneOf(SnapshotState.class));
+        } else {
+            getSnapshotsRequest.state(EnumSet.copyOf(Arrays.stream(stateString.split(",")).map(SnapshotState::of).toList()));
+        }
+
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
             .getSnapshots(getSnapshotsRequest, new RestRefCountedChunkedToXContentListener<>(channel));

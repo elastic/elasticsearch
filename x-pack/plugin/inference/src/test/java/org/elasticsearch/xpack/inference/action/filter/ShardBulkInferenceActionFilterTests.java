@@ -36,7 +36,6 @@ import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -55,7 +54,6 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -79,7 +77,6 @@ import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInference
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.getIndexRequestOrNull;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingSparse;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
@@ -383,10 +380,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         for (int i = 0; i < numInferenceFields; i++) {
             String field = randomAlphaOfLengthBetween(5, 10);
             String inferenceId = randomFrom(inferenceModelMap.keySet());
-            Map<String, Object> chunkingSettingsMap = Optional.ofNullable(generateRandomChunkingSettings())
-                .map(ChunkingSettings::asMap)
-                .orElse(null);
-            inferenceFieldMap.put(field, new InferenceFieldMetadata(field, inferenceId, new String[] { field }, chunkingSettingsMap));
+            inferenceFieldMap.put(field, new InferenceFieldMetadata(field, inferenceId, new String[] { field }, null));
         }
 
         int numRequests = atLeast(100);
@@ -544,9 +538,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         for (var entry : fieldInferenceMap.values()) {
             String field = entry.getName();
             var model = modelMap.get(entry.getInferenceId());
-            ChunkingSettings chunkingSettings = entry.getChunkingSettings() != null
-                ? ChunkingSettingsBuilder.fromMap(new HashMap<>(entry.getChunkingSettings()))
-                : null;
             Object inputObject = randomSemanticTextInput();
             String inputText = inputObject.toString();
             docMap.put(field, inputObject);
@@ -566,21 +557,14 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                     useLegacyFormat,
                     field,
                     model,
-                    chunkingSettings,
+                    null,
                     List.of(inputText),
                     results,
                     requestContentType
                 );
             } else {
                 Map<String, List<String>> inputTextMap = Map.of(field, List.of(inputText));
-                semanticTextField = randomSemanticText(
-                    useLegacyFormat,
-                    field,
-                    model,
-                    chunkingSettings,
-                    List.of(inputText),
-                    requestContentType
-                );
+                semanticTextField = randomSemanticText(useLegacyFormat, field, model, null, List.of(inputText), requestContentType);
                 model.putResult(inputText, toChunkedResult(useLegacyFormat, inputTextMap, semanticTextField));
             }
 

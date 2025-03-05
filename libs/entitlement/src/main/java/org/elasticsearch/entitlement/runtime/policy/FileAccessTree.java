@@ -30,8 +30,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
+import static java.util.Comparator.comparing;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.elasticsearch.entitlement.runtime.policy.FileUtils.PATH_ORDER;
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
 public final class FileAccessTree {
 
@@ -82,7 +84,7 @@ public final class FileAccessTree {
                 }
             }
         }
-        return exclusivePaths.values().stream().sorted((ep1, ep2) -> PATH_ORDER.compare(ep1.path(), ep2.path())).toList();
+        return exclusivePaths.values().stream().sorted(comparing(ExclusivePath::path, PATH_ORDER)).distinct().toList();
     }
 
     static void validateExclusivePaths(List<ExclusivePath> exclusivePaths) {
@@ -125,7 +127,7 @@ public final class FileAccessTree {
         List<String> writePaths = new ArrayList<>();
         BiConsumer<Path, Mode> addPath = (path, mode) -> {
             var normalized = normalizePath(path);
-            if (mode == Mode.READ_WRITE) {
+            if (mode == READ_WRITE) {
                 writePaths.add(normalized);
             }
             readPaths.add(normalized);
@@ -161,7 +163,7 @@ public final class FileAccessTree {
         }
 
         // everything has access to the temp dir, config dir and the jdk
-        addPathAndMaybeLink.accept(pathLookup.tempDir(), Mode.READ_WRITE);
+        addPathAndMaybeLink.accept(pathLookup.tempDir(), READ_WRITE);
         // TODO: this grants read access to the config dir for all modules until explicit read entitlements can be added
         addPathAndMaybeLink.accept(pathLookup.configDir(), Mode.READ);
 

@@ -787,7 +787,6 @@ public class HuggingFaceServiceTests extends ESTestCase {
             assertThat(result, CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
             var embeddingResult = (ChunkedInferenceEmbedding) result;
             assertThat(embeddingResult.chunks(), hasSize(1));
-            assertThat(embeddingResult.chunks().get(0).matchedText(), is("abc"));
             assertThat(embeddingResult.chunks().get(0).offset(), is(new ChunkedInference.TextOffset(0, "abc".length())));
             assertThat(embeddingResult.chunks().get(0), Matchers.instanceOf(TextEmbeddingFloatResults.Chunk.class));
             assertArrayEquals(
@@ -842,7 +841,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("abc", floatResult.chunks().get(0).matchedText());
+                assertEquals(new ChunkedInference.TextOffset(0, 3), floatResult.chunks().get(0).offset());
                 assertThat(floatResult.chunks().get(0), Matchers.instanceOf(TextEmbeddingFloatResults.Chunk.class));
                 assertArrayEquals(
                     new float[] { 0.123f, -0.123f },

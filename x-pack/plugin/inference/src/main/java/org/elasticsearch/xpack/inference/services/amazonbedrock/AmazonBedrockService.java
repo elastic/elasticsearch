@@ -136,7 +136,7 @@ public class AmazonBedrockService extends SenderService {
             ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {
-                var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings);
+                var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings, inputType);
                 action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
             }
         } else {

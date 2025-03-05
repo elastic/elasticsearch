@@ -953,6 +953,48 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
+    public void testInfer_ThrowsErrorWhenInputTypeIsSpecifiedForProviderThatDoesNotAcceptTaskType() throws IOException {
+        var sender = mock(Sender.class);
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var amazonBedrockFactory = new AmazonBedrockMockRequestSender.Factory(
+            ServiceComponentsTests.createWithSettings(threadPool, Settings.EMPTY),
+            mockClusterServiceEmpty()
+        );
+        var model = AmazonBedrockEmbeddingsModelTests.createModel(
+            "id",
+            "region",
+            "model",
+            AmazonBedrockProvider.AMAZONTITAN,
+            "access",
+            "secret"
+        );
+
+        try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                null,
+                List.of(""),
+                false,
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(thrownException.getMessage(), is("Invalid value [search] received. [input_type] is not allowed;"));
+
+            verify(factory, times(1)).createSender();
+            verify(sender, times(1)).start();
+        }
+        verify(sender, times(1)).close();
+        verifyNoMoreInteractions(factory);
+        verifyNoMoreInteractions(sender);
+    }
+
     public void testInfer_SendsRequest_ForEmbeddingsModel() throws IOException {
         var sender = mock(Sender.class);
         var factory = mock(HttpRequestSender.Factory.class);

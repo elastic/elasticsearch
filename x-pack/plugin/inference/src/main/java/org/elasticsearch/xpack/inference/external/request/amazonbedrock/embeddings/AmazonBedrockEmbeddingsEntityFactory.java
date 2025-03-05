@@ -20,6 +20,7 @@ public final class AmazonBedrockEmbeddingsEntityFactory {
         Objects.requireNonNull(truncationResult);
 
         var serviceSettings = model.getServiceSettings();
+        var inputType = model.getInputType();
 
         var truncatedInput = truncationResult.input();
         if (truncatedInput == null || truncatedInput.isEmpty()) {
@@ -34,7 +35,7 @@ public final class AmazonBedrockEmbeddingsEntityFactory {
                 return new AmazonBedrockTitanEmbeddingsRequestEntity(truncatedInput.get(0));
             }
             case COHERE -> {
-                return new AmazonBedrockCohereEmbeddingsRequestEntity(truncatedInput);
+                return new AmazonBedrockCohereEmbeddingsRequestEntity(truncatedInput, inputType);
             }
             default -> {
                 return null;

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.request.amazonbedrock.embeddings;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.request.amazonbedrock.AmazonBedrockJsonBuilder;
 
@@ -17,7 +18,14 @@ import static org.hamcrest.Matchers.is;
 
 public class AmazonBedrockCohereEmbeddingsRequestEntityTests extends ESTestCase {
     public void testRequestEntity_GeneratesExpectedJsonBody() throws IOException {
-        var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(List.of("test input"));
+        var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(List.of("test input"), null);
+        var builder = new AmazonBedrockJsonBuilder(entity);
+        var result = builder.getStringContent();
+        assertThat(result, is("{\"texts\":[\"test input\"]}"));
+    }
+
+    public void testRequestEntity_GeneratesExpectedJsonBody_WithInputType() throws IOException {
+        var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(List.of("test input"), InputType.INTERNAL_INGEST);
         var builder = new AmazonBedrockJsonBuilder(entity);
         var result = builder.getStringContent();
         assertThat(result, is("{\"texts\":[\"test input\"],\"input_type\":\"search_document\"}"));

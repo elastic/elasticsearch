@@ -70,7 +70,7 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
                 "accesskey",
                 "secretkey"
             );
-            var action = creator.create(model, Map.of());
+            var action = creator.create(model, Map.of(), null);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
             var result = listener.actionGet(TIMEOUT);
@@ -98,7 +98,7 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
                 "accesskey",
                 "secretkey"
             );
-            var action = creator.create(model, Map.of());
+            var action = creator.create(model, Map.of(), null);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));

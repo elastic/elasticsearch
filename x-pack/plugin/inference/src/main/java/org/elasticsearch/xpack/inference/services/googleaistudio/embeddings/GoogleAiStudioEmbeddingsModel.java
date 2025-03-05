@@ -45,7 +45,7 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
 
     public static GoogleAiStudioEmbeddingsModel of(GoogleAiStudioEmbeddingsModel model, InputType inputType) {
         var modelId = model.getServiceSettings().modelId();
-        // InputType is only allowed when model=embedding-001 https://ai.google.dev/api/embeddings?authuser=5#EmbedContentRequest
+        // InputType is only respected when model=embedding-001 https://ai.google.dev/api/embeddings?authuser=5#EmbedContentRequest
         ValidationException validationException = new ValidationException();
         if (Objects.equals(model.getServiceSettings().modelId(), MODEL_ID_WITH_TASK_TYPE) == false) {
             // this model does not accept input type parameter

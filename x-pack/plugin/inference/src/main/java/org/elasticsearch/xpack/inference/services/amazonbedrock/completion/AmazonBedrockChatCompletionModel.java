@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -67,7 +68,7 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
     }
 
     @Override
-    public ExecutableAction accept(AmazonBedrockActionVisitor creator, Map<String, Object> taskSettings) {
+    public ExecutableAction accept(AmazonBedrockActionVisitor creator, Map<String, Object> taskSettings, InputType inputType) {
         return creator.create(this, taskSettings);
     }
 

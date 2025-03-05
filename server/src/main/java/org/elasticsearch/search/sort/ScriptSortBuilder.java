@@ -416,7 +416,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                         leafScripts.get(context.id()).setScorer(scorer);
                     }
 
-
                     @Override
                     public BucketedSort newBucketedSort(
                         BigArrays bigArrays,

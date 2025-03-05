@@ -697,10 +697,17 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                     );
                 } else {
                     List<Tuple<String, Exception>> errors = status.errors();
-                    if (errors != null && errors.isEmpty() == false) {
-                        dataStreamMigrationFailed(migrationInfo, errors.stream().map(Tuple::v2).toList());
-                    } else if (status.exception() != null) {
-                        dataStreamMigrationFailed(migrationInfo, Collections.singletonList(status.exception()));
+                    if (errors != null && errors.isEmpty() == false || status.exception() != null) {
+
+                        // data stream migration task existed before this task started it and is in failed state - cancel it and restart
+                        if (restartMigrationOnError) {
+                            cancelExistingDataStreamMigrationAndRetry(migrationInfo, completionListener);
+                        } else {
+                            List<Exception> exceptions = (status.exception() != null)
+                                ? Collections.singletonList(status.exception())
+                                : errors.stream().map(Tuple::v2).toList();
+                            dataStreamMigrationFailed(migrationInfo, exceptions);
+                        }
                     } else {
                         logger.info(
                             "successfully migrated old indices from data stream [{}] from feature [{}] to new indices",
@@ -710,13 +717,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                         completionListener.accept(migrationInfo);
                     }
                 }
-            }, ex -> {
-                if (restartMigrationOnError) {
-                    cancelExistingDataStreamMigrationAndRetry(migrationInfo, completionListener);
-                } else {
-                    cancelExistingDataStreamMigrationAndMarkAsFailed(migrationInfo, ex);
-                }
-            }));
+            }, ex -> cancelExistingDataStreamMigrationAndMarkAsFailed(migrationInfo, ex)));
     }
 
     private void dataStreamMigrationFailed(SystemDataStreamMigrationInfo migrationInfo, Collection<Exception> exceptions) {

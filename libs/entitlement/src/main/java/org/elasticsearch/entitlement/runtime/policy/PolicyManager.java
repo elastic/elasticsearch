@@ -107,7 +107,7 @@ public class PolicyManager {
         return new ModuleEntitlements(
             componentName,
             entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, exclusivePaths)
+            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, bundlesDirs.get(componentName), exclusivePaths)
         );
     }
 
@@ -139,6 +139,7 @@ public class PolicyManager {
         ).collect(Collectors.toUnmodifiableSet());
     }
 
+    private final Map<String, Path> bundlesDirs;
     /**
      * The package name containing classes from the APM agent.
      */
@@ -161,6 +162,7 @@ public class PolicyManager {
         List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
+        Map<String, Path> bundlesDirs,
         String apmAgentPackageName,
         Module entitlementsModule,
         PathLookup pathLookup,
@@ -172,6 +174,7 @@ public class PolicyManager {
             .stream()
             .collect(toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
         this.pluginResolver = pluginResolver;
+        this.bundlesDirs = bundlesDirs;
         this.apmAgentPackageName = apmAgentPackageName;
         this.entitlementsModule = entitlementsModule;
         this.pathLookup = requireNonNull(pathLookup);
@@ -180,6 +183,7 @@ public class PolicyManager {
             UNKNOWN_COMPONENT_NAME,
             FilesEntitlement.EMPTY,
             pathLookup,
+            null,
             List.of()
         );
         this.mutedClasses = suppressFailureLogClasses;

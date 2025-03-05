@@ -42,6 +42,7 @@ public class EntitlementBootstrap {
         Path libDir,
         Path modulesDir,
         Path pluginsDir,
+        Map<String, Path> bundlesDirs,
         Path logsDir,
         Path tempDir,
         Path pidFile,
@@ -60,6 +61,7 @@ public class EntitlementBootstrap {
             requireNonNull(libDir);
             requireNonNull(modulesDir);
             requireNonNull(pluginsDir);
+            requireNonNull(bundlesDirs);
             requireNonNull(logsDir);
             requireNonNull(tempDir);
             requireNonNull(suppressFailureLogClasses);
@@ -80,11 +82,12 @@ public class EntitlementBootstrap {
      * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
      * @param settingResolver a functor to resolve a setting name pattern for one or more Elasticsearch settings.
      * @param dataDirs       data directories for Elasticsearch
-     * @param sharedRepoDirs       shared repository directories for Elasticsearch
+     * @param sharedRepoDirs shared repository directories for Elasticsearch
      * @param configDir      the config directory for Elasticsearch
      * @param libDir         the lib directory for Elasticsearch
      * @param modulesDir     the directory where Elasticsearch modules are
      * @param pluginsDir     the directory where plugins are installed for Elasticsearch
+     * @param bundlesDirs    a map holding the path for each plugin or module, by plugin (or module) name.
      * @param tempDir        the temp directory for Elasticsearch
      * @param logsDir        the log directory for Elasticsearch
      * @param pidFile        path to a pid file for Elasticsearch, or {@code null} if one was not specified
@@ -100,6 +103,7 @@ public class EntitlementBootstrap {
         Path libDir,
         Path modulesDir,
         Path pluginsDir,
+        Map<String, Path> bundlesDirs,
         Path logsDir,
         Path tempDir,
         Path pidFile,
@@ -119,6 +123,7 @@ public class EntitlementBootstrap {
             libDir,
             modulesDir,
             pluginsDir,
+            bundlesDirs,
             logsDir,
             tempDir,
             pidFile,

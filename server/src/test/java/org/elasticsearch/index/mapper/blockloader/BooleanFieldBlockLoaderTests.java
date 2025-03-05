@@ -24,12 +24,18 @@ public class BooleanFieldBlockLoaderTests extends BlockLoaderTestCase {
     @Override
     @SuppressWarnings("unchecked")
     protected Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource) {
-        var nullValue = switch (fieldMapping.get("null_value")) {
-            case Boolean b -> b;
-            case String s -> Boolean.parseBoolean(s);
-            case null -> null;
-            default -> throw new IllegalStateException("Unexpected null_value format");
-        };
+        var rawNullValue = fieldMapping.get("null_value");
+
+        Boolean nullValue;
+        if (rawNullValue == null) {
+            nullValue = null;
+        } else if (rawNullValue instanceof Boolean b) {
+            nullValue = b;
+        } else if (rawNullValue instanceof String s) {
+            nullValue = Boolean.parseBoolean(s);
+        } else {
+            throw new IllegalStateException("Unexpected null_value format");
+        }
 
         if (value instanceof List<?> == false) {
             return convert(value, nullValue);

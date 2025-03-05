@@ -62,20 +62,25 @@ public class DateFieldBlockLoaderTests extends BlockLoaderTestCase {
 
     private Long format(Object value, String format) {
         if (format == null) {
-            return switch (value) {
-                case Integer i -> i.longValue();
-                case Long l -> l;
-                case String s -> {
-                    try {
-                        yield Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(s)).toEpochMilli();
-                    } catch (Exception e) {
-                        // malformed
-                        yield null;
-                    }
+            if (value == null) {
+                return null;
+            }
+            if (value instanceof Integer i) {
+                return i.longValue();
+            }
+            if (value instanceof Long l) {
+                return l;
+            }
+            if (value instanceof String s) {
+                try {
+                    return Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(s)).toEpochMilli();
+                } catch (Exception e) {
+                    // malformed
+                    return null;
                 }
-                case null -> null;
-                default -> throw new IllegalStateException("Unexpected value: " + value);
-            };
+            }
+
+            throw new IllegalStateException("Unexpected value: " + value);
         }
 
         try {

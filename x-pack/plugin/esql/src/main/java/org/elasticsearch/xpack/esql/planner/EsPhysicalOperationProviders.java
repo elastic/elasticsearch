@@ -77,7 +77,6 @@ import java.util.function.IntFunction;
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
-import static org.elasticsearch.xpack.esql.planner.mapper.MapperUtils.hasScoreAttribute;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     private static final Logger logger = LogManager.getLogger(EsPhysicalOperationProviders.class);

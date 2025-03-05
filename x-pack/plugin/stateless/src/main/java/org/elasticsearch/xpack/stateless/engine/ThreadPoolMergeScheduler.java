@@ -38,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
@@ -87,6 +88,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final Consumer<OnGoingMerge> onMergeExecutedOrAborted;
     private final MergeTracking mergeTracking;
     private final SameThreadExecutorService sameThreadExecutorService = new SameThreadExecutorService();
+    private final MergeMemoryEstimator mergeMemoryEstimator;
 
     // TODO: We could consider using a prioritized executor to compare merges. In particular, when comparing two merges between the same
     // shard perhaps we should prefer to execute a smaller merge first. This should probably be follow-up work.
@@ -100,7 +102,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         Consumer<OnGoingMerge> afterMerge,
         Consumer<Exception> exceptionHandler,
         Consumer<OnGoingMerge> onMergeQueued,
-        Consumer<OnGoingMerge> onMergeExecutedOrAborted
+        Consumer<OnGoingMerge> onMergeExecutedOrAborted,
+        MergeMemoryEstimator mergeMemoryEstimator
     ) {
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.prewarm = prewarm;
@@ -112,6 +115,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         this.shouldSkipMerges = shouldSkipMerges;
         this.onMergeQueued = onMergeQueued;
         this.onMergeExecutedOrAborted = onMergeExecutedOrAborted;
+        this.mergeMemoryEstimator = mergeMemoryEstimator;
         this.mergeTracking = new MergeTracking(logger, () -> Double.POSITIVE_INFINITY);
     }
 
@@ -140,7 +144,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private AbstractRunnable mergeRunnable(MergeSource mergeSource, MergePolicy.OneMerge currentMerge) {
         MergeMetrics mergeMetrics = this.mergeMetrics.get();
         final OnGoingMerge onGoingMerge = new OnGoingMerge(currentMerge);
-        mergeMetrics.incrementQueuedMergeBytes(onGoingMerge.getTotalBytesSize());
+        long estimatedMemorySize = mergeMemoryEstimator.estimateMergeMemoryBytes(currentMerge);
+        mergeMetrics.incrementQueuedMergeBytes(onGoingMerge, estimatedMemorySize);
         logger.trace("merge [{}] scheduling with thread pool", onGoingMerge.getId());
         onMergeQueued.accept(onGoingMerge);
         return new AbstractRunnable() {
@@ -151,10 +156,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             public void onAfter() {
                 if (movedToRunning == false) {
                     movedToRunning = true;
-                    mergeMetrics.moveQueuedMergeBytesToRunning(onGoingMerge.getTotalBytesSize());
+                    mergeMetrics.moveQueuedMergeBytesToRunning(onGoingMerge, estimatedMemorySize);
                 }
                 onMergeExecutedOrAborted.accept(onGoingMerge);
-                mergeMetrics.decrementRunningMergeBytes(onGoingMerge.getTotalBytesSize());
+                mergeMetrics.decrementRunningMergeBytes(onGoingMerge);
                 MergePolicy.OneMerge nextMerge;
                 try {
                     nextMerge = mergeSource.getNextMerge();
@@ -188,7 +193,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             @Override
             protected void doRun() throws Exception {
                 assert movedToRunning == false;
-                mergeMetrics.moveQueuedMergeBytesToRunning(onGoingMerge.getTotalBytesSize());
+                mergeMetrics.moveQueuedMergeBytesToRunning(onGoingMerge, estimatedMemorySize);
                 movedToRunning = true;
                 if (shouldSkipMerges.getAsBoolean()) {
                     logger.trace("skipping merge [{}] because node is shutting down", onGoingMerge.getId());
@@ -222,7 +227,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             private static long getNewSegmentSize(MergePolicy.OneMerge currentMerge) throws IOException {
                 try {
                     return currentMerge.getMergeInfo().sizeInBytes();
-                } catch (FileNotFoundException e) {
+                } catch (FileNotFoundException | NoSuchFileException e) {
                     // It is (rarely) possible that the merged segment could be merged away by the IndexWriter prior to reaching this point.
                     // Once the IW creates the new segment, it could be exposed to be included in a new merge. That merge can be executed
                     // concurrently if more than 1 merge threads are configured. That new merge allows this IW to delete segment created by
@@ -263,5 +268,14 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     @Override
     public MergeScheduler getMergeScheduler() {
         return this;
+    }
+
+    @FunctionalInterface
+    public interface MergeMemoryEstimator {
+
+        /**
+         * Returns an estimate of the memory needed to perform a merge
+         */
+        long estimateMergeMemoryBytes(MergePolicy.OneMerge merge);
     }
 }

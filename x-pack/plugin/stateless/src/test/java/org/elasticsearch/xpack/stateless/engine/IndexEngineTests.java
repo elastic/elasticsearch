@@ -27,10 +27,13 @@ import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetric
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -41,29 +44,38 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.EngineTestCase.newUid;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
@@ -640,6 +652,118 @@ public class IndexEngineTests extends AbstractEngineTestCase {
 
             // The hollow flush should be marked as hollow, as it includes all operations.
             assertTrue(engine.isLastCommitHollow());
+        }
+    }
+
+    public void testMergeMemoryEstimationForVectors() throws Exception {
+        // Generates docs with vector values
+        CheckedBiFunction<Integer, Integer, Engine.Index, IOException> docGenerator = (id, numDimensions) -> randomDoc(
+            String.valueOf(id),
+            (builder, doc) -> {
+                float[] vectorValue = randomVector(numDimensions);
+
+                builder.startObject().field("vector", vectorValue).endObject();
+                doc.add(new KnnFloatVectorField("vector", vectorValue));
+
+                int additionalVectors = randomIntBetween(0, 2);
+                for (int i = 0; i < additionalVectors; i++) {
+                    builder.startObject().field("vector" + i, vectorValue).endObject();
+                    doc.add(new KnnFloatVectorField("vector" + i, vectorValue));
+                }
+            }
+        );
+
+        // Checks that the estimated memory size is always greater than 0
+        BiConsumer<OnGoingMerge, Long> estimationAssertion = (merge, size) -> {
+            assertThat(size, greaterThan(0L));
+            int estimatedDocs = merge.getMergedSegments().stream().map(s -> s.info.maxDoc() - s.getDelCount()).reduce(0, Integer::sum);
+            // Even if more than one field vector is there, we only estimate the memory for each field
+            assertThat(
+                "Estimated docs=" + estimatedDocs + ", size=" + size,
+                size,
+                lessThanOrEqualTo(estimatedDocs * MergeMemoryEstimator.HNSW_PER_DOC_ESTIMATION)
+            );
+        };
+
+        testMergeMemoryEstimation(estimationAssertion, docGenerator);
+    }
+
+    public void testMergeMemoryEstimationForNonVectors() throws Exception {
+        // Generates docs without vector values
+        CheckedBiFunction<Integer, Integer, Engine.Index, IOException> docGenerator = (id, numDimensions) -> randomDoc(String.valueOf(id));
+        // Checks that the estimated memory size is always 0
+        BiConsumer<OnGoingMerge, Long> estimationAssertion = (merge, size) -> assertEquals(Long.valueOf(0), size);
+
+        testMergeMemoryEstimation(estimationAssertion, docGenerator);
+    }
+
+    private void testMergeMemoryEstimation(
+        BiConsumer<OnGoingMerge, Long> estimationAssertion,
+        CheckedBiFunction<Integer, Integer, Engine.Index, IOException> docGenerator
+    ) throws Exception {
+        AtomicInteger ongoingMerges = new AtomicInteger();
+        List<Long> ongoingMemoryEstimations = Collections.synchronizedList(new ArrayList<>());
+        List<AssertionError> assertionErrors = Collections.synchronizedList(new ArrayList<>());
+
+        MergeMetrics mergeMetrics = new MergeMetrics(TelemetryProvider.NOOP.getMeterRegistry()) {
+            @Override
+            public void incrementQueuedMergeBytes(OnGoingMerge currentMerge, long estimatedMemorySize) {
+                ongoingMerges.getAndAdd(1);
+                ongoingMemoryEstimations.add(estimatedMemorySize);
+                try {
+                    estimationAssertion.accept(currentMerge, estimatedMemorySize);
+                } catch (AssertionError e) {
+                    // Don't fail here, or merges won't be able to abort
+                    assertionErrors.add(e);
+                }
+            }
+
+            @Override
+            public void moveQueuedMergeBytesToRunning(OnGoingMerge currentMerge, long estimatedMemorySize) {
+                ongoingMerges.getAndAdd(-1);
+                try {
+                    assertTrue(ongoingMemoryEstimations.remove(estimatedMemorySize));
+                } catch (AssertionError e) {
+                    // Don't fail here, or merges won't be able to abort
+                    assertionErrors.add(e);
+                }
+            }
+        };
+
+        EngineConfig indexConfig = indexConfig();
+        try (
+            IndexEngine engine = newIndexEngine(
+                indexConfig,
+                mock(TranslogReplicator.class),
+                mock(ObjectStoreService.class),
+                mockCommitService(indexConfig.getIndexSettings().getNodeSettings()),
+                mock(HollowShardsService.class),
+                mock(SharedBlobCacheWarmingService.class),
+                DocumentParsingProvider.EMPTY_INSTANCE,
+                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, mergeMetrics)
+            )
+        ) {
+            int numDocs = randomIntBetween(20, 100);
+            int numDimensions = randomIntBetween(10, 1024);
+            for (int i = 0; i < numDocs; i++) {
+                Engine.Index docIndex = docGenerator.apply(i, numDimensions);
+                engine.index(docIndex);
+
+                // Flush 25% of the time
+                if (randomFloat() <= 0.25) {
+                    engine.flush();
+                }
+            }
+            engine.flush();
+            engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+
+            assertBusy(() -> {
+                if (assertionErrors.isEmpty() == false) {
+                    throw new AssertionError("Merge memory estimation assertion errors: " + assertionErrors.getFirst().getMessage());
+                }
+                assertEquals(0, ongoingMerges.get());
+                assertEquals(0, ongoingMemoryEstimations.size());
+            });
         }
     }
 }

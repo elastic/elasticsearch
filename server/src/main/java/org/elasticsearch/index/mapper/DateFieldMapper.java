@@ -16,6 +16,7 @@ import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -69,6 +70,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -827,8 +829,24 @@ public final class DateFieldMapper extends FieldMapper {
             QueryRewriteContext context
         ) throws IOException {
             if (isIndexed() == false && pointsMetadataAvailable == false && hasDocValues()) {
-                // we don't have a quick way to run this check on doc values, so fall back to default assuming we are within bounds
-                return Relation.INTERSECTS;
+                if (hasDocValuesSkipper() == false) {
+                    // we don't have a quick way to run this check on doc values, so fall back to default assuming we are within bounds
+                    return Relation.INTERSECTS;
+                }
+                long minValue = Long.MAX_VALUE;
+                long maxValue = Long.MIN_VALUE;
+                List<LeafReaderContext> leaves = reader.leaves();
+                if (leaves.size() == 0) {
+                    // no data, so nothing matches
+                    return Relation.DISJOINT;
+                }
+                for (LeafReaderContext ctx : leaves) {
+                    DocValuesSkipper skipper = ctx.reader().getDocValuesSkipper(name());
+                    assert skipper != null : "no skipper for field:" + name() + " and reader:" + reader;
+                    minValue = Long.min(minValue, skipper.minValue());
+                    maxValue = Long.max(maxValue, skipper.maxValue());
+                }
+                return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context);
             }
             byte[] minPackedValue = PointValues.getMinPackedValue(reader, name());
             if (minPackedValue == null) {
@@ -1031,14 +1049,14 @@ public final class DateFieldMapper extends FieldMapper {
      * <p>
      * The doc values skipper is enabled only if {@code index.mapping.use_doc_values_skipper} is set to {@code true},
      * the index was created on or after {@link IndexVersions#TIMESTAMP_DOC_VALUES_SPARSE_INDEX}, and the
-     * field has doc values enabled. Additionally, the index mode must be {@link IndexMode#LOGSDB}, and
+     * field has doc values enabled. Additionally, the index mode must be {@link IndexMode#LOGSDB} or {@link IndexMode#TIME_SERIES}, and
      * the index sorting configuration must include the {@code @timestamp} field.
      *
      * @param indexCreatedVersion  The version of the index when it was created.
      * @param useDocValuesSkipper  Whether the doc values skipper feature is enabled via the {@code index.mapping.use_doc_values_skipper}
      *                             setting.
      * @param hasDocValues         Whether the field has doc values enabled.
-     * @param indexMode            The index mode, which must be {@link IndexMode#LOGSDB}.
+     * @param indexMode            The index mode, which must be {@link IndexMode#LOGSDB} or {@link IndexMode#TIME_SERIES}.
      * @param indexSortConfig      The index sorting configuration, which must include the {@code @timestamp} field.
      * @param fullFieldName        The full name of the field being checked, expected to be {@code @timestamp}.
      * @return {@code true} if the doc values skipper should be used, {@code false} otherwise.
@@ -1055,7 +1073,7 @@ public final class DateFieldMapper extends FieldMapper {
         return indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
             && useDocValuesSkipper
             && hasDocValues
-            && IndexMode.LOGSDB.equals(indexMode)
+            && (IndexMode.LOGSDB.equals(indexMode) || IndexMode.TIME_SERIES.equals(indexMode))
             && indexSortConfig != null
             && indexSortConfig.hasSortOnField(fullFieldName)
             && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);

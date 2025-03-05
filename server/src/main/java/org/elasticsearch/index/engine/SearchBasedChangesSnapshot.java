@@ -186,13 +186,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         Query rangeQuery = rangeQuery(Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo, indexVersionCreated);
         SortField sortBySeqNo = new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG);
 
-        TopFieldCollectorManager collectorManager = new TopFieldCollectorManager(
-            new Sort(sortBySeqNo),
-            searchBatchSize,
-            afterDoc,
-            0,
-            false
-        );
+        TopFieldCollectorManager collectorManager = new TopFieldCollectorManager(new Sort(sortBySeqNo), searchBatchSize, afterDoc, 0);
         TopDocs results = indexSearcher.search(rangeQuery, collectorManager);
 
         if (results.scoreDocs.length > 0) {

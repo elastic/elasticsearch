@@ -248,8 +248,7 @@ class Elasticsearch {
             EntitlementBootstrap.bootstrap(
                 pluginPolicies,
                 pluginsResolver::resolveClassToPluginName,
-                nodeEnv.settings()::get,
-                nodeEnv.settings()::getGlobValues,
+                nodeEnv.settings()::getValues,
                 nodeEnv.dataDirs(),
                 nodeEnv.repoDirs(),
                 nodeEnv.configDir(),

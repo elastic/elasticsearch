@@ -69,7 +69,7 @@ public class DateExtract extends EsqlConfigurationFunction {
             `era`, `hour_of_ampm`, `hour_of_day`, `instant_seconds`, `micro_of_day`, `micro_of_second`, `milli_of_day`,
             `milli_of_second`, `minute_of_day`, `minute_of_hour`, `month_of_year`, `nano_of_day`, `nano_of_second`,
             `offset_seconds`, `proleptic_month`, `second_of_day`, `second_of_minute`, `year`, or `year_of_era`.
-            Refer to https://docs.oracle.com/javase/8/docs/api/java/time/temporal/ChronoField.html[java.time.temporal.ChronoField]
+            Refer to {javadoc8}/java/time/temporal/ChronoField.html[java.time.temporal.ChronoField]
             for a description of these values.\n
             If `null`, the function returns `null`.""") Expression chronoFieldExp,
         @Param(

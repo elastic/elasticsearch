@@ -142,7 +142,7 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
                 tag = "docsBucketNumeric",
                 explanation = """
                     Unlike the earlier example that intentionally filters on a date range, you rarely want to filter on a numeric range.
-                    You have to find the `min` and `max` separately. {esql} doesn't yet have an easy way to do that automatically."""
+                    You have to find the `min` and `max` separately. {{esql}} doesn't yet have an easy way to do that automatically."""
             ),
             @Example(description = """
                 The range can be omitted if the desired bucket size is known in advance. Simply

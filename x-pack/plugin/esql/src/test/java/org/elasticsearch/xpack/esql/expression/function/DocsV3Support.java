@@ -25,6 +25,7 @@ public class DocsV3Support {
     static {
         MACROS.put("wikipedia", "https://en.wikipedia.org/wiki");
         MACROS.put("javadoc", "https://docs.oracle.com/en/java/javase/11/docs/api");
+        MACROS.put("javadoc8", "https://docs.oracle.com/javase/8/docs/api");
     }
 
     private DocsV3Support(String category) {

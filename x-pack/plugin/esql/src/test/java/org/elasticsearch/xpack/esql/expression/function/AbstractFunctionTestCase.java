@@ -1047,7 +1047,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         builder.append(DOCS_WARNING);
         builder.append("**Parameters**\n");
         for (int a = 0; a < argNames.size(); a++) {
-            builder.append("\n`").append(argNames.get(a)).append("`\n:   ").append(argDescriptions.get(a)).append('\n');
+            String description = DocsV3Support.FUNCTIONS.replaceLinks(argDescriptions.get(a));
+            builder.append("\n`").append(argNames.get(a)).append("`\n:   ").append(description).append('\n');
         }
         String rendered = builder.toString();
         LogManager.getLogger(getTestClass()).info("Writing parameters for [{}]:\n{}", name, rendered);
@@ -1061,15 +1062,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         String rendered = DOCS_WARNING + """
             **Description**
 
-            """ + description + "\n\n";
+            """ + description + "\n";
 
         if (Strings.isNullOrEmpty(detailedDescription) == false) {
             rendered += "\n" + detailedDescription + "\n";
         }
 
         if (Strings.isNullOrEmpty(note) == false) {
-            rendered += "\n::::{note}\n" + note + "\n::::\n\n\n";
+            rendered += "\n::::{note}\n" + note + "\n::::\n\n";
         }
+        rendered += "\n";
         LogManager.getLogger(getTestClass()).info("Writing description for [{}]:\n{}", name, rendered);
         writeToTempSnippetsDir("functions", "description", name, "md", rendered);
     }

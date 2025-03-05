@@ -36,6 +36,13 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
     }
 
+    public void testWikipediaMacro2() {
+        String text = "This builds on the three-valued logic ({wikipedia}/Three-valued_logic[3VL]) of the language.";
+        String expected =
+            "This builds on the three-valued logic ([3VL](https://en.wikipedia.org/wiki/Three-valued_logic)) of the language.";
+        assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
+    }
+
     public void testJavadocMacro() {
         String text = "This is a noop for `long` (including unsigned) and `integer`.\n"
             + "For `double` this picks the closest `double` value to the integer similar to\n"
@@ -43,6 +50,37 @@ public class DocsV3SupportTests extends ESTestCase {
         String expected = "This is a noop for `long` (including unsigned) and `integer`.\n"
             + "For `double` this picks the closest `double` value to the integer similar to\n"
             + "[Math.ceil](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Math.html#ceil(double)).";
+        assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
+    }
+
+    public void testJavadoc8Macro() {
+        String text = "Refer to {javadoc8}/java/time/temporal/ChronoField.html[java.time.temporal.ChronoField]";
+        String expected =
+            "Refer to [java.time.temporal.ChronoField](https://docs.oracle.com/javase/8/docs/api/java/time/temporal/ChronoField.html)";
+        assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
+    }
+
+    public void testJavadoc8MacroLongText() {
+        String text = """
+            Part of the date to extract.\n
+            Can be: `aligned_day_of_week_in_month`, `aligned_day_of_week_in_year`, `aligned_week_of_month`, `aligned_week_of_year`,
+            `ampm_of_day`, `clock_hour_of_ampm`, `clock_hour_of_day`, `day_of_month`, `day_of_week`, `day_of_year`, `epoch_day`,
+            `era`, `hour_of_ampm`, `hour_of_day`, `instant_seconds`, `micro_of_day`, `micro_of_second`, `milli_of_day`,
+            `milli_of_second`, `minute_of_day`, `minute_of_hour`, `month_of_year`, `nano_of_day`, `nano_of_second`,
+            `offset_seconds`, `proleptic_month`, `second_of_day`, `second_of_minute`, `year`, or `year_of_era`.
+            Refer to {javadoc8}/java/time/temporal/ChronoField.html[java.time.temporal.ChronoField]
+            for a description of these values.\n
+            If `null`, the function returns `null`.""";
+        String expected = """
+            Part of the date to extract.\n
+            Can be: `aligned_day_of_week_in_month`, `aligned_day_of_week_in_year`, `aligned_week_of_month`, `aligned_week_of_year`,
+            `ampm_of_day`, `clock_hour_of_ampm`, `clock_hour_of_day`, `day_of_month`, `day_of_week`, `day_of_year`, `epoch_day`,
+            `era`, `hour_of_ampm`, `hour_of_day`, `instant_seconds`, `micro_of_day`, `micro_of_second`, `milli_of_day`,
+            `milli_of_second`, `minute_of_day`, `minute_of_hour`, `month_of_year`, `nano_of_day`, `nano_of_second`,
+            `offset_seconds`, `proleptic_month`, `second_of_day`, `second_of_minute`, `year`, or `year_of_era`.
+            Refer to [java.time.temporal.ChronoField](https://docs.oracle.com/javase/8/docs/api/java/time/temporal/ChronoField.html)
+            for a description of these values.\n
+            If `null`, the function returns `null`.""";
         assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
     }
 }

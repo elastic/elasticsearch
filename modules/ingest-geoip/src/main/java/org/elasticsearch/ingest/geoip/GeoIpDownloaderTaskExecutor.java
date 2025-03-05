@@ -398,7 +398,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             ActionListener.runAfter(listener, () -> {
                 IndexAbstraction databasesAbstraction = clusterService.state()
                     .metadata()
-                    .getProject()
+                    .getDefaultProject()
                     .getIndicesLookup()
                     .get(DATABASES_INDEX);
                 if (databasesAbstraction != null) {

@@ -1611,13 +1611,11 @@ public class CohereServiceTests extends ESTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+        streamChatCompletion().hasNoErrors().hasEvent("""
             {"completion":[{"delta":"hello"},{"delta":"there"}]}""");
     }
 
-    private InferenceServiceResults streamChatCompletion() throws IOException {
+    private InferenceEventsAssertion streamChatCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
             var model = CohereCompletionModelTests.createModel(getUrl(webServer), "secret", "model");
@@ -1633,7 +1631,7 @@ public class CohereServiceTests extends ESTestCase {
                 listener
             );
 
-            return listener.actionGet(TIMEOUT);
+            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
     }
 
@@ -1643,13 +1641,7 @@ public class CohereServiceTests extends ESTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result)
-            .hasFinishedStream()
-            .hasNoEvents()
-            .hasErrorWithStatusCode(500)
-            .hasErrorContaining("how dare you");
+        streamChatCompletion().hasNoEvents().hasErrorWithStatusCode(500).hasErrorContaining("how dare you");
     }
 
     @SuppressWarnings("checkstyle:LineLength")

@@ -116,7 +116,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        projectId = new ProjectId(randomUUID());
+        projectId = randomUniqueProjectId();
         broadcastReplicationAction = new TestBroadcastReplicationAction(
             clusterService,
             transportService,

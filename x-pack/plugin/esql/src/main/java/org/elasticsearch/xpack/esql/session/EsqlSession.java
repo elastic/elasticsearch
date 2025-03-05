@@ -59,7 +59,6 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -71,7 +70,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -714,46 +712,16 @@ public class EsqlSession {
 
     private PhysicalPlan logicalPlanToPhysicalPlan(LogicalPlan optimizedPlan, EsqlQueryRequest request) {
         PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan);
-        final QueryBuilder filter = request.filter();
-        final Holder<Boolean> hasScoring = new Holder<>(false);
-
-        if (filter != null) {
-            // a PhysicalPlan completely transformed (no fragments) will have an EsQueryExec in it if the data comes from ES
-            physicalPlan.forEachDown(EsQueryExec.class, esQueryExec -> {
-                if (hasScoring.get() == false && esQueryExec.hasScoring()) {
-                    hasScoring.set(true);
-                }
-            });
-            // if there is no EsQueryExec and still scoring is required, search for fragments as well where EsRelations should
-            // know if there is scoring needed or not
-            if (hasScoring.get() == false) {
-                physicalPlan.forEachDown(FragmentExec.class, fragmentExec -> {
-                    fragmentExec.fragment().forEachDown(EsRelation.class, esRelation -> {
-                        if (esRelation.output()
-                            .stream()
-                            .anyMatch(a -> a instanceof MetadataAttribute && a.name().equals(MetadataAttribute.SCORE))) {
-                            hasScoring.set(true);
-                        }
-                    });
-                });
-            }
-        }
         physicalPlan = physicalPlan.transformUp(FragmentExec.class, f -> {
+            QueryBuilder filter = request.filter();
             if (filter != null) {
                 var fragmentFilter = f.esFilter();
                 // TODO: have an ESFilter and push down to EsQueryExec / EsSource
                 // This is an ugly hack to push the filter parameter to Lucene
                 // TODO: filter integration testing
-                QueryBuilder newFilter;
-                if (fragmentFilter != null) {
-                    newFilter = hasScoring.get()
-                        ? boolQuery().filter(fragmentFilter).must(filter)   // a "bool" "must" does influence scoring
-                        : boolQuery().filter(fragmentFilter).filter(filter);// no scoring? then "filter" to completely disable scoring
-                } else {
-                    newFilter = hasScoring.get() ? filter : boolQuery().filter(filter);
-                }
-                LOGGER.debug("Fold filter {} to EsQueryExec", newFilter);
-                f = f.withFilter(newFilter);
+                filter = fragmentFilter != null ? boolQuery().filter(fragmentFilter).must(filter) : filter;
+                LOGGER.debug("Fold filter {} to EsQueryExec", filter);
+                f = f.withFilter(filter);
             }
             return f;
         });

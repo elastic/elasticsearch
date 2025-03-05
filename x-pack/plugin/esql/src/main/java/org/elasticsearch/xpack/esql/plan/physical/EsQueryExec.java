@@ -206,7 +206,12 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     public boolean hasScoring() {
-        return attrs().stream().anyMatch(a -> a instanceof MetadataAttribute && a.name().equals(MetadataAttribute.SCORE));
+        for (Attribute a : attrs()) {
+            if (a instanceof MetadataAttribute && a.name().equals(MetadataAttribute.SCORE)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

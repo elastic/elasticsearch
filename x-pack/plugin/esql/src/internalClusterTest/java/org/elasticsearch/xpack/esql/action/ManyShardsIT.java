@@ -261,6 +261,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testCancelUnnecessaryRequests() {
+        assumeTrue("Requires pragmas", canUseQueryPragmas());
         internalCluster().ensureAtLeastNumDataNodes(3);
 
         var coordinatingNode = internalCluster().getNodeNames()[0];

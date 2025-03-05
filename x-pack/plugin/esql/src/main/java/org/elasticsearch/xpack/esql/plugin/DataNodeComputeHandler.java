@@ -112,7 +112,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 Map<Index, AliasFilter> aliasFilters,
                 NodeListener nodeListener
             ) {
-                if (exchangeSource.isCompleted()) {
+                if (exchangeSource.isFinished()) {
                     nodeListener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
                     return;
                 }

@@ -31,7 +31,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class ExchangeSourceHandler {
 
-    private volatile boolean completed = false;
     private final ExchangeBuffer buffer;
     private final Executor fetchExecutor;
 
@@ -58,8 +57,8 @@ public final class ExchangeSourceHandler {
         this.outstandingSources = new PendingInstances(() -> finishEarly(true, ActionListener.noop()));
     }
 
-    public boolean isCompleted() {
-        return completed;
+    public boolean isFinished() {
+        return buffer.isFinished();
     }
 
     private void checkFailure() {
@@ -305,7 +304,6 @@ public final class ExchangeSourceHandler {
      * @param drainingPages whether to discard pages already fetched in the exchange
      */
     public void finishEarly(boolean drainingPages, ActionListener<Void> listener) {
-        completed = true;
         buffer.finish(drainingPages);
         try (EsqlRefCountingListener refs = new EsqlRefCountingListener(listener)) {
             for (RemoteSink remoteSink : remoteSinks.values()) {

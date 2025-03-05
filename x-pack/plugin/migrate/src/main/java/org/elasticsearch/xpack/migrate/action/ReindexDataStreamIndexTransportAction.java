@@ -127,10 +127,11 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         ReindexDataStreamIndexAction.Request request,
         ActionListener<ReindexDataStreamIndexAction.Response> listener
     ) {
+        var project = clusterService.state().projectState();
         var sourceIndexName = request.getSourceIndex();
         var destIndexName = generateDestIndexName(sourceIndexName);
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        IndexMetadata sourceIndex = clusterService.state().getMetadata().index(sourceIndexName);
+        IndexMetadata sourceIndex = project.metadata().index(sourceIndexName);
         if (sourceIndex == null) {
             listener.onFailure(new ResourceNotFoundException("source index [{}] does not exist", sourceIndexName));
             return;
@@ -138,7 +139,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
 
         Settings settingsBefore = sourceIndex.getSettings();
 
-        var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterService.state().metadata(), false);
+        var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(project.metadata(), false);
         if (hasOldVersion.test(sourceIndex.getIndex()) == false) {
             logger.warn(
                 "Migrating index [{}] with version [{}] is unnecessary as its version is not before [{}]",

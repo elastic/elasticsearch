@@ -155,13 +155,21 @@ public final class MlIndexAndAlias {
         // The initial index name must be suitable for rollover functionality.
         String firstConcreteIndex = indexPatternPrefix + indexNumber;
         String[] concreteIndexNames = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandHidden(), indexPattern);
-        Optional<String> indexPointedByCurrentWriteAlias = clusterState.getMetadata().hasAlias(alias)
-            ? clusterState.getMetadata().getIndicesLookup().get(alias).getIndices().stream().map(Index::getName).findFirst()
+        Optional<String> indexPointedByCurrentWriteAlias = clusterState.getMetadata().getProject().hasAlias(alias)
+            ? clusterState.getMetadata().getProject().getIndicesLookup().get(alias).getIndices().stream().map(Index::getName).findFirst()
             : Optional.empty();
 
         if (concreteIndexNames.length == 0) {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
-                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, waitForShardCount, indexCreatedListener);
+                createFirstConcreteIndex(
+                    client,
+                    firstConcreteIndex,
+                    alias,
+                    true,
+                    waitForShardCount,
+                    masterNodeTimeout,
+                    indexCreatedListener
+                );
                 return;
             }
             logger.error(
@@ -172,7 +180,15 @@ public final class MlIndexAndAlias {
             );
         } else if (concreteIndexNames.length == 1 && concreteIndexNames[0].equals(legacyIndexWithoutSuffix)) {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
-                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, waitForShardCount, indexCreatedListener);
+                createFirstConcreteIndex(
+                    client,
+                    firstConcreteIndex,
+                    alias,
+                    true,
+                    waitForShardCount,
+                    masterNodeTimeout,
+                    indexCreatedListener
+                );
                 return;
             }
             if (indexPointedByCurrentWriteAlias.get().equals(legacyIndexWithoutSuffix)) {
@@ -182,8 +198,9 @@ public final class MlIndexAndAlias {
                     alias,
                     false,
                     waitForShardCount,
+                    masterNodeTimeout,
                     indexCreatedListener.delegateFailureAndWrap(
-                        (l, unused) -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, l)
+                        (l, unused) -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, masterNodeTimeout, l)
                     )
                 );
                 return;
@@ -199,7 +216,7 @@ public final class MlIndexAndAlias {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
                 assert concreteIndexNames.length > 0;
                 String latestConcreteIndexName = latestIndex(concreteIndexNames);
-                updateWriteAlias(client, alias, null, latestConcreteIndexName, loggingListener);
+                updateWriteAlias(client, alias, null, latestConcreteIndexName, masterNodeTimeout, loggingListener);
                 return;
             }
         }
@@ -218,7 +235,7 @@ public final class MlIndexAndAlias {
         final String primaryIndex = descriptor.getPrimaryIndex();
 
         // The check for existence of the index is against the cluster state, so very cheap
-        if (clusterState.getMetadata().hasIndexAbstraction(primaryIndex)) {
+        if (clusterState.getMetadata().getProject().hasIndexAbstraction(primaryIndex)) {
             finalListener.onResponse(true);
             return;
         }
@@ -271,6 +288,7 @@ public final class MlIndexAndAlias {
         String alias,
         boolean addAlias,
         ActiveShardCount waitForShardCount,
+        TimeValue masterNodeTimeout,
         ActionListener<Boolean> listener
     ) {
         logger.info("About to create first concrete index [{}] with alias [{}]", index, alias);
@@ -293,7 +311,7 @@ public final class MlIndexAndAlias {
                     // on creation then we should leave it up to the caller to decide what to do next (some call sites
                     // already have more advanced alias update logic in their success handlers).
                     if (addAlias) {
-                        updateWriteAlias(client, alias, null, index, listener);
+                        updateWriteAlias(client, alias, null, index, masterNodeTimeout, listener);
                     } else {
                         listener.onResponse(true);
                     }
@@ -310,6 +328,7 @@ public final class MlIndexAndAlias {
         String alias,
         @Nullable String currentIndex,
         String newIndex,
+        TimeValue masterNodeTimeout,
         ActionListener<Boolean> listener
     ) {
         if (currentIndex != null) {
@@ -319,7 +338,7 @@ public final class MlIndexAndAlias {
         }
         IndicesAliasesRequestBuilder requestBuilder = client.admin()
             .indices()
-            .prepareAliases()
+            .prepareAliases(masterNodeTimeout, masterNodeTimeout)
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(alias).isHidden(true).writeIndex(true));
         if (currentIndex != null) {
             requestBuilder.removeAlias(currentIndex, alias);
@@ -409,7 +428,7 @@ public final class MlIndexAndAlias {
     }
 
     public static boolean hasIndexTemplate(ClusterState state, String templateName, long version) {
-        var template = state.getMetadata().templatesV2().get(templateName);
+        var template = state.getMetadata().getProject().templatesV2().get(templateName);
         return template != null && Long.valueOf(version).equals(template.version());
     }
 

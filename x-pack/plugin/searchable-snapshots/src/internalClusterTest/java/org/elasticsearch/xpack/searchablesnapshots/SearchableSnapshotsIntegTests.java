@@ -122,7 +122,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             originalIndexSettings.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "false");
         }
         assertAcked(prepareCreate(indexName, originalIndexSettings));
-        assertAcked(indicesAdmin().prepareAliases().addAlias(indexName, aliasName));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(indexName, aliasName));
 
         populateIndex(indexName, 10_000);
 
@@ -152,6 +152,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(indexName);
 
         assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
@@ -261,6 +262,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(restoredIndexName);
 
         assertThat(indexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
@@ -268,11 +270,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         if (deletedBeforeMount) {
             assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(0));
-            assertAcked(indicesAdmin().prepareAliases().addAlias(restoredIndexName, aliasName));
+            assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(restoredIndexName, aliasName));
         } else if (indexName.equals(restoredIndexName) == false) {
             assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(1));
             assertAcked(
-                indicesAdmin().prepareAliases()
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(indexName).alias(aliasName).mustExist(true))
                     .addAlias(restoredIndexName, aliasName)
             );
@@ -351,7 +353,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertAcked(indicesAdmin().prepareDelete(restoredIndexName));
         assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(0));
-        assertAcked(indicesAdmin().prepareAliases().addAlias(clonedIndexName, aliasName));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(clonedIndexName, aliasName));
         assertTotalHits(aliasName, originalAllHits, originalBarHits);
     }
 
@@ -763,6 +765,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(indexName);
 
         final IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();

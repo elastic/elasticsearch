@@ -1,5 +1,0 @@
-pr: 120087
-summary: Include `clusterApplyListener` in long cluster apply warnings
-area: Cluster Coordination
-type: enhancement
-issues: []

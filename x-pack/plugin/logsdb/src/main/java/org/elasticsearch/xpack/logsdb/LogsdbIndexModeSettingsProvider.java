@@ -12,8 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
@@ -94,7 +94,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         final String indexName,
         final String dataStreamName,
         IndexMode templateIndexMode,
-        final Metadata metadata,
+        final ProjectMetadata metadata,
         final Instant resolvedAt,
         Settings settings,
         final List<CompressedXContent> combinedTemplateMappings

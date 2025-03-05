@@ -71,7 +71,8 @@ public class NodeRepurposeCommandTests extends ESTestCase {
                     nodeId,
                     xContentRegistry(),
                     new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
+                    () -> 0L,
+                    ESTestCase::randomBoolean
                 ).createWriter()
             ) {
                 writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);

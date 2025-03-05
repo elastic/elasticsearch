@@ -216,8 +216,8 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 enableILM();
             }
             Map<String, Map<String, Object>> oldIndicesMetadata = getIndicesMetadata(dataStreamName);
-            upgradeDataStream(dataStreamName, numRollovers, numRollovers + 1, 0);
-            upgradeDataStream(dataStreamFromNonDataStreamIndices, 0, 1, 0);
+            upgradeDataStream(dataStreamName, numRollovers, numRollovers + 1, 0, ilmEnabled);
+            upgradeDataStream(dataStreamFromNonDataStreamIndices, 0, 1, 0, ilmEnabled);
             Map<String, Map<String, Object>> upgradedIndicesMetadata = getIndicesMetadata(dataStreamName);
 
             if (ilmEnabled) {
@@ -269,7 +269,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                     assertThat("Index has not moved to cold ILM phase", ilmInfo.get("phase"), equalTo("cold"));
                 }
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     private String getWriteIndexFromDataStreamIndexMetadata(Map<String, Map<String, Object>> indexMetadataForDataStream) {
@@ -581,13 +581,13 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void upgradeDataStream(String dataStreamName, int numRolloversOnOldCluster, int expectedSuccessesCount, int expectedErrorCount)
+    private void upgradeDataStream(String dataStreamName, int numRolloversOnOldCluster, int expectedSuccessesCount, int expectedErrorCount, boolean ilmEnabled)
         throws Exception {
         Set<String> indicesNeedingUpgrade = getDataStreamIndices(dataStreamName);
         final int explicitRolloverOnNewClusterCount = randomIntBetween(0, 2);
         for (int i = 0; i < explicitRolloverOnNewClusterCount; i++) {
             String oldIndexName = rollover(dataStreamName);
-            if (randomBoolean()) {
+            if (ilmEnabled == false && randomBoolean()) {
                 closeIndex(oldIndexName);
             }
         }

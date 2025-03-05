@@ -42,10 +42,8 @@ public class RestIndexDeleteAliasesAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] aliases = Strings.splitStringByCommaToArray(request.param("name"));
-        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
-        indicesAliasesRequest.ackTimeout(getAckTimeout(request));
+        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest(getMasterNodeTimeout(request), getAckTimeout(request));
         indicesAliasesRequest.addAliasAction(AliasActions.remove().indices(indices).aliases(aliases));
-        indicesAliasesRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> client.admin().indices().aliases(indicesAliasesRequest, new RestToXContentListener<>(channel));
     }

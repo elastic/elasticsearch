@@ -75,7 +75,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
         int totalIndices = dataStream.getIndices().size();
         int totalIndicesToBeUpgraded = (int) dataStream.getIndices()
             .stream()
-            .filter(getReindexRequiredPredicate(metadata, false, true))
+            .filter(getReindexRequiredPredicate(metadata, false, dataStream.isSystem()))
             .count();
         ReindexDataStreamTaskParams params = new ReindexDataStreamTaskParams(
             sourceDataStreamName,

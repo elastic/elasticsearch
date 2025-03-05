@@ -76,6 +76,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
+import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
@@ -108,21 +109,14 @@ class Elasticsearch {
 
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-                appendIndentation(builder, depth);
-                builder.append(dir.getFileName()).append("/\n");
+                append(dir, builder, depth);
                 depth++;
                 return FileVisitResult.CONTINUE;
             }
 
             @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                appendIndentation(builder, depth);
-                builder.append(file.getFileName());
-                Path realPath = file.toRealPath();
-                if (file.equals(realPath) == false) {
-                    builder.append(" (").append(realPath).append(")");
-                }
-                builder.append("\n");
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                append(file, builder, depth);
                 return FileVisitResult.CONTINUE;
             }
 
@@ -132,11 +126,36 @@ class Elasticsearch {
                 return FileVisitResult.CONTINUE;
             }
 
-            private void appendIndentation(StringBuilder builder, int depth) {
-                builder.append("|");
+            private static void append(Path path, StringBuilder builder, int depth) {
                 for (int i = 0; i < depth; i++) {
-                    builder.append("> ");
+                    builder.append("|--");
                 }
+                builder.append(path.getFileName());
+                builder.append(" [");
+                try {
+                    Path realPath = path.toRealPath();
+                    if (path.equals(realPath) == false) {
+                        builder.append("realPath:").append(realPath).append(", ");
+                    }
+                } catch (IOException e) {
+                    builder.append("error:").append(e.getMessage()).append(", ");
+                    ;
+                }
+                builder.append("normalizedPath:").append(normalizePath(path));
+                builder.append("]\n");
+            }
+
+            private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
+
+            private static String normalizePath(Path path) {
+                // Note that toAbsolutePath produces paths separated by the default file separator,
+                // so on Windows, if the given path uses forward slashes, this consistently
+                // converts it to backslashes.
+                String result = path.toAbsolutePath().normalize().toString();
+                while (result.endsWith(FILE_SEPARATOR)) {
+                    result = result.substring(0, result.length() - FILE_SEPARATOR.length());
+                }
+                return result;
             }
         });
         return builder.toString();

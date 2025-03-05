@@ -60,6 +60,19 @@ public final class EntitledActions {
         return Files.createSymbolicLink(readDir().resolve("entitlements-link-" + random.nextLong()), readWriteDir());
     }
 
+    public static Path createK8sLikeMount() throws IOException {
+        Path baseDir = readDir().resolve("k8s");
+        var versionedDir = Files.createDirectories(baseDir.resolve("..version"));
+        var actualFileMount = Files.createFile(versionedDir.resolve("mount-" + random.nextLong() + ".tmp"));
+
+        var dataDir = Files.createSymbolicLink(baseDir.resolve("..data"), versionedDir.getFileName());
+        // mount-0.tmp -> ..data/mount-0.tmp -> ..version/mount-0.tmp
+        return Files.createSymbolicLink(
+            baseDir.resolve(actualFileMount.getFileName()),
+            dataDir.getFileName().resolve(actualFileMount.getFileName())
+        );
+    }
+
     public static URLConnection createHttpURLConnection() throws IOException {
         return URI.create("http://127.0.0.1:12345/").toURL().openConnection();
     }
@@ -76,4 +89,5 @@ public final class EntitledActions {
         var fileUrl = createTempFileForWrite().toUri().toURL();
         return fileUrl.openConnection();
     }
+
 }

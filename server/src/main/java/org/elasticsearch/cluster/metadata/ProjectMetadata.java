@@ -100,7 +100,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     private final IndexVersion oldestIndexVersion;
 
     @SuppressWarnings("this-escape")
-    public ProjectMetadata(
+    private ProjectMetadata(
         ProjectId id,
         ImmutableOpenMap<String, IndexMetadata> indices,
         ImmutableOpenMap<String, Set<Index>> aliasedIndices,

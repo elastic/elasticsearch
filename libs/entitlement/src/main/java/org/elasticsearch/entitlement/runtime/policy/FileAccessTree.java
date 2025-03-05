@@ -22,12 +22,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
+import static java.util.Comparator.comparing;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
+import static org.elasticsearch.entitlement.runtime.policy.FileUtils.PATH_ORDER;
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
 public final class FileAccessTree {
 
@@ -59,8 +61,7 @@ public final class FileAccessTree {
                 }
             }
         }
-        exclusivePaths.sort((ep1, ep2) -> PATH_ORDER.compare(ep1.path(), ep2.path()));
-        return exclusivePaths;
+        return exclusivePaths.stream().sorted(comparing(ExclusivePath::path, PATH_ORDER)).distinct().toList();
     }
 
     static void validateExclusivePaths(List<ExclusivePath> exclusivePaths) {
@@ -103,7 +104,7 @@ public final class FileAccessTree {
         List<String> writePaths = new ArrayList<>();
         BiConsumer<Path, Mode> addPath = (path, mode) -> {
             var normalized = normalizePath(path);
-            if (mode == Mode.READ_WRITE) {
+            if (mode == READ_WRITE) {
                 writePaths.add(normalized);
             }
             readPaths.add(normalized);
@@ -138,8 +139,10 @@ public final class FileAccessTree {
             });
         }
 
-        // everything has access to the temp dir and the jdk
-        addPathAndMaybeLink.accept(pathLookup.tempDir(), Mode.READ_WRITE);
+        // everything has access to the temp dir, config dir and the jdk
+        addPathAndMaybeLink.accept(pathLookup.tempDir(), READ_WRITE);
+        // TODO: this grants read access to the config dir for all modules until explicit read entitlements can be added
+        addPathAndMaybeLink.accept(pathLookup.configDir(), Mode.READ);
 
         // TODO: watcher uses javax.activation which looks for known mime types configuration, should this be global or explicit in watcher?
         Path jdk = Paths.get(System.getProperty("java.home"));
@@ -154,6 +157,23 @@ public final class FileAccessTree {
         this.writePaths = pruneSortedPaths(writePaths).toArray(new String[0]);
     }
 
+    // package private for testing
+    static List<String> pruneSortedPaths(List<String> paths) {
+        List<String> prunedReadPaths = new ArrayList<>();
+        if (paths.isEmpty() == false) {
+            String currentPath = paths.get(0);
+            prunedReadPaths.add(currentPath);
+            for (int i = 1; i < paths.size(); ++i) {
+                String nextPath = paths.get(i);
+                if (currentPath.equals(nextPath) == false && isParent(currentPath, nextPath) == false) {
+                    prunedReadPaths.add(nextPath);
+                    currentPath = nextPath;
+                }
+            }
+        }
+        return prunedReadPaths;
+    }
+
     public String toDebugString() {
         return Strings.format(
             "FileAccessTree[readPaths: [%s], writePaths: [%s], exclusivePaths: [%s]]",
@@ -161,22 +181,6 @@ public final class FileAccessTree {
             String.join(",", writePaths),
             String.join(",", exclusivePaths)
         );
-    }
-
-    private static List<String> pruneSortedPaths(List<String> paths) {
-        List<String> prunedReadPaths = new ArrayList<>();
-        if (paths.isEmpty() == false) {
-            String currentPath = paths.get(0);
-            prunedReadPaths.add(currentPath);
-            for (int i = 1; i < paths.size(); ++i) {
-                String nextPath = paths.get(i);
-                if (isParent(currentPath, nextPath) == false) {
-                    prunedReadPaths.add(nextPath);
-                    currentPath = nextPath;
-                }
-            }
-        }
-        return prunedReadPaths;
     }
 
     public static FileAccessTree of(
@@ -245,30 +249,4 @@ public final class FileAccessTree {
     public int hashCode() {
         return Objects.hash(Arrays.hashCode(readPaths), Arrays.hashCode(writePaths));
     }
-
-    /**
-     * For our lexicographic sort trick to work correctly, we must have path separators sort before
-     * any other character so that files in a directory appear immediately after that directory.
-     * For example, we require [/a, /a/b, /a.xml] rather than the natural order [/a, /a.xml, /a/b].
-     */
-    private static final Comparator<String> PATH_ORDER = (s1, s2) -> {
-        Path p1 = Path.of(s1);
-        Path p2 = Path.of(s2);
-        var i1 = p1.iterator();
-        var i2 = p2.iterator();
-        while (i1.hasNext() && i2.hasNext()) {
-            int cmp = i1.next().compareTo(i2.next());
-            if (cmp != 0) {
-                return cmp;
-            }
-        }
-        if (i1.hasNext()) {
-            return 1;
-        } else if (i2.hasNext()) {
-            return -1;
-        } else {
-            assert p1.equals(p2);
-            return 0;
-        }
-    };
 }

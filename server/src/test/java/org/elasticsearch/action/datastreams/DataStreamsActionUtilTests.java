@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +51,7 @@ public class DataStreamsActionUtilTests extends ESTestCase {
         var dataStreamFailureIndex1 = new Index(".fs-foo1", IndexMetadata.INDEX_UUID_NA_VALUE);
         var dataStreamFailureIndex2 = new Index(".fs-bar2", IndexMetadata.INDEX_UUID_NA_VALUE);
 
-        var projectId = new ProjectId(randomUUID());
+        var projectId = randomUniqueProjectId();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test-cluster"))
             .putProjectMetadata(
                 ProjectMetadata.builder(projectId)

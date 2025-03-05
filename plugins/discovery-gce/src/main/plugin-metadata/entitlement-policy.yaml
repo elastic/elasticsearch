@@ -1,2 +1,16 @@
 ALL-UNNAMED:
   - set_https_connection_properties # required by google-http-client
+  - outbound_network
+  - files:
+      - relative_path: ".config/gcloud"
+        relative_to: "home"
+        mode: "read"
+        platform: "linux"
+      - relative_path: ".config/gcloud"
+        relative_to: "home"
+        mode: "read"
+        platform: "macos"
+      - relative_path: "AppData\\Roaming\\gcloud"
+        relative_to: "home"
+        mode: "read"
+        platform: "windows"

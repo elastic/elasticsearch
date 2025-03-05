@@ -12,6 +12,7 @@ package org.elasticsearch.logsdb.datageneration.datasource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.math.BigInteger;
+import java.time.Instant;
 
 public class DefaultPrimitiveTypesHandler implements DataSourceHandler {
     @Override
@@ -58,5 +59,17 @@ public class DefaultPrimitiveTypesHandler implements DataSourceHandler {
     @Override
     public DataSourceResponse.StringGenerator handle(DataSourceRequest.StringGenerator request) {
         return new DataSourceResponse.StringGenerator(() -> ESTestCase.randomAlphaOfLengthBetween(0, 50));
+    }
+
+    @Override
+    public DataSourceResponse.BooleanGenerator handle(DataSourceRequest.BooleanGenerator request) {
+        return new DataSourceResponse.BooleanGenerator(ESTestCase::randomBoolean);
+    }
+
+    private static final Instant MAX_INSTANT = Instant.parse("2200-01-01T00:00:00Z");
+
+    @Override
+    public DataSourceResponse.InstantGenerator handle(DataSourceRequest.InstantGenerator request) {
+        return new DataSourceResponse.InstantGenerator(() -> ESTestCase.randomInstantBetween(Instant.ofEpochMilli(1), MAX_INSTANT));
     }
 }

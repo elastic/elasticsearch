@@ -265,7 +265,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
     public void testDataStreamAlias() throws IOException {
         putComposableIndexTemplate(false);
         createDataStream();
-        var indicesAliasesRequest = new IndicesAliasesRequest();
+        var indicesAliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         indicesAliasesRequest.addAliasAction(
             IndicesAliasesRequest.AliasActions.add().alias("some-alias").index(dataStream).writeIndex(true)
         );

@@ -163,7 +163,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndexMetadata dataStreamFailureStore1 = DataStreamTestHelper.createFailureStore(dataStreamName, 1).build();
         IndexMetadata dataStreamFailureStore2 = DataStreamTestHelper.createFailureStore(dataStreamName, 2).build();
         IndexMetadata dataStreamIndex3 = DataStreamTestHelper.createBackingIndex(otherDataStreamName, 1).build();
-        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomUniqueProjectId())
             .put(
                 indexBuilder("foo").putAlias(AliasMetadata.builder("foofoobar"))
                     .putAlias(AliasMetadata.builder("foounauthorized"))

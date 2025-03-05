@@ -88,7 +88,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
     // TODO multi-project: verify that usages are really expected to work on the default project only,
     // and that they are not a stop-gap solution to make the tests pass
-    public static final ProjectId DEFAULT_PROJECT_ID = new ProjectId("default");
+    public static final ProjectId DEFAULT_PROJECT_ID = ProjectId.DEFAULT;
 
     public enum XContentContext {
         /* Custom metadata should be returned as part of API call */
@@ -1154,7 +1154,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 builder.put(ReservedStateMetadata.readFrom(in));
             }
 
-            builder.projectMetadata(in.readMap(ProjectId::new, ProjectMetadata::readFrom));
+            builder.projectMetadata(in.readMap(ProjectId::readFrom, ProjectMetadata::readFrom));
         }
         return builder.build();
     }

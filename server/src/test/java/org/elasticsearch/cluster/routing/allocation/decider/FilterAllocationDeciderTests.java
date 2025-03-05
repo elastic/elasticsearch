@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -357,7 +356,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             .attributes(Map.ofEntries(Map.entry("can_allocate", "false")))
             .build();
 
-        ProjectMetadata project1 = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project1 = ProjectMetadata.builder(randomUniqueProjectId())
             .put(
                 IndexMetadata.builder("index-a")
                     .settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
@@ -370,7 +369,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
                     )
             )
             .build();
-        ProjectMetadata project2 = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project2 = ProjectMetadata.builder(randomUniqueProjectId())
             .put(
                 IndexMetadata.builder("index-a")
                     .settings(

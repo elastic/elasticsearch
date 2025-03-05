@@ -632,7 +632,7 @@ public class TransportBulkActionTests extends ESTestCase {
         // Construct a cluster state that contains the required data streams.
         // using a single, non-default project
         final ClusterState oldState = clusterService.state();
-        final ProjectId projectId = new ProjectId(randomUUID());
+        final ProjectId projectId = randomUniqueProjectId();
         final Metadata metadata = Metadata.builder(oldState.metadata())
             .removeProject(Metadata.DEFAULT_PROJECT_ID)
             .put(

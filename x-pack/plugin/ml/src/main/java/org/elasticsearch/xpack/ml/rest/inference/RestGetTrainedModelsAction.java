@@ -44,7 +44,10 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}"));
+        return List.of(
+            new Route(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}"),
+            new Route(GET, BASE_PATH + "trained_models")
+        );
     }
 
     private static final Map<String, String> DEFAULT_TO_XCONTENT_VALUES = Collections.singletonMap(

@@ -67,8 +67,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             if (in.getTransportVersion().before(TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
                 mutableResourceDeprecations.put(IndexDeprecationChecker.NAME, in.readMapOfLists(DeprecationIssue::new));
             }
-            if (in.getTransportVersion()
-                .between(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK, TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
+            if (in.getTransportVersion().between(TransportVersions.V_8_17_0, TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
                 mutableResourceDeprecations.put(DataStreamDeprecationChecker.NAME, in.readMapOfLists(DeprecationIssue::new));
             }
             if (in.getTransportVersion().before(TransportVersions.V_7_11_0)) {
@@ -140,8 +139,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             if (out.getTransportVersion().before(TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
                 out.writeMap(getIndexSettingsIssues(), StreamOutput::writeCollection);
             }
-            if (out.getTransportVersion()
-                .between(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK, TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
+            if (out.getTransportVersion().between(TransportVersions.V_8_17_0, TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
                 out.writeMap(getDataStreamDeprecationIssues(), StreamOutput::writeCollection);
             }
             if (out.getTransportVersion().before(TransportVersions.V_7_11_0)) {

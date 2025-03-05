@@ -479,8 +479,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         ClusterState state;
         var projectId = randomProjectIdOrDefault();
         {
-            var mBuilder = new Metadata.Builder();
-            DataStreamTestHelper.getClusterStateWithDataStreams(
+            state = DataStreamTestHelper.getClusterStateWithDataStreams(
                 projectId,
                 List.of(Tuple.tuple("data-stream-1", 2)),
                 List.of(),
@@ -490,7 +489,6 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 false,
                 false
             );
-            state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
         }
 
         var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});

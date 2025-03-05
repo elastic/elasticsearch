@@ -61,7 +61,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
     private static final String UNMANAGED_SYSTEM_INDEX_NAME = ".my-system";
     private static final String MANAGED_SYSTEM_INDEX_NAME = ".my-managed";
     private static final String SYSTEM_ALIAS_NAME = ".my-alias";
-    private static final ProjectId PROJECT_ID = new ProjectId("test_project_id");
+    private static final ProjectId PROJECT_ID = ProjectId.fromId("test_project_id");
     private static final ClusterState CLUSTER_STATE = ClusterState.builder(new ClusterName("test"))
         .metadata(Metadata.builder().build())
         .putProjectMetadata(ProjectMetadata.builder(PROJECT_ID).build())

@@ -59,8 +59,7 @@ public class ListQueryRulesetsActionResponseBWCSerializingTests extends Abstract
         ListQueryRulesetsAction.Response instance,
         TransportVersion version
     ) {
-        if (version.isPatchFrom(TransportVersions.QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_16)
-            || version.onOrAfter(TransportVersions.QUERY_RULES_LIST_INCLUDES_TYPES)) {
+        if (version.isPatchFrom(TransportVersions.V_8_16_1) || version.onOrAfter(TransportVersions.QUERY_RULES_LIST_INCLUDES_TYPES)) {
             return instance;
         } else if (version.onOrAfter(QueryRulesetListItem.EXPANDED_RULESET_COUNT_TRANSPORT_VERSION)) {
             List<QueryRulesetListItem> updatedResults = new ArrayList<>();

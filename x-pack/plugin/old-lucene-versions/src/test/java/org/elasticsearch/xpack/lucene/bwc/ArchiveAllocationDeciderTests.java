@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -62,14 +61,14 @@ public class ArchiveAllocationDeciderTests extends ESTestCase {
             true,
             ShardRoutingState.STARTED
         );
-        final ProjectMetadata.Builder projectbuilder = ProjectMetadata.builder(new ProjectId(randomUUID()));
+        final ProjectMetadata.Builder projectbuilder = ProjectMetadata.builder(randomUniqueProjectId());
         addIndex(projectbuilder, indexName, indexUuid, indexVersion);
         addRandomIndices(projectbuilder, randomIntBetween(1, 5));
 
         final Metadata.Builder metadataBuilder = Metadata.builder();
         metadataBuilder.put(projectbuilder);
         for (int p = randomIntBetween(0, 5); p > 0; p--) {
-            metadataBuilder.put(addRandomIndices(ProjectMetadata.builder(new ProjectId(randomUUID())), randomIntBetween(0, 10)));
+            metadataBuilder.put(addRandomIndices(ProjectMetadata.builder(randomUniqueProjectId()), randomIntBetween(0, 10)));
         }
 
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();

@@ -6,78 +6,78 @@
 :::{include} lists/math-functions.md
 :::
 
-:::{include} functions/abs.md
+:::{include} functions/layout/abs.md
 :::
 
-:::{include} functions/acos.md
+:::{include} functions/layout/acos.md
 :::
 
-:::{include} functions/asin.md
+:::{include} functions/layout/asin.md
 :::
 
-:::{include} functions/atan.md
+:::{include} functions/layout/atan.md
 :::
 
-:::{include} functions/atan2.md
+:::{include} functions/layout/atan2.md
 :::
 
-:::{include} functions/cbrt.md
+:::{include} functions/layout/cbrt.md
 :::
 
-:::{include} functions/ceil.md
+:::{include} functions/layout/ceil.md
 :::
 
-:::{include} functions/cos.md
+:::{include} functions/layout/cos.md
 :::
 
-:::{include} functions/cosh.md
+:::{include} functions/layout/cosh.md
 :::
 
-:::{include} functions/e.md
+:::{include} functions/layout/e.md
 :::
 
-:::{include} functions/exp.md
+:::{include} functions/layout/exp.md
 :::
 
-:::{include} functions/floor.md
+:::{include} functions/layout/floor.md
 :::
 
-:::{include} functions/hypot.md
+:::{include} functions/layout/hypot.md
 :::
 
-:::{include} functions/log.md
+:::{include} functions/layout/log.md
 :::
 
-:::{include} functions/log10.md
+:::{include} functions/layout/log10.md
 :::
 
-:::{include} functions/pi.md
+:::{include} functions/layout/pi.md
 :::
 
-:::{include} functions/pow.md
+:::{include} functions/layout/pow.md
 :::
 
-:::{include} functions/round.md
+:::{include} functions/layout/round.md
 :::
 
-:::{include} functions/signum.md
+:::{include} functions/layout/signum.md
 :::
 
-:::{include} functions/sin.md
+:::{include} functions/layout/sin.md
 :::
 
-:::{include} functions/sinh.md
+:::{include} functions/layout/sinh.md
 :::
 
-:::{include} functions/sqrt.md
+:::{include} functions/layout/sqrt.md
 :::
 
-:::{include} functions/tan.md
+:::{include} functions/layout/tan.md
 :::
 
-:::{include} functions/tanh.md
+:::{include} functions/layout/tanh.md
 :::
 
-:::{include} functions/tau.md
+:::{include} functions/layout/tau.md
 :::
 

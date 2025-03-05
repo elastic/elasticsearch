@@ -179,7 +179,7 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
     }
 
     public static GlobalRoutingTable readFrom(StreamInput in) throws IOException {
-        final var table = in.readImmutableOpenMap(ProjectId::new, RoutingTable::readFrom);
+        final var table = in.readImmutableOpenMap(ProjectId::readFrom, RoutingTable::readFrom);
         return new GlobalRoutingTable(table);
     }
 

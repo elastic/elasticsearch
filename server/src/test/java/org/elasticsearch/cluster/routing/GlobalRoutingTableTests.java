@@ -31,6 +31,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.DiffableTestUtils;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
@@ -208,7 +209,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
         Set<ProjectId> addition = randomSet(
             1,
             5,
-            () -> randomValueOtherThanMany(table1.routingTables()::containsKey, () -> new ProjectId(randomUUID()))
+            () -> randomValueOtherThanMany(table1.routingTables()::containsKey, ESTestCase::randomUniqueProjectId)
         );
         var table2 = table1.initializeProjects(addition);
         assertThat(table2, not(sameInstance(table1)));
@@ -223,7 +224,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
 
     public void testBuilderFromEmpty() {
         final int numberOfProjects = randomIntBetween(1, 10);
-        final ProjectId[] projectIds = randomArray(numberOfProjects, numberOfProjects, ProjectId[]::new, () -> new ProjectId(randomUUID()));
+        final ProjectId[] projectIds = randomArray(numberOfProjects, numberOfProjects, ProjectId[]::new, ESTestCase::randomUniqueProjectId);
         final Integer[] projectIndexCount = randomArray(numberOfProjects, numberOfProjects, Integer[]::new, () -> randomIntBetween(0, 12));
 
         final GlobalRoutingTable.Builder builder = GlobalRoutingTable.builder();
@@ -272,8 +273,8 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
     public void testRoutingNodesRoundtrip() {
         final ClusterState clusterState = buildClusterState(
             Map.ofEntries(
-                Map.entry(new ProjectId(randomAlphaOfLength(11) + "1"), Set.of("test-a", "test-b", "test-c")),
-                Map.entry(new ProjectId(randomAlphaOfLength(11) + "2"), Set.of("test-a", "test-z"))
+                Map.entry(ProjectId.fromId(randomAlphaOfLength(11) + "1"), Set.of("test-a", "test-b", "test-c")),
+                Map.entry(ProjectId.fromId(randomAlphaOfLength(11) + "2"), Set.of("test-a", "test-z"))
             )
         );
 
@@ -285,8 +286,8 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
     }
 
     public void testRebuildAfterShardInitialized() {
-        final ProjectId project1 = new ProjectId(randomAlphaOfLength(11) + "1");
-        final ProjectId project2 = new ProjectId(randomAlphaOfLength(11) + "2");
+        final ProjectId project1 = ProjectId.fromId(randomAlphaOfLength(11) + "1");
+        final ProjectId project2 = ProjectId.fromId(randomAlphaOfLength(11) + "2");
         final ClusterState clusterState = buildClusterState(
             Map.ofEntries(Map.entry(project1, Set.of("test-a", "test-b", "test-c")), Map.entry(project2, Set.of("test-b", "test-z")))
         );

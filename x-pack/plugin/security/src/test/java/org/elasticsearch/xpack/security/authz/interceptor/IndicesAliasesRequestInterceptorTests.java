@@ -110,7 +110,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             dlsFlsFeatureEnabled
         );
 
-        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
+        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         if (randomBoolean()) {
             indicesAliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index("bar").alias(randomAlphaOfLength(4)));
         }
@@ -159,7 +159,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             false
         );
 
-        final IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
+        final IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         if (randomBoolean()) {
             indicesAliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index("bar").alias(randomAlphaOfLength(4)));
         }
@@ -194,7 +194,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         }
 
         // swap target and source for success
-        final IndicesAliasesRequest successRequest = new IndicesAliasesRequest();
+        final IndicesAliasesRequest successRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         if (randomBoolean()) {
             successRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index("bar").alias(randomAlphaOfLength(4)));
         }

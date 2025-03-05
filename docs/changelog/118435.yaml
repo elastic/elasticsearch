@@ -1,6 +1,0 @@
-pr: 118435
-summary: '`_score` should not be a reserved attribute in ES|QL'
-area: ES|QL
-type: enhancement
-issues:
- - 118460

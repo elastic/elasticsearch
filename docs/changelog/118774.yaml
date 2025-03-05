@@ -1,5 +1,0 @@
-pr: 118774
-summary: Apply default k for knn query eagerly
-area: Vector Search
-type: bug
-issues: []

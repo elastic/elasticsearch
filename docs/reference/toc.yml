@@ -140,6 +140,7 @@ toc:
           - file: elasticsearch/mapping-reference/range.md
           - file: elasticsearch/mapping-reference/rank-feature.md
           - file: elasticsearch/mapping-reference/rank-features.md
+          - file: elasticsearch/mapping-reference/rank-vectors.md
           - file: elasticsearch/mapping-reference/search-as-you-type.md
           - file: elasticsearch/mapping-reference/semantic-text.md
           - file: elasticsearch/mapping-reference/shape.md

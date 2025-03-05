@@ -1058,6 +1058,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final boolean useDocValuesSkipper;
     private final String offsetsFieldName;
     private final SourceKeepMode indexSourceKeepMode;
+    private final String originalName;
 
     private KeywordFieldMapper(
         String simpleName,
@@ -1089,6 +1090,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.useDocValuesSkipper = useDocValuesSkipper;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSourceKeepMode = indexSourceKeepMode;
+        this.originalName = isSyntheticSource ? fullPath() + "._original" : null;
     }
 
     @Override
@@ -1255,7 +1257,7 @@ public final class KeywordFieldMapper extends FieldMapper {
      * for synthetic source.
      */
     private String originalName() {
-        return fullPath() + "._original";
+        return originalName;
     }
 
     @Override

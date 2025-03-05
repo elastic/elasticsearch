@@ -120,7 +120,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         }).when(mockEngine)
             .validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), anyMap(), anyActionListener());
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, () -> {
-            resizeRequestInterceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+            resizeRequestInterceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE).addListener(plainActionFuture);
             plainActionFuture.actionGet();
         });
         assertEquals(expectedErrorMessage, securityException.getMessage());
@@ -160,7 +160,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
                     anyActionListener()
                 );
             ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, () -> {
-                resizeRequestInterceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+                resizeRequestInterceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE).addListener(plainActionFuture);
                 plainActionFuture.actionGet();
             });
             assertEquals(
@@ -184,7 +184,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
                     any(Map.class),
                     anyActionListener()
                 );
-            resizeRequestInterceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+            resizeRequestInterceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE).addListener(plainActionFuture);
             plainActionFuture.actionGet();
         }
     }

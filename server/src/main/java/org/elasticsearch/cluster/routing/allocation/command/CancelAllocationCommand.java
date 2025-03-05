@@ -84,7 +84,7 @@ public class CancelAllocationCommand implements AllocationCommand {
         node = in.readString();
         allowPrimary = in.readBoolean();
         if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
-            projectId = new ProjectId(in);
+            projectId = ProjectId.readFrom(in);
         } else {
             projectId = Metadata.DEFAULT_PROJECT_ID;
         }

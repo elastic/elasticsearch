@@ -106,6 +106,8 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         final String blobName = randomIdentifier();
         final int size = randomIntBetween((int) store.getLargeBlobThresholdInBytes(), (int) store.getLargeBlobThresholdInBytes() * 2);
         final BytesArray blobContents = new BytesArray(randomByteArrayOfLength(size));
+
+        // resumable write in GCS sends at least two HTTP requests one POST with metadata and at least one PUT with payload
         container.writeBlob(randomPurpose(), blobName, blobContents, true);
         assertEquals(createStats(1, 0, 0), store.stats());
 

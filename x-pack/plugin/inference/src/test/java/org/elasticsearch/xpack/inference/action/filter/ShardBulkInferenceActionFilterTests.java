@@ -384,15 +384,15 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 IndexRequest actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[0].request());
 
                 // Create with Empty string
-                assertInferenceResults(useLegacyFormat, actualRequest, "semantic_text_field", useLegacyFormat ? EXPLICIT_NULL: "", 0);
+                assertInferenceResults(useLegacyFormat, actualRequest, "semantic_text_field", useLegacyFormat ? EXPLICIT_NULL : "", 0);
 
                 // Create with whitespace only
                 actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[1].request());
-                assertInferenceResults(useLegacyFormat, actualRequest, "semantic_text_field", useLegacyFormat ? EXPLICIT_NULL: " ", 0);
+                assertInferenceResults(useLegacyFormat, actualRequest, "semantic_text_field", useLegacyFormat ? EXPLICIT_NULL : " ", 0);
 
                 // Update with multiple Whitespaces
                 actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[2].request());
-                assertInferenceResults(useLegacyFormat, actualRequest, "semantic_text_field", useLegacyFormat ? EXPLICIT_NULL: "  ", 0);
+                assertInferenceResults(useLegacyFormat, actualRequest, "semantic_text_field", useLegacyFormat ? EXPLICIT_NULL : "  ", 0);
             } finally {
                 chainExecuted.countDown();
             }

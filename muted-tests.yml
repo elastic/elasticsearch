@@ -465,3 +465,5 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/common-options/line_125}
   issue: https://github.com/elastic/elasticsearch/issues/121338
+- class: org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeToCharProcessorTests
+  issue: https://github.com/elastic/elasticsearch/issues/120575

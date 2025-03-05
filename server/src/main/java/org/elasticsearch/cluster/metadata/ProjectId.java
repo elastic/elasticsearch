@@ -34,8 +34,7 @@ public class ProjectId implements Writeable, ToXContent {
         if (Strings.isNullOrBlank(id)) {
             throw new IllegalArgumentException("project-id cannot be empty");
         }
-        final boolean validFormatId = isValidFormatId(id);
-        if (validFormatId == false) {
+        if (isValidFormatId(id) == false) {
             final var message = "project-id [" + id + "] must be alphanumeric ASCII with up to " + MAX_LENGTH + " chars";
             assert false : message;
             throw new IllegalArgumentException(message);

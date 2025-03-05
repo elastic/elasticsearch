@@ -7,15 +7,19 @@
 package org.elasticsearch.xpack.ccr.index.engine;
 
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -31,7 +35,10 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.TranslogHandler;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -44,6 +51,9 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -94,7 +104,7 @@ public class FollowingEngineTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testFollowingEngineRejectsNonFollowingIndex() {
+    public void testFollowingEngineRejectsNonFollowingIndex() throws IOException {
         final Settings.Builder builder = indexSettings(IndexVersion.current(), 1, 0);
         if (randomBoolean()) {
             builder.put("index.xpack.ccr.following_index", false);
@@ -177,7 +187,7 @@ public class FollowingEngineTests extends ESTestCase {
                 final String id = "id";
                 final Engine.Delete delete = new Engine.Delete(
                     id,
-                    new Term("_id", id),
+                    BytesRef.deepCopyOf(new BytesRef(id)),
                     seqNo,
                     primaryTerm.get(),
                     randomNonNegativeLong(),
@@ -212,7 +222,7 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexSettings indexSettings,
         final ThreadPool threadPool,
         final Store store
-    ) {
+    ) throws IOException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         final Path translogPath = createTempDir("translog");
         final TranslogConfig translogConfig = new TranslogConfig(
@@ -221,6 +231,7 @@ public class FollowingEngineTests extends ESTestCase {
             indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE
         );
+        final MapperService mapperService = EngineTestCase.createMapperService();
         return new EngineConfig(
             shardIdValue,
             threadPool,
@@ -252,7 +263,8 @@ public class FollowingEngineTests extends ESTestCase {
             null,
             System::nanoTime,
             null,
-            true
+            true,
+            mapperService
         );
     }
 
@@ -640,7 +652,15 @@ public class FollowingEngineTests extends ESTestCase {
                     final long toSeqNo = randomLongBetween(nextSeqNo, Math.min(nextSeqNo + 5, checkpoint));
                     try (
                         Translog.Snapshot snapshot = shuffleSnapshot(
-                            leader.newChangesSnapshot("test", fromSeqNo, toSeqNo, true, randomBoolean(), randomBoolean())
+                            leader.newChangesSnapshot(
+                                "test",
+                                fromSeqNo,
+                                toSeqNo,
+                                true,
+                                randomBoolean(),
+                                randomBoolean(),
+                                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+                            )
                         )
                     ) {
                         follower.advanceMaxSeqNoOfUpdatesOrDeletes(leader.getMaxSeqNoOfUpdatesOrDeletes());
@@ -688,6 +708,39 @@ public class FollowingEngineTests extends ESTestCase {
         };
     }
 
+    private CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory() throws Exception {
+        final MapperService mapperService = EngineTestCase.createMapperService();
+        final String nestedMapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type")
+                .startObject("properties")
+                .startObject("nested_field")
+                .field("type", "nested")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+        final DocumentMapper nestedMapper = mapperService.merge(
+            "type",
+            new CompressedXContent(nestedMapping),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
+        return (docId, nestedFieldValues) -> {
+            final XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value");
+            if (nestedFieldValues > 0) {
+                XContentBuilder nestedField = source.startObject("nested_field");
+                for (int i = 0; i < nestedFieldValues; i++) {
+                    nestedField.field("field-" + i, "value-" + i);
+                }
+                source.endObject();
+            }
+            source.endObject();
+            return nestedMapper.parse(new SourceToParse(docId, BytesReference.bytes(source), XContentType.JSON));
+        };
+    }
+
     public void testProcessOnceOnPrimary() throws Exception {
         final Settings.Builder settingsBuilder = indexSettings(IndexVersion.current(), 1, 0).put("index.xpack.ccr.following_index", true);
         switch (indexMode) {
@@ -696,13 +749,19 @@ public class FollowingEngineTests extends ESTestCase {
             case TIME_SERIES:
                 settingsBuilder.put("index.mode", "time_series").put("index.routing_path", "foo");
                 break;
+            case LOGSDB:
+                settingsBuilder.put("index.mode", IndexMode.LOGSDB.getName());
+                break;
+            case LOOKUP:
+                settingsBuilder.put("index.mode", IndexMode.LOOKUP.getName());
+                break;
             default:
                 throw new UnsupportedOperationException("Unknown index mode [" + indexMode + "]");
         }
         final Settings settings = settingsBuilder.build();
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
-        final CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedDocFunc = EngineTestCase.nestedParsedDocFactory();
+        final CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedDocFunc = nestedParsedDocFactory();
         int numOps = between(10, 100);
         List<Engine.Operation> operations = new ArrayList<>(numOps);
         for (int i = 0; i < numOps; i++) {

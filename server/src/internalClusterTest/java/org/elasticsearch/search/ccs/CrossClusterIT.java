@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.ccs;
@@ -50,6 +51,7 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
@@ -61,7 +63,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -82,7 +86,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class CrossClusterIT extends AbstractMultiClustersTestCase {
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of("cluster_a");
     }
 
@@ -179,7 +183,11 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                     }
                 }
             });
-            assertBusy(() -> assertTrue(future.isDone()));
+            try {
+                future.get();
+            } catch (ExecutionException e) {
+                // ignored
+            }
             configureAndConnectsToRemoteClusters();
         } finally {
             SearchListenerPlugin.allowQueryPhase();
@@ -221,7 +229,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
         assertFalse(
             client("cluster_a").admin()
                 .cluster()
-                .prepareHealth("prod")
+                .prepareHealth(TEST_REQUEST_TIMEOUT, "prod")
                 .setWaitForYellowStatus()
                 .setTimeout(TimeValue.timeValueSeconds(10))
                 .get()
@@ -294,20 +302,21 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
         }
 
         SearchListenerPlugin.allowQueryPhase();
-        assertBusy(() -> assertTrue(queryFuture.isDone()));
-        assertBusy(() -> assertTrue(cancelFuture.isDone()));
+        try {
+            queryFuture.get();
+            fail("query should have failed");
+        } catch (ExecutionException e) {
+            assertNotNull(e.getCause());
+            Throwable t = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
+            assertNotNull(t);
+        }
+        cancelFuture.get();
         assertBusy(() -> {
             final Iterable<TransportService> transportServices = cluster("cluster_a").getInstances(TransportService.class);
             for (TransportService transportService : transportServices) {
                 assertThat(transportService.getTaskManager().getBannedTaskIds(), Matchers.empty());
             }
         });
-
-        RuntimeException e = expectThrows(RuntimeException.class, () -> queryFuture.result());
-        assertNotNull(e);
-        assertNotNull(e.getCause());
-        Throwable t = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
-        assertNotNull(t);
     }
 
     /**
@@ -445,6 +454,64 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                 assertThat(hit2.field("from").getValues(), contains(Map.of("name", List.of("Local A"))));
                 assertThat(hit2.field("to").getValues(), contains(Map.of("name", List.of("Local B")), Map.of("name", List.of("Local C"))));
             });
+        }
+        // Search locally, but lookup fields on remote clusters
+        {
+            final String remoteLookupFields = """
+                {
+                    "from": {
+                        "type": "lookup",
+                        "target_index": "cluster_a:users",
+                        "input_field": "from_user",
+                        "target_field": "_id",
+                        "fetch_fields": ["name"]
+                    },
+                    "to": {
+                        "type": "lookup",
+                        "target_index": "cluster_a:users",
+                        "input_field": "to_user",
+                        "target_field": "_id",
+                        "fetch_fields": ["name"]
+                    }
+                }
+                """;
+            final Map<String, Object> remoteRuntimeMappings;
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, remoteLookupFields)) {
+                remoteRuntimeMappings = parser.map();
+            }
+            AtomicInteger searchSearchRequests = new AtomicInteger(0);
+            for (TransportService ts : cluster("cluster_a").getInstances(TransportService.class)) {
+                MockTransportService transportService = (MockTransportService) ts;
+                transportService.addRequestHandlingBehavior(TransportSearchShardsAction.NAME, (handler, request, channel, task) -> {
+                    handler.messageReceived(request, channel, task);
+                    searchSearchRequests.incrementAndGet();
+                });
+            }
+            for (boolean ccsMinimizeRoundtrips : List.of(true, false)) {
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(new TermQueryBuilder("to_user", "c"))
+                    .runtimeMappings(remoteRuntimeMappings)
+                    .sort(new FieldSortBuilder("duration"))
+                    .fetchField("from")
+                    .fetchField("to");
+                SearchRequest request = new SearchRequest("local_calls").source(searchSourceBuilder);
+                request.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
+                assertResponse(client().search(request), response -> {
+                    assertHitCount(response, 1);
+                    SearchHit hit = response.getHits().getHits()[0];
+                    assertThat(hit.getIndex(), equalTo("local_calls"));
+                    assertThat(hit.field("from").getValues(), contains(Map.of("name", List.of("Remote A"))));
+                    assertThat(
+                        hit.field("to").getValues(),
+                        contains(Map.of("name", List.of("Remote B")), Map.of("name", List.of("Remote C")))
+                    );
+                });
+                if (ccsMinimizeRoundtrips) {
+                    assertThat(searchSearchRequests.get(), equalTo(0));
+                } else {
+                    assertThat(searchSearchRequests.get(), greaterThan(0));
+                    searchSearchRequests.set(0);
+                }
+            }
         }
     }
 

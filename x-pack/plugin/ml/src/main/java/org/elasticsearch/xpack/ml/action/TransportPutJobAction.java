@@ -15,12 +15,11 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -58,7 +57,6 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
         ThreadPool threadPool,
         XPackLicenseState licenseState,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         JobManager jobManager,
         DatafeedManager datafeedManager,
         AnalysisRegistry analysisRegistry
@@ -70,7 +68,6 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
             threadPool,
             actionFilters,
             PutJobAction.Request::new,
-            indexNameExpressionResolver,
             PutJobAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

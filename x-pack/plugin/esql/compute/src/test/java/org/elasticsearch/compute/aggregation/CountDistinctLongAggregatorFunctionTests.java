@@ -8,21 +8,22 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
-import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
 
 import java.util.List;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -35,8 +36,8 @@ public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunction
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new CountDistinctLongAggregatorFunctionSupplier(inputChannels, 40000);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new CountDistinctLongAggregatorFunctionSupplier(40000);
     }
 
     @Override
@@ -58,19 +59,18 @@ public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunction
     @Override
     protected void assertOutputFromEmpty(Block b) {
         assertThat(b.getPositionCount(), equalTo(1));
-        assertThat(BasicBlockTests.valuesAtPositions(b, 0, 1), equalTo(List.of(List.of(0L))));
+        assertThat(valuesAtPositions(b, 0, 1), equalTo(List.of(List.of(0L))));
     }
 
     public void testRejectsDouble() {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         try (
-            Driver d = new Driver(
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(Iterators.single(new Page(blockFactory.newDoubleArrayVector(new double[] { 1.0 }, 1).asBlock()))),
                 List.of(simple().get(driverContext)),
-                new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
-                () -> {}
+                new PageConsumerOperator(page -> fail("shouldn't have made it this far"))
             )
         ) {
             expectThrows(Exception.class, () -> runDriver(d));  // ### find a more specific exception type

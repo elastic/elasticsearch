@@ -17,6 +17,8 @@ import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.stream.IntStream;
@@ -46,23 +48,25 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
 
         return new AggregationOperator.AggregationOperatorFactory(
             List.of(
-                new SumLongAggregatorFunctionSupplier(sumChannels).aggregatorFactory(mode),
-                new MaxLongAggregatorFunctionSupplier(maxChannels).aggregatorFactory(mode)
+                new SumLongAggregatorFunctionSupplier().aggregatorFactory(mode, sumChannels),
+                new MaxLongAggregatorFunctionSupplier().aggregatorFactory(mode, maxChannels)
             ),
             mode
         );
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "AggregationOperator[mode = SINGLE, aggs = sum of longs, max of longs]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("AggregationOperator[mode = SINGLE, aggs = sum of longs, max of longs]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
-        return "AggregationOperator[aggregators=["
-            + "Aggregator[aggregatorFunction=SumLongAggregatorFunction[channels=[0]], mode=SINGLE], "
-            + "Aggregator[aggregatorFunction=MaxLongAggregatorFunction[channels=[0]], mode=SINGLE]]]";
+    protected Matcher<String> expectedToStringOfSimple() {
+        return equalTo(
+            "AggregationOperator[aggregators=["
+                + "Aggregator[aggregatorFunction=SumLongAggregatorFunction[channels=[0]], mode=SINGLE], "
+                + "Aggregator[aggregatorFunction=MaxLongAggregatorFunction[channels=[0]], mode=SINGLE]]]"
+        );
     }
 
     @Override

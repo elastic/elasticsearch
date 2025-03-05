@@ -2,7 +2,6 @@
   "template": {
     "settings": {
       "index": {
-        "number_of_replicas": 0,
         "auto_expand_replicas": "0-1",
         "refresh_interval": "10s",
         "sort": {
@@ -11,14 +10,16 @@
             "@timestamp",
             "host.id"
           ]
+        },
+        "mapping": {
+          "source": {
+            "mode": "synthetic"
+          }
         }
       },
       "codec": "best_compression"
     },
     "mappings": {
-      "_source": {
-        "enabled": false
-      },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
         "index-version": ${xpack.profiling.index.metrics.version},

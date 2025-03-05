@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.analysis;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
@@ -22,6 +23,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -48,7 +51,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -92,19 +94,9 @@ public class CancellationTests extends ESTestCase {
     }
 
     private Map<String, Map<String, FieldCapabilities>> fields(String[] indices) {
-        FieldCapabilities fooField = new FieldCapabilities("foo", "integer", false, true, true, indices, null, null, emptyMap());
-        FieldCapabilities categoryField = new FieldCapabilities(
-            "event.category",
-            "keyword",
-            false,
-            true,
-            true,
-            indices,
-            null,
-            null,
-            emptyMap()
-        );
-        FieldCapabilities timestampField = new FieldCapabilities("@timestamp", "date", false, true, true, indices, null, null, emptyMap());
+        FieldCapabilities fooField = new FieldCapabilitiesBuilder("foo", "integer").indices(indices).build();
+        FieldCapabilities categoryField = new FieldCapabilitiesBuilder("event.category", "keyword").indices(indices).build();
+        FieldCapabilities timestampField = new FieldCapabilitiesBuilder("@timestamp", "date").indices(indices).build();
         Map<String, Map<String, FieldCapabilities>> fields = new HashMap<>();
         fields.put(fooField.getName(), singletonMap(fooField.getName(), fooField));
         fields.put(categoryField.getName(), singletonMap(categoryField.getName(), categoryField));
@@ -171,7 +163,7 @@ public class CancellationTests extends ESTestCase {
         ClusterService mockClusterService = mockClusterService(nodeId);
 
         String[] indices = new String[] { "endgame" };
-        String pitId = randomAlphaOfLength(10);
+        BytesReference pitId = new BytesArray(randomAlphaOfLength(10));
 
         // Emulation of field capabilities
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
@@ -188,7 +180,7 @@ public class CancellationTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<OpenPointInTimeResponse> listener = (ActionListener<OpenPointInTimeResponse>) invocation.getArguments()[2];
-            listener.onResponse(new OpenPointInTimeResponse(pitId));
+            listener.onResponse(new OpenPointInTimeResponse(pitId, 1, 1, 0, 0));
             return null;
         }).when(client).execute(eq(TransportOpenPointInTimeAction.TYPE), any(), any());
 

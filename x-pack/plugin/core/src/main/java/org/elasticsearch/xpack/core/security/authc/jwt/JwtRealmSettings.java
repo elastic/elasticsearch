@@ -25,7 +25,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -232,10 +231,9 @@ public class JwtRealmSettings {
     public static final Setting.AffixSetting<List<String>> ALLOWED_SIGNATURE_ALGORITHMS = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "allowed_signature_algorithms",
-        key -> Setting.listSetting(
+        key -> Setting.stringListSetting(
             key,
             DEFAULT_ALLOWED_SIGNATURE_ALGORITHMS,
-            Function.identity(),
             values -> verifyNonNullNotEmpty(key, values, SUPPORTED_SIGNATURE_ALGORITHMS),
             Setting.Property.NodeScope
         )

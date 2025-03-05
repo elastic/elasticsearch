@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.state;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -159,14 +161,14 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
     }
 
     private static void assertIndexIsBlocked(final String... indices) {
-        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         for (String index : indices) {
-            assertThat(clusterState.metadata().indices().get(index).getState(), is(IndexMetadata.State.OPEN));
+            assertThat(clusterState.metadata().getProject().indices().get(index).getState(), is(IndexMetadata.State.OPEN));
             assertThat(clusterState.routingTable().index(index), notNullValue());
             assertThat(
                 "Index " + index + " must have only 1 block with [id=" + INDEX_CLOSED_BLOCK_ID + "]",
                 clusterState.blocks()
-                    .indices()
+                    .indices(Metadata.DEFAULT_PROJECT_ID)
                     .getOrDefault(index, emptySet())
                     .stream()
                     .filter(clusterBlock -> clusterBlock.id() == INDEX_CLOSED_BLOCK_ID)

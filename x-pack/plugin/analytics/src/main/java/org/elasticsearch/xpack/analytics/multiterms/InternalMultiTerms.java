@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalOrder;
-import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.terms.AbstractInternalTerms;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -37,14 +36,10 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
     public static final TermsComparator TERMS_COMPARATOR = new TermsComparator();
 
-    public static class Bucket extends AbstractInternalTerms.AbstractTermsBucket implements KeyComparable<Bucket> {
-
-        long bucketOrd;
-
+    public static class Bucket extends AbstractInternalTerms.AbstractTermsBucket<Bucket> {
         protected long docCount;
         protected InternalAggregations aggregations;
-        protected final boolean showDocCountError;
-        protected long docCountError;
+        private long docCountError;
         protected final List<DocValueFormat> formats;
         protected List<Object> terms;
         protected List<KeyConverter> keyConverters;
@@ -61,8 +56,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
             this.terms = terms;
             this.docCount = docCount;
             this.aggregations = aggregations;
-            this.showDocCountError = showDocCountError;
-            this.docCountError = docCountError;
+            this.docCountError = showDocCountError ? docCountError : -1;
             this.formats = formats;
             this.keyConverters = keyConverters;
         }
@@ -72,7 +66,6 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
             terms = in.readCollectionAsList(StreamInput::readGenericValue);
             docCount = in.readVLong();
             aggregations = InternalAggregations.readFrom(in);
-            this.showDocCountError = showDocCountError;
             docCountError = -1;
             if (showDocCountError) {
                 docCountError = in.readLong();
@@ -81,8 +74,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
             this.keyConverters = keyConverters;
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        private void writeTo(StreamOutput out, boolean showDocCountError) throws IOException {
             out.writeCollection(terms, StreamOutput::writeGenericValue);
             out.writeVLong(docCount);
             aggregations.writeTo(out);
@@ -123,24 +115,20 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public void bucketToXContent(XContentBuilder builder, Params params, boolean showDocCountError) throws IOException {
             builder.startObject();
             builder.field(CommonFields.KEY.getPreferredName(), getKey());
             builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), getKeyAsString());
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
-            if (getShowDocCountError()) {
+            if (showDocCountError) {
                 builder.field(DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName(), getDocCountError());
             }
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         @Override
         public long getDocCountError() {
-            if (showDocCountError == false) {
-                throw new IllegalStateException("show_terms_doc_count_error is false");
-            }
             return docCountError;
         }
 
@@ -155,11 +143,6 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         }
 
         @Override
-        protected boolean getShowDocCountError() {
-            return showDocCountError;
-        }
-
-        @Override
         public int compareKey(Bucket other) {
             return TERMS_COMPARATOR.compare(terms, other.terms);
         }
@@ -170,19 +153,16 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
                 return false;
             }
             Bucket other = (Bucket) obj;
-            if (showDocCountError && docCountError != other.docCountError) {
-                return false;
-            }
             return docCount == other.docCount
                 && aggregations.equals(other.aggregations)
-                && showDocCountError == other.showDocCountError
+                && docCountError == other.docCountError
                 && terms.equals(other.terms)
                 && keyConverters.equals(other.keyConverters);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(docCount, aggregations, showDocCountError, showDocCountError ? docCountError : -1, terms, keyConverters);
+            return Objects.hash(docCount, aggregations, docCountError, terms, keyConverters);
         }
     }
 
@@ -345,7 +325,10 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         out.writeVLong(otherDocCount);
         out.writeNamedWriteableCollection(formats);
         out.writeCollection(keyConverters, StreamOutput::writeEnum);
-        out.writeCollection(buckets);
+        out.writeVInt(buckets.size());
+        for (var bucket : buckets) {
+            bucket.writeTo(out, showTermDocCountError);
+        }
     }
 
     @Override
@@ -415,9 +398,14 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     }
 
     @Override
+    protected boolean getShowDocCountError() {
+        return showTermDocCountError;
+    }
+
+    @Override
     @SuppressWarnings("HiddenField")
     protected Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, Bucket prototype) {
-        return new Bucket(prototype.terms, docCount, aggs, prototype.showDocCountError, docCountError, formats, keyConverters);
+        return new Bucket(prototype.terms, docCount, aggs, showTermDocCountError, docCountError, formats, keyConverters);
     }
 
     @Override
@@ -438,44 +426,6 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
             keyConverters,
             getMetadata()
         );
-    }
-
-    /**
-     * Checks if any keys need to be promoted to double from long or unsigned_long
-     */
-    private boolean[] needsPromotionToDouble(List<InternalAggregation> aggregations) {
-        if (aggregations.size() < 2) {
-            return null;
-        }
-        boolean[] promotions = null;
-
-        for (int i = 0; i < keyConverters.size(); i++) {
-            boolean hasLong = false;
-            boolean hasUnsignedLong = false;
-            boolean hasDouble = false;
-            boolean hasNonNumber = false;
-            for (InternalAggregation aggregation : aggregations) {
-                InternalMultiTerms agg = (InternalMultiTerms) aggregation;
-                KeyConverter keyConverter = agg.keyConverters.get(i);
-                switch (keyConverter) {
-                    case DOUBLE -> hasDouble = true;
-                    case LONG -> hasLong = true;
-                    case UNSIGNED_LONG -> hasUnsignedLong = true;
-                    default -> hasNonNumber = true;
-                }
-            }
-            if (hasNonNumber && (hasDouble || hasUnsignedLong || hasLong)) {
-                throw AggregationErrors.reduceTypeMismatch(name, Optional.of(i + 1));
-            }
-            // Promotion to double is required if at least 2 of these 3 conditions are true.
-            if ((hasDouble ? 1 : 0) + (hasUnsignedLong ? 1 : 0) + (hasLong ? 1 : 0) > 1) {
-                if (promotions == null) {
-                    promotions = new boolean[keyConverters.size()];
-                }
-                promotions[i] = true;
-            }
-        }
-        return promotions;
     }
 
     private InternalAggregation promoteToDouble(InternalAggregation aggregation, boolean[] needsPromotion) {
@@ -511,7 +461,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
                     newKeys.get(i),
                     oldBucket.docCount,
                     oldBucket.aggregations,
-                    oldBucket.showDocCountError,
+                    showTermDocCountError,
                     oldBucket.docCountError,
                     formats,
                     newKeyConverters
@@ -540,33 +490,78 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         );
     }
 
-    public List<InternalAggregation> getProcessedAggs(List<InternalAggregation> aggregations, boolean[] needsPromotionToDouble) {
-        if (needsPromotionToDouble != null) {
-            List<InternalAggregation> newAggs = new ArrayList<>(aggregations.size());
-            for (InternalAggregation agg : aggregations) {
-                newAggs.add(promoteToDouble(agg, needsPromotionToDouble));
-            }
-            return newAggs;
-        } else {
-            return aggregations;
-        }
-    }
-
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
 
-            final List<InternalAggregation> aggregations = new ArrayList<>(size);
+            private List<InternalAggregation> aggregations = new ArrayList<>(size);
 
             @Override
             public void accept(InternalAggregation aggregation) {
                 aggregations.add(aggregation);
             }
 
+            private List<InternalAggregation> getProcessedAggs(List<InternalAggregation> aggregations, boolean[] needsPromotionToDouble) {
+                if (needsPromotionToDouble != null) {
+                    aggregations.replaceAll(agg -> promoteToDouble(agg, needsPromotionToDouble));
+                }
+                return aggregations;
+            }
+
+            /**
+             * Checks if any keys need to be promoted to double from long or unsigned_long
+             */
+            private boolean[] needsPromotionToDouble(List<InternalAggregation> aggregations) {
+                if (aggregations.size() < 2) {
+                    return null;
+                }
+                boolean[] promotions = null;
+
+                for (int i = 0; i < keyConverters.size(); i++) {
+                    boolean hasLong = false;
+                    boolean hasUnsignedLong = false;
+                    boolean hasDouble = false;
+                    boolean hasNonNumber = false;
+                    for (InternalAggregation aggregation : aggregations) {
+                        InternalMultiTerms agg = (InternalMultiTerms) aggregation;
+                        KeyConverter keyConverter = agg.keyConverters.get(i);
+                        switch (keyConverter) {
+                            case DOUBLE -> hasDouble = true;
+                            case LONG -> hasLong = true;
+                            case UNSIGNED_LONG -> hasUnsignedLong = true;
+                            default -> hasNonNumber = true;
+                        }
+                    }
+                    if (hasNonNumber && (hasDouble || hasUnsignedLong || hasLong)) {
+                        throw AggregationErrors.reduceTypeMismatch(name, Optional.of(i + 1));
+                    }
+                    // Promotion to double is required if at least 2 of these 3 conditions are true.
+                    if ((hasDouble ? 1 : 0) + (hasUnsignedLong ? 1 : 0) + (hasLong ? 1 : 0) > 1) {
+                        if (promotions == null) {
+                            promotions = new boolean[keyConverters.size()];
+                        }
+                        promotions[i] = true;
+                    }
+                }
+                return promotions;
+            }
+
             @Override
             public InternalAggregation get() {
-                List<InternalAggregation> processed = getProcessedAggs(aggregations, needsPromotionToDouble(aggregations));
-                return ((AbstractInternalTerms<?, ?>) processed.get(0)).doReduce(processed, reduceContext);
+                final boolean[] needsPromotionToDouble = needsPromotionToDouble(aggregations);
+                if (needsPromotionToDouble != null) {
+                    aggregations.replaceAll(agg -> promoteToDouble(agg, needsPromotionToDouble));
+                }
+                try (
+                    AggregatorReducer processor = ((AbstractInternalTerms<?, ?>) aggregations.get(0)).termsAggregationReducer(
+                        reduceContext,
+                        size
+                    )
+                ) {
+                    aggregations.forEach(processor::accept);
+                    aggregations = null; // release memory
+                    return processor.get();
+                }
             }
         };
     }
@@ -583,7 +578,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return doXContentCommon(builder, params, docCountError, otherDocCount, buckets);
+        return doXContentCommon(builder, params, showTermDocCountError, docCountError, otherDocCount, buckets);
     }
 
     @Override

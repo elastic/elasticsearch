@@ -1,8 +1,8 @@
 ---
 setup:
-  - skip:
-      features: ["headers", "allowed_warnings"]
-      version: " - 7.8.99"
+  - requires:
+      test_runner_features: ["headers", "allowed_warnings"]
+      cluster_features: ["gte_v7.9.0"]
       reason: "auto_configure available in 7.9+"
 
   - do:
@@ -57,10 +57,10 @@ teardown:
 
 ---
 "auto_configure privilege permits auto-create of indices":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "auto_configure available in 7.9+"
-      features: ["headers", "allowed_warnings"]
+      test_runner_features: ["headers", "allowed_warnings"]
 
   # should succeed because test_user is authorized for auto_configure on index-auto-configure
   - do:

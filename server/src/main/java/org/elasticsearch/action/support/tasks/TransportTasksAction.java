@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.tasks;
@@ -56,7 +57,6 @@ public abstract class TransportTasksAction<
     protected final ClusterService clusterService;
     protected final TransportService transportService;
     protected final Writeable.Reader<TasksRequest> requestReader;
-    protected final Writeable.Reader<TasksResponse> responsesReader;
     protected final Writeable.Reader<TaskResponse> responseReader;
 
     protected final String transportNodeAction;
@@ -67,7 +67,6 @@ public abstract class TransportTasksAction<
         TransportService transportService,
         ActionFilters actionFilters,
         Writeable.Reader<TasksRequest> requestReader,
-        Writeable.Reader<TasksResponse> responsesReader,
         Writeable.Reader<TaskResponse> responseReader,
         Executor nodeExecutor
     ) {
@@ -77,7 +76,6 @@ public abstract class TransportTasksAction<
         this.transportService = transportService;
         this.transportNodeAction = actionName + "[n]";
         this.requestReader = requestReader;
-        this.responsesReader = responsesReader;
         this.responseReader = responseReader;
 
         transportService.registerRequestHandler(transportNodeAction, nodeExecutor, NodeTaskRequest::new, new NodeTransportHandler());

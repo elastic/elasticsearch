@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
@@ -53,7 +54,7 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
         return SortField.Type.FLOAT;
     }
 
-    private NumericDoubleValues getNumericDocValues(LeafReaderContext context, float missingValue) throws IOException {
+    private NumericDoubleValues getNumericDocValues(LeafReaderContext context, double missingValue) throws IOException {
         final SortedNumericDoubleValues values = indexFieldData.load(context).getDoubleValues();
         if (nested == null) {
             return FieldData.replaceMissing(sortMode.select(values), missingValue);

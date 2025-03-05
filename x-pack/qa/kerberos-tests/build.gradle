@@ -1,51 +1,15 @@
-import java.nio.file.Path
-import java.nio.file.Paths
-
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.test.fixtures'
-
-testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "peppa"
 
 dependencies {
   javaRestTestImplementation project(':x-pack:plugin:core')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
+  javaRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
 }
 
-normalization {
-  runtimeClasspath {
-    ignore 'krb5.conf'
-    ignore '*.keytab'
-  }
-}
-
-tasks.register("copyKeytabToGeneratedResources", Copy) {
-  from project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("peppa", "peppa.keytab")
-  into "$buildDir/generated-resources/keytabs"
-  from project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("peppa", "HTTP_localhost.keytab")
-  into "$buildDir/generated-resources/keytabs"
-  dependsOn ":test:fixtures:krb5kdc-fixture:postProcessFixture"
-}
-
-tasks.register("copyConfToGeneratedResources", Copy) {
-  from project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("peppa")
-  into "$buildDir/generated-resources/conf"
-  dependsOn ":test:fixtures:krb5kdc-fixture:postProcessFixture"
-}
-
-String realm = "BUILD.ELASTIC.CO"
 tasks.named("javaRestTest").configure {
-  dependsOn "copyKeytabToGeneratedResources", "copyConfToGeneratedResources"
   usesDefaultDistribution()
-  Path peppaKeytab = Paths.get("${project.buildDir}", "generated-resources", "keytabs", "peppa.keytab")
-  Path krb5Conf = Paths.get("${project.buildDir}", "generated-resources", "conf", "krb5.conf")
-  nonInputProperties.systemProperty 'test.userkt', "peppa@${realm}"
-  nonInputProperties.systemProperty 'test.userkt.keytab', "${peppaKeytab}"
-  nonInputProperties.systemProperty 'test.userpwd', "george@${realm}"
-  nonInputProperties.systemProperty 'test.krb5.conf', "${krb5Conf}"
-  nonInputProperties.systemProperty 'java.security.krb5.conf', "${krb5Conf}"
-  systemProperty 'test.userpwd.password', "dino_but_longer_than_14_chars"
-  systemProperty 'sun.security.krb5.debug', true
-  classpath += files("$buildDir/generated-resources/keytabs")
-  classpath += files("$buildDir/generated-resources/conf")
+  description = "Runs rest tests against an elasticsearch cluster with Kerberos."
+  // required for krb5kdc-fixture to work
+  jvmArgs '--add-exports', 'java.security.jgss/sun.security.krb5=ALL-UNNAMED'
 }

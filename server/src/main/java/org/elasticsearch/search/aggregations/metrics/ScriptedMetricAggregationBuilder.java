@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -12,8 +13,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -25,8 +28,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -181,12 +186,19 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     protected ScriptedMetricAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subfactoriesBuilder)
         throws IOException {
 
+        ClusterSettings settings = context.getClusterSettings();
+
+        validateScript(INIT_SCRIPT_FIELD.getPreferredName(), name, initScript, settings);
+        validateScript(MAP_SCRIPT_FIELD.getPreferredName(), name, mapScript, settings);
+        validateScript(COMBINE_SCRIPT_FIELD.getPreferredName(), name, combineScript, settings);
+        validateScript(REDUCE_SCRIPT_FIELD.getPreferredName(), name, reduceScript, settings);
+
         if (combineScript == null) {
-            throw new IllegalArgumentException("[combineScript] must not be null: [" + name + "]");
+            throw new IllegalArgumentException("[" + COMBINE_SCRIPT_FIELD.getPreferredName() + "] must not be null: [" + name + "]");
         }
 
         if (reduceScript == null) {
-            throw new IllegalArgumentException("[reduceScript] must not be null: [" + name + "]");
+            throw new IllegalArgumentException("[" + REDUCE_SCRIPT_FIELD.getPreferredName() + "] must not be null: [" + name + "]");
         }
 
         // Extract params from scripts and pass them along to ScriptedMetricAggregatorFactory, since it won't have
@@ -231,6 +243,21 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         );
     }
 
+    private static void validateScript(String scriptName, String aggName, Script script, ClusterSettings settings) {
+        if (script == null || settings.get(SearchModule.SCRIPTED_METRICS_AGG_ONLY_ALLOWED_SCRIPTS) == false) {
+            return;
+        }
+
+        List<String> allowedScripts = switch (script.getType()) {
+            case INLINE -> settings.get(SearchModule.SCRIPTED_METRICS_AGG_ALLOWED_INLINE_SCRIPTS);
+            case STORED -> settings.get(SearchModule.SCRIPTED_METRICS_AGG_ALLOWED_STORED_SCRIPTS);
+        };
+
+        if (allowedScripts.contains(script.getIdOrCode()) == false) {
+            throw new IllegalArgumentException("[" + scriptName + "] contains not allowed script: [" + aggName + "]");
+        }
+    }
+
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject();
@@ -265,6 +292,11 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        return false;
     }
 
     @Override

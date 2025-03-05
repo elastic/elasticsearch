@@ -58,8 +58,7 @@ setup:
 ---
 "pre_filter_shard_size with shards that have no hit":
   - skip:
-      version: all
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/92058"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/92058"
   - do:
       index:
         index: index_1
@@ -240,8 +239,8 @@ setup:
 
 ---
 "prefilter on non-indexed date fields":
-  - skip:
-      version: "- 8.0.99"
+  - requires:
+      cluster_features: "gte_v8.1.0"
       reason: "doc values search was added in 8.1.0"
 
   - do:

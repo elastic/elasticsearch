@@ -40,9 +40,9 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Custom metadata that contains auto follow patterns and what leader indices an auto follow pattern has already followed.
+ * ProjectCustom metadata that contains auto follow patterns and what leader indices an auto follow pattern has already followed.
  */
-public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
     public static final String TYPE = "ccr_auto_follow";
 
@@ -149,11 +149,11 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
-            ChunkedToXContentHelper.xContentFragmentValuesMap(PATTERNS_FIELD.getPreferredName(), patterns),
-            ChunkedToXContentHelper.map(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName(), followedLeaderIndexUUIDs),
-            ChunkedToXContentHelper.map(HEADERS.getPreferredName(), headers)
+            ChunkedToXContentHelper.xContentObjectFieldObjects(PATTERNS_FIELD.getPreferredName(), patterns),
+            ChunkedToXContentHelper.object(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName(), followedLeaderIndexUUIDs),
+            ChunkedToXContentHelper.object(HEADERS.getPreferredName(), headers)
         );
     }
 
@@ -263,12 +263,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             final String remoteCluster = in.readString();
             final List<String> leaderIndexPatterns = in.readStringCollectionAsList();
             final String followIndexPattern = in.readOptionalString();
-            final Settings settings;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
-                settings = Settings.readSettingsFromStream(in);
-            } else {
-                settings = Settings.EMPTY;
-            }
+            final Settings settings = Settings.readSettingsFromStream(in);
             return new AutoFollowPattern(remoteCluster, leaderIndexPatterns, followIndexPattern, settings, in);
         }
 
@@ -284,11 +279,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             this.leaderIndexPatterns = leaderIndexPatterns;
             this.followIndexPattern = followIndexPattern;
             this.settings = Objects.requireNonNull(settings);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-                this.active = in.readBoolean();
-            } else {
-                this.active = true;
-            }
+            this.active = in.readBoolean();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 this.leaderIndexExclusionPatterns = in.readStringCollectionAsList();
             } else {
@@ -349,13 +340,9 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             out.writeString(remoteCluster);
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexPattern);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
-                settings.writeTo(out);
-            }
+            settings.writeTo(out);
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-                out.writeBoolean(active);
-            }
+            out.writeBoolean(active);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 out.writeStringCollection(leaderIndexExclusionPatterns);
             }

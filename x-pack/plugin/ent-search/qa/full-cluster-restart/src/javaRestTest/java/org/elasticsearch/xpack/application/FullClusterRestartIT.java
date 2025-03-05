@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -25,6 +26,7 @@ import java.util.List;
 import static org.elasticsearch.Version.V_8_12_0;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+@UpdateForV9(owner = UpdateForV9.Owner.ENTERPRISE_SEARCH) // Investigate what needs to be added in terms of 9.0 migration testing
 public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
     // DSL was introduced with version 8.12.0 of ES.
     private static final Version DSL_DEFAULT_RETENTION_VERSION = V_8_12_0;
@@ -41,7 +43,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     @ClassRule
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
+        .version(org.elasticsearch.test.cluster.util.Version.fromString(OLD_CLUSTER_VERSION))
         .nodes(2)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
@@ -66,10 +68,10 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         String legacyAnalyticsCollectionName = "oldstuff";
         String newAnalyticsCollectionName = "newstuff";
 
-        if (isRunningAgainstOldCluster()) {
-            // Ensure index template is installed before executing the tests.
-            assertBusy(() -> assertDataStreamTemplateExists(EVENT_DATA_STREAM_LEGACY_TEMPLATE_NAME));
+        // Wait for the cluster to finish initialization
+        waitForClusterReady();
 
+        if (isRunningAgainstOldCluster()) {
             // Create an analytics collection
             Request legacyPutRequest = new Request("PUT", "_application/analytics/" + legacyAnalyticsCollectionName);
             assertOK(client().performRequest(legacyPutRequest));
@@ -77,9 +79,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             // Validate that ILM lifecycle is in place
             assertBusy(() -> assertUsingLegacyDataRetentionPolicy(legacyAnalyticsCollectionName));
         } else {
-            // Ensure index template is updated to version 3 before executing the tests.
-            assertBusy(() -> assertDataStreamTemplateExists(EVENT_DATA_STREAM_LEGACY_TEMPLATE_NAME, DSL_REGISTRY_VERSION));
-
             // Create a new analytics collection
             Request putRequest = new Request("PUT", "_application/analytics/" + newAnalyticsCollectionName);
             assertOK(client().performRequest(putRequest));
@@ -129,6 +128,21 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         assertTrue(evaluatedNewDataStream);
     }
 
+    private void waitForClusterReady() throws Exception {
+        // Ensure index template is installed with the right version before executing the tests.
+        if (isRunningAgainstOldCluster()) {
+            // No minimum version of the registry required when running on old clusters.
+            assertBusy(() -> assertDataStreamTemplateExists(EVENT_DATA_STREAM_LEGACY_TEMPLATE_NAME));
+
+            // When running on old cluster, wait for the ILM policy to be installed.
+            assertBusy(() -> assertILMPolicyExists(EVENT_DATA_STREAM_LEGACY_ILM_POLICY_NAME));
+        } else {
+            // DSL has been introduced with the version 3 of the registry.
+            // Wait for this version to be deployed.
+            assertBusy(() -> assertDataStreamTemplateExists(EVENT_DATA_STREAM_LEGACY_TEMPLATE_NAME, DSL_REGISTRY_VERSION));
+        }
+    }
+
     private void assertDataStreamTemplateExists(String templateName) throws IOException {
         assertDataStreamTemplateExists(templateName, null);
     }
@@ -138,6 +152,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             Request getIndexTemplateRequest = new Request("GET", "_index_template/" + templateName);
             Response response = client().performRequest(getIndexTemplateRequest);
             assertOK(response);
+
             if (minVersion != null) {
                 String pathToVersion = "index_templates.0.index_template.version";
                 ObjectPath indexTemplatesResponse = ObjectPath.createFromResponse(response);
@@ -147,6 +162,22 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             int status = e.getResponse().getStatusLine().getStatusCode();
             if (status == 404) {
                 throw new AssertionError("Waiting for the template to be created");
+            }
+            throw e;
+        }
+    }
+
+    private void assertILMPolicyExists(String policyName) throws IOException {
+        try {
+            Request getILMPolicyRequest = new Request("GET", "_ilm/policy/" + policyName);
+            Response response = client().performRequest(getILMPolicyRequest);
+            assertOK(response);
+
+            assertNotNull(ObjectPath.createFromResponse(response).evaluate(policyName));
+        } catch (ResponseException e) {
+            int status = e.getResponse().getStatusLine().getStatusCode();
+            if (status == 404) {
+                throw new AssertionError("Waiting for the policy to be created");
             }
             throw e;
         }

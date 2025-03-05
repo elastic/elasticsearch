@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ReferenceDocs;
@@ -20,6 +20,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.nativeaccess.ProcessLimits;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 import org.hamcrest.Matcher;
@@ -355,22 +356,16 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         // nothing should happen if current max number of threads is
         // not available
-        maxNumberOfThreads.set(-1);
+        maxNumberOfThreads.set(ProcessLimits.UNKNOWN);
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
     }
 
     public void testMaxSizeVirtualMemory() throws NodeValidationException {
-        final long rlimInfinity = Constants.MAC_OS_X ? 9223372036854775807L : -1L;
         final AtomicLong maxSizeVirtualMemory = new AtomicLong(randomIntBetween(0, Integer.MAX_VALUE));
         final BootstrapChecks.MaxSizeVirtualMemoryCheck check = new BootstrapChecks.MaxSizeVirtualMemoryCheck() {
             @Override
             long getMaxSizeVirtualMemory() {
                 return maxSizeVirtualMemory.get();
-            }
-
-            @Override
-            long getRlimInfinity() {
-                return rlimInfinity;
             }
         };
 
@@ -381,7 +376,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         assertThat(e.getMessage(), containsString("max size virtual memory"));
         assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/"));
 
-        maxSizeVirtualMemory.set(rlimInfinity);
+        maxSizeVirtualMemory.set(ProcessLimits.UNLIMITED);
 
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
 
@@ -391,17 +386,11 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
     }
 
     public void testMaxFileSizeCheck() throws NodeValidationException {
-        final long rlimInfinity = Constants.MAC_OS_X ? 9223372036854775807L : -1L;
         final AtomicLong maxFileSize = new AtomicLong(randomIntBetween(0, Integer.MAX_VALUE));
         final BootstrapChecks.MaxFileSizeCheck check = new BootstrapChecks.MaxFileSizeCheck() {
             @Override
-            long getMaxFileSize() {
-                return maxFileSize.get();
-            }
-
-            @Override
-            long getRlimInfinity() {
-                return rlimInfinity;
+            protected ProcessLimits getProcessLimits() {
+                return new ProcessLimits(ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN, maxFileSize.get());
             }
         };
 
@@ -412,7 +401,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         assertThat(e.getMessage(), containsString("max file size"));
         assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/"));
 
-        maxFileSize.set(rlimInfinity);
+        maxFileSize.set(ProcessLimits.UNLIMITED);
 
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
 

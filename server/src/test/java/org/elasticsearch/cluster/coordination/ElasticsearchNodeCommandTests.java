@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -69,22 +70,25 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         }
         assertThat(loadedMetadata.clusterUUID(), not(equalTo("_na_")));
         assertThat(loadedMetadata.clusterUUID(), equalTo(latestMetadata.clusterUUID()));
-        assertThat(loadedMetadata.dataStreams(), equalTo(latestMetadata.dataStreams()));
+        assertThat(loadedMetadata.getProject().dataStreams(), equalTo(latestMetadata.getProject().dataStreams()));
 
         // make sure the index tombstones are the same too
         if (hasMissingCustoms) {
-            assertNotNull(loadedMetadata.custom(IndexGraveyard.TYPE));
-            assertThat(loadedMetadata.custom(IndexGraveyard.TYPE), instanceOf(ElasticsearchNodeCommand.UnknownMetadataCustom.class));
+            assertNotNull(loadedMetadata.getProject().custom(IndexGraveyard.TYPE));
+            assertThat(
+                loadedMetadata.getProject().custom(IndexGraveyard.TYPE),
+                instanceOf(ElasticsearchNodeCommand.UnknownProjectCustom.class)
+            );
 
             if (preserveUnknownCustoms) {
                 // check that we reserialize unknown metadata correctly again
                 final Path tempdir = createTempDir();
                 Metadata.FORMAT.write(loadedMetadata, tempdir);
                 final Metadata reloadedMetadata = Metadata.FORMAT.loadLatestState(logger, xContentRegistry(), tempdir);
-                assertThat(reloadedMetadata.indexGraveyard(), equalTo(latestMetadata.indexGraveyard()));
+                assertThat(reloadedMetadata.getProject().indexGraveyard(), equalTo(latestMetadata.getProject().indexGraveyard()));
             }
         } else {
-            assertThat(loadedMetadata.indexGraveyard(), equalTo(latestMetadata.indexGraveyard()));
+            assertThat(loadedMetadata.getProject().indexGraveyard(), equalTo(latestMetadata.getProject().indexGraveyard()));
         }
     }
 

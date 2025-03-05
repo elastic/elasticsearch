@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -11,9 +12,16 @@ package org.elasticsearch.http;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
+import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
+import org.elasticsearch.action.admin.indices.template.post.SimulateIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.post.SimulateTemplateAction;
+import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.support.CancellableActionTestPlugin;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -63,6 +71,41 @@ public class RestActionCancellationIT extends HttpSmokeTestCase {
 
     public void testCatAliasesCancellation() {
         runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_cat/aliases"), GetAliasesAction.NAME);
+    }
+
+    public void testGetComponentTemplateCancellation() {
+        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_component_template"), GetComponentTemplateAction.NAME);
+    }
+
+    public void testGetIndexTemplateCancellation() {
+        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_template"), GetIndexTemplatesAction.NAME);
+    }
+
+    public void testGetComposableTemplateCancellation() {
+        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_index_template"), GetComposableIndexTemplateAction.NAME);
+    }
+
+    public void testSimulateTemplateCancellation() {
+        runRestActionCancellationTest(
+            new Request(HttpPost.METHOD_NAME, "/_index_template/_simulate/random_index_template"),
+            SimulateTemplateAction.NAME
+        );
+    }
+
+    public void testSimulateIndexTemplateCancellation() {
+        createIndex("test");
+        runRestActionCancellationTest(
+            new Request(HttpPost.METHOD_NAME, "/_index_template/_simulate_index/test"),
+            SimulateIndexTemplateAction.NAME
+        );
+    }
+
+    public void testClusterGetSettingsCancellation() {
+        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_cluster/settings"), ClusterGetSettingsAction.NAME);
+    }
+
+    public void testGetPipelineCancellation() {
+        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_ingest/pipeline"), GetPipelineAction.NAME);
     }
 
     private void runRestActionCancellationTest(Request request, String actionName) {

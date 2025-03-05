@@ -1,0 +1,67 @@
+"Test token count":
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
+      reason: "support for token_count was instroduced in 7.10"
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              count:
+                type: token_count
+                analyzer: standard
+              count_without_dv:
+                type: token_count
+                analyzer: standard
+                doc_values: false
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        refresh: true
+        body:
+          count: "some text"
+  - do:
+      search:
+        index: test
+        body:
+          fields: [count, count_without_dv]
+
+  - is_true: hits.hits.0._id
+  - match: { hits.hits.0.fields.count: [2] }
+  - is_false: hits.hits.0.fields.count_without_dv
+
+---
+"Synthetic source":
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              count:
+                type: token_count
+                analyzer: standard
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        refresh: true
+        body:
+          count: "quick brown fox jumps over a lazy dog"
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match: { _source.count: "quick brown fox jumps over a lazy dog" }

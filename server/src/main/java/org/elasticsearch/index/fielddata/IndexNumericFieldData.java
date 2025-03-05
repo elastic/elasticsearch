@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -121,6 +122,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             case LONG:
             case DOUBLE:
                 // longs, doubles and dates use the same type for doc-values and points.
+                sortField.setOptimizeSortWithPoints(isIndexed());
                 break;
 
             default:
@@ -132,11 +134,17 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
     }
 
     /**
-     * Does {@link #sortField} require a custom comparator because of the way
-     * the data is stored in doc values ({@code true}) or are the docs values
-     * stored such that they can be sorted without decoding ({@code false}).
+     * Should sorting use a custom comparator source vs. rely on a Lucene {@link SortField}. Using a Lucene {@link SortField} when possible
+     * is important because index sorting cannot be configured with a custom comparator, and because it gives better performance by
+     * dynamically pruning irrelevant hits. On the other hand, Lucene {@link SortField}s are less flexible and make stronger assumptions
+     * about how the data is indexed. Therefore, they cannot be used in all cases.
      */
     protected abstract boolean sortRequiresCustomComparator();
+
+    /**
+     * Return true if, and only if the field is indexed with points that match the content of doc values.
+     */
+    protected abstract boolean isIndexed();
 
     @Override
     public final SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
@@ -190,20 +198,16 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         MultiValueMode sortMode,
         Nested nested
     ) {
-        switch (targetNumericType) {
-            case HALF_FLOAT:
-            case FLOAT:
-                return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
-            case DOUBLE:
-                return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
-            case DATE:
-                return dateComparatorSource(missingValue, sortMode, nested);
-            case DATE_NANOSECONDS:
-                return dateNanosComparatorSource(missingValue, sortMode, nested);
-            default:
+        return switch (targetNumericType) {
+            case HALF_FLOAT, FLOAT -> new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
+            case DOUBLE -> new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+            case DATE -> dateComparatorSource(missingValue, sortMode, nested);
+            case DATE_NANOSECONDS -> dateNanosComparatorSource(missingValue, sortMode, nested);
+            default -> {
                 assert targetNumericType.isFloatingPoint() == false;
-                return new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
-        }
+                yield new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
+            }
+        };
     }
 
     protected XFieldComparatorSource dateComparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {

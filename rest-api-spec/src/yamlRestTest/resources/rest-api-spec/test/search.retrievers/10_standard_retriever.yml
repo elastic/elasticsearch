@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: ' - 8.13.99'
+  - requires:
+      cluster_features: "gte_v8.14.0"
       reason: 'standard retriever added in 8.14'
   - do:
       indices.create:
@@ -473,6 +473,11 @@ setup:
 
 ---
 "standard retriever collapse":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/109476"
+      known_issues:
+        - cluster_feature: "gte_v8.13.0"
+          fixed_by: "gte_v8.14.0"
   - do:
       search:
         index: animals

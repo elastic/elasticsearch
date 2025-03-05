@@ -12,16 +12,18 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
 /**
  * Block that stores BytesRef values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
-public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock {
-
+public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
+    OrdinalBytesRefBlock {
     BytesRef NULL_VALUE = new BytesRef();
 
     /**
@@ -39,8 +41,23 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     @Override
     BytesRefVector asVector();
 
+    /**
+     * Returns an ordinal bytesref block if this block is backed by a dictionary and ordinals; otherwise,
+     * returns null. Callers must not release the returned block as no extra reference is retained by this method.
+     */
+    OrdinalBytesRefBlock asOrdinals();
+
     @Override
     BytesRefBlock filter(int... positions);
+
+    @Override
+    BytesRefBlock keepMask(BooleanVector mask);
+
+    @Override
+    ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    @Override
+    BytesRefBlock expand();
 
     @Override
     default String getWriteableName() {
@@ -53,12 +70,13 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
         return readFrom((BlockStreamInput) in);
     }
 
-    private static BytesRefBlock readFrom(BlockStreamInput in) throws IOException {
+    static BytesRefBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {
             case SERIALIZE_BLOCK_VALUES -> BytesRefBlock.readValues(in);
             case SERIALIZE_BLOCK_VECTOR -> BytesRefVector.readFrom(in.blockFactory(), in).asBlock();
             case SERIALIZE_BLOCK_ARRAY -> BytesRefArrayBlock.readArrayBlock(in.blockFactory(), in);
+            case SERIALIZE_BLOCK_ORDINAL -> OrdinalBytesRefBlock.readOrdinalBlock(in.blockFactory(), in);
             default -> {
                 assert false : "invalid block serialization type " + serializationType;
                 throw new IllegalStateException("invalid serialization type " + serializationType);
@@ -92,9 +110,12 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof BytesRefArrayBlock b) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof BytesRefArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
+            out.writeByte(SERIALIZE_BLOCK_ORDINAL);
+            b.writeOrdinalBlock(out);
         } else {
             out.writeByte(SERIALIZE_BLOCK_VALUES);
             BytesRefBlock.writeValues(this, out);
@@ -207,6 +228,16 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
          */
         Builder copyFrom(BytesRefBlock block, int beginInclusive, int endExclusive);
 
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+         * @param scratch Scratch string used to prevent allocation. Share this
+                          between many calls to this function.
+         */
+        Builder copyFrom(BytesRefBlock block, int position, BytesRef scratch);
+
         @Override
         Builder appendNull();
 
@@ -221,19 +252,6 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        @Override
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(BytesRefBlock block);
 
         @Override
         BytesRefBlock build();

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.migration;
@@ -16,10 +17,14 @@ import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeAction
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeRequest;
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -32,9 +37,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.migration.AbstractFeatureMigrationIntegTest.TestPlugin.BlockingActionFilter;
+import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.upgrades.SingleFeatureMigrationResult;
 
@@ -50,6 +60,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,6 +72,25 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
+    private static final String INTERNAL_MANAGED_WITH_SCRIPT_INDEX_NAME = ".int-mans-old";
+    private static final String SCRIPTED_INDEX_FEATURE_NAME = "B-test-feature";
+    private static final SystemIndexDescriptor INTERNAL_MANAGED_WITH_SCRIPT = SystemIndexDescriptor.builder()
+        .setIndexPattern(".int-mans-*")
+        .setAliasName(".internal-managed-with-script-alias")
+        .setPrimaryIndex(INTERNAL_MANAGED_WITH_SCRIPT_INDEX_NAME)
+        .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+        .setSettings(createSettings(NEEDS_UPGRADE_INDEX_VERSION, INTERNAL_MANAGED_FLAG_VALUE))
+        .setMappings(createMapping(true, true))
+        .setOrigin(ORIGIN)
+        .setAllowedElasticProductOrigins(Collections.emptyList())
+        .setPriorSystemIndexDescriptors(Collections.emptyList())
+        .setMigrationScript("""
+            if (ctx._source.some_field != null) {
+              ctx._source.some_field = 'migrated';
+            }
+            """)
+        .build();
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).build();
@@ -76,7 +106,9 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(TestPlugin.class);
+        plugins.add(SecondTestPlugin.class);
         plugins.add(ReindexPlugin.class);
+        plugins.add(PainlessPlugin.class);
         return plugins;
     }
 
@@ -88,8 +120,8 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         ensureGreen();
 
-        PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest();
-        GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest();
+        PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT);
+        GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT);
 
         // Start the migration and *immediately* request the status. We're trying to detect a race condition with this test, so we need to
         // do this as fast as possible, but not before the request to start the migration completes.
@@ -114,7 +146,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         });
     }
 
-    public void testMigrateInternalManagedSystemIndex() throws Exception {
+    public void testMigrateSystemIndex() throws Exception {
         createSystemIndexForDescriptor(INTERNAL_MANAGED);
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
         createSystemIndexForDescriptor(EXTERNAL_MANAGED);
@@ -165,30 +197,12 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             assertThat(innerMap, hasEntry("innerKey", "innerValue"));
 
             // We shouldn't have any results in the cluster state as no features have fully finished yet.
-            FeatureMigrationResults currentResults = clusterState.metadata().custom(FeatureMigrationResults.TYPE);
+            FeatureMigrationResults currentResults = clusterState.metadata().getProject().custom(FeatureMigrationResults.TYPE);
             assertThat(currentResults, nullValue());
             postUpgradeHookCalled.set(true);
         });
 
-        PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest();
-        PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, migrationRequest).get();
-        assertThat(migrationResponse.getReason(), nullValue());
-        assertThat(migrationResponse.getElasticsearchException(), nullValue());
-        final Set<String> migratingFeatures = migrationResponse.getFeatures()
-            .stream()
-            .map(PostFeatureUpgradeResponse.Feature::getFeatureName)
-            .collect(Collectors.toSet());
-        assertThat(migratingFeatures, hasItem(FEATURE_NAME));
-
-        GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest();
-        // The feature upgrade may take longer than ten seconds when tests are running
-        // in parallel, so we give assertBusy a sixty-second timeout.
-        assertBusy(() -> {
-            GetFeatureUpgradeStatusResponse statusResponse = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest)
-                .get();
-            logger.info(Strings.toString(statusResponse));
-            assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
-        }, 60, TimeUnit.SECONDS);
+        executeMigration(FEATURE_NAME);
 
         // Waiting for shards to stabilize if indices were moved around
         ensureGreen();
@@ -196,18 +210,11 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertTrue("the pre-migration hook wasn't actually called", preUpgradeHookCalled.get());
         assertTrue("the post-migration hook wasn't actually called", postUpgradeHookCalled.get());
 
-        Metadata finalMetadata = clusterAdmin().prepareState().get().getState().metadata();
-        // Check that the results metadata is what we expect.
-        FeatureMigrationResults currentResults = finalMetadata.custom(FeatureMigrationResults.TYPE);
-        assertThat(currentResults, notNullValue());
-        assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(1), hasKey(FEATURE_NAME)));
-        assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).succeeded(), is(true));
-        assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getFailedIndexName(), nullValue());
-        assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getException(), nullValue());
+        Metadata finalMetadata = assertMetadataAfterMigration(FEATURE_NAME);
 
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".int-man-old-reindexed-for-8",
+            ".int-man-old-reindexed-for-" + UPGRADED_TO_VERSION,
             INTERNAL_MANAGED_FLAG_VALUE,
             true,
             true,
@@ -215,7 +222,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".int-unman-old-reindexed-for-8",
+            ".int-unman-old-reindexed-for-" + UPGRADED_TO_VERSION,
             INTERNAL_UNMANAGED_FLAG_VALUE,
             false,
             true,
@@ -223,7 +230,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".ext-man-old-reindexed-for-8",
+            ".ext-man-old-reindexed-for-" + UPGRADED_TO_VERSION,
             EXTERNAL_MANAGED_FLAG_VALUE,
             true,
             false,
@@ -231,12 +238,24 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".ext-unman-old-reindexed-for-8",
+            ".ext-unman-old-reindexed-for-" + UPGRADED_TO_VERSION,
             EXTERNAL_UNMANAGED_FLAG_VALUE,
             false,
             false,
             Collections.singletonList(".ext-unman-old")
         );
+    }
+
+    private static Metadata assertMetadataAfterMigration(String featureName) {
+        Metadata finalMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
+        // Check that the results metadata is what we expect.
+        FeatureMigrationResults currentResults = finalMetadata.getProject().custom(FeatureMigrationResults.TYPE);
+        assertThat(currentResults, notNullValue());
+        assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(1), hasKey(featureName)));
+        assertThat(currentResults.getFeatureStatuses().get(featureName).succeeded(), is(true));
+        assertThat(currentResults.getFeatureStatuses().get(featureName).getFailedIndexName(), nullValue());
+        assertThat(currentResults.getFeatureStatuses().get(featureName).getException(), nullValue());
+        return finalMetadata;
     }
 
     public void testMigrateIndexWithWriteBlock() throws Exception {
@@ -246,12 +265,69 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), indexName);
         ensureGreen();
 
-        client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest()).get();
+        client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT)).get();
 
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResp = client().execute(
                 GetFeatureUpgradeStatusAction.INSTANCE,
-                new GetFeatureUpgradeStatusRequest()
+                new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT)
+            ).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
+        });
+    }
+
+    public void testIndexBlockIsRemovedWhenAliasRequestFails() throws Exception {
+        createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
+        ensureGreen();
+
+        // Block the alias request to simulate a failure
+        InternalTestCluster internalTestCluster = internalCluster();
+        ActionFilters actionFilters = internalTestCluster.getInstance(ActionFilters.class, internalTestCluster.getMasterName());
+        BlockingActionFilter blockingActionFilter = null;
+        for (ActionFilter filter : actionFilters.filters()) {
+            if (filter instanceof BlockingActionFilter) {
+                blockingActionFilter = (BlockingActionFilter) filter;
+                break;
+            }
+        }
+        assertNotNull("BlockingActionFilter should exist", blockingActionFilter);
+        blockingActionFilter.blockActions(TransportIndicesAliasesAction.NAME);
+
+        // Start the migration
+        client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT)).get();
+
+        // Wait till the migration fails
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(
+                GetFeatureUpgradeStatusAction.INSTANCE,
+                new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT)
+            ).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR));
+        });
+
+        // Get the settings to see if the write block was removed
+        var allsettings = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, INTERNAL_UNMANAGED.getIndexPattern())
+            .get()
+            .getIndexToSettings();
+        var internalUnmanagedOldIndexSettings = allsettings.get(".int-unman-old");
+        var writeBlock = internalUnmanagedOldIndexSettings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey());
+        assertThat("Write block on old index should be removed on migration ERROR status", writeBlock, equalTo("false"));
+
+        // Unblock the alias request
+        blockingActionFilter.blockActions();
+
+        // Retry the migration
+        client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT)).get();
+
+        // Ensure that the migration is successful after the alias request is unblocked
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(
+                GetFeatureUpgradeStatusAction.INSTANCE,
+                new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT)
             ).get();
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
@@ -299,7 +375,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             fail("cluster state update failed, see log for details");
         }
 
-        PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest();
+        PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT);
         PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, migrationRequest).get();
         // Make sure we actually started the migration
         assertTrue(
@@ -309,11 +385,55 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         // Now wait for the migration to finish (otherwise the test infra explodes)
         assertBusy(() -> {
-            GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest();
+            GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT);
             GetFeatureUpgradeStatusResponse statusResp = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest).get();
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
         });
+    }
+
+    private void executeMigration(String featureName) throws Exception {
+        PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT);
+        PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, migrationRequest).get();
+        assertThat(migrationResponse.getReason(), nullValue());
+        assertThat(migrationResponse.getElasticsearchException(), nullValue());
+        final Set<String> migratingFeatures = migrationResponse.getFeatures()
+            .stream()
+            .map(PostFeatureUpgradeResponse.Feature::getFeatureName)
+            .collect(Collectors.toSet());
+        assertThat(migratingFeatures, hasItem(featureName));
+
+        GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT);
+        // The feature upgrade may take longer than ten seconds when tests are running
+        // in parallel, so we give assertBusy a sixty-second timeout.
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResponse = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest)
+                .get();
+            logger.info(Strings.toString(statusResponse));
+            assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
+        }, 60, TimeUnit.SECONDS);
+    }
+
+    public void testMigrateUsingScript() throws Exception {
+        createSystemIndexForDescriptor(INTERNAL_MANAGED_WITH_SCRIPT);
+
+        executeMigration(SCRIPTED_INDEX_FEATURE_NAME);
+        ensureGreen();
+
+        Metadata metadata = assertMetadataAfterMigration(SCRIPTED_INDEX_FEATURE_NAME);
+        String newIndexName = ".int-mans-old-reindexed-for-" + UPGRADED_TO_VERSION;
+        assertIndexHasCorrectProperties(
+            metadata,
+            newIndexName,
+            INTERNAL_MANAGED_FLAG_VALUE,
+            true,
+            true,
+            Arrays.asList(".int-mans-old", ".internal-managed-with-script-alias")
+        );
+
+        SearchRequestBuilder searchRequestBuilder = prepareSearch(newIndexName).setQuery(QueryBuilders.termsQuery(FIELD_NAME, "migrated"))
+            .setSize(0);
+        assertHitCountAndNoFailures(searchRequestBuilder, INDEX_DOC_COUNT);
     }
 
     private String featureUpgradeErrorResponse(GetFeatureUpgradeStatusResponse statusResp) {
@@ -337,8 +457,10 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         ensureGreen();
 
-        PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest())
-            .get();
+        PostFeatureUpgradeResponse migrationResponse = client().execute(
+            PostFeatureUpgradeAction.INSTANCE,
+            new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT)
+        ).get();
 
         assertTrue(migrationResponse.isAccepted());
     }
@@ -349,7 +471,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResp = client().execute(
                 GetFeatureUpgradeStatusAction.INSTANCE,
-                new GetFeatureUpgradeStatusRequest()
+                new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT)
             ).get();
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR));
@@ -364,7 +486,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResp = client().execute(
                 GetFeatureUpgradeStatusAction.INSTANCE,
-                new GetFeatureUpgradeStatusRequest()
+                new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT)
             ).get();
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
@@ -426,8 +548,10 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         ensureGreen();
 
-        PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest())
-            .get();
+        PostFeatureUpgradeResponse migrationResponse = client().execute(
+            PostFeatureUpgradeAction.INSTANCE,
+            new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT)
+        ).get();
         assertTrue(migrationResponse.isAccepted());
     }
 
@@ -437,7 +561,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResp = client().execute(
                 GetFeatureUpgradeStatusAction.INSTANCE,
-                new GetFeatureUpgradeStatusRequest()
+                new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT)
             ).get();
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR));
@@ -452,10 +576,27 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResp = client().execute(
                 GetFeatureUpgradeStatusAction.INSTANCE,
-                new GetFeatureUpgradeStatusRequest()
+                new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT)
             ).get();
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
         });
+    }
+
+    public static class SecondTestPlugin extends Plugin implements SystemIndexPlugin {
+        @Override
+        public String getFeatureName() {
+            return SCRIPTED_INDEX_FEATURE_NAME;
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "a plugin for testing system index migration";
+        }
+
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return Collections.singletonList(INTERNAL_MANAGED_WITH_SCRIPT);
+        }
     }
 }

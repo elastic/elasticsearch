@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -22,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class FeatureMigrationResultsTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.Custom> {
+public class FeatureMigrationResultsTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.ProjectCustom> {
 
     private static final ConstructingObjectParser<SingleFeatureMigrationResult, Void> SINGLE_FEATURE_RESULT_PARSER =
         new ConstructingObjectParser<>(
@@ -80,7 +81,7 @@ public class FeatureMigrationResultsTests extends ChunkedToXContentDiffableSeria
     }
 
     @Override
-    protected FeatureMigrationResults mutateInstance(Metadata.Custom instance) {
+    protected FeatureMigrationResults mutateInstance(Metadata.ProjectCustom instance) {
         int oldSize = ((FeatureMigrationResults) instance).getFeatureStatuses().size();
         if (oldSize == 0 || randomBoolean()) {
             return new FeatureMigrationResults(
@@ -101,7 +102,7 @@ public class FeatureMigrationResultsTests extends ChunkedToXContentDiffableSeria
     }
 
     @Override
-    protected Writeable.Reader<Metadata.Custom> instanceReader() {
+    protected Writeable.Reader<Metadata.ProjectCustom> instanceReader() {
         return FeatureMigrationResults::new;
     }
 
@@ -111,12 +112,12 @@ public class FeatureMigrationResultsTests extends ChunkedToXContentDiffableSeria
     }
 
     @Override
-    protected Metadata.Custom makeTestChanges(Metadata.Custom testInstance) {
+    protected Metadata.ProjectCustom makeTestChanges(Metadata.ProjectCustom testInstance) {
         return mutateInstance(testInstance);
     }
 
     @Override
-    protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
+    protected Writeable.Reader<Diff<Metadata.ProjectCustom>> diffReader() {
         return FeatureMigrationResults.ResultsDiff::new;
     }
 }

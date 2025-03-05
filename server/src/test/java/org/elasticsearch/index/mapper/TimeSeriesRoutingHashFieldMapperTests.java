@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -44,7 +45,7 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
             getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing path is required")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-10-29T00:00:00Z")
                 .build(),
             mappings
         ).documentMapper();
@@ -57,6 +58,15 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
             f.accept(b);
             b.field("@timestamp", "2021-10-01");
         }, TimeSeriesRoutingHashFieldMapper.encode(hash)));
+    }
+
+    private static ParsedDocument parseDocument(String id, DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f)
+        throws IOException {
+        // Add the @timestamp field required by DataStreamTimestampFieldMapper for all time series indices
+        return docMapper.parse(source(id, b -> {
+            f.accept(b);
+            b.field("@timestamp", "2021-10-01");
+        }, null));
     }
 
     private static int getRoutingHash(ParsedDocument document) {
@@ -74,6 +84,17 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
         ParsedDocument doc = parseDocument(hash, docMapper, b -> b.field("a", "value"));
         assertThat(doc.rootDoc().getField("a").binaryValue(), equalTo(new BytesRef("value")));
         assertEquals(hash, getRoutingHash(doc));
+    }
+
+    public void testRetrievedFromIdInTimeSeriesMode() throws Exception {
+        DocumentMapper docMapper = createMapper(mapping(b -> {
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
+
+        int hash = randomInt();
+        ParsedDocument doc = parseDocument(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, docMapper, b -> b.field("a", "value"));
+        assertThat(doc.rootDoc().getField("a").binaryValue(), equalTo(new BytesRef("value")));
+        assertEquals(0, getRoutingHash(doc));
     }
 
     public void testDisabledInStandardMode() throws Exception {

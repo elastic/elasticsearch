@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -21,6 +23,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceA
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.IndexVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
@@ -34,7 +37,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -43,23 +45,26 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.injection.guice.ModuleTestCase;
 import org.elasticsearch.plugins.ClusterPlugin;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
+
+import static org.hamcrest.Matchers.contains;
 
 public class ClusterModuleTests extends ModuleTestCase {
     private ClusterInfoService clusterInfoService = EmptyClusterInfoService.INSTANCE;
@@ -83,8 +88,8 @@ public class ClusterModuleTests extends ModuleTestCase {
         clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            null,
-            (TaskManager) null
+            threadPool,
+            null
         );
     }
 
@@ -156,7 +161,15 @@ public class ClusterModuleTests extends ModuleTestCase {
                 public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                     return Collections.singletonList(new EnableAllocationDecider(clusterSettings));
                 }
-            }), clusterInfoService, null, threadPool, EmptySystemIndices.INSTANCE, WriteLoadForecaster.DEFAULT, TelemetryProvider.NOOP)
+            }),
+                clusterInfoService,
+                null,
+                threadPool,
+                EmptySystemIndices.INSTANCE,
+                TestProjectResolvers.singleProjectOnly(),
+                WriteLoadForecaster.DEFAULT,
+                TelemetryProvider.NOOP
+            )
         );
         assertEquals(e.getMessage(), "Cannot specify allocation decider [" + EnableAllocationDecider.class.getName() + "] twice");
     }
@@ -167,7 +180,15 @@ public class ClusterModuleTests extends ModuleTestCase {
             public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                 return Collections.singletonList(new FakeAllocationDecider());
             }
-        }), clusterInfoService, null, threadPool, EmptySystemIndices.INSTANCE, WriteLoadForecaster.DEFAULT, TelemetryProvider.NOOP);
+        }),
+            clusterInfoService,
+            null,
+            threadPool,
+            EmptySystemIndices.INSTANCE,
+            TestProjectResolvers.singleProjectOnly(),
+            WriteLoadForecaster.DEFAULT,
+            TelemetryProvider.NOOP
+        );
         assertTrue(module.deciderList.stream().anyMatch(d -> d.getClass().equals(FakeAllocationDecider.class)));
     }
 
@@ -177,7 +198,15 @@ public class ClusterModuleTests extends ModuleTestCase {
             public Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
                 return Collections.singletonMap(name, supplier);
             }
-        }), clusterInfoService, null, threadPool, EmptySystemIndices.INSTANCE, WriteLoadForecaster.DEFAULT, TelemetryProvider.NOOP);
+        }),
+            clusterInfoService,
+            null,
+            threadPool,
+            EmptySystemIndices.INSTANCE,
+            TestProjectResolvers.singleProjectOnly(),
+            WriteLoadForecaster.DEFAULT,
+            TelemetryProvider.NOOP
+        );
     }
 
     public void testRegisterShardsAllocator() {
@@ -209,6 +238,7 @@ public class ClusterModuleTests extends ModuleTestCase {
                 null,
                 threadPool,
                 EmptySystemIndices.INSTANCE,
+                TestProjectResolvers.singleProjectOnly(),
                 WriteLoadForecaster.DEFAULT,
                 TelemetryProvider.NOOP
             )
@@ -232,7 +262,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     // running them. If the order of the deciders is changed for a valid reason, the order should be
     // changed in the test too.
     public void testAllocationDeciderOrder() {
-        List<Class<? extends AllocationDecider>> expectedDeciders = Arrays.asList(
+        Stream<Class<? extends AllocationDecider>> expectedDeciders = Stream.of(
             MaxRetryAllocationDecider.class,
             ResizeAllocationDecider.class,
             ReplicaAfterPrimaryActiveAllocationDecider.class,
@@ -240,6 +270,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             ClusterRebalanceAllocationDecider.class,
             ConcurrentRebalanceAllocationDecider.class,
             EnableAllocationDecider.class,
+            IndexVersionAllocationDecider.class,
             NodeVersionAllocationDecider.class,
             SnapshotInProgressAllocationDecider.class,
             RestoreInProgressAllocationDecider.class,
@@ -257,12 +288,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             Collections.emptyList()
         );
-        Iterator<AllocationDecider> iter = deciders.iterator();
-        int idx = 0;
-        while (iter.hasNext()) {
-            AllocationDecider decider = iter.next();
-            assertSame(decider.getClass(), expectedDeciders.get(idx++));
-        }
+        assertThat(deciders, contains(expectedDeciders.<Matcher<? super AllocationDecider>>map(Matchers::instanceOf).toList()));
     }
 
     public void testRejectsReservedExistingShardsAllocatorName() {
@@ -274,6 +300,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             null,
             threadPool,
             EmptySystemIndices.INSTANCE,
+            TestProjectResolvers.singleProjectOnly(),
             WriteLoadForecaster.DEFAULT,
             TelemetryProvider.NOOP
         );
@@ -289,6 +316,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             null,
             threadPool,
             EmptySystemIndices.INSTANCE,
+            TestProjectResolvers.singleProjectOnly(),
             WriteLoadForecaster.DEFAULT,
             TelemetryProvider.NOOP
         );

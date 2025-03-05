@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -48,7 +49,7 @@ import java.util.Objects;
  * tombstones remain in the cluster state for a fixed period of time, after which
  * they are purged.
  */
-public final class IndexGraveyard implements Metadata.Custom {
+public final class IndexGraveyard implements Metadata.ProjectCustom {
 
     /**
      * Setting for the maximum tombstones allowed in the cluster state;
@@ -146,11 +147,11 @@ public final class IndexGraveyard implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(final Metadata.Custom previous) {
+    public Diff<Metadata.ProjectCustom> diff(final Metadata.ProjectCustom previous) {
         return new IndexGraveyardDiff((IndexGraveyard) previous, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(final StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(final StreamInput in) throws IOException {
         return new IndexGraveyardDiff(in);
     }
 
@@ -250,7 +251,7 @@ public final class IndexGraveyard implements Metadata.Custom {
     /**
      * A class representing a diff of two IndexGraveyard objects.
      */
-    public static final class IndexGraveyardDiff implements NamedDiff<Metadata.Custom> {
+    public static final class IndexGraveyardDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         private final List<Tombstone> added;
         private final int removedCount;
@@ -304,7 +305,7 @@ public final class IndexGraveyard implements Metadata.Custom {
         }
 
         @Override
-        public IndexGraveyard apply(final Metadata.Custom previous) {
+        public IndexGraveyard apply(final Metadata.ProjectCustom previous) {
             final IndexGraveyard old = (IndexGraveyard) previous;
             if (removedCount > old.tombstones.size()) {
                 throw new IllegalStateException(
@@ -433,7 +434,7 @@ public final class IndexGraveyard implements Metadata.Custom {
             builder.startObject();
             builder.field(INDEX_KEY);
             index.toXContent(builder, params);
-            builder.timeField(DELETE_DATE_IN_MILLIS_KEY, DELETE_DATE_KEY, deleteDateInMillis);
+            builder.timestampFieldsFromUnixEpochMillis(DELETE_DATE_IN_MILLIS_KEY, DELETE_DATE_KEY, deleteDateInMillis);
             return builder.endObject();
         }
 

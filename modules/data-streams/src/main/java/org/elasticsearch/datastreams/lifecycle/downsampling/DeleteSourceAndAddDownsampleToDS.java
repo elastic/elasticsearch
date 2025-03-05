@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.lifecycle.downsampling;
@@ -63,7 +64,7 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
             downsampleIndex,
             dataStreamName
         );
-        IndexMetadata downsampleIndexMeta = state.metadata().index(downsampleIndex);
+        IndexMetadata downsampleIndexMeta = state.metadata().getProject().index(downsampleIndex);
         if (downsampleIndexMeta == null) {
             // the downsample index doesn't exist anymore so nothing to replace here
             LOGGER.trace(
@@ -76,9 +77,9 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
             );
             return state;
         }
-        IndexAbstraction sourceIndexAbstraction = state.metadata().getIndicesLookup().get(sourceBackingIndex);
+        IndexAbstraction sourceIndexAbstraction = state.metadata().getProject().getIndicesLookup().get(sourceBackingIndex);
         if (sourceIndexAbstraction == null) {
-            DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
+            DataStream dataStream = state.metadata().getProject().dataStreams().get(dataStreamName);
             // index was deleted in the meantime, so let's check if we can make sure the downsample index ends up in the
             // data stream (if not already there)
             if (dataStream != null
@@ -91,7 +92,7 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
                     dataStreamName
                 );
                 Metadata.Builder newMetaData = Metadata.builder(state.metadata())
-                    .put(dataStream.addBackingIndex(state.metadata(), downsampleIndexMeta.getIndex()));
+                    .put(dataStream.addBackingIndex(state.metadata().getProject(), downsampleIndexMeta.getIndex()));
                 return ClusterState.builder(state).metadata(newMetaData).build();
             }
         } else {
@@ -106,13 +107,13 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
                 throw new IllegalStateException(errorMessage);
             }
 
-            IndexMetadata sourceIndexMeta = state.metadata().index(sourceBackingIndex);
+            IndexMetadata sourceIndexMeta = state.metadata().getProject().index(sourceBackingIndex);
             assert sourceIndexMeta != null
                 : "the source index abstraction exists in the indices lookup, so the index metadata must "
                     + "exist in the same cluster state metadata";
             // the source index exists so let's start by deleting it
             state = MetadataDeleteIndexService.deleteIndices(state, Set.of(sourceIndexMeta.getIndex()), settings);
-            DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
+            DataStream dataStream = state.metadata().getProject().dataStreams().get(dataStreamName);
             if (sourceParentDataStream != null) {
                 assert sourceParentDataStream.getName().equals(dataStreamName)
                     : "the backing index must be part of the provided data "
@@ -160,7 +161,7 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
 
         newMetaData.put(updatedDownsampleMetadata, true);
         // we deleted the source already so let's add the downsample index to the data stream
-        newMetaData.put(dataStream.addBackingIndex(state.metadata(), downsampleIndexMeta.getIndex()));
+        newMetaData.put(dataStream.addBackingIndex(state.metadata().getProject(), downsampleIndexMeta.getIndex()));
         return ClusterState.builder(state).metadata(newMetaData).build();
     }
 

@@ -158,17 +158,17 @@ The above code checks the request's compatible version and if the request has th
 
 The primary means of testing compatibility is via the prior major version's YAML REST tests. The build system will download the latest prior version of the YAML rest tests and execute them against the current cluster version. Prior to execution the tests will be transformed by injecting the correct headers to enable compatibility as well as other custom changes to the tests to allow the tests to pass. These customizations are configured via the build.gradle and happen just prior to test execution. Since the compatibility tests are manipulated version of the tests stored in Github (via the past major version), it is important to find the local (on disk) version for troubleshooting compatibility tests.
 
-The tests are wired into the `check` task, so that is the easiest way to test locally prior to committing.  More specifically the task is called `yamlRestTestV7CompatTest`, where 7 is the version of tests that are executing. For example, version 8 of the server will have a task named `yamlRestTestV7CompatTest` and version 9 of the server will have a task named `yamlRestTestV8CompatTest`. These behaves nearly identical to it's non-compat `yamlRestTest` task. The only variance is that the tests are sourced from the prior version branch and the tests go through a transformation phase before execution. The transformation task is `yamlRestTestV7CompatTransform` where the Vnumber follows the same convention as the test.
+The tests are wired into the `check` task, so that is the easiest way to test locally prior to committing.  More specifically the task is called `yamlRestCompatTest`. These behave nearly identical to it's non-compat `yamlRestTest` task. The only variance is that the tests are sourced from the prior version branch and the tests go through a transformation phase before execution. The transformation task is `yamlRestCompatTestTransform`.
 
 For example:
 
 ```bash
-./gradlew :rest-api-spec:yamlRestTestV7CompatTest
+./gradlew :rest-api-spec:yamlRestCompatTest
 ```
 
-Since these are a variation of backward compatibility testing, the entire suite of compatibility tests will be skipped anytime the backward compatibility testing is disabled. Since the source code for these tests live in a branch of code, disabling a specific test should be done via the transformation task configuration in build.gradle (i.e. `yamlRestTestV7CompatTransform`).
+Since these are a variation of backward compatibility testing, the entire suite of compatibility tests will be skipped anytime the backward compatibility testing is disabled. Since the source code for these tests live in a branch of code, disabling a specific test should be done via the transformation task configuration in build.gradle (i.e. `yamlRestCompatTestTransform`).
 
-In some cases the prior version of the YAML REST tests are not sufficient to fully test changes. This can happen when the prior version has insufficient test coverage. In those cases, you can simply add more testing to the prior version or you can add custom REST tests that will run along side of the other compatibility tests. These custom tests can be found in the `yamlRestTestV7` (where Vnumber follows the same conventions) sourceset and the test directory is versioned for example: `yamlRestTestV7/resources/rest-api-spec/test/v7compat`). Custom REST tests for compatibility will not be modified prior to execution, so the correct headers need to be manually added.
+In some cases the prior version of the YAML REST tests are not sufficient to fully test changes. This can happen when the prior version has insufficient test coverage. In those cases, you can simply add more testing to the prior version or you can add custom REST tests that will run along side of the other compatibility tests. These custom tests can be found in the `yamlRestCompatTest` sourceset. Custom REST tests for compatibility will not be modified prior to execution, so the correct headers need to be manually added.
 
 ### Developer's workflow
 
@@ -182,13 +182,13 @@ Mixed clusters are not explicitly tested since the change should be applied at t
 
 By far the most common reason that compatibility tests can seemingly randomly fail is that your main branch is out of date with the upstream main. For this reason, it always suggested to ensure that your PR branch is up to date.
 
-Test failure reproduction lines should behave identical to the non-compatible variant. However, to assure you are referencing the correct line number when reading the test, be sure to look at the line number from the transformed test on disk.  Generally the fully transformed tests can be found at `build/restResources/v7/yamlTests/transformed/rest-api-spec/test/*` (where v7 will change with different versions).
+Test failure reproduction lines should behave identical to the non-compatible variant. However, to assure you are referencing the correct line number when reading the test, be sure to look at the line number from the transformed test on disk.  Generally the fully transformed tests can be found at `build/restResources/compat/yamlTests/transformed/rest-api-spec/test/*`.
 
 Muting compatibility tests should be done via a test transform. A per test skip or a file match can be used to skip the tests.
 
 ```groovy
 
-tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTestsByFilePattern("**/cat*/*.yml", "Cat API are not supported")
   task.skipTest("bulk/10_basic/Array of objects", "Muted due failures. See #12345")
 })

@@ -76,6 +76,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             int totalParts,
             boolean allowOverwriting
         ) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.definition = ExceptionsHelper.requireNonNull(definition, DEFINITION);
             this.part = part;

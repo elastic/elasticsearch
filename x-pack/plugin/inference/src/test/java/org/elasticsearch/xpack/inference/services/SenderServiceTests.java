@@ -11,28 +11,31 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -58,7 +61,7 @@ public class SenderServiceTests extends ESTestCase {
         var sender = mock(Sender.class);
 
         var factory = mock(HttpRequestSender.Factory.class);
-        when(factory.createSender(anyString())).thenReturn(sender);
+        when(factory.createSender()).thenReturn(sender);
 
         try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
@@ -66,7 +69,7 @@ public class SenderServiceTests extends ESTestCase {
 
             listener.actionGet(TIMEOUT);
             verify(sender, times(1)).start();
-            verify(factory, times(1)).createSender(anyString());
+            verify(factory, times(1)).createSender();
         }
 
         verify(sender, times(1)).close();
@@ -78,7 +81,7 @@ public class SenderServiceTests extends ESTestCase {
         var sender = mock(Sender.class);
 
         var factory = mock(HttpRequestSender.Factory.class);
-        when(factory.createSender(anyString())).thenReturn(sender);
+        when(factory.createSender()).thenReturn(sender);
 
         try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
@@ -88,7 +91,7 @@ public class SenderServiceTests extends ESTestCase {
             service.start(mock(Model.class), listener);
             listener.actionGet(TIMEOUT);
 
-            verify(factory, times(1)).createSender(anyString());
+            verify(factory, times(1)).createSender();
             verify(sender, times(2)).start();
         }
 
@@ -105,22 +108,31 @@ public class SenderServiceTests extends ESTestCase {
         @Override
         protected void doInfer(
             Model model,
-            List<String> input,
+            InferenceInputs inputs,
             Map<String, Object> taskSettings,
             InputType inputType,
+            TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
 
         }
 
         @Override
+        protected void doUnifiedCompletionInfer(
+            Model model,
+            UnifiedChatInput inputs,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {}
+
+        @Override
         protected void doChunkedInfer(
             Model model,
-            List<String> input,
+            DocumentsOnlyInput inputs,
             Map<String, Object> taskSettings,
             InputType inputType,
-            ChunkingOptions chunkingOptions,
-            ActionListener<List<ChunkedInferenceServiceResults>> listener
+            TimeValue timeout,
+            ActionListener<List<ChunkedInference>> listener
         ) {
 
         }
@@ -135,7 +147,6 @@ public class SenderServiceTests extends ESTestCase {
             String inferenceEntityId,
             TaskType taskType,
             Map<String, Object> config,
-            Set<String> platfromArchitectures,
             ActionListener<Model> parsedModelListener
         ) {
             parsedModelListener.onResponse(null);
@@ -159,6 +170,20 @@ public class SenderServiceTests extends ESTestCase {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current();
+        }
+
+        @Override
+        public InferenceServiceConfiguration getConfiguration() {
+            return new InferenceServiceConfiguration.Builder().setService("test service")
+                .setName("Test")
+                .setTaskTypes(supportedTaskTypes())
+                .setConfigurations(new HashMap<>())
+                .build();
+        }
+
+        @Override
+        public EnumSet<TaskType> supportedTaskTypes() {
+            return EnumSet.of(TaskType.TEXT_EMBEDDING);
         }
     }
 }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
@@ -59,8 +59,8 @@ public class RequestTaskTests extends ESTestCase {
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
 
         var requestTask = new RequestTask(
-            OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "model", null, "id"),
-            List.of("abc"),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
+            new DocumentsOnlyInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             mockThreadPool,
             listener
@@ -79,20 +79,18 @@ public class RequestTaskTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var requestTask = new RequestTask(
-            OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "model", null, "id"),
-            List.of("abc"),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
+            new DocumentsOnlyInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             threadPool,
             listener
         );
 
-        var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(
-            thrownException.getMessage(),
-            is(format("Request timed out waiting to be sent after [%s]", TimeValue.timeValueMillis(1)))
-        );
+        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
         assertTrue(requestTask.hasCompleted());
         assertTrue(requestTask.getRequestCompletedFunction().get());
+        assertThat(thrownException.status().getStatus(), is(408));
     }
 
     public void testRequest_DoesNotCallOnFailureTwiceWhenTimingOut() throws Exception {
@@ -105,8 +103,8 @@ public class RequestTaskTests extends ESTestCase {
         }).when(listener).onFailure(any());
 
         var requestTask = new RequestTask(
-            OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "model", null, "id"),
-            List.of("abc"),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
+            new DocumentsOnlyInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             threadPool,
             listener
@@ -116,10 +114,7 @@ public class RequestTaskTests extends ESTestCase {
 
         ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
         verify(listener, times(1)).onFailure(argument.capture());
-        assertThat(
-            argument.getValue().getMessage(),
-            is(format("Request timed out waiting to be sent after [%s]", TimeValue.timeValueMillis(1)))
-        );
+        assertThat(argument.getValue().getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
         assertTrue(requestTask.hasCompleted());
         assertTrue(requestTask.getRequestCompletedFunction().get());
 
@@ -137,8 +132,8 @@ public class RequestTaskTests extends ESTestCase {
         }).when(listener).onFailure(any());
 
         var requestTask = new RequestTask(
-            OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "model", null, "id"),
-            List.of("abc"),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
+            new DocumentsOnlyInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             threadPool,
             listener
@@ -148,10 +143,7 @@ public class RequestTaskTests extends ESTestCase {
 
         ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
         verify(listener, times(1)).onFailure(argument.capture());
-        assertThat(
-            argument.getValue().getMessage(),
-            is(format("Request timed out waiting to be sent after [%s]", TimeValue.timeValueMillis(1)))
-        );
+        assertThat(argument.getValue().getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
         assertTrue(requestTask.hasCompleted());
         assertTrue(requestTask.getRequestCompletedFunction().get());
 
@@ -167,8 +159,8 @@ public class RequestTaskTests extends ESTestCase {
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
 
         var requestTask = new RequestTask(
-            OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "model", null, "id"),
-            List.of("abc"),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
+            new DocumentsOnlyInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             mockThreadPool,
             listener

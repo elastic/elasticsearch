@@ -11,11 +11,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -240,22 +240,9 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                 hit.sourceRef(source);
                 ActionListener.respondAndRelease(
                     listener,
-                    new SearchResponse(
-                        SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f),
-                        null,
-                        null,
-                        false,
-                        null,
-                        null,
-                        1,
-                        "_scrollId1",
-                        1,
-                        1,
-                        0,
-                        1,
-                        null,
-                        null
-                    )
+                    SearchResponseUtils.response(
+                        SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f)
+                    ).scrollId("_scrollId1").build()
                 );
             } else if (request.scrollId().equals("_scrollId1")) {
                 ActionListener.respondAndRelease(listener, SearchResponseUtils.emptyWithTotalHits("_scrollId2", 1, 1, 0, 1, null, null));
@@ -472,7 +459,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
             listener.onResponse(new BulkResponse(bulkItemResponse, 123));
             return null;
-        }).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(), any());
 
         BulkResponse response = triggeredWatchStore.putAll(triggeredWatches);
         assertThat(response.hasFailures(), is(false));

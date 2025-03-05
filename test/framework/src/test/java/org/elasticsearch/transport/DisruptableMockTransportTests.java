@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -593,32 +594,28 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
         disconnectedLinks.add(Tuple.tuple(node1, node2));
         assertThat(
-            expectThrows(ConnectTransportException.class, () -> AbstractSimpleTransportTestCase.connectToNode(service1, node2))
-                .getMessage(),
+            AbstractSimpleTransportTestCase.connectToNodeExpectFailure(service1, node2, null).getMessage(),
             endsWith("is [DISCONNECTED] not [CONNECTED]")
         );
         disconnectedLinks.clear();
 
         blackholedLinks.add(Tuple.tuple(node1, node2));
         assertThat(
-            expectThrows(ConnectTransportException.class, () -> AbstractSimpleTransportTestCase.connectToNode(service1, node2))
-                .getMessage(),
+            AbstractSimpleTransportTestCase.connectToNodeExpectFailure(service1, node2, null).getMessage(),
             endsWith("is [BLACK_HOLE] not [CONNECTED]")
         );
         blackholedLinks.clear();
 
         blackholedRequestLinks.add(Tuple.tuple(node1, node2));
         assertThat(
-            expectThrows(ConnectTransportException.class, () -> AbstractSimpleTransportTestCase.connectToNode(service1, node2))
-                .getMessage(),
+            AbstractSimpleTransportTestCase.connectToNodeExpectFailure(service1, node2, null).getMessage(),
             endsWith("is [BLACK_HOLE_REQUESTS_ONLY] not [CONNECTED]")
         );
         blackholedRequestLinks.clear();
 
         final DiscoveryNode node3 = DiscoveryNodeUtils.create("node3");
         assertThat(
-            expectThrows(ConnectTransportException.class, () -> AbstractSimpleTransportTestCase.connectToNode(service1, node3))
-                .getMessage(),
+            AbstractSimpleTransportTestCase.connectToNodeExpectFailure(service1, node3, null).getMessage(),
             endsWith("does not exist")
         );
     }

@@ -18,6 +18,16 @@
           ]
         }
       ]
+    },
+    "params":{
+      "master_timeout": {
+        "type": "time",
+        "description": "Timeout for processing on master node"
+      },
+      "timeout": {
+        "type": "time",
+        "description": "Timeout for acknowledgement of update from all nodes in cluster"
+      }
     }
   }
 }

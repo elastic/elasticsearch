@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -89,6 +90,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         for (String allocatedNode : allocatedNodes) {
             if (randomBoolean()) {
                 internalCluster().restartNode(allocatedNode);
+                ensureGreen(indexName);
             }
         }
         ensureGreen(indexName);
@@ -141,7 +143,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indexName).indicesOptions(
             IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
         ).keepAlive(TimeValue.timeValueMinutes(2));
-        final String pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
+        final BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
         try {
             assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
                 assertThat(resp.pointInTimeId(), equalTo(pitId));
@@ -150,6 +152,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             final Set<String> allocatedNodes = internalCluster().nodesInclude(indexName);
             for (String allocatedNode : allocatedNodes) {
                 internalCluster().restartNode(allocatedNode);
+                ensureGreen(indexName);
             }
             ensureGreen(indexName);
             assertNoFailuresAndResponse(

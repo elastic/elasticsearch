@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -66,6 +68,11 @@ public class TestRetrieverBuilder extends RetrieverBuilder {
     }
 
     @Override
+    public QueryBuilder topDocsQuery() {
+        throw new UnsupportedOperationException("only used for parsing tests");
+    }
+
+    @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         throw new UnsupportedOperationException("only used for parsing tests");
     }
@@ -82,6 +89,8 @@ public class TestRetrieverBuilder extends RetrieverBuilder {
 
     @Override
     public boolean doEquals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         TestRetrieverBuilder that = (TestRetrieverBuilder) o;
         return Objects.equals(value, that.value);
     }

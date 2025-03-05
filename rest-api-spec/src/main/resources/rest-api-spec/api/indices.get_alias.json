@@ -80,9 +80,10 @@
         "default": "all",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
       },
-      "local":{
-        "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
+      "master_timeout":{
+        "type":"time",
+        "description":"Timeout for waiting for new cluster state in case it is blocked",
+        "default":"30s"
       }
     }
   }

@@ -45,6 +45,8 @@ public class AutoscalingLicenseCheckerIT extends ESSingleNodeTestCase {
 
     public void testCanNotPutPolicyWithNonCompliantLicense() throws InterruptedException {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             "",
             Collections.emptySortedSet(),
             Collections.emptySortedMap()
@@ -75,7 +77,7 @@ public class AutoscalingLicenseCheckerIT extends ESSingleNodeTestCase {
     }
 
     public void testCanNotGetPolicyWithNonCompliantLicense() throws InterruptedException {
-        final GetAutoscalingPolicyAction.Request request = new GetAutoscalingPolicyAction.Request("");
+        final GetAutoscalingPolicyAction.Request request = new GetAutoscalingPolicyAction.Request(TEST_REQUEST_TIMEOUT, "");
         final CountDownLatch latch = new CountDownLatch(1);
         client().execute(GetAutoscalingPolicyAction.INSTANCE, request, new ActionListener<>() {
 
@@ -102,7 +104,7 @@ public class AutoscalingLicenseCheckerIT extends ESSingleNodeTestCase {
     }
 
     public void testCanNonGetAutoscalingCapacityDecisionWithNonCompliantLicense() throws InterruptedException {
-        final GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request();
+        final GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request(TEST_REQUEST_TIMEOUT);
         final CountDownLatch latch = new CountDownLatch(1);
         client().execute(GetAutoscalingCapacityAction.INSTANCE, request, new ActionListener<>() {
 
@@ -129,7 +131,11 @@ public class AutoscalingLicenseCheckerIT extends ESSingleNodeTestCase {
     }
 
     public void testCanDeleteAutoscalingPolicyEvenWithNonCompliantLicense() throws InterruptedException {
-        final DeleteAutoscalingPolicyAction.Request request = new DeleteAutoscalingPolicyAction.Request("*");
+        final DeleteAutoscalingPolicyAction.Request request = new DeleteAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "*"
+        );
         final CountDownLatch latch = new CountDownLatch(1);
         client().execute(DeleteAutoscalingPolicyAction.INSTANCE, request, new ActionListener<>() {
 

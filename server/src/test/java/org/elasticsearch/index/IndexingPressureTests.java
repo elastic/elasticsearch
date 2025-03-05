@@ -1,22 +1,93 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
+
+import java.util.Optional;
 
 public class IndexingPressureTests extends ESTestCase {
 
-    private final Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "10KB").build();
+    private final Settings settings = Settings.builder()
+        .put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "10KB")
+        .put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), "12KB")
+        .put(IndexingPressure.MAX_REPLICA_BYTES.getKey(), "15KB")
+        .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "8KB")
+        .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1KB")
+        .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "9KB")
+        .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "128B")
+        .build();
+
+    public void testMemoryLimitSettingsFallbackToOldSingleLimitSetting() {
+        Settings settings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "20KB").build();
+
+        assertThat(IndexingPressure.MAX_COORDINATING_BYTES.get(settings), Matchers.equalTo(ByteSizeValue.ofKb(20)));
+        assertThat(IndexingPressure.MAX_PRIMARY_BYTES.get(settings), Matchers.equalTo(ByteSizeValue.ofKb(20)));
+        assertThat(IndexingPressure.MAX_REPLICA_BYTES.get(settings), Matchers.equalTo(ByteSizeValue.ofKb(30)));
+    }
+
+    public void testHighAndLowWatermarkSplits() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+
+        try (
+            IndexingPressure.Incremental coordinating1 = indexingPressure.startIncrementalCoordinating(10, randomIntBetween(1, 127), false);
+            IndexingPressure.Incremental coordinating2 = indexingPressure.startIncrementalCoordinating(
+                10,
+                randomIntBetween(128, 1023),
+                false
+            );
+            IndexingPressure.Incremental coordinating3 = indexingPressure.startIncrementalCoordinating(
+                10,
+                randomIntBetween(1024, 6000),
+                false
+            );
+            Releasable ignored1 = indexingPressure.startIncrementalCoordinating(
+                10,
+                1 + (8 * 1024) - indexingPressure.stats().getCurrentCoordinatingBytes(),
+                false
+            )
+        ) {
+            assertFalse(coordinating1.maybeSplit().isPresent());
+            assertFalse(coordinating2.maybeSplit().isPresent());
+            assertEquals(indexingPressure.stats().getHighWaterMarkSplits(), 0L);
+            assertEquals(indexingPressure.stats().getLowWaterMarkSplits(), 0L);
+            Optional<Releasable> split1 = coordinating3.maybeSplit();
+            assertTrue(split1.isPresent());
+            try (Releasable ignored2 = split1.get()) {
+                assertEquals(indexingPressure.stats().getHighWaterMarkSplits(), 0L);
+                assertEquals(indexingPressure.stats().getLowWaterMarkSplits(), 1L);
+
+                try (
+                    Releasable ignored3 = indexingPressure.markCoordinatingOperationStarted(
+                        10,
+                        1 + (9 * 1024) - indexingPressure.stats().getCurrentCoordinatingBytes(),
+                        false
+                    )
+                ) {
+                    assertFalse(coordinating1.maybeSplit().isPresent());
+                    Optional<Releasable> split2 = coordinating2.maybeSplit();
+                    assertTrue(split2.isPresent());
+                    try (Releasable ignored4 = split2.get()) {
+                        assertEquals(indexingPressure.stats().getHighWaterMarkSplits(), 1L);
+                        assertEquals(indexingPressure.stats().getLowWaterMarkSplits(), 1L);
+                    }
+                }
+            }
+        }
+    }
 
     public void testMemoryBytesAndOpsMarkedAndReleased() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
@@ -94,7 +165,7 @@ public class IndexingPressureTests extends ESTestCase {
                 assertEquals(1, stats.getCoordinatingRejections());
                 assertEquals(1024 * 6, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());
             } else {
-                expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.markPrimaryOperationStarted(1, 1024 * 2, false));
+                expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.markPrimaryOperationStarted(1, 1024 * 4, false));
                 IndexingPressureStats stats = indexingPressure.stats();
                 assertEquals(1, stats.getPrimaryRejections());
                 assertEquals(1024 * 6, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());

@@ -6,9 +6,12 @@ setup:
 
 ---
 "Test put watch with allow no indices":
+  - requires:
+      test_runner_features: ["warnings"]
   - skip:
-      features: ["warnings"]
-      version: "7.10.1 - 7.10.2"
+      known_issues:
+        - cluster_feature: "gte_v7.10.1"
+          fixed_by: "gte_v7.10.3"
       reason: "watch parsing with partial indices options was broken in 7.10.1 and 7.10.2"
   - do:
       watcher.put_watch:
@@ -63,9 +66,12 @@ setup:
 
 ---
 "Test put watch with expand wildcards":
+  - requires:
+      test_runner_features: ["warnings"]
   - skip:
-      features: ["warnings"]
-      version: "7.10.1 - 7.10.2"
+      known_issues:
+        - cluster_feature: "gte_v7.10.1"
+          fixed_by: "gte_v7.10.3"
       reason: "watch parsing with partial indices options was broken in 7.10.1 and 7.10.2"
   - do:
       watcher.put_watch:
@@ -120,9 +126,12 @@ setup:
 
 ---
 "Test put watch with ignore unavailable":
+  - requires:
+      test_runner_features: ["warnings"]
   - skip:
-      features: ["warnings"]
-      version: "7.10.1 - 7.10.2"
+      known_issues:
+        - cluster_feature: "gte_v7.10.1"
+          fixed_by: "gte_v7.10.3"
       reason: "watch parsing with partial indices options was broken in 7.10.1 and 7.10.2"
   - do:
       watcher.put_watch:

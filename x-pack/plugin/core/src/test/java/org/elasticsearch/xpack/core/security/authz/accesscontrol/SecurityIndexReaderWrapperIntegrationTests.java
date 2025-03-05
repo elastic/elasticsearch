@@ -20,21 +20,27 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MockFieldMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -44,6 +50,9 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -51,6 +60,8 @@ import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContext
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -104,7 +115,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
@@ -191,10 +203,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             int expectedHitCount = valuesHitCount[i];
             logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery.query(), expectedHitCount);
 
-            TotalHitCountCollector countCollector = new TotalHitCountCollector();
-            indexSearcher.search(new MatchAllDocsQuery(), countCollector);
-
-            assertThat(countCollector.getTotalHits(), equalTo(expectedHitCount));
+            Integer totalHits = indexSearcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(indexSearcher.getSlices()));
+            assertThat(totalHits, equalTo(expectedHitCount));
             assertThat(wrappedDirectoryReader.numDocs(), equalTo(expectedHitCount));
         }
 
@@ -261,7 +271,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
@@ -339,8 +350,178 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         directory.close();
     }
 
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("f1")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("nested1")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        mapperService.merge(
+            MapperService.SINGLE_MAPPING_NAME,
+            new CompressedXContent(Strings.toString(builder)),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
+    }
+
+    public void testDLSWithNestedDocs() throws Exception {
+        Directory directory = newDirectory();
+        try (
+            IndexWriter iw = new IndexWriter(
+                directory,
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            var parser = mapperService().documentParser();
+            String doc = """
+                        {
+                            "f1": "value",
+                            "nested1": [
+                                {
+                                    "field": "0"
+                                },
+                                {
+                                    "field": "1"
+                                },
+                                {}
+                            ]
+                        }
+                """;
+            var parsedDoc = parser.parseDocument(
+                new SourceToParse("0", new BytesArray(doc), XContentType.JSON),
+                mapperService().mappingLookup()
+            );
+            iw.addDocuments(parsedDoc.docs());
+
+            doc = """
+                        {
+                            "nested1": [
+                                {
+                                    "field": "12"
+                                },
+                                {
+                                    "field": "13"
+                                },
+                                {}
+                            ]
+                        }
+                """;
+            parsedDoc = parser.parseDocument(
+                new SourceToParse("1", new BytesArray(doc), XContentType.JSON),
+                mapperService().mappingLookup()
+            );
+            iw.addDocuments(parsedDoc.docs());
+
+            doc = """
+                       {
+                            "f1": "value",
+                            "nested1": [
+                                {
+                                    "field": "12"
+                                },
+                                {}
+                            ]
+                       }
+                """;
+            parsedDoc = parser.parseDocument(
+                new SourceToParse("2", new BytesArray(doc), XContentType.JSON),
+                mapperService().mappingLookup()
+            );
+            iw.addDocuments(parsedDoc.docs());
+
+            doc = """
+                        {
+                            "nested1": [
+                                {
+                                    "field": "12"
+                                },
+                                {}
+                            ]
+                        }
+                """;
+            parsedDoc = parser.parseDocument(
+                new SourceToParse("3", new BytesArray(doc), XContentType.JSON),
+                mapperService().mappingLookup()
+            );
+            iw.addDocuments(parsedDoc.docs());
+
+            iw.commit();
+        }
+
+        DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(
+            DirectoryReader.open(directory),
+            new ShardId(indexSettings().getIndex(), 0)
+        );
+        SearchExecutionContext context = createSearchExecutionContext(new IndexSearcher(directoryReader));
+
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        new AuthenticationContextSerializer().writeToContext(authentication, threadContext);
+
+        Set<BytesReference> queries = new HashSet<>();
+        queries.add(new BytesArray("{\"bool\": { \"must_not\": { \"exists\": { \"field\": \"f1\" } } } }"));
+        IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
+            FieldPermissions.DEFAULT,
+            DocumentPermissions.filteredBy(queries)
+        );
+
+        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
+
+        final MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
+        ScriptService scriptService = mock(ScriptService.class);
+        SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(
+            s -> context,
+            bitsetCache,
+            securityContext,
+            licenseState,
+            scriptService
+        ) {
+
+            @Override
+            protected IndicesAccessControl getIndicesAccessControl() {
+                IndicesAccessControl indicesAccessControl = new IndicesAccessControl(
+                    true,
+                    singletonMap(indexSettings().getIndex().getName(), indexAccessControl)
+                );
+                return indicesAccessControl;
+            }
+        };
+
+        DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
+        IndexSearcher indexSearcher = new ContextIndexSearcher(
+            wrappedDirectoryReader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true
+        );
+
+        ScoreDoc[] hits = indexSearcher.search(new MatchAllDocsQuery(), 1000).scoreDocs;
+        assertThat(Arrays.stream(hits).map(h -> h.doc).collect(Collectors.toSet()), containsInAnyOrder(4, 5, 6, 7, 11, 12, 13));
+
+        hits = indexSearcher.search(Queries.newNonNestedFilter(context.indexVersionCreated()), 1000).scoreDocs;
+        assertThat(Arrays.stream(hits).map(h -> h.doc).collect(Collectors.toSet()), containsInAnyOrder(7, 13));
+
+        bitsetCache.close();
+        directoryReader.close();
+        directory.close();
+    }
+
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
-        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
+        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList());
     }
 }

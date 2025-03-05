@@ -2,12 +2,12 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
-  name 'x-pack-stack'
-  description 'Elasticsearch Expanded Pack Plugin - Stack'
-  classname 'org.elasticsearch.xpack.stack.StackPlugin'
+  name = 'x-pack-stack'
+  description = 'Elasticsearch Expanded Pack Plugin - Stack'
+  classname ='org.elasticsearch.xpack.stack.StackPlugin'
   extendedPlugins = ['x-pack-core']
-  hasNativeController false
-  requiresKeystore true
+  hasNativeController =false
+  requiresKeystore =true
 }
 
 base {
@@ -16,6 +16,7 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  testImplementation project(':modules:data-streams')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: ':x-pack:plugin:stack')
   clusterModules project(':modules:mapper-extras')

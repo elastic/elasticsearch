@@ -14,7 +14,10 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.core.Tuple;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,16 +55,27 @@ public class FilterOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple() {
-        return new FilterOperator.FilterOperatorFactory(dvrCtx -> new SameLastDigit(dvrCtx, 0, 1));
+        return new FilterOperator.FilterOperatorFactory(new EvalOperator.ExpressionEvaluator.Factory() {
+
+            @Override
+            public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+                return new SameLastDigit(context, 0, 1);
+            }
+
+            @Override
+            public String toString() {
+                return "SameLastDigit[lhs=0, rhs=1]";
+            }
+        });
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "FilterOperator[evaluator=SameLastDigit[lhs=0, rhs=1]]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("FilterOperator[evaluator=SameLastDigit[lhs=0, rhs=1]]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 

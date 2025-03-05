@@ -6,11 +6,14 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -18,18 +21,19 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.junit.Before;
 
 import java.time.Instant;
@@ -94,7 +98,12 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(true);
             factoryMap.put(
                 InferenceProcessor.TYPE,
-                new InferenceProcessor.Factory(parameters.client, parameters.ingestService.getClusterService(), Settings.EMPTY, true)
+                new InferenceProcessor.Factory(
+                    parameters.client,
+                    parameters.ingestService.getClusterService(),
+                    Settings.EMPTY,
+                    new SetOnce<>(mock(InferenceAuditor.class))
+                )
             );
 
             factoryMap.put("not_inference", new NotInferenceProcessor.Factory());
@@ -111,6 +120,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
     public void setUpVariables() {
         ThreadPool tp = mock(ThreadPool.class);
         when(tp.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(tp.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         client = mock(Client.class);
         Settings settings = Settings.builder().put("node.name", "InferenceProcessorFactoryTests_node").build();
         ClusterSettings clusterSettings = new ClusterSettings(
@@ -121,7 +131,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                     MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
                 )
             )
         );
@@ -135,7 +146,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             Collections.singletonList(SKINNY_INGEST_PLUGIN),
             client,
             null,
-            DocumentParsingProvider.EMPTY_INSTANCE
+            FailureStoreMetrics.NOOP,
+            TestProjectResolvers.singleProjectOnly()
         );
     }
 
@@ -144,9 +156,9 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             buildNodeStats(
                 new IngestStats.Stats(2, 2, 3, 4),
                 Arrays.asList(
-                    new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(0, 0, 3, 1)),
-                    new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(1, 1, 0, 1)),
-                    new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(2, 1, 1, 1))
+                    new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(0, 0, 3, 1), new IngestStats.ByteStats(789, 0)),
+                    new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(1, 1, 0, 1), new IngestStats.ByteStats(123, 123)),
+                    new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(2, 1, 1, 1), new IngestStats.ByteStats(1234, 5678))
                 ),
                 Arrays.asList(
                     Arrays.asList(
@@ -168,9 +180,9 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             buildNodeStats(
                 new IngestStats.Stats(15, 5, 3, 4),
                 Arrays.asList(
-                    new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 3, 1)),
-                    new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(1, 1, 0, 1)),
-                    new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(2, 1, 1, 1))
+                    new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 3, 1), new IngestStats.ByteStats(5678, 123456)),
+                    new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(1, 1, 0, 1), new IngestStats.ByteStats(111, 222)),
+                    new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(2, 1, 1, 1), new IngestStats.ByteStats(555, 777))
                 ),
                 Arrays.asList(
                     Arrays.asList(
@@ -205,7 +217,9 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
 
         IngestStats expectedStatsModel1 = new IngestStats(
             new IngestStats.Stats(10, 1, 6, 2),
-            Collections.singletonList(new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 6, 2))),
+            Collections.singletonList(
+                new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 6, 2), new IngestStats.ByteStats(6467, 123456))
+            ),
             Collections.singletonMap(
                 "pipeline1",
                 Arrays.asList(
@@ -218,8 +232,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         IngestStats expectedStatsModel2 = new IngestStats(
             new IngestStats.Stats(12, 3, 6, 4),
             Arrays.asList(
-                new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 6, 2)),
-                new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(2, 2, 0, 2))
+                new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 6, 2), new IngestStats.ByteStats(6467, 123456)),
+                new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(2, 2, 0, 2), new IngestStats.ByteStats(234, 345))
             ),
             new HashMap<>() {
                 {

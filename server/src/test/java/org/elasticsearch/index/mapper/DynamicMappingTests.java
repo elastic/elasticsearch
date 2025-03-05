@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -594,6 +595,23 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertThat(((FieldMapper) update.getRoot().getMapper("bar")).fieldType().typeName(), equalTo("float"));
         assertThat(((FieldMapper) update.getRoot().getMapper("baz")).fieldType().typeName(), equalTo("float"));
         assertThat(((FieldMapper) update.getRoot().getMapper("quux")).fieldType().typeName(), equalTo("float"));
+    }
+
+    public void testDateDetectionEnabled() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("date_detection", true)));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("date", "2024-11-18");
+            b.field("no_date", "128.0.");
+        }));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+
+        Mapper mapper = mapperService.documentMapper().mappers().getMapper("date");
+        assertThat(mapper.typeName(), equalTo("date"));
+
+        mapper = mapperService.documentMapper().mappers().getMapper("no_date");
+        assertThat(mapper.typeName(), equalTo("text"));
     }
 
     public void testNumericDetectionEnabled() throws Exception {

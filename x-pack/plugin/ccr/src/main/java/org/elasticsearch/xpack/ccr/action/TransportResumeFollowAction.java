@@ -16,14 +16,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -42,10 +41,12 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -67,19 +68,18 @@ import static org.elasticsearch.xpack.ccr.Ccr.CCR_THREAD_POOL_NAME;
 
 public class TransportResumeFollowAction extends AcknowledgedTransportMasterNodeAction<ResumeFollowAction.Request> {
 
-    static final ByteSizeValue DEFAULT_MAX_READ_REQUEST_SIZE = new ByteSizeValue(32, ByteSizeUnit.MB);
+    static final ByteSizeValue DEFAULT_MAX_READ_REQUEST_SIZE = ByteSizeValue.of(32, ByteSizeUnit.MB);
     static final ByteSizeValue DEFAULT_MAX_WRITE_REQUEST_SIZE = ByteSizeValue.ofBytes(Long.MAX_VALUE);
     private static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
     private static final int DEFAULT_MAX_OUTSTANDING_WRITE_REQUESTS = 9;
     private static final int DEFAULT_MAX_WRITE_BUFFER_COUNT = Integer.MAX_VALUE;
-    private static final ByteSizeValue DEFAULT_MAX_WRITE_BUFFER_SIZE = new ByteSizeValue(512, ByteSizeUnit.MB);
+    private static final ByteSizeValue DEFAULT_MAX_WRITE_BUFFER_SIZE = ByteSizeValue.of(512, ByteSizeUnit.MB);
     private static final int DEFAULT_MAX_READ_REQUEST_OPERATION_COUNT = 5120;
     private static final int DEFAULT_MAX_WRITE_REQUEST_OPERATION_COUNT = 5120;
     private static final int DEFAULT_MAX_OUTSTANDING_READ_REQUESTS = 12;
     static final TimeValue DEFAULT_READ_POLL_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     private final Client client;
-    private final ThreadPool threadPool;
     private final Executor remoteClientResponseExecutor;
     private final PersistentTasksService persistentTasksService;
     private final IndicesService indicesService;
@@ -92,7 +92,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         final ActionFilters actionFilters,
         final Client client,
         final ClusterService clusterService,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final PersistentTasksService persistentTasksService,
         final IndicesService indicesService,
         final CcrLicenseChecker ccrLicenseChecker
@@ -105,11 +104,9 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             threadPool,
             actionFilters,
             ResumeFollowAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
-        this.threadPool = threadPool;
         this.remoteClientResponseExecutor = threadPool.executor(CCR_THREAD_POOL_NAME);
         this.persistentTasksService = persistentTasksService;
         this.indicesService = indicesService;
@@ -133,7 +130,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        final IndexMetadata followerIndexMetadata = state.getMetadata().index(request.getFollowerIndex());
+        final IndexMetadata followerIndexMetadata = state.getMetadata().getProject().index(request.getFollowerIndex());
         if (followerIndexMetadata == null) {
             listener.onFailure(new IndexNotFoundException(request.getFollowerIndex()));
             return;
@@ -145,7 +142,11 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         }
         final String leaderCluster = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
         // Validates whether the leader cluster has been configured properly:
-        client.getRemoteClusterClient(leaderCluster, remoteClientResponseExecutor);
+        client.getRemoteClusterClient(
+            leaderCluster,
+            remoteClientResponseExecutor,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
         final String leaderIndex = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
             client,
@@ -206,7 +207,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
                 taskId,
                 ShardFollowTask.NAME,
                 shardFollowTask,
-                null,
+                request.masterNodeTimeout(),
                 handler.getActionListener(shardId)
             );
         }
@@ -528,7 +529,8 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
         DataTier.TIER_PREFERENCE_SETTING,
-        IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING
+        IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
+        MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING
     );
 
     public static Settings filter(Settings originalSettings) {

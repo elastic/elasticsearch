@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -27,6 +28,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
@@ -47,6 +49,7 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -154,7 +157,7 @@ public class JoinHelper {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             false,
-            TransportRequest.Empty::new,
+            JoinPingRequest::new,
             (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)
         );
     }
@@ -194,13 +197,23 @@ public class JoinHelper {
         Releasables.close(connectionReference);
     }
 
-    // package-private for testing
+    /**
+     * Saves information about a join failure. The failure information may be logged later via either {@link FailedJoinAttempt#logNow}
+     * or {@link FailedJoinAttempt#lastFailedJoinAttempt}.
+     *
+     * Package-private for testing.
+     */
     static class FailedJoinAttempt {
         private final DiscoveryNode destination;
         private final JoinRequest joinRequest;
         private final ElasticsearchException exception;
         private final long timestamp;
 
+        /**
+         * @param destination the master node targeted by the join request.
+         * @param joinRequest the join request that was sent to the perceived master node.
+         * @param exception the error response received in reply to the join request attempt.
+         */
         FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, ElasticsearchException exception) {
             this.destination = destination;
             this.joinRequest = joinRequest;
@@ -208,10 +221,18 @@ public class JoinHelper {
             this.timestamp = System.nanoTime();
         }
 
+        /**
+         * Logs the failed join attempt exception.
+         * {@link FailedJoinAttempt#getLogLevel(ElasticsearchException)} determines at what log-level the log is written.
+         */
         void logNow() {
             logger.log(getLogLevel(exception), () -> format("failed to join %s with %s", destination, joinRequest), exception);
         }
 
+        /**
+         * Returns the appropriate log level based on the given exception. Every error is at least DEBUG, but unexpected errors are INFO.
+         * For example, NotMasterException and CircuitBreakingExceptions are DEBUG logs.
+         */
         static Level getLogLevel(ElasticsearchException e) {
             Throwable cause = e.unwrapCause();
             if (cause instanceof CoordinationStateRejectedException
@@ -226,6 +247,10 @@ public class JoinHelper {
             logger.warn(
                 () -> format(
                     "last failed join attempt was %s ago, failed to join %s with %s",
+                    // 'timestamp' is when this error exception was received by the local node. If the time that has passed since the error
+                    // was originally received is quite large, it could indicate that this is a stale error exception from some prior
+                    // out-of-order request response (where a later sent request but earlier received response was successful); or
+                    // alternatively an old error could indicate that this node did not retry the join request for a very long time.
                     TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - timestamp)),
                     destination,
                     joinRequest
@@ -235,6 +260,9 @@ public class JoinHelper {
         }
     }
 
+    /**
+     * Logs a warning message if {@link #lastFailedJoinAttempt} has been set with a failure.
+     */
     void logLastFailedJoinAttempt() {
         FailedJoinAttempt attempt = lastFailedJoinAttempt.get();
         if (attempt != null) {
@@ -247,7 +275,7 @@ public class JoinHelper {
         assert destination.isMasterNode() : "trying to join master-ineligible " + destination;
         final StatusInfo statusInfo = nodeHealthService.getHealth();
         if (statusInfo.getStatus() == UNHEALTHY) {
-            logger.debug("dropping join request to [{}]: [{}]", destination, statusInfo.getInfo());
+            logger.debug("dropping join request to [{}], unhealthy status: [{}]", destination, statusInfo.getInfo());
             return;
         }
         final JoinRequest joinRequest = new JoinRequest(
@@ -581,4 +609,12 @@ public class JoinHelper {
     static final String PENDING_JOIN_WAITING_STATE = "waiting to receive cluster state";
     static final String PENDING_JOIN_CONNECT_FAILED = "failed to connect";
     static final String PENDING_JOIN_FAILED = "failed";
+
+    static class JoinPingRequest extends TransportRequest {
+        JoinPingRequest() {}
+
+        JoinPingRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
 }

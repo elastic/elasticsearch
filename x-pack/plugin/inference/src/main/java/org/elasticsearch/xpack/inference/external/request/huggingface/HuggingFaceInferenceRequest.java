@@ -31,20 +31,15 @@ public class HuggingFaceInferenceRequest implements Request {
     private final Truncator.TruncationResult truncationResult;
     private final HuggingFaceModel model;
 
-    public HuggingFaceInferenceRequest(
-        Truncator truncator,
-        HuggingFaceAccount account,
-        Truncator.TruncationResult input,
-        HuggingFaceModel model
-    ) {
+    public HuggingFaceInferenceRequest(Truncator truncator, Truncator.TruncationResult input, HuggingFaceModel model) {
         this.truncator = Objects.requireNonNull(truncator);
-        this.account = Objects.requireNonNull(account);
+        this.account = HuggingFaceAccount.of(model);
         this.truncationResult = Objects.requireNonNull(input);
         this.model = Objects.requireNonNull(model);
     }
 
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(account.url());
+        HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(new HuggingFaceInferenceRequestEntity(truncationResult.input())).getBytes(StandardCharsets.UTF_8)
@@ -57,7 +52,7 @@ public class HuggingFaceInferenceRequest implements Request {
     }
 
     public URI getURI() {
-        return account.url();
+        return account.uri();
     }
 
     @Override
@@ -69,7 +64,7 @@ public class HuggingFaceInferenceRequest implements Request {
     public Request truncate() {
         var truncateResult = truncator.truncate(truncationResult.input());
 
-        return new HuggingFaceInferenceRequest(truncator, account, truncateResult, model);
+        return new HuggingFaceInferenceRequest(truncator, truncateResult, model);
     }
 
     @Override

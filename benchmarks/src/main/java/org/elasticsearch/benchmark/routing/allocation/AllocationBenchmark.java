@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.benchmark.routing.allocation;
 
@@ -137,7 +138,7 @@ public class AllocationBenchmark {
         Metadata metadata = mb.build();
         RoutingTable.Builder rb = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (int i = 1; i <= numIndices; i++) {
-            rb.addAsNew(metadata.index("test_" + i));
+            rb.addAsNew(metadata.getProject().index("test_" + i));
         }
         RoutingTable routingTable = rb.build();
         DiscoveryNodes.Builder nb = DiscoveryNodes.builder();

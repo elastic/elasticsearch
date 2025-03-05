@@ -21,7 +21,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.QueryWatchesAction;
@@ -45,6 +44,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.putJsonStoredScript;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -221,21 +221,17 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     public void testConditionSearchWithIndexedTemplate() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
-        assertAcked(
-            clusterAdmin().preparePutStoredScript()
-                .setId("my-template")
-                .setContent(
-                    BytesReference.bytes(
-                        jsonBuilder().startObject()
-                            .startObject("script")
-                            .field("lang", "mustache")
-                            .field("source")
-                            .value(searchSourceBuilder)
-                            .endObject()
-                            .endObject()
-                    ),
-                    XContentType.JSON
-                )
+        putJsonStoredScript(
+            "my-template",
+            BytesReference.bytes(
+                jsonBuilder().startObject()
+                    .startObject("script")
+                    .field("lang", "mustache")
+                    .field("source")
+                    .value(searchSourceBuilder)
+                    .endObject()
+                    .endObject()
+            )
         );
 
         Script template = new Script(ScriptType.STORED, null, "my-template", Collections.emptyMap());

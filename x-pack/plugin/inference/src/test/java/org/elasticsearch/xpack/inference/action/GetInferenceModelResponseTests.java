@@ -36,7 +36,7 @@ public class GetInferenceModelResponseTests extends AbstractWireSerializingTestC
 
     @Override
     protected GetInferenceModelAction.Response mutateInstance(GetInferenceModelAction.Response instance) throws IOException {
-        var modifiedConfigs = new ArrayList<>(instance.getModels());
+        var modifiedConfigs = new ArrayList<>(instance.getEndpoints());
         modifiedConfigs.add(ModelConfigurationsTests.createRandomInstance());
         return new GetInferenceModelAction.Response(modifiedConfigs);
     }

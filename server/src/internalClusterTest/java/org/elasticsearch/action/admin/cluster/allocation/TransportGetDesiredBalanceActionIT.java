@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.allocation;
 
@@ -37,11 +38,14 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
 
         indexData(index);
 
-        var clusterHealthResponse = clusterAdmin().health(new ClusterHealthRequest().waitForStatus(ClusterHealthStatus.GREEN)).get();
+        var clusterHealthResponse = clusterAdmin().health(
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT).waitForStatus(ClusterHealthStatus.GREEN)
+        ).get();
         assertEquals(RestStatus.OK, clusterHealthResponse.status());
 
-        DesiredBalanceResponse desiredBalanceResponse = client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest())
-            .get();
+        final var desiredBalanceResponse = safeGet(
+            client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT))
+        );
 
         assertEquals(1, desiredBalanceResponse.getRoutingTable().size());
         Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(index);
@@ -49,7 +53,7 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         for (var entry : shardsMap.entrySet()) {
             Integer shardId = entry.getKey();
             DesiredBalanceResponse.DesiredShards desiredShards = entry.getValue();
-            IndexShardRoutingTable shardRoutingTable = clusterAdmin().prepareState()
+            IndexShardRoutingTable shardRoutingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()
                 .getState()
                 .routingTable()
@@ -72,11 +76,14 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         int numberOfReplicas = 1;
         createIndex(index, numberOfShards, numberOfReplicas);
         indexData(index);
-        var clusterHealthResponse = clusterAdmin().health(new ClusterHealthRequest(index).waitForStatus(ClusterHealthStatus.YELLOW)).get();
+        var clusterHealthResponse = clusterAdmin().health(
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, index).waitForStatus(ClusterHealthStatus.YELLOW)
+        ).get();
         assertEquals(RestStatus.OK, clusterHealthResponse.status());
 
-        DesiredBalanceResponse desiredBalanceResponse = client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest())
-            .get();
+        final var desiredBalanceResponse = safeGet(
+            client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT))
+        );
 
         assertEquals(1, desiredBalanceResponse.getRoutingTable().size());
         Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = desiredBalanceResponse.getRoutingTable().get(index);
@@ -84,7 +91,7 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         for (var entry : shardsMap.entrySet()) {
             Integer shardId = entry.getKey();
             DesiredBalanceResponse.DesiredShards desiredShards = entry.getValue();
-            IndexShardRoutingTable shardRoutingTable = clusterAdmin().prepareState()
+            IndexShardRoutingTable shardRoutingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .get()
                 .getState()
                 .routingTable()

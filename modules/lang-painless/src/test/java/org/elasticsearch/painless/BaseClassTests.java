@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -28,27 +29,27 @@ public class BaseClassTests extends ScriptTestCase {
 
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(Gets.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(NoArgs.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(OneArg.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(ArrayArg.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(PrimitiveArrayArg.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(DefArrayArg.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(ManyArgs.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(VarArgs.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(DefaultMethods.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(ReturnsVoid.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(ReturnsPrimitiveBoolean.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(ReturnsPrimitiveInt.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(ReturnsPrimitiveFloat.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(ReturnsPrimitiveDouble.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(NoArgsConstant.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(WrongArgsConstant.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(WrongLengthOfArgConstant.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(UnknownArgType.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(UnknownReturnType.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(UnknownArgTypeInArray.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(TwoExecuteMethods.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(Gets.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(NoArgs.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(OneArg.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(ArrayArg.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(PrimitiveArrayArg.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(DefArrayArg.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(ManyArgs.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(VarArgs.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(DefaultMethods.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(ReturnsVoid.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(ReturnsPrimitiveBoolean.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(ReturnsPrimitiveInt.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(ReturnsPrimitiveFloat.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(ReturnsPrimitiveDouble.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(NoArgsConstant.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(WrongArgsConstant.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(WrongLengthOfArgConstant.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(UnknownArgType.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(UnknownReturnType.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(UnknownArgTypeInArray.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(TwoExecuteMethods.CONTEXT, PAINLESS_BASE_WHITELIST);
         return contexts;
     }
 
@@ -138,7 +139,7 @@ public class BaseClassTests extends ScriptTestCase {
         );
         assertEquals("cannot resolve symbol [_score]", e.getMessage());
 
-        String debug = Debugger.toString(NoArgs.class, "int i = 0", new CompilerSettings(), PainlessPlugin.BASE_WHITELISTS);
+        String debug = Debugger.toString(NoArgs.class, "int i = 0", new CompilerSettings(), PAINLESS_BASE_WHITELIST);
         assertThat(debug, containsString("ACONST_NULL"));
         assertThat(debug, containsString("ARETURN"));
     }
@@ -377,7 +378,7 @@ public class BaseClassTests extends ScriptTestCase {
         scriptEngine.compile("testReturnsVoid1", "map.remove('a')", ReturnsVoid.CONTEXT, emptyMap()).newInstance().execute(map);
         assertEquals(emptyMap(), map);
 
-        String debug = Debugger.toString(ReturnsVoid.class, "int i = 0", new CompilerSettings(), PainlessPlugin.BASE_WHITELISTS);
+        String debug = Debugger.toString(ReturnsVoid.class, "int i = 0", new CompilerSettings(), PAINLESS_BASE_WHITELIST);
         // The important thing is that this contains the opcode for returning void
         assertThat(debug, containsString(" RETURN"));
         // We shouldn't contain any weird "default to null" logic
@@ -434,7 +435,7 @@ public class BaseClassTests extends ScriptTestCase {
                 .execute()
         );
 
-        String debug = Debugger.toString(ReturnsPrimitiveBoolean.class, "false", new CompilerSettings(), PainlessPlugin.BASE_WHITELISTS);
+        String debug = Debugger.toString(ReturnsPrimitiveBoolean.class, "false", new CompilerSettings(), PAINLESS_BASE_WHITELIST);
         assertThat(debug, containsString("ICONST_0"));
         // The important thing here is that we have the bytecode for returning an integer instead of an object. booleans are integers.
         assertThat(debug, containsString("IRETURN"));
@@ -540,7 +541,7 @@ public class BaseClassTests extends ScriptTestCase {
             scriptEngine.compile("testReturnsPrimitiveInt7", "1 + 1", ReturnsPrimitiveInt.CONTEXT, emptyMap()).newInstance().execute()
         );
 
-        String debug = Debugger.toString(ReturnsPrimitiveInt.class, "1", new CompilerSettings(), PainlessPlugin.BASE_WHITELISTS);
+        String debug = Debugger.toString(ReturnsPrimitiveInt.class, "1", new CompilerSettings(), PAINLESS_BASE_WHITELIST);
         assertThat(debug, containsString("ICONST_1"));
         // The important thing here is that we have the bytecode for returning an integer instead of an object
         assertThat(debug, containsString("IRETURN"));
@@ -656,7 +657,7 @@ public class BaseClassTests extends ScriptTestCase {
             ).newInstance().execute()
         );
 
-        String debug = Debugger.toString(ReturnsPrimitiveFloat.class, "1f", new CompilerSettings(), PainlessPlugin.BASE_WHITELISTS);
+        String debug = Debugger.toString(ReturnsPrimitiveFloat.class, "1f", new CompilerSettings(), PAINLESS_BASE_WHITELIST);
         assertThat(debug, containsString("FCONST_1"));
         // The important thing here is that we have the bytecode for returning a float instead of an object
         assertThat(debug, containsString("FRETURN"));
@@ -775,7 +776,7 @@ public class BaseClassTests extends ScriptTestCase {
             0
         );
 
-        String debug = Debugger.toString(ReturnsPrimitiveDouble.class, "1", new CompilerSettings(), PainlessPlugin.BASE_WHITELISTS);
+        String debug = Debugger.toString(ReturnsPrimitiveDouble.class, "1", new CompilerSettings(), PAINLESS_BASE_WHITELIST);
         // The important thing here is that we have the bytecode for returning a double instead of an object
         assertThat(debug, containsString("DRETURN"));
 

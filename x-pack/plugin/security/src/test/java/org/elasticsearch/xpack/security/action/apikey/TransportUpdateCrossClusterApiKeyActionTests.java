@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
-import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
+import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.randomCrossClusterApiKeyAccessField;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;

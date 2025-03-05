@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -58,7 +59,7 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
             Settings.builder().put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
         );
         assertThat(
-            clusterAdmin().prepareState().get().getState().metadata().persistentSettings().keySet(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().persistentSettings().keySet(),
             contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey())
         );
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
@@ -84,7 +85,7 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
 
         internalCluster().startNode(dataPathSettings);
         assertThat(
-            clusterAdmin().prepareState().get().getState().metadata().persistentSettings().keySet(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().persistentSettings().keySet(),
             not(contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()))
         );
     }
@@ -96,7 +97,7 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
             Settings.builder().put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
         );
         assertThat(
-            clusterAdmin().prepareState().get().getState().metadata().persistentSettings().keySet(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().persistentSettings().keySet(),
             contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey())
         );
         Settings dataPathSettings = internalCluster().dataPathSettings(node);

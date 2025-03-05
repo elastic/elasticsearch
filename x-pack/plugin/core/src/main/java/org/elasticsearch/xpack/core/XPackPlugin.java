@@ -106,6 +106,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
+import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
@@ -295,10 +296,11 @@ public class XPackPlugin extends XPackClientPlugin
     private static boolean alreadyContainsXPackCustomMetadata(ClusterState clusterState) {
         final Metadata metadata = clusterState.metadata();
         return metadata.custom(LicensesMetadata.TYPE) != null
-            || metadata.custom(MlMetadata.TYPE) != null
-            || metadata.custom(WatcherMetadata.TYPE) != null
+            || metadata.getProject().custom(MlMetadata.TYPE) != null
+            || metadata.getProject().custom(WatcherMetadata.TYPE) != null
+            || RoleMappingMetadata.getFromClusterState(clusterState).isEmpty() == false
             || clusterState.custom(TokenMetadata.TYPE) != null
-            || metadata.custom(TransformMetadata.TYPE) != null;
+            || metadata.getProject().custom(TransformMetadata.TYPE) != null;
     }
 
     @Override
@@ -409,9 +411,9 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     public static Path resolveConfigFile(Environment env, String name) {
-        Path config = env.configFile().resolve(name);
+        Path config = env.configDir().resolve(name);
         if (Files.exists(config) == false) {
-            Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
+            Path legacyConfig = env.configDir().resolve("x-pack").resolve(name);
             if (Files.exists(legacyConfig)) {
                 deprecationLogger.warn(
                     DeprecationCategory.OTHER,

@@ -44,6 +44,7 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
         private boolean deleteUserAnnotations;
 
         public Request(String jobId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
 

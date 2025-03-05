@@ -1,7 +1,7 @@
 ---
 version: ${xpack.apmdata.template.version}
 index_patterns: ["traces-apm.rum-*"]
-priority: 140
+priority: 210
 data_stream: {}
 allow_auto_create: true
 _meta:
@@ -14,16 +14,18 @@ composed_of:
 - apm-90d@lifecycle
 - traces-apm@mappings
 - traces-apm.rum@mappings
+- traces-apm.rum-fallback@ilm
 - traces@custom
 - traces-apm.rum@custom
 - ecs@mappings
 ignore_missing_component_templates:
 - traces@custom
 - traces-apm.rum@custom
+- traces-apm.rum-fallback@ilm
 template:
   settings:
     index:
-      default_pipeline: apm@default-pipeline
+      default_pipeline: traces-apm.rum@default-pipeline
       final_pipeline: traces-apm@pipeline
   mappings:
     properties:

@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -23,9 +24,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositoriesRequest> {
 
-    private String[] repositories = Strings.EMPTY_ARRAY;
-
-    public GetRepositoriesRequest() {}
+    private String[] repositories;
 
     /**
      * Constructs a new get repositories request with a list of repositories.
@@ -33,9 +32,10 @@ public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositorie
      * If the list of repositories is empty or it contains a single element "_all", all registered repositories
      * are returned.
      *
-     * @param repositories list of repositories
+     * @param repositories      list of repositories
      */
-    public GetRepositoriesRequest(String[] repositories) {
+    public GetRepositoriesRequest(TimeValue masterNodeTimeout, String[] repositories) {
+        super(masterNodeTimeout);
         this.repositories = repositories;
     }
 

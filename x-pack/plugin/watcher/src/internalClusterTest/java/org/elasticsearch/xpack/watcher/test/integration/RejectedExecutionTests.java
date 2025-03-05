@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 
 import java.util.Arrays;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -55,15 +56,16 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
         assertBusy(() -> {
             flushAndRefresh(".watcher-history-*");
             assertResponse(prepareSearch(".watcher-history-*"), searchResponse -> {
-                assertThat("Watcher history not found", searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(2L));
+                assertThat("Watcher history not found", searchResponse.getHits().getTotalHits().value(), greaterThanOrEqualTo(2L));
+
                 assertThat(
                     "Did not find watcher history for rejected watch",
-                    Arrays.stream(searchResponse.getHits().getHits())
-                        .anyMatch(
-                            hit -> hit.getSourceAsMap() != null
-                                && hit.getSourceAsMap().get("messages") != null
-                                && hit.getSourceAsMap().get("messages").toString().contains("due to thread pool capacity")
-                        ),
+                    Arrays.stream(searchResponse.getHits().getHits()).anyMatch(hit -> {
+                        Map<String, Object> source = hit.getSourceAsMap();
+                        return source != null
+                            && source.get("messages") != null
+                            && source.get("messages").toString().contains("due to thread pool capacity");
+                    }),
                     equalTo(true)
                 );
             });

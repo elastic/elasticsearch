@@ -53,7 +53,6 @@ public class APMPlugin extends Plugin implements ActionPlugin {
         if (enabled) {
             APMIndexTemplateRegistry registryInstance = registry.get();
             registryInstance.setEnabled(APM_DATA_REGISTRY_ENABLED.get(settings));
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_DATA_REGISTRY_ENABLED, registryInstance::setEnabled);
             registryInstance.initialize();
         }
         return Collections.emptyList();

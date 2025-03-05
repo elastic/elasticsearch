@@ -1,0 +1,102 @@
+[discrete]
+[[esql-inlinestats-by]]
+=== `INLINESTATS ... BY`
+
+experimental::["INLINESTATS is highly experimental and only available in SNAPSHOT versions."]
+
+The `INLINESTATS` command calculates an aggregate result and adds new columns
+with the result to the stream of input data.
+
+**Syntax**
+
+[source,esql]
+----
+INLINESTATS [column1 =] expression1[, ..., [columnN =] expressionN]
+[BY grouping_expression1[, ..., grouping_expressionN]]
+----
+
+*Parameters*
+
+`columnX`::
+The name by which the aggregated value is returned. If omitted, the name is
+equal to the corresponding expression (`expressionX`). If multiple columns
+have the same name, all but the rightmost column with this name will be ignored.
+
+`expressionX`::
+An expression that computes an aggregated value. If its name coincides with one
+of the computed columns, that column will be ignored.
+
+`grouping_expressionX`::
+An expression that outputs the values to group by.
+
+NOTE: Individual `null` values are skipped when computing aggregations.
+
+*Description*
+
+The `INLINESTATS` command calculates an aggregate result and merges that result
+back into the stream of input data. Without the optional `BY` clause this will
+produce a single result which is appended to each row. With a `BY` clause this
+will produce one result per grouping and merge the result into the stream based on
+matching group keys.
+
+All of the <<esql-agg-functions,aggregation functions>> are supported.
+
+*Examples*
+
+Find the employees that speak the most languages (it's a tie!):
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/inlinestats.csv-spec[tag=max-languages]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/inlinestats.csv-spec[tag=max-languages-result]
+|===
+
+Find the longest tenured employee who's last name starts with each letter of the alphabet:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/inlinestats.csv-spec[tag=longest-tenured-by-first]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/inlinestats.csv-spec[tag=longest-tenured-by-first-result]
+|===
+
+Find the northern and southern most airports:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/inlinestats.csv-spec[tag=extreme-airports]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/inlinestats.csv-spec[tag=extreme-airports-result]
+|===
+
+NOTE: Our test data doesn't have many "small" airports.
+
+If a `BY` field is multivalued then `INLINESTATS` will put the row in *each*
+bucket like <<esql-stats-by>>:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/inlinestats.csv-spec[tag=mv-group]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/inlinestats.csv-spec[tag=mv-group-result]
+|===
+
+To treat each group key as its own row use <<esql-mv_expand>> before `INLINESTATS`:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/inlinestats.csv-spec[tag=mv-expand]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/inlinestats.csv-spec[tag=mv-expand-result]
+|===

@@ -16,12 +16,13 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -59,7 +60,8 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
-        IndexLifecycleService indexLifecycleService
+        IndexLifecycleService indexLifecycleService,
+        ProjectResolver projectResolver
     ) {
         super(
             ExplainLifecycleAction.NAME,
@@ -69,7 +71,8 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
             actionFilters,
             ExplainLifecycleRequest::new,
             indexNameExpressionResolver,
-            ExplainLifecycleResponse::new
+            ExplainLifecycleResponse::new,
+            projectResolver
         );
         this.xContentRegistry = xContentRegistry;
         this.indexLifecycleService = indexLifecycleService;
@@ -121,15 +124,20 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         NamedXContentRegistry xContentRegistry,
         boolean rolloverOnlyIfHasDocuments
     ) throws IOException {
-        IndexMetadata indexMetadata = metadata.index(indexName);
+        IndexMetadata indexMetadata = metadata.getProject().index(indexName);
         Settings idxSettings = indexMetadata.getSettings();
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         String policyName = indexMetadata.getLifecyclePolicyName();
         String currentPhase = lifecycleState.phase();
         String stepInfo = lifecycleState.stepInfo();
+        String previousStepInfo = lifecycleState.previousStepInfo();
         BytesArray stepInfoBytes = null;
         if (stepInfo != null) {
             stepInfoBytes = new BytesArray(stepInfo);
+        }
+        BytesArray previousStepInfoBytes = null;
+        if (previousStepInfo != null) {
+            previousStepInfoBytes = new BytesArray(previousStepInfo);
         }
         Long indexCreationDate = indexMetadata.getCreationDate();
 
@@ -148,6 +156,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                 // Try to add default rollover conditions to the response.
                 var phase = phaseExecutionInfo.getPhase();
                 if (phase != null) {
+                    phase.maybeAddDeprecationWarningForFreezeAction(policyName);
                     var rolloverAction = (RolloverAction) phase.getActions().get(RolloverAction.NAME);
                     if (rolloverAction != null) {
                         var conditions = applyDefaultConditions(rolloverAction.getConditions(), rolloverOnlyIfHasDocuments);
@@ -158,7 +167,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         }
 
         final IndexLifecycleExplainResponse indexResponse;
-        if (metadata.isIndexManagedByILM(indexMetadata)) {
+        if (metadata.getProject().isIndexManagedByILM(indexMetadata)) {
             // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy
             if (onlyErrors == false
                 || (ErrorStep.NAME.equals(lifecycleState.step()) || indexLifecycleService.policyExists(policyName) == false)) {
@@ -182,6 +191,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                     lifecycleState.snapshotName(),
                     lifecycleState.shrinkIndexName(),
                     stepInfoBytes,
+                    previousStepInfoBytes,
                     phaseExecutionInfo
                 );
             } else {

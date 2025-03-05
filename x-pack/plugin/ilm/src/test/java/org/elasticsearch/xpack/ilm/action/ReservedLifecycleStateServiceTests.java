@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -30,6 +30,7 @@ import org.elasticsearch.reservedstate.service.ReservedStateChunk;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTask;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTaskExecutor;
 import org.elasticsearch.reservedstate.service.ReservedStateVersion;
+import org.elasticsearch.reservedstate.service.ReservedStateVersionCheck;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -56,19 +57,23 @@ import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -84,40 +89,40 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
-        entries.addAll(
-            Arrays.asList(
-                new NamedXContentRegistry.Entry(
-                    LifecycleType.class,
-                    new ParseField(TimeseriesLifecycleType.TYPE),
-                    (p) -> TimeseriesLifecycleType.INSTANCE
-                ),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
-                new NamedXContentRegistry.Entry(
-                    LifecycleAction.class,
-                    new ParseField(WaitForSnapshotAction.NAME),
-                    WaitForSnapshotAction::parse
-                ),
-                new NamedXContentRegistry.Entry(
-                    LifecycleAction.class,
-                    new ParseField(SearchableSnapshotAction.NAME),
-                    SearchableSnapshotAction::parse
-                ),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MigrateAction.NAME), MigrateAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DownsampleAction.NAME), DownsampleAction::parse)
-            )
+        Collections.addAll(
+            entries,
+            new NamedXContentRegistry.Entry(
+                LifecycleType.class,
+                new ParseField(TimeseriesLifecycleType.TYPE),
+                (p) -> TimeseriesLifecycleType.INSTANCE
+            ),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
+            new NamedXContentRegistry.Entry(
+                LifecycleAction.class,
+                new ParseField(WaitForSnapshotAction.NAME),
+                WaitForSnapshotAction::parse
+            ),
+            new NamedXContentRegistry.Entry(
+                LifecycleAction.class,
+                new ParseField(SearchableSnapshotAction.NAME),
+                SearchableSnapshotAction::parse
+            ),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MigrateAction.NAME), MigrateAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DownsampleAction.NAME), DownsampleAction::parse)
         );
         return new NamedXContentRegistry(entries);
     }
 
-    private TransformState processJSON(ReservedLifecycleAction action, TransformState prevState, String json) throws Exception {
+    private TransformState<ClusterState> processJSON(ReservedLifecycleAction action, TransformState<ClusterState> prevState, String json)
+        throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             return action.transform(action.fromXContent(parser), prevState);
         }
@@ -130,7 +135,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(clusterName).build();
         ReservedLifecycleAction action = new ReservedLifecycleAction(xContentRegistry(), client, mock(XPackLicenseState.class));
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Set.of());
 
         String badPolicyJSON = """
             {
@@ -145,9 +150,9 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
               }
             }""";
 
-        assertEquals(
-            "[1:2] [lifecycle_policy] unknown field [phase] did you mean [phases]?",
-            expectThrows(XContentParseException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
+        assertThat(
+            expectThrows(XContentParseException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage(),
+            is("[1:2] [lifecycle_policy] unknown field [phase] did you mean [phases]?")
         );
     }
 
@@ -162,10 +167,10 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
         String emptyJSON = "";
 
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Set.of());
 
-        TransformState updatedState = processJSON(action, prevState, emptyJSON);
-        assertEquals(0, updatedState.keys().size());
+        TransformState<ClusterState> updatedState = processJSON(action, prevState, emptyJSON);
+        assertThat(updatedState.keys(), empty());
         assertEquals(prevState.state(), updatedState.state());
 
         String twoPoliciesJSON = """
@@ -200,6 +205,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle", "my_timeseries_lifecycle1"));
         IndexLifecycleMetadata ilmMetadata = updatedState.state()
             .metadata()
+            .getProject()
             .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle", "my_timeseries_lifecycle1"));
 
@@ -219,7 +225,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         prevState = updatedState;
         updatedState = processJSON(action, prevState, onePolicyRemovedJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle"));
-        ilmMetadata = updatedState.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        ilmMetadata = updatedState.state().metadata().getProject().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle"));
 
         String onePolicyRenamedJSON = """
@@ -238,7 +244,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         prevState = updatedState;
         updatedState = processJSON(action, prevState, onePolicyRenamedJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle2"));
-        ilmMetadata = updatedState.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        ilmMetadata = updatedState.state().metadata().getProject().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle2"));
     }
 
@@ -253,37 +259,38 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
             if ((getQueueArgs[2] instanceof ReservedStateUpdateTaskExecutor executor)) {
                 doAnswer(submitTaskInvocation -> {
                     Object[] submitTaskArgs = submitTaskInvocation.getArguments();
-                    ClusterStateTaskExecutor.TaskContext<ReservedStateUpdateTask> context = new ClusterStateTaskExecutor.TaskContext<>() {
-                        @Override
-                        public ReservedStateUpdateTask getTask() {
-                            return (ReservedStateUpdateTask) submitTaskArgs[1];
-                        }
+                    ClusterStateTaskExecutor.TaskContext<ReservedStateUpdateTask<?>> context =
+                        new ClusterStateTaskExecutor.TaskContext<>() {
+                            @Override
+                            public ReservedStateUpdateTask<?> getTask() {
+                                return (ReservedStateUpdateTask<?>) submitTaskArgs[1];
+                            }
 
-                        @Override
-                        public void success(Runnable onPublicationSuccess) {}
+                            @Override
+                            public void success(Runnable onPublicationSuccess) {}
 
-                        @Override
-                        public void success(Consumer<ClusterState> publishedStateConsumer) {}
+                            @Override
+                            public void success(Consumer<ClusterState> publishedStateConsumer) {}
 
-                        @Override
-                        public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {}
+                            @Override
+                            public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {}
 
-                        @Override
-                        public void success(
-                            Consumer<ClusterState> publishedStateConsumer,
-                            ClusterStateAckListener clusterStateAckListener
-                        ) {}
+                            @Override
+                            public void success(
+                                Consumer<ClusterState> publishedStateConsumer,
+                                ClusterStateAckListener clusterStateAckListener
+                            ) {}
 
-                        @Override
-                        public void onFailure(Exception failure) {
-                            fail("Shouldn't fail here");
-                        }
+                            @Override
+                            public void onFailure(Exception failure) {
+                                fail("Shouldn't fail here");
+                            }
 
-                        @Override
-                        public Releasable captureResponseHeaders() {
-                            return null;
-                        }
-                    };
+                            @Override
+                            public Releasable captureResponseHeaders() {
+                                return null;
+                            }
+                        };
                     executor.execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(context), () -> null));
                     return null;
                 }).when(taskQueue).submitTask(anyString(), any(), any());
@@ -300,7 +307,8 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         ReservedClusterStateService controller = new ReservedClusterStateService(
             clusterService,
             null,
-            List.of(new ReservedClusterSettingsAction(clusterSettings))
+            List.of(new ReservedClusterSettingsAction(clusterSettings)),
+            List.of()
         );
 
         String testJSON = """
@@ -359,9 +367,9 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         AtomicReference<Exception> x = new AtomicReference<>();
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, (e) -> x.set(e));
+            controller.process("operator", parser, randomFrom(ReservedStateVersionCheck.values()), x::set);
 
-            assertTrue(x.get() instanceof IllegalStateException);
+            assertThat(x.get(), instanceOf(IllegalStateException.class));
             assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
         }
 
@@ -376,15 +384,12 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
             List.of(
                 new ReservedClusterSettingsAction(clusterSettings),
                 new ReservedLifecycleAction(xContentRegistry(), client, licenseState)
-            )
+            ),
+            List.of()
         );
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, (e) -> {
-                if (e != null) {
-                    fail("Should not fail");
-                }
-            });
+            controller.process("operator", parser, randomFrom(ReservedStateVersionCheck.values()), Assert::assertNull);
         }
     }
 
@@ -396,7 +401,8 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         ReservedClusterStateService controller = new ReservedClusterStateService(
             clusterService,
             null,
-            List.of(new ReservedClusterSettingsAction(clusterSettings))
+            List.of(new ReservedClusterSettingsAction(clusterSettings)),
+            List.of()
         );
 
         AtomicReference<Exception> x = new AtomicReference<>();
@@ -411,19 +417,19 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
                         "my_timeseries_lifecycle",
                         Map.of(
                             "warm",
-                            new Phase("warm", new TimeValue(10, TimeUnit.SECONDS), Collections.emptyMap()),
+                            new Phase("warm", new TimeValue(10, TimeUnit.SECONDS), Map.of()),
                             "delete",
-                            new Phase("delete", new TimeValue(30, TimeUnit.SECONDS), Collections.emptyMap())
+                            new Phase("delete", new TimeValue(30, TimeUnit.SECONDS), Map.of())
                         )
                     )
                 )
             ),
-            new ReservedStateVersion(123L, Version.CURRENT)
+            new ReservedStateVersion(123L, BuildVersion.current())
         );
 
-        controller.process("operator", pack, (e) -> x.set(e));
+        controller.process("operator", pack, randomFrom(ReservedStateVersionCheck.values()), x::set);
 
-        assertTrue(x.get() instanceof IllegalStateException);
+        assertThat(x.get(), instanceOf(IllegalStateException.class));
         assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
 
         Client client = mock(Client.class);
@@ -437,13 +443,10 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
             List.of(
                 new ReservedClusterSettingsAction(clusterSettings),
                 new ReservedLifecycleAction(xContentRegistry(), client, licenseState)
-            )
+            ),
+            List.of()
         );
 
-        controller.process("operator", pack, (e) -> {
-            if (e != null) {
-                fail("Should not fail");
-            }
-        });
+        controller.process("operator", pack, randomFrom(ReservedStateVersionCheck.values()), Assert::assertNull);
     }
 }

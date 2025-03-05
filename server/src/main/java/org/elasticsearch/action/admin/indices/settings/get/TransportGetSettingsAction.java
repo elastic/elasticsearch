@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.settings.get;
@@ -17,7 +18,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -38,6 +39,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
 
     private final SettingsFilter settingsFilter;
     private final IndexScopedSettings indexScopedSettings;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportGetSettingsAction(
@@ -56,12 +58,12 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
             threadPool,
             actionFilters,
             GetSettingsRequest::new,
-            indexNameExpressionResolver,
             GetSettingsResponse::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.settingsFilter = settingsFilter;
         this.indexScopedSettings = indexedScopedSettings;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -88,7 +90,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
             ? Maps.newHashMapWithExpectedSize(concreteIndices.length)
             : null;
         for (Index concreteIndex : concreteIndices) {
-            IndexMetadata indexMetadata = state.getMetadata().index(concreteIndex);
+            IndexMetadata indexMetadata = state.getMetadata().findIndex(concreteIndex).orElse(null);
             if (indexMetadata == null) {
                 continue;
             }

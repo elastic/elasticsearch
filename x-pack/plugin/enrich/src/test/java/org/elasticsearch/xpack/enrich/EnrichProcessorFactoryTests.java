@@ -11,8 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -25,9 +23,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.profile.SearchProfileResults;
-import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -257,22 +253,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
                     requestCounter[0]++;
                     ActionListener.respondAndRelease(
                         listener,
-                        (Response) new SearchResponse(
-                            SearchHits.EMPTY_WITH_TOTAL_HITS,
-                            InternalAggregations.EMPTY,
-                            new Suggest(Collections.emptyList()),
-                            false,
-                            false,
-                            new SearchProfileResults(Collections.emptyMap()),
-                            1,
-                            "",
-                            1,
-                            1,
-                            0,
-                            0,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY
-                        )
+                        (Response) SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS)
                     );
                 }
             };
@@ -303,10 +284,10 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             assertThat(failure[0], nullValue());
             assertThat(result[0], notNullValue());
             assertThat(requestCounter[0], equalTo(1));
-            assertThat(enrichCache.getStats("_id").getCount(), equalTo(1L));
-            assertThat(enrichCache.getStats("_id").getMisses(), equalTo(1L));
-            assertThat(enrichCache.getStats("_id").getHits(), equalTo(0L));
-            assertThat(enrichCache.getStats("_id").getEvictions(), equalTo(0L));
+            assertThat(enrichCache.getStats("_id").count(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").misses(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").hits(), equalTo(0L));
+            assertThat(enrichCache.getStats("_id").evictions(), equalTo(0L));
 
             // No search is performed, result is read from the cache:
             result[0] = null;
@@ -318,10 +299,10 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             assertThat(failure[0], nullValue());
             assertThat(result[0], notNullValue());
             assertThat(requestCounter[0], equalTo(1));
-            assertThat(enrichCache.getStats("_id").getCount(), equalTo(1L));
-            assertThat(enrichCache.getStats("_id").getMisses(), equalTo(1L));
-            assertThat(enrichCache.getStats("_id").getHits(), equalTo(1L));
-            assertThat(enrichCache.getStats("_id").getEvictions(), equalTo(0L));
+            assertThat(enrichCache.getStats("_id").count(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").misses(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").hits(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").evictions(), equalTo(0L));
         }
     }
 

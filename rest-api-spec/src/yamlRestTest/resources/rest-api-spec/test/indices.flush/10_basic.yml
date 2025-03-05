@@ -28,8 +28,8 @@
 
 ---
 "Flush parameters validation":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason: flush parameters validation is introduced in 7.2.0
   - do:
       indices.create:

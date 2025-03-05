@@ -22,7 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests.buildExpectation;
+import static org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests.buildExpectationSparseEmbeddings;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -46,7 +46,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         assertThat(
             parsedResults.asMap(),
             is(
-                buildExpectation(
+                buildExpectationSparseEmbeddings(
                     List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f, "the", 0.67472112f), false))
                 )
             )
@@ -73,7 +73,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         assertThat(
             parsedResults.asMap(),
             is(
-                buildExpectation(
+                buildExpectationSparseEmbeddings(
                     List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f, "the", 0.67472112f), true))
                 )
             )
@@ -101,7 +101,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         assertThat(
             parsedResults.asMap(),
             is(
-                buildExpectation(
+                buildExpectationSparseEmbeddings(
                     List.of(
                         new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f, "the", 0.67472112f), false),
                         new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("hi", 0.13315596f, "super", 0.67472112f), false)
@@ -135,7 +135,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         assertThat(
             parsedResults.asMap(),
             is(
-                buildExpectation(
+                buildExpectationSparseEmbeddings(
                     List.of(
                         new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f, "the", 0.67472112f), true),
                         new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("hi", 0.13315596f, "super", 0.67472112f), false)
@@ -169,7 +169,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         assertThat(
             parsedResults.asMap(),
             is(
-                buildExpectation(
+                buildExpectationSparseEmbeddings(
                     List.of(
                         new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f, "the", 0.67472112f), false),
                         new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("hi", 0.13315596f, "super", 0.67472112f), false)
@@ -239,7 +239,11 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
 
         assertThat(
             parsedResults.asMap(),
-            is(buildExpectation(List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("field", 1.0f), false))))
+            is(
+                buildExpectationSparseEmbeddings(
+                    List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("field", 1.0f), false))
+                )
+            )
         );
     }
 
@@ -259,7 +263,11 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
 
         assertThat(
             parsedResults.asMap(),
-            is(buildExpectation(List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("field", 4.0294965E10F), false))))
+            is(
+                buildExpectationSparseEmbeddings(
+                    List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("field", 4.0294965E10F), false))
+                )
+            )
         );
     }
 
@@ -301,8 +309,8 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
-
-        assertThat(thrownException.getMessage(), containsString("expected close marker for Array (start marker at [Source: (byte[])"));
+        assertThat(thrownException.getMessage(), containsString("[5:1] Unexpected end of file"));
+        assertThat(thrownException.getCause().getMessage(), containsString("expected close marker for Array (start marker at"));
     }
 
     public void testFails_ResponseIsInvalidJson_MissingField() {

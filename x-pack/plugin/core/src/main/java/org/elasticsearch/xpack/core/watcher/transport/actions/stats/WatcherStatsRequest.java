@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.stats;
 
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,7 +16,7 @@ import java.io.IOException;
 /**
  * The Request to get the watcher stats
  */
-public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
+public class WatcherStatsRequest extends BaseNodesRequest {
 
     private boolean includeCurrentWatches;
     private boolean includeQueuedWatches;
@@ -49,11 +48,6 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
 
     public void includeStats(boolean includeStats) {
         this.includeStats = includeStats;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
     }
 
     @Override

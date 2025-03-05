@@ -37,6 +37,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.Compression;
+import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -157,7 +158,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                 }
             }
         );
-        DiscoveryNode remoteNode = remoteTransportService.getLocalDiscoNode();
+        DiscoveryNode remoteNode = remoteTransportService.getLocalNode();
         remoteTransportService.registerRequestHandler(
             RemoteClusterNodesAction.TYPE.name(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -332,7 +333,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         try (Socket socket = new MockSocket(remoteIngressTransportAddress.getAddress(), remoteIngressTransportAddress.getPort())) {
             TestOutboundRequestMessage message = new TestOutboundRequestMessage(
                 threadPool.getThreadContext(),
-                TransportRequest.Empty.INSTANCE,
+                new EmptyRequest(),
                 TransportVersion.current(),
                 "internal:whatever",
                 randomNonNegativeLong(),

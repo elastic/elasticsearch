@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -22,7 +24,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.core.TimeValue.NSEC_PER_MSEC;
@@ -36,6 +37,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_data_stream_timestamp";
     public static final String DEFAULT_PATH = "@timestamp";
+    public static final String TIMESTAMP_VALUE_KEY = "@timestamp._value";
 
     public static final DataStreamTimestampFieldMapper ENABLED_INSTANCE = new DataStreamTimestampFieldMapper(true);
     private static final DataStreamTimestampFieldMapper DISABLED_INSTANCE = new DataStreamTimestampFieldMapper(false);
@@ -137,7 +139,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper;
-        if (dateFieldMapper.fieldType().isIndexed() == false) {
+        if (dateFieldMapper.fieldType().isIndexed() == false && dateFieldMapper.fieldType().hasDocValuesSkipper() == false) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is not indexed");
         }
         if (dateFieldMapper.fieldType().hasDocValues() == false) {
@@ -163,10 +165,11 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             Map<?, ?> configuredSettings = XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
             configuredSettings = (Map<?, ?>) configuredSettings.values().iterator().next();
 
-            // Only type, meta and format attributes are allowed:
+            // Only type, meta, format, and locale attributes are allowed:
             configuredSettings.remove("type");
             configuredSettings.remove("meta");
             configuredSettings.remove("format");
+            configuredSettings.remove("locale");
 
             // ignoring malformed values is disallowed (see previous check),
             // however if `index.mapping.ignore_malformed` has been set to true then
@@ -189,43 +192,44 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
     }
 
+    public static void storeTimestampValueForReuse(LuceneDocument document, long timestamp) {
+        var existingField = document.getByKey(DataStreamTimestampFieldMapper.TIMESTAMP_VALUE_KEY);
+        if (existingField != null) {
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] encountered multiple values");
+        }
+
+        document.onlyAddKey(
+            DataStreamTimestampFieldMapper.TIMESTAMP_VALUE_KEY,
+            new LongField(DataStreamTimestampFieldMapper.TIMESTAMP_VALUE_KEY, timestamp, Field.Store.NO)
+        );
+    }
+
+    public static long extractTimestampValue(LuceneDocument document) {
+        IndexableField timestampValueField = document.getByKey(TIMESTAMP_VALUE_KEY);
+        if (timestampValueField == null) {
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is missing");
+        }
+
+        return timestampValueField.numericValue().longValue();
+    }
+
     @Override
     public void postParse(DocumentParserContext context) throws IOException {
         if (enabled == false) {
             // not configured, so skip the validation
             return;
         }
-        boolean foundFsTimestampField = false;
-        IndexableField first = null;
-        final List<IndexableField> fields = context.rootDoc().getFields();
-        for (int i = 0; i < fields.size(); i++) {
-            IndexableField indexableField = fields.get(i);
-            if (DEFAULT_PATH.equals(indexableField.name()) == false) {
-                continue;
-            }
-            if (first == null) {
-                first = indexableField;
-            }
-            if (indexableField.fieldType().docValuesType() == DocValuesType.SORTED_NUMERIC) {
-                if (foundFsTimestampField) {
-                    throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] encountered multiple values");
-                }
-                foundFsTimestampField = true;
-            }
-        }
 
-        if (first == null) {
-            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is missing");
-        }
+        long timestamp = extractTimestampValue(context.doc());
+
         var indexMode = context.indexSettings().getMode();
         if (indexMode.shouldValidateTimestamp()) {
             TimestampBounds bounds = context.indexSettings().getTimestampBounds();
-            validateTimestamp(bounds, first, context);
+            validateTimestamp(bounds, timestamp, context);
         }
     }
 
-    private static void validateTimestamp(TimestampBounds bounds, IndexableField field, DocumentParserContext context) {
-        long originValue = field.numericValue().longValue();
+    private static void validateTimestamp(TimestampBounds bounds, long originValue, DocumentParserContext context) {
         long value = originValue;
 
         Resolution resolution;
@@ -267,10 +271,5 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     public boolean isEnabled() {
         return enabled;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

@@ -25,9 +25,10 @@
 ---
 "Create API key with metadata in a mixed cluster (pre 7.13.0)":
 
+  - requires:
+      test_runner_features: [headers, node_selector]
   - skip:
-      features: [headers, node_selector]
-      version: "7.13.0 - "
+      cluster_features: ["gte_v7.13.0"]
       reason: "Support metadata on API keys introduced in 7.13.0"
 
   - do:
@@ -46,9 +47,9 @@
 ---
 "Create API key with metadata in a mixed cluster":
 
-  - skip:
-      features: [headers]
-      version: " - 7.12.99"
+  - requires:
+      test_runner_features: [headers]
+      cluster_features: ["gte_v7.13.0"]
       reason: "Support metadata on API keys introduced in 7.13.0"
 
   - do:

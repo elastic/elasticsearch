@@ -10,15 +10,17 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
 /**
  * Vector implementation that defers to an enclosed {@link LongArray}.
  * Does not take ownership of the array and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BigArrayVector.java.st} instead.
  */
 public final class LongBigArrayVector extends AbstractVector implements LongVector, Releasable {
 
@@ -84,6 +86,37 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
             filtered.set(i, values.get(positions[i]));
         }
         return new LongBigArrayVector(filtered, positions.length, blockFactory);
+    }
+
+    @Override
+    public LongBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new LongVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new LongVectorBlock(this);
+            }
+            return (LongBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (LongBlock.Builder builder = blockFactory().newLongBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendLong(getLong(p));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public ReleasableIterator<LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new LongLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.dfs;
@@ -39,7 +40,7 @@ public class DfsPhaseTests extends ESTestCase {
     @Before
     public final void init() {
         threadPool = new TestThreadPool(DfsPhaseTests.class.getName());
-        threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH_WORKER);
+        threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
     }
 
     @After
@@ -85,14 +86,14 @@ public class DfsPhaseTests extends ESTestCase {
             List<QueryProfileShardResult> queryProfileShardResult = searchProfileDfsPhaseResult.getQueryProfileShardResult();
             assertNotNull(queryProfileShardResult);
             CollectorResult collectorResult = queryProfileShardResult.get(0).getCollectorResult();
-            assertEquals("SimpleTopScoreDocCollector", (collectorResult.getName()));
+            assertEquals("TopScoreDocCollector", (collectorResult.getName()));
             assertEquals("search_top_hits", (collectorResult.getReason()));
             assertTrue(collectorResult.getTime() > 0);
             List<CollectorResult> children = collectorResult.getChildrenResults();
             if (children.size() > 0) {
                 long totalTime = 0L;
                 for (CollectorResult child : children) {
-                    assertEquals("SimpleTopScoreDocCollector", (child.getName()));
+                    assertEquals("TopScoreDocCollector", (child.getName()));
                     assertEquals("search_top_hits", (child.getReason()));
                     totalTime += child.getTime();
                 }

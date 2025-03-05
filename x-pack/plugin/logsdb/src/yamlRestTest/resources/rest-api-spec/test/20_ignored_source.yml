@@ -1,0 +1,313 @@
+---
+setup:
+  - skip:
+      features: headers
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              object:
+                enabled: false
+
+  - do:
+      headers:
+        Content-Type: application/yaml
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          object:
+            name: "foo"
+            value: 10
+
+---
+"fetch stored fields wildcard":
+  - requires:
+      cluster_features: [ mapper.ignored_source_as_top_level_metadata_array_field ]
+      reason: requires returning the _ignored_source field as a top level array metadata field
+
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          stored_fields: [ "*" ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source: null }
+
+---
+"fetch fields wildcard":
+  - requires:
+      cluster_features: [ mapper.ignored_source_as_top_level_metadata_array_field ]
+      reason: requires returning the _ignored_source field as a top level array metadata field
+
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          fields: [ "*" ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source: null }
+
+---
+"fetch stored fields by name":
+  - requires:
+      cluster_features: [ mapper.ignored_source_as_top_level_metadata_array_field ]
+      reason: requires returning the _ignored_source field as a top level array metadata field
+
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          stored_fields: [ _ignored_source ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source.0: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+
+---
+"fetch fields by name":
+  - requires:
+      cluster_features: [ mapper.ignored_source_as_top_level_metadata_array_field ]
+      reason: requires returning the _ignored_source field as a top level array metadata field
+
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          fields: [ _ignored_source ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source.0: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+
+---
+"fields and stored fields combination":
+  - requires:
+      cluster_features: [ mapper.ignored_source_as_top_level_metadata_array_field ]
+      reason: requires returning the _ignored_source field as a top level array metadata field
+
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          stored_fields: [ _ignored_source ]
+          fields: [ _ignored_source ]
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.object: null }
+  - match: { hits.hits.0._ignored_source.0: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+
+---
+"wildcard fields and stored fields combination":
+  - requires:
+      cluster_features: [ mapper.ignored_source_as_top_level_metadata_array_field ]
+      reason: requires returning the _ignored_source field as a top level array metadata field
+
+  - do:
+      search:
+        index: test
+        body:
+          stored_fields: [ "*" ]
+          fields: [ "*" ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source: null }
+
+---
+"fields with ignored source in stored fields":
+  - requires:
+      cluster_features: [ mapper.ignored_source_as_top_level_metadata_array_field ]
+      reason: requires returning the _ignored_source field as a top level array metadata field
+
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          stored_fields: [ _ignored_source ]
+          fields: [ object ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source.0: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+  - match: { hits.hits.0.fields: null }
+
+---
+"fields with ignored source in fields":
+  - requires:
+      cluster_features: [ mapper.ignored_source_as_top_level_metadata_array_field ]
+      reason: requires returning the _ignored_source field as a top level array metadata field
+
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          stored_fields: [ object ]
+          fields: [ _ignored_source ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source.0: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+
+---
+"ignored source via fields and wildcard stored fields":
+  - requires:
+      cluster_features: [ mapper.ignored_source_as_top_level_metadata_array_field ]
+      reason: requires returning the _ignored_source field as a top level array metadata field
+
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          stored_fields: [ "*" ]
+          fields: [ _ignored_source ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source.0: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+
+---
+"wildcard fields and ignored source via stored fields":
+  - requires:
+      cluster_features: [ mapper.ignored_source_as_top_level_metadata_array_field ]
+      reason: requires returning the _ignored_source field as a top level array metadata field
+
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test
+        body:
+          stored_fields: [ _ignored_source ]
+          fields: [ "*" ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._ignored_source.0: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+
+---
+ignored source array via fields:
+  - requires:
+      cluster_features: [mapper.ignored_source_as_top_level_metadata_array_field]
+      reason: requires returning the _ignored_source field as a top level array metadata field
+
+  - do:
+      indices.create:
+        index: test-dynamic-fields
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 1 # only `name` static mapping is allowed
+          mappings:
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test-dynamic-fields
+        refresh: true
+        body:
+          - '{ "index": { } }'
+          - '{ "name": "foo", "value": 1, "id": "f5t7-66gt" }'
+  - match: { errors: false }
+
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test-dynamic-fields
+        body:
+          fields: [ "_ignored_source" ]
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: "foo" }
+  - match: { hits.hits.0._source.value: 1 }
+  - match: { hits.hits.0._source.id: "f5t7-66gt" }
+  - match: { hits.hits.0._ignored: [ "id", "value" ]}
+  - length: { hits.hits.0._ignored_source: 2 }
+  - match: { hits.hits.0._ignored_source.0: !!binary "AgAAAGlkU2Y1dDctNjZndA==" } # `id` field
+  - match: { hits.hits.0._ignored_source.1: !!binary "BQAAAHZhbHVlSQEAAAA=" } # `value` field
+
+---
+ignored source array via stored_fields:
+  - requires:
+      cluster_features: [mapper.ignored_source_as_top_level_metadata_array_field]
+      reason: requires returning the _ignored_source field as a top level array metadata field
+
+  - do:
+      indices.create:
+        index: test-dynamic-stored-fields
+        body:
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 1 # only `name` static mapping is allowed
+          mappings:
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test-dynamic-stored-fields
+        refresh: true
+        body:
+          - '{ "index": { } }'
+          - '{ "name": "foo", "value": 1, "id": "f5t7-66gt" }'
+  - match: { errors: false }
+
+  - do:
+      headers:
+        Content-Type: application/yaml
+      search:
+        index: test-dynamic-stored-fields
+        body:
+          # NOTE: when using synthetic source `_source` field needs to be explicitly requested via `stored_fields`,
+          # a wildcard request would not include it.
+          stored_fields: [ "_ignored_source", "_source" ]
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: "foo" }
+  - match: { hits.hits.0._source.value: 1 }
+  - match: { hits.hits.0._source.id: "f5t7-66gt" }
+  - match: { hits.hits.0._ignored: [ "id", "value" ]}
+  - length: { hits.hits.0._ignored_source: 2 }
+  - match: { hits.hits.0._ignored_source.0: !!binary "AgAAAGlkU2Y1dDctNjZndA==" } # `id` field
+  - match: { hits.hits.0._ignored_source.1: !!binary "BQAAAHZhbHVlSQEAAAA=" } # `value` field

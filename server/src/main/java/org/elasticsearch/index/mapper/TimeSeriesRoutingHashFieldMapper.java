@@ -1,15 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersions;
@@ -20,8 +24,11 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
+import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 
@@ -40,9 +47,34 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().timeSeriesRoutingHashFieldMapper());
 
+    public static final DocValueFormat TS_ROUTING_HASH_DOC_VALUE_FORMAT = TimeSeriesRoutingHashFieldType.DOC_VALUE_FORMAT;
+
     static final class TimeSeriesRoutingHashFieldType extends MappedFieldType {
 
         private static final TimeSeriesRoutingHashFieldType INSTANCE = new TimeSeriesRoutingHashFieldType();
+        static final DocValueFormat DOC_VALUE_FORMAT = new DocValueFormat() {
+
+            @Override
+            public String getWriteableName() {
+                return NAME;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {}
+
+            @Override
+            public Object format(BytesRef value) {
+                return Uid.decodeId(value.bytes, value.offset, value.length);
+            }
+
+            @Override
+            public BytesRef parseBytesRef(Object value) {
+                if (value instanceof BytesRef valueAsBytesRef) {
+                    return valueAsBytesRef;
+                }
+                return Uid.encodeId(value.toString());
+            }
+        };
 
         private TimeSeriesRoutingHashFieldType() {
             super(NAME, false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
@@ -75,6 +107,11 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("[" + NAME + "] is not searchable");
         }
+
+        @Override
+        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+            return DOC_VALUE_FORMAT;
+        }
     }
 
     private TimeSeriesRoutingHashFieldMapper() {
@@ -86,7 +123,13 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
         if (context.indexSettings().getMode() == IndexMode.TIME_SERIES
             && context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
             String routingHash = context.sourceToParse().routing();
-            var field = new SortedDocValuesField(NAME, Uid.encodeId(routingHash != null ? routingHash : encode(0)));
+            if (routingHash == null) {
+                assert context.sourceToParse().id() != null;
+                routingHash = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(
+                    Arrays.copyOf(Base64.getUrlDecoder().decode(context.sourceToParse().id()), 4)
+                );
+            }
+            var field = new SortedDocValuesField(NAME, Uid.encodeId(routingHash));
             context.rootDoc().add(field);
         }
     }
@@ -96,15 +139,10 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
         return NAME;
     }
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
-    }
-
     public static String encode(int routingId) {
         byte[] bytes = new byte[4];
         ByteUtils.writeIntLE(routingId, bytes, 0);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(bytes);
     }
 
     public static final String DUMMY_ENCODED_VALUE = encode(0);

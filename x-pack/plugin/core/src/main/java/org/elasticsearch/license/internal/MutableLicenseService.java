@@ -10,6 +10,7 @@ package org.elasticsearch.license.internal;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.PostStartBasicRequest;
@@ -35,7 +36,7 @@ public interface MutableLicenseService extends LicenseService, LifecycleComponen
      * Removes the current license. Implementations should remove the current license and ensure that attempts to read returns
      * {@link LicensesMetadata#LICENSE_TOMBSTONE} if a license was removed. Additionally the {@link XPackLicenseState} must be updated.
      */
-    void removeLicense(ActionListener<? extends AcknowledgedResponse> listener);
+    void removeLicense(TimeValue masterNodeTimeout, TimeValue ackTimeout, ActionListener<? extends AcknowledgedResponse> listener);
 
     /**
      * Installs a basic license.

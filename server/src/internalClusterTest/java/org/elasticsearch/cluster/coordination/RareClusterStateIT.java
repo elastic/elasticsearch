@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
@@ -89,7 +91,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 );
 
                 // open index
-                final IndexMetadata indexMetadata = IndexMetadata.builder(currentState.metadata().index(index))
+                final IndexMetadata indexMetadata = IndexMetadata.builder(currentState.metadata().getProject().index(index))
                     .state(IndexMetadata.State.OPEN)
                     .build();
 
@@ -101,7 +103,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                     TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
                     updatedState.routingTable()
                 );
-                routingTable.addAsRecovery(updatedState.metadata().index(index));
+                routingTable.addAsRecovery(updatedState.metadata().getProject().index(index));
                 updatedState = ClusterState.builder(updatedState).routingTable(routingTable.build()).build();
 
                 return allocationService.reroute(updatedState, "reroute", ActionListener.noop());
@@ -134,14 +136,14 @@ public class RareClusterStateIT extends ESIntegTestCase {
         final var dataNode = internalCluster().startDataOnlyNode();
         final var dataNodeClusterService = internalCluster().clusterService(dataNode);
 
-        assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("2").get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes("2").get().isTimedOut());
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen("test");
 
-        final var originalIndexUuid = masterClusterService.state().metadata().index("test").getIndexUUID();
+        final var originalIndexUuid = masterClusterService.state().metadata().getProject().index("test").getIndexUUID();
         final var uuidChangedListener = ClusterServiceUtils.addTemporaryStateListener(
             dataNodeClusterService,
-            clusterState -> originalIndexUuid.equals(clusterState.metadata().index("test").getIndexUUID()) == false
+            clusterState -> originalIndexUuid.equals(clusterState.metadata().getProject().index("test").getIndexUUID()) == false
                 // NB throws a NPE which fails the test if the data node sees the intermediate state with the index deleted
                 && clusterState.routingTable().index("test").allShardsActive()
         );
@@ -158,14 +160,14 @@ public class RareClusterStateIT extends ESIntegTestCase {
         );
 
         logger.info("--> delete index");
-        assertFalse(indicesAdmin().prepareDelete("test").setTimeout("0s").get().isAcknowledged());
+        assertFalse(indicesAdmin().prepareDelete("test").setTimeout(TimeValue.ZERO).get().isAcknowledged());
         logger.info("--> and recreate it");
         assertFalse(
             prepareCreate("test").setSettings(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "0")
-            ).setTimeout("0s").get().isAcknowledged()
+            ).setTimeout(TimeValue.ZERO).get().isAcknowledged()
         );
 
         // unblock publications & do a trivial cluster state update to bring data node up to date
@@ -223,7 +225,12 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
             // ...and check mappings are available on master
             {
-                MappingMetadata typeMappings = internalCluster().clusterService(master).state().metadata().index("index").mapping();
+                MappingMetadata typeMappings = internalCluster().clusterService(master)
+                    .state()
+                    .metadata()
+                    .getProject()
+                    .index("index")
+                    .mapping();
                 assertNotNull(typeMappings);
                 Object properties;
                 try {
@@ -281,7 +288,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         }
 
         final var primaryIndexService = internalCluster().getInstance(IndicesService.class, primaryNode)
-            .indexServiceSafe(state.metadata().index("index").getIndex());
+            .indexServiceSafe(state.metadata().getProject().index("index").getIndex());
 
         // Block cluster state processing on the replica
         final var replicaNodeTransportService = MockTransportService.getInstance(replicaNode);

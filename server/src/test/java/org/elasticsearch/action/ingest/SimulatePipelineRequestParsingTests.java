@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
@@ -43,6 +44,8 @@ import static org.elasticsearch.ingest.IngestDocument.Metadata.VERSION_TYPE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -60,7 +63,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             (factories, tag, description, config) -> processor
         );
         ingestService = mock(IngestService.class);
-        when(ingestService.getPipeline(SIMULATED_PIPELINE_ID)).thenReturn(pipeline);
+        when(ingestService.getPipeline(any(), eq(SIMULATED_PIPELINE_ID))).thenReturn(pipeline);
         when(ingestService.getProcessorFactories()).thenReturn(registry);
     }
 
@@ -88,7 +91,9 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             expectedDocs.add(expectedDoc);
         }
 
+        var projectId = randomProjectIdOrDefault();
         SimulatePipelineRequest.Parsed actualRequest = SimulatePipelineRequest.parseWithPipelineId(
+            projectId,
             SIMULATED_PIPELINE_ID,
             requestContent,
             false,
@@ -212,24 +217,40 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
     }
 
     public void testNullPipelineId() {
+        var projectId = randomProjectIdOrDefault();
         Map<String, Object> requestContent = new HashMap<>();
         List<Map<String, Object>> docs = new ArrayList<>();
         requestContent.put(Fields.DOCS, docs);
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> SimulatePipelineRequest.parseWithPipelineId(null, requestContent, false, ingestService, RestApiVersion.current())
+            () -> SimulatePipelineRequest.parseWithPipelineId(
+                projectId,
+                null,
+                requestContent,
+                false,
+                ingestService,
+                RestApiVersion.current()
+            )
         );
         assertThat(e.getMessage(), equalTo("param [pipeline] is null"));
     }
 
     public void testNonExistentPipelineId() {
+        var projectId = randomProjectIdOrDefault();
         String pipelineId = randomAlphaOfLengthBetween(1, 10);
         Map<String, Object> requestContent = new HashMap<>();
         List<Map<String, Object>> docs = new ArrayList<>();
         requestContent.put(Fields.DOCS, docs);
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> SimulatePipelineRequest.parseWithPipelineId(pipelineId, requestContent, false, ingestService, RestApiVersion.current())
+            () -> SimulatePipelineRequest.parseWithPipelineId(
+                projectId,
+                pipelineId,
+                requestContent,
+                false,
+                ingestService,
+                RestApiVersion.current()
+            )
         );
         assertThat(e.getMessage(), equalTo("pipeline [" + pipelineId + "] does not exist"));
     }
@@ -341,7 +362,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             requestContent,
             false,
             ingestService,
-            RestApiVersion.V_7
+            RestApiVersion.V_8
         );
         assertThat(actualRequest.verbose(), equalTo(false));
         assertThat(actualRequest.documents().size(), equalTo(numDocs));

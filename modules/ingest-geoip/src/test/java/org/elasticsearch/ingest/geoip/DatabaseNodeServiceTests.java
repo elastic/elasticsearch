@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -49,6 +50,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,6 +65,7 @@ import org.mockito.stubbing.Answer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -83,7 +86,7 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
-import static org.elasticsearch.ingest.geoip.GeoIpProcessorFactoryTests.copyDatabaseFiles;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.TYPE;
 import static org.hamcrest.Matchers.empty;
@@ -117,10 +120,9 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     @Before
     public void setup() throws IOException {
         final Path geoIpConfigDir = createTempDir();
-        Files.createDirectories(geoIpConfigDir);
         GeoIpCache cache = new GeoIpCache(1000);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
-        copyDatabaseFiles(geoIpConfigDir, configDatabases);
+        copyDefaultDatabases(geoIpConfigDir, configDatabases);
 
         threadPool = new TestThreadPool(ConfigDatabases.class.getSimpleName());
         Settings settings = Settings.builder().put("resource.reload.interval.high", TimeValue.timeValueMillis(100)).build();
@@ -153,7 +155,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         int numPipelinesToBeReloaded = randomInt(4);
         List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).toList();
-        when(ingestService.getPipelineWithProcessorType(any(), any())).thenReturn(pipelineIds);
+        when(ingestService.getPipelineWithProcessorType(any(), any(), any())).thenReturn(pipelineIds);
 
         assertThat(databaseNodeService.getDatabase("GeoIP2-City.mmdb"), nullValue());
         // Nothing should be downloaded, since the database is no longer valid (older than 30 days)
@@ -161,7 +163,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         DatabaseReaderLazyLoader database = databaseNodeService.getDatabaseReaderLazyLoader("GeoIP2-City.mmdb");
         assertThat(database, nullValue());
         verify(client, times(0)).search(any());
-        verify(ingestService, times(0)).reloadPipeline(anyString());
+        verify(ingestService, times(0)).reloadPipeline(any(), anyString());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertEquals(0, files.count());
         }
@@ -183,7 +185,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             assertThat(files.count(), greaterThanOrEqualTo(1L));
         }
         // First time GeoIP2-City.mmdb is downloaded, so a pipeline reload can happen:
-        verify(ingestService, times(numPipelinesToBeReloaded)).reloadPipeline(anyString());
+        verify(ingestService, times(numPipelinesToBeReloaded)).reloadPipeline(any(), anyString());
         // 30 days check passed but we mocked mmdb data so parsing will fail
         expectThrows(InvalidDatabaseException.class, database::get);
     }
@@ -290,14 +292,14 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     public void testUpdateDatabase() throws Exception {
         int numPipelinesToBeReloaded = randomInt(4);
         List<String> pipelineIds = IntStream.range(0, numPipelinesToBeReloaded).mapToObj(String::valueOf).toList();
-        when(ingestService.getPipelineWithProcessorType(any(), any())).thenReturn(pipelineIds);
+        when(ingestService.getPipelineWithProcessorType(any(), any(), any())).thenReturn(pipelineIds);
 
         databaseNodeService.updateDatabase("_name", "_md5", geoIpTmpDir.resolve("some-file"));
 
         // Updating the first time may trigger a reload.
         verify(clusterService, times(1)).addListener(any());
-        verify(ingestService, times(1)).getPipelineWithProcessorType(any(), any());
-        verify(ingestService, times(numPipelinesToBeReloaded)).reloadPipeline(anyString());
+        verify(ingestService, times(1)).getPipelineWithProcessorType(any(), any(), any());
+        verify(ingestService, times(numPipelinesToBeReloaded)).reloadPipeline(any(), anyString());
         verifyNoMoreInteractions(clusterService);
         verifyNoMoreInteractions(ingestService);
         reset(clusterService);
@@ -311,12 +313,24 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
     private String mockSearches(String databaseName, int firstChunk, int lastChunk) throws IOException {
         String dummyContent = "test: " + databaseName;
-        List<byte[]> data = gzip(databaseName, dummyContent, lastChunk - firstChunk + 1);
-        assertThat(gunzip(data), equalTo(dummyContent));
+        List<byte[]> data;
+        // We want to make sure we handle gzip files or plain mmdb files equally well:
+        if (randomBoolean()) {
+            data = gzip(databaseName, dummyContent, lastChunk - firstChunk + 1);
+            assertThat(gunzip(data), equalTo(dummyContent));
+        } else {
+            data = chunkBytes(dummyContent, lastChunk - firstChunk + 1);
+            assertThat(unchunkBytes(data), equalTo(dummyContent));
+        }
 
         Map<String, ActionFuture<SearchResponse>> requestMap = new HashMap<>();
         for (int i = firstChunk; i <= lastChunk; i++) {
-            byte[] chunk = data.get(i - firstChunk);
+            byte[] chunk;
+            if (i - firstChunk < data.size()) {
+                chunk = data.get(i - firstChunk);
+            } else {
+                chunk = new byte[0]; // We had so little data that the chunk(s) at the end will be empty
+            }
             SearchHit hit = SearchHit.unpooled(i);
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
                 builder.map(Map.of("data", chunk));
@@ -328,7 +342,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             }
 
             SearchHits hits = SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
-            SearchResponse searchResponse = new SearchResponse(hits, null, null, false, null, null, 0, null, 1, 1, 0, 1L, null, null);
+            SearchResponse searchResponse = SearchResponseUtils.successfulResponse(hits);
             toRelease.add(searchResponse::decRef);
             @SuppressWarnings("unchecked")
             ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);
@@ -390,6 +404,39 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             .build();
     }
 
+    private static List<byte[]> chunkBytes(String content, int chunks) throws IOException {
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        OutputStream outputStream = byteArrayOutputStream;
+        byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
+        outputStream.write(contentBytes);
+        outputStream.close();
+
+        byte[] all = byteArrayOutputStream.toByteArray();
+        int chunkSize = Math.max(1, all.length / chunks);
+        List<byte[]> data = new ArrayList<>();
+
+        for (int from = 0; from < all.length;) {
+            int to = from + chunkSize;
+            if (to > all.length) {
+                to = all.length;
+            }
+            data.add(Arrays.copyOfRange(all, from, to));
+            from = to;
+        }
+
+        while (data.size() > chunks) {
+            byte[] last = data.remove(data.size() - 1);
+            byte[] secondLast = data.remove(data.size() - 1);
+            byte[] merged = new byte[secondLast.length + last.length];
+            System.arraycopy(secondLast, 0, merged, 0, secondLast.length);
+            System.arraycopy(last, 0, merged, secondLast.length, last.length);
+            data.add(merged);
+        }
+
+        assert data.size() == Math.min(chunks, content.length());
+        return data;
+    }
+
     private static List<byte[]> gzip(String name, String content, int chunks) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         GZIPOutputStream gzipOutputStream = new GZIPOutputStream(bytes);
@@ -432,13 +479,23 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         return data;
     }
 
-    private static String gunzip(List<byte[]> chunks) throws IOException {
-        byte[] gzippedContent = new byte[chunks.stream().mapToInt(value -> value.length).sum()];
+    private static byte[] unchunkBytesToByteArray(List<byte[]> chunks) throws IOException {
+        byte[] allBytes = new byte[chunks.stream().mapToInt(value -> value.length).sum()];
         int written = 0;
         for (byte[] chunk : chunks) {
-            System.arraycopy(chunk, 0, gzippedContent, written, chunk.length);
+            System.arraycopy(chunk, 0, allBytes, written, chunk.length);
             written += chunk.length;
         }
+        return allBytes;
+    }
+
+    private static String unchunkBytes(List<byte[]> chunks) throws IOException {
+        byte[] allBytes = unchunkBytesToByteArray(chunks);
+        return new String(allBytes, StandardCharsets.UTF_8);
+    }
+
+    private static String gunzip(List<byte[]> chunks) throws IOException {
+        byte[] gzippedContent = unchunkBytesToByteArray(chunks);
         TarInputStream gzipInputStream = new TarInputStream(new GZIPInputStream(new ByteArrayInputStream(gzippedContent)));
         gzipInputStream.getNextEntry();
         return Streams.readFully(gzipInputStream).utf8ToString();

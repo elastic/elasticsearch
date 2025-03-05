@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
@@ -15,8 +16,8 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -76,7 +77,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private boolean includeIndexNames = true;
 
-    public GetSnapshotsRequest() {}
+    public GetSnapshotsRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
+    }
 
     /**
      * Constructs a new get snapshots request with given repository names and list of snapshots
@@ -84,8 +87,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      * @param repositories repository names
      * @param snapshots  list of snapshots
      */
-    public GetSnapshotsRequest(String[] repositories, String[] snapshots) {
-        this.repositories = repositories;
+    public GetSnapshotsRequest(TimeValue masterNodeTimeout, String[] repositories, String[] snapshots) {
+        this(masterNodeTimeout, repositories);
         this.snapshots = snapshots;
     }
 
@@ -94,7 +97,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      *
      * @param repositories repository names
      */
-    public GetSnapshotsRequest(String... repositories) {
+    public GetSnapshotsRequest(TimeValue masterNodeTimeout, String... repositories) {
+        this(masterNodeTimeout);
         this.repositories = repositories;
     }
 
@@ -214,13 +218,6 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      */
     public String[] policies() {
         return policies;
-    }
-
-    public boolean isSingleRepositoryRequest() {
-        return repositories.length == 1
-            && repositories[0] != null
-            && "_all".equals(repositories[0]) == false
-            && Regex.isSimpleMatchPattern(repositories[0]) == false;
     }
 
     /**

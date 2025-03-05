@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -38,7 +39,7 @@ public record ClusterBalanceStats(
     Map<String, NodeBalanceStats> nodes
 ) implements Writeable, ToXContentObject {
 
-    public static ClusterBalanceStats EMPTY = new ClusterBalanceStats(0, 0, Map.of(), Map.of());
+    public static final ClusterBalanceStats EMPTY = new ClusterBalanceStats(0, 0, Map.of(), Map.of());
 
     public static ClusterBalanceStats createFrom(
         ClusterState clusterState,
@@ -230,7 +231,7 @@ public record ClusterBalanceStats(
             long actualShardSize = 0L;
 
             for (ShardRouting shardRouting : routingNode) {
-                var indexMetadata = metadata.index(shardRouting.index());
+                var indexMetadata = metadata.getProject().index(shardRouting.index());
                 var shardSize = clusterInfo.getShardSize(shardRouting, 0L);
                 assert indexMetadata != null;
                 forecastWriteLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);

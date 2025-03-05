@@ -10,9 +10,10 @@ package org.elasticsearch.xpack.ccr.repository;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -171,7 +172,7 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         String fileName = fileMetadata.name();
 
         byte[] expectedBytes = new byte[(int) fileMetadata.length()];
-        byte[] actualBytes = new byte[(int) fileMetadata.length()];
+        var actualBytes = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(fileMetadata.length(), false);
         try (
             Engine.IndexCommitRef indexCommitRef = indexShard1.acquireSafeIndexCommit();
             IndexInput indexInput = indexCommitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE)
@@ -180,13 +181,13 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
             indexInput.readBytes(expectedBytes, 0, (int) fileMetadata.length());
         }
 
-        BytesArray byteArray = new BytesArray(actualBytes);
         try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID1)) {
-            long offset = sessionReader.readFileBytes(fileName, byteArray);
+            long offset = sessionReader.readFileBytes(fileName, actualBytes);
             assertEquals(offset, fileMetadata.length());
         }
 
-        assertArrayEquals(expectedBytes, actualBytes);
+        assertTrue(actualBytes.hasArray());
+        assertArrayEquals(expectedBytes, actualBytes.array());
         restoreSourceService.closeSession(sessionUUID1);
         closeShards(indexShard1);
     }
@@ -206,17 +207,17 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         indexShard.snapshotStoreMetadata().forEach(files::add);
 
         try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
-            sessionReader.readFileBytes(files.get(0).name(), new BytesArray(new byte[10]));
+            sessionReader.readFileBytes(files.get(0).name(), MockBigArrays.NON_RECYCLING_INSTANCE.newByteArray(10, false));
         }
 
         // Request a second file to ensure that original file is not leaked
         try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
-            sessionReader.readFileBytes(files.get(1).name(), new BytesArray(new byte[10]));
+            sessionReader.readFileBytes(files.get(1).name(), MockBigArrays.NON_RECYCLING_INSTANCE.newByteArray(10, false));
         }
 
-        assertTrue(EngineTestCase.hasSnapshottedCommits(IndexShardTestCase.getEngine(indexShard)));
+        assertTrue(EngineTestCase.hasAcquiredIndexCommitsForTesting(IndexShardTestCase.getEngine(indexShard)));
         restoreSourceService.closeSession(sessionUUID);
-        assertFalse(EngineTestCase.hasSnapshottedCommits(IndexShardTestCase.getEngine(indexShard)));
+        assertFalse(EngineTestCase.hasAcquiredIndexCommitsForTesting(IndexShardTestCase.getEngine(indexShard)));
 
         closeShards(indexShard);
         // Exception will be thrown if file is not closed.

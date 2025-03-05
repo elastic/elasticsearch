@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -774,14 +775,14 @@ public class NodeJoinTests extends ESTestCase {
         final List<Thread> joinThreads = Stream.concat(correctJoinRequests.stream().map(joinRequest -> new Thread(() -> {
             safeAwait(barrier);
             joinNode(joinRequest);
-        }, "process " + joinRequest)), possiblyFailingJoinRequests.stream().map(joinRequest -> new Thread(() -> {
+        }, "TEST-process " + joinRequest)), possiblyFailingJoinRequests.stream().map(joinRequest -> new Thread(() -> {
             safeAwait(barrier);
             try {
                 joinNode(joinRequest);
             } catch (CoordinationStateRejectedException e) {
                 // ignore - these requests are expected to fail
             }
-        }, "process " + joinRequest))).toList();
+        }, "TEST-process " + joinRequest))).toList();
 
         assertionThread.start();
         joinThreads.forEach(Thread::start);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.shrink;
@@ -25,14 +26,17 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -45,6 +49,7 @@ import java.util.Locale;
 public class TransportResizeAction extends TransportMasterNodeAction<ResizeRequest, CreateIndexResponse> {
 
     private final MetadataCreateIndexService createIndexService;
+    private final ProjectResolver projectResolver;
     private final Client client;
 
     @Inject
@@ -54,19 +59,10 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         ThreadPool threadPool,
         MetadataCreateIndexService createIndexService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
         Client client
     ) {
-        this(
-            ResizeAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
-            createIndexService,
-            actionFilters,
-            indexNameExpressionResolver,
-            client
-        );
+        this(ResizeAction.NAME, transportService, clusterService, threadPool, createIndexService, actionFilters, projectResolver, client);
     }
 
     protected TransportResizeAction(
@@ -76,7 +72,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         ThreadPool threadPool,
         MetadataCreateIndexService createIndexService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
         Client client
     ) {
         super(
@@ -86,17 +82,22 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             threadPool,
             actionFilters,
             ResizeRequest::new,
-            indexNameExpressionResolver,
             CreateIndexResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.createIndexService = createIndexService;
+        this.projectResolver = projectResolver;
         this.client = client;
     }
 
     @Override
     protected ClusterBlockException checkBlock(ResizeRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getTargetIndexRequest().index());
+        return state.blocks()
+            .indexBlockedException(
+                projectResolver.getProjectId(),
+                ClusterBlockLevel.METADATA_WRITE,
+                request.getTargetIndexRequest().index()
+            );
     }
 
     @Override
@@ -111,7 +112,8 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         final String sourceIndex = IndexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getSourceIndex());
         final String targetIndex = IndexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getTargetIndexRequest().index());
 
-        final IndexMetadata sourceMetadata = state.metadata().index(sourceIndex);
+        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+        final IndexMetadata sourceMetadata = projectMetadata.index(sourceIndex);
         if (sourceMetadata == null) {
             listener.onFailure(new IndexNotFoundException(sourceIndex));
             return;
@@ -129,12 +131,21 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             listener.delegateFailure((delegatedListener, targetNumberOfShardsDecider) -> {
                 final CreateIndexClusterStateUpdateRequest updateRequest;
                 try {
-                    updateRequest = prepareCreateIndexRequest(resizeRequest, sourceMetadata, targetIndex, targetNumberOfShardsDecider);
+                    updateRequest = prepareCreateIndexRequest(
+                        resizeRequest,
+                        projectMetadata.id(),
+                        sourceMetadata,
+                        targetIndex,
+                        targetNumberOfShardsDecider
+                    );
                 } catch (Exception e) {
                     delegatedListener.onFailure(e);
                     return;
                 }
                 createIndexService.createIndex(
+                    resizeRequest.masterNodeTimeout(),
+                    resizeRequest.ackTimeout(),
+                    resizeRequest.ackTimeout(),
                     updateRequest,
                     delegatedListener.map(
                         response -> new CreateIndexResponse(
@@ -187,6 +198,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
     // static for unit testing this method
     static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(
         final ResizeRequest resizeRequest,
+        ProjectId projectId,
         final IndexMetadata sourceMetadata,
         final String targetIndexName,
         final ResizeNumberOfShardsCalculator resizeNumberOfShardsCalculator
@@ -229,12 +241,10 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         settingsBuilder.put("index.number_of_shards", targetNumberOfShards);
         targetIndex.settings(settingsBuilder);
 
-        return new CreateIndexClusterStateUpdateRequest(cause, targetIndex.index(), targetIndexName)
+        return new CreateIndexClusterStateUpdateRequest(cause, projectId, targetIndex.index(), targetIndexName)
             // mappings are updated on the node when creating in the shards, this prevents race-conditions since all mapping must be
             // applied once we took the snapshot and if somebody messes things up and switches the index read/write and adds docs we
             // miss the mappings for everything is corrupted and hard to debug
-            .ackTimeout(targetIndex.timeout())
-            .masterNodeTimeout(targetIndex.masterNodeTimeout())
             .settings(targetIndex.settings())
             .aliases(targetIndex.aliases())
             .waitForActiveShards(targetIndex.waitForActiveShards())

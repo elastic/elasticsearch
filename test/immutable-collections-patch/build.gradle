@@ -1,0 +1,49 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.VersionProperties
+
+apply plugin: 'elasticsearch.java'
+
+configurations {
+  patch
+}
+
+dependencies {
+  implementation 'org.ow2.asm:asm:9.7.1'
+  implementation 'org.ow2.asm:asm-tree:9.7.1'
+}
+
+def outputDir = layout.buildDirectory.dir("jdk-patches")
+def generatePatch = tasks.register("generatePatch", JavaExec)
+generatePatch.configure {
+  dependsOn tasks.named("compileJava")
+  inputs.property("java-home-set", buildParams.getIsRuntimeJavaHomeSet())
+  inputs.property("java-version", buildParams.runtimeJavaVersion)
+  outputs.dir(outputDir)
+
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = 'org.elasticsearch.jdk.patch.ImmutableCollectionsPatcher'
+  if (buildParams.getIsRuntimeJavaHomeSet()) {
+    executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
+  } else {
+    javaLauncher = javaToolchains.launcherFor {
+      languageVersion = JavaLanguageVersion.of(VersionProperties.bundledJdkMajorVersion)
+      vendor = VersionProperties.bundledJdkVendor == "openjdk" ?
+        JvmVendorSpec.ORACLE :
+        JvmVendorSpec.matching(VersionProperties.bundledJdkVendor)
+    }
+  }
+  doFirst {
+    args outputDir.get().getAsFile().toString()
+  }
+}
+
+artifacts.add("patch", generatePatch);

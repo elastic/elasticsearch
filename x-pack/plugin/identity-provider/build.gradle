@@ -1,11 +1,17 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
-  name 'x-pack-identity-provider'
-  description 'Elasticsearch Expanded Pack Plugin - Identity Provider'
-  classname 'org.elasticsearch.xpack.idp.IdentityProviderPlugin'
+  name = 'x-pack-identity-provider'
+  description = 'Elasticsearch Expanded Pack Plugin - Identity Provider'
+  classname = 'org.elasticsearch.xpack.idp.IdentityProviderPlugin'
   extendedPlugins = ['x-pack-core']
 }
 
@@ -281,7 +287,7 @@ tasks.named("thirdPartyAudit").configure {
 
 addQaCheckDependencies(project)
 
-if (BuildParams.inFipsJvm) {
+if (buildParams.inFipsJvm) {
   // We don't support the IDP in FIPS-140 mode, so no need to run tests
   tasks.named("test").configure { enabled = false }
 }

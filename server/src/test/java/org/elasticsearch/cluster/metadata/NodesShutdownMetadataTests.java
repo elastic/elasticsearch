@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -29,14 +30,16 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.Custom> {
+public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.ClusterCustom> {
 
     public void testInsertNewNodeShutdownMetadata() {
         NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(new HashMap<>());
@@ -75,14 +78,11 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
                     "this_node",
                     SingleNodeShutdownMetadata.builder()
                         .setNodeId("this_node")
+                        .setNodeEphemeralId("this_node")
                         .setReason("shutdown for a unit test")
                         .setType(type)
                         .setStartedAtMillis(randomNonNegativeLong())
-                        .setGracePeriod(
-                            type == SingleNodeShutdownMetadata.Type.SIGTERM
-                                ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                                : null
-                        )
+                        .setGracePeriod(type == SIGTERM ? randomTimeValue() : null)
                         .build()
                 )
             );
@@ -107,6 +107,7 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
     public void testSigtermIsRemoveInOlderVersions() throws IOException {
         SingleNodeShutdownMetadata metadata = SingleNodeShutdownMetadata.builder()
             .setNodeId("myid")
+            .setNodeEphemeralId("myid")
             .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
             .setReason("myReason")
             .setStartedAtMillis(0L)
@@ -124,8 +125,42 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
         assertThat(new SingleNodeShutdownMetadata(out.bytes().streamInput()).getType(), equalTo(SingleNodeShutdownMetadata.Type.SIGTERM));
     }
 
+    public void testIsNodeMarkedForRemoval() {
+        SingleNodeShutdownMetadata.Type type;
+        SingleNodeShutdownMetadata.Builder builder = SingleNodeShutdownMetadata.builder()
+            .setNodeId("thenode")
+            .setNodeEphemeralId("thenode")
+            .setReason("myReason")
+            .setStartedAtMillis(0L);
+        switch (type = randomFrom(SingleNodeShutdownMetadata.Type.values())) {
+            case SIGTERM -> {
+                var metadata = new NodesShutdownMetadata(
+                    Map.of("thenode", builder.setType(type).setGracePeriod(TimeValue.ONE_MINUTE).build())
+                );
+                assertThat(metadata.isNodeMarkedForRemoval("thenode"), is(true));
+                assertThat(metadata.isNodeMarkedForRemoval("anotherNode"), is(false));
+            }
+            case REMOVE -> {
+                var metadata = new NodesShutdownMetadata(Map.of("thenode", builder.setType(type).build()));
+                assertThat(metadata.isNodeMarkedForRemoval("thenode"), is(true));
+                assertThat(metadata.isNodeMarkedForRemoval("anotherNode"), is(false));
+            }
+            case REPLACE -> {
+                var metadata = new NodesShutdownMetadata(
+                    Map.of("thenode", builder.setType(type).setTargetNodeName("newnodecoming").build())
+                );
+                assertThat(metadata.isNodeMarkedForRemoval("thenode"), is(true));
+                assertThat(metadata.isNodeMarkedForRemoval("anotherNode"), is(false));
+            }
+            case RESTART -> {
+                var metadata = new NodesShutdownMetadata(Map.of("thenode", builder.setType(type).build()));
+                assertThat(metadata.isNodeMarkedForRemoval("thenode"), is(false));
+            }
+        }
+    }
+
     @Override
-    protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
+    protected Writeable.Reader<Diff<Metadata.ClusterCustom>> diffReader() {
         return NodesShutdownMetadata.NodeShutdownMetadataDiff::new;
     }
 
@@ -135,7 +170,7 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
     }
 
     @Override
-    protected Writeable.Reader<Metadata.Custom> instanceReader() {
+    protected Writeable.Reader<Metadata.ClusterCustom> instanceReader() {
         return NodesShutdownMetadata::new;
     }
 
@@ -150,26 +185,27 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
         final SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
         final SingleNodeShutdownMetadata.Builder builder = SingleNodeShutdownMetadata.builder()
             .setNodeId(randomAlphaOfLength(5))
+            .setNodeEphemeralId(randomAlphaOfLength(5))
             .setType(type)
             .setReason(randomAlphaOfLength(5))
             .setStartedAtMillis(randomNonNegativeLong());
         if (type.equals(SingleNodeShutdownMetadata.Type.RESTART) && randomBoolean()) {
-            builder.setAllocationDelay(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()));
+            builder.setAllocationDelay(randomTimeValue());
         } else if (type.equals(SingleNodeShutdownMetadata.Type.REPLACE)) {
             builder.setTargetNodeName(randomAlphaOfLengthBetween(5, 10));
         } else if (type.equals(SingleNodeShutdownMetadata.Type.SIGTERM)) {
-            builder.setGracePeriod(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()));
+            builder.setGracePeriod(randomTimeValue());
         }
         return builder.setNodeSeen(randomBoolean()).build();
     }
 
     @Override
-    protected Metadata.Custom makeTestChanges(Metadata.Custom testInstance) {
+    protected Metadata.ClusterCustom makeTestChanges(Metadata.ClusterCustom testInstance) {
         return randomValueOtherThan(testInstance, this::createTestInstance);
     }
 
     @Override
-    protected Metadata.Custom mutateInstance(Metadata.Custom instance) {
+    protected Metadata.ClusterCustom mutateInstance(Metadata.ClusterCustom instance) {
         return makeTestChanges(instance);
     }
 }

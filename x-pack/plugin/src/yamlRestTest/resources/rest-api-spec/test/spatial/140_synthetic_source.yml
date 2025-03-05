@@ -1,0 +1,643 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+---
+"geo_shape":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              shape:
+                type: geo_shape
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          shape:
+            type: "Polygon"
+            coordinates: [[[100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0]], [[100.2, 0.2], [100.8, 0.2], [100.8, 0.8], [100.2, 0.8], [100.2, 0.2]]]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          shape: "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0), (100.2 0.2, 100.8 0.2, 100.8 0.8, 100.2 0.8, 100.2 0.2))"
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          shape: ["POINT (-77.03653 38.897676)", {"type" : "LineString", "coordinates" : [[-77.03653, 38.897676], [-77.009051, 38.889939]]}]
+
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match: { _source.shape.type: "Polygon" }
+  - match: { _source.shape.coordinates: [[[100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0]], [[100.2, 0.2], [100.8, 0.2], [100.8, 0.8], [100.2, 0.8], [100.2, 0.2]]] }
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - match: { _source.shape: "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0), (100.2 0.2, 100.8 0.2, 100.8 0.8, 100.2 0.8, 100.2 0.2))" }
+
+  - do:
+      get:
+        index: test
+        id: "3"
+
+  - match: { _source.shape: ["POINT (-77.03653 38.897676)", {"type" : "LineString", "coordinates" : [[-77.03653, 38.897676], [-77.009051, 38.889939]]}] }
+
+---
+"geo_shape with ignore_malformed":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              shape:
+                type: geo_shape
+                ignore_malformed: true
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          shape: 500
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          shape:
+            string: "string"
+            array: [{ "a": 1 }, { "b": 2 }]
+            object: { "foo": "bar" }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          shape: ["POINT (-77.03653 38.897676)", "potato", "POINT (-71.34 41.12)"]
+
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          shape: ["POINT (-77.03653 1000)", "POINT (-71.34 41.12)"]
+
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match: { _source.shape: 500 }
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - match: { _source.shape.string: "string" }
+  - match: { _source.shape.array: [{ "a": 1 }, { "b": 2 }] }
+  - match: { _source.shape.object: { "foo": "bar" } }
+
+  - do:
+      get:
+        index: test
+        id: "3"
+
+  - match: { _source.shape: ["POINT (-77.03653 38.897676)", "potato", "POINT (-71.34 41.12)"] }
+
+  - do:
+      get:
+        index: test
+        id: "4"
+
+  - match: { _source.shape: ["POINT (-77.03653 1000)", "POINT (-71.34 41.12)"] }
+
+---
+"shape":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              shape:
+                type: shape
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          shape:
+            type: "Polygon"
+            coordinates: [[[100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0]], [[100.2, 0.2], [100.8, 0.2], [100.8, 0.8], [100.2, 0.8], [100.2, 0.2]]]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          shape: "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0), (100.2 0.2, 100.8 0.2, 100.8 0.8, 100.2 0.8, 100.2 0.2))"
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          shape: ["POINT (-77.03653 38.897676)", {"type" : "LineString", "coordinates" : [[-77.03653, 38.897676], [-77.009051, 38.889939]]}]
+
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match: { _source.shape.type: "Polygon" }
+  - match: { _source.shape.coordinates: [[[100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0]], [[100.2, 0.2], [100.8, 0.2], [100.8, 0.8], [100.2, 0.8], [100.2, 0.2]]] }
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - match: { _source.shape: "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0), (100.2 0.2, 100.8 0.2, 100.8 0.8, 100.2 0.8, 100.2 0.2))" }
+
+  - do:
+      get:
+        index: test
+        id: "3"
+
+  - match: { _source.shape: ["POINT (-77.03653 38.897676)", {"type" : "LineString", "coordinates" : [[-77.03653, 38.897676], [-77.009051, 38.889939]]}] }
+
+---
+"shape with ignore_malformed":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              shape:
+                type: shape
+                ignore_malformed: true
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          shape: 500
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          shape:
+            string: "string"
+            array: [{ "a": 1 }, { "b": 2 }]
+            object: { "foo": "bar" }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          shape: ["POINT (-77.03653 38.897676)", "potato", "POINT (-71.34 41.12)"]
+
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          shape: ["POINT (-77.03653 1000)", "POINT (-71.34 41.12)"]
+
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match: { _source.shape: 500 }
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - match: { _source.shape.string: "string" }
+  - match: { _source.shape.array: [{ "a": 1 }, { "b": 2 }] }
+  - match: { _source.shape.object: { "foo": "bar" } }
+
+  - do:
+      get:
+        index: test
+        id: "3"
+
+  - match: { _source.shape: ["POINT (-77.03653 38.897676)", "potato", "POINT (-71.34 41.12)"] }
+
+  - do:
+      get:
+        index: test
+        id: "4"
+
+  - match: { _source.shape: ["POINT (-77.03653 1000)", "POINT (-71.34 41.12)"] }
+
+---
+"geo_point":
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
+      reason: introduced in 8.3.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              point:
+                type: geo_point
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          point:
+            type: "Point"
+            coordinates: [-71.34, 41.12]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          point: "POINT (-71.34 41.12)"
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          point:
+            lat: 41.12
+            lon: -71.34
+
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          point: [ -71.34, 41.12 ]
+
+  - do:
+      index:
+        index: test
+        id: "5"
+        body:
+          point: "41.12,-71.34"
+
+  - do:
+      index:
+        index: test
+        id: "6"
+        body:
+          point: "drm3btev3e86"
+
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match: { _source.point.lon: -71.34000004269183 }
+  - match: { _source.point.lat: 41.1199999647215 }
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - match: { _source.point.lon: -71.34000004269183 }
+  - match: { _source.point.lat: 41.1199999647215 }
+
+  - do:
+      get:
+        index: test
+        id: "3"
+
+  - match: { _source.point.lon: -71.34000004269183 }
+  - match: { _source.point.lat: 41.1199999647215 }
+
+  - do:
+      get:
+        index: test
+        id: "4"
+
+  - match: { _source.point.lon: -71.34000004269183 }
+  - match: { _source.point.lat: 41.1199999647215 }
+
+  - do:
+      get:
+        index: test
+        id: "5"
+
+  - match: { _source.point.lon: -71.34000004269183 }
+  - match: { _source.point.lat: 41.1199999647215 }
+
+  - do:
+      get:
+        index: test
+        id: "6"
+
+  - match: { _source.point.lon: -71.34000029414892 }
+  - match: { _source.point.lat: 41.119999922811985 }
+
+---
+"geo_point with ignore_malformed":
+  - requires:
+      test_runner_features: close_to
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              geo_point:
+                type: geo_point
+                ignore_malformed: true
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          geo_point:
+            - string: "string"
+              array: [{ "a": 1 }, { "b": 2 }]
+              object: { "foo": "bar" }
+            - lat: 41.12
+              lon: -71.34
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          geo_point: ["POINT (-71.34 41.12)", "potato", "POINT (-77.03653 38.897676)"]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          geo_point: ["POINT (-77.03653 1000)", "POINT (-71.34 41.12)"]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - close_to: { _source.geo_point.0.lon: { value: -71.34, error: 0.001 } }
+  - close_to: { _source.geo_point.0.lat: { value: 41.12, error: 0.001 } }
+  - match: { _source.geo_point.1.string: "string" }
+  - match: { _source.geo_point.1.array: [{ "a": 1 }, { "b": 2 }] }
+  - match: { _source.geo_point.1.object: { "foo": "bar" } }
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - close_to: { _source.geo_point.0.lon: { value: -77.03653, error: 0.0001 } }
+  - close_to: { _source.geo_point.0.lat: { value: 38.897676, error: 0.0001 } }
+  - close_to: { _source.geo_point.1.lon: { value: -71.34, error: 0.001 } }
+  - close_to: { _source.geo_point.1.lat: { value: 41.12, error: 0.001 } }
+  - match: { _source.geo_point.2: "potato" }
+
+  - do:
+      get:
+        index: test
+        id: "3"
+
+  - close_to: { _source.geo_point.0.lon: { value: -71.34, error: 0.001 } }
+  - close_to: { _source.geo_point.0.lat: { value: 41.12, error: 0.001 } }
+  - match: { _source.geo_point.1: "POINT (-77.03653 1000)" }
+
+
+---
+"point":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              point:
+                type: point
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          point:
+            type: "Point"
+            coordinates: [-71.34, 41.12]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          point: "POINT (-71.34 41.12)"
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          point:
+            x: -71.34
+            y: 41.12
+
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          point: [ -71.34, 41.12 ]
+
+  - do:
+      index:
+        index: test
+        id: "5"
+        body:
+          point: "41.12,-71.34"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match: { _source.point.type: "Point" }
+  - match: { _source.point.coordinates: [-71.34, 41.12] }
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - match: { _source.point: "POINT (-71.34 41.12)" }
+
+  - do:
+      get:
+        index: test
+        id: "3"
+
+  - match: { _source.point.x: -71.34 }
+  - match: { _source.point.y: 41.12 }
+
+  - do:
+      get:
+        index: test
+        id: "4"
+
+  - match: { _source.point: [ -71.34, 41.12 ] }
+
+  - do:
+      get:
+        index: test
+        id: "5"
+
+  - match: { _source.point: "41.12,-71.34" }
+
+---
+"point with ignore_malformed":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              point:
+                type: point
+                ignore_malformed: true
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          point:
+            string: "string"
+            array: [{ "a": 1 }, { "b": 2 }]
+            object: { "foo": "bar" }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          point: ["POINT (-77.03653 38.897676)", "potato", "POINT (-71.34 41.12)"]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          point: ["POINT (-77.03653 1000)", "POINT (-71.34 41.12)"]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match: { _source.point.string: "string" }
+  - match: { _source.point.array: [{ "a": 1 }, { "b": 2 }] }
+  - match: { _source.point.object: { "foo": "bar" } }
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - match: { _source.point: ["POINT (-77.03653 38.897676)", "potato", "POINT (-71.34 41.12)"] }
+
+  - do:
+      get:
+        index: test
+        id: "3"
+
+  - match: { _source.point: ["POINT (-77.03653 1000)", "POINT (-71.34 41.12)"] }

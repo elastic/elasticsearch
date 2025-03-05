@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.gcs;
@@ -12,6 +13,8 @@ import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpResponseInterceptor;
+
+import org.elasticsearch.common.blobstore.OperationPurpose;
 
 import java.util.List;
 import java.util.Locale;
@@ -42,10 +45,12 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
     );
 
     private final GoogleCloudStorageOperationsStats gcsOperationStats;
+    private final OperationPurpose operationPurpose;
     private final List<HttpRequestTracker> trackers;
 
-    GoogleCloudStorageHttpStatsCollector(final GoogleCloudStorageOperationsStats gcsOperationStats) {
+    GoogleCloudStorageHttpStatsCollector(final GoogleCloudStorageOperationsStats gcsOperationStats, OperationPurpose operationPurpose) {
         this.gcsOperationStats = gcsOperationStats;
+        this.operationPurpose = operationPurpose;
         this.trackers = trackerFactories.stream()
             .map(trackerFactory -> trackerFactory.apply(gcsOperationStats.getTrackedBucket()))
             .toList();

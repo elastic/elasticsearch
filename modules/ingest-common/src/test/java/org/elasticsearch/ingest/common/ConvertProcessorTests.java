@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -526,7 +527,7 @@ public class ConvertProcessorTests extends ESTestCase {
             }
             default -> throw new UnsupportedOperationException();
         }
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomValue));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("field", randomValue)));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -535,7 +536,7 @@ public class ConvertProcessorTests extends ESTestCase {
 
     public void testAutoConvertStringNotMatched() throws Exception {
         String value = "notAnIntFloatOrBool";
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", value));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("field", value)));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -545,7 +546,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchBoolean() throws Exception {
         boolean randomBoolean = randomBoolean();
         String booleanString = Boolean.toString(randomBoolean);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", booleanString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("field", booleanString)));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -555,7 +556,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchInteger() throws Exception {
         int randomInt = randomInt();
         String randomString = Integer.toString(randomInt);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("field", randomString)));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -565,7 +566,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchLong() throws Exception {
         long randomLong = randomLong();
         String randomString = Long.toString(randomLong);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("field", randomString)));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -576,7 +577,7 @@ public class ConvertProcessorTests extends ESTestCase {
         double randomDouble = randomDouble();
         String randomString = Double.toString(randomDouble);
         float randomFloat = Float.parseFloat(randomString);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("field", randomString)));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -587,7 +588,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchFloat() throws Exception {
         float randomFloat = randomFloat();
         String randomString = Float.toString(randomFloat);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("field", randomString)));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);

@@ -10,8 +10,8 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
@@ -94,7 +95,10 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         String reindexedIndexName = ".reindexed-v7-ml-annotations-6";
         createReindexedIndex(reindexedIndexName);
 
-        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = indicesAdmin().prepareAliases()
+        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = indicesAdmin().prepareAliases(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        )
             .addAliasAction(
                 IndicesAliasesRequest.AliasActions.add().index(reindexedIndexName).alias(AnnotationIndex.READ_ALIAS_NAME).isHidden(true)
             )
@@ -134,7 +138,10 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         String reindexedIndexName = ".reindexed-v7-ml-annotations-6";
         createReindexedIndex(reindexedIndexName);
 
-        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = indicesAdmin().prepareAliases()
+        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = indicesAdmin().prepareAliases(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        )
             .addAliasAction(
                 IndicesAliasesRequest.AliasActions.add().index(reindexedIndexName).alias(AnnotationIndex.READ_ALIAS_NAME).isHidden(true)
             )
@@ -174,7 +181,10 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         String reindexedIndexName = ".reindexed-v7-ml-annotations-6";
         createReindexedIndex(reindexedIndexName);
 
-        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = indicesAdmin().prepareAliases()
+        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = indicesAdmin().prepareAliases(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        )
             // The difference compared to the standard reindexing test is that the read and write aliases are not correctly set up.
             // The annotations index maintenance code should add them back.
             .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(AnnotationIndex.LATEST_INDEX_NAME))
@@ -209,7 +219,10 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         String reindexedIndexName = ".reindexed-v7-ml-annotations-6";
         createReindexedIndex(reindexedIndexName);
 
-        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = indicesAdmin().prepareAliases()
+        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = indicesAdmin().prepareAliases(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        )
             // The difference compared to the standard reindexing test is that the read and write aliases are not correctly set up.
             // The annotations index maintenance code should add them back.
             .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(AnnotationIndex.LATEST_INDEX_NAME))
@@ -242,7 +255,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
             )
             .alias(new Alias(AnnotationIndex.READ_ALIAS_NAME).isHidden(true))
             .alias(new Alias(AnnotationIndex.WRITE_ALIAS_NAME).isHidden(true));
-        client().execute(CreateIndexAction.INSTANCE, createIndexRequest).actionGet();
+        client().execute(TransportCreateIndexAction.TYPE, createIndexRequest).actionGet();
 
         // Because the old annotations index name began with .ml, it will trigger the new annotations index to be created.
         // When this happens the read alias should be changed to cover both indices, and the write alias should be
@@ -250,6 +263,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         assertBusy(() -> {
             assertTrue(annotationsIndexExists(AnnotationIndex.LATEST_INDEX_NAME));
             Map<String, List<AliasMetadata>> aliases = indicesAdmin().prepareGetAliases(
+                TEST_REQUEST_TIMEOUT,
                 AnnotationIndex.READ_ALIAS_NAME,
                 AnnotationIndex.WRITE_ALIAS_NAME
             ).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get().getAliases();
@@ -320,7 +334,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
     }
 
     private boolean annotationsIndexExists(String expectedName) {
-        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex()
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .setIndices(AnnotationIndex.LATEST_INDEX_NAME)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .get();
@@ -330,6 +344,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
     private int numberOfAnnotationsAliases() {
         int count = 0;
         Map<String, List<AliasMetadata>> aliases = indicesAdmin().prepareGetAliases(
+            TEST_REQUEST_TIMEOUT,
             AnnotationIndex.READ_ALIAS_NAME,
             AnnotationIndex.WRITE_ALIAS_NAME,
             AnnotationIndex.LATEST_INDEX_NAME
@@ -361,7 +376,12 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
     }
 
     private void createNotification(boolean includeNodeInfo) {
-        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class), includeNodeInfo);
+        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(
+            client(),
+            getInstanceFromNode(ClusterService.class),
+            TestIndexNameExpressionResolver.newInstance(),
+            includeNodeInfo
+        );
         auditor.info("whatever", "blah");
     }
 }

@@ -8,15 +8,16 @@
   "order": 100,
   "settings": {
     "number_of_shards": 1,
-    "number_of_replicas": 0,
     "auto_expand_replicas": "0-1",
     "index.priority": 10,
     "index.format": 1
   },
+  "version": ${idp.template.version},
   "mappings": {
     "_doc": {
       "_meta": {
-        "idp-version": "${idp.template.version}"
+        "idp-version": "${idp.template.version_deprecated}",
+        "idp-template-version": "${idp.template.version}"
       },
       "dynamic": "strict",
       "properties": {

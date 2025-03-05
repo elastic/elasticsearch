@@ -7,50 +7,45 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
-import java.util.Map;
+import java.util.Collections;
+import java.util.Set;
 
+/**
+ * {@link NodeFeature}s declared by ESQL. These should be used for fast checks
+ * on the node. Before the introduction of the {@link RestNodesCapabilitiesAction}
+ * this was used for controlling which features are tested so many of the
+ * examples below are *just* used for that. Don't make more of those - add them
+ * to {@link EsqlCapabilities} instead.
+ * <p>
+ *     NOTE: You can only remove features on major version boundaries.
+ *     Only add more of these if you need a fast CPU level check.
+ * </p>
+ */
 public class EsqlFeatures implements FeatureSpecification {
     /**
-     * When we added the warnings for multivalued fields emitting {@code null}
-     * when they touched multivalued fields. Added in #102417.
+     * Support metrics syntax
      */
-    private static final NodeFeature MV_WARN = new NodeFeature("esql.mv_warn");
+    public static final NodeFeature METRICS_SYNTAX = new NodeFeature("esql.metrics_syntax");
 
-    /**
-     * Support for loading {@code geo_point} fields. Added in #102177.
-     */
-    private static final NodeFeature GEO_POINT_SUPPORT = new NodeFeature("esql.geo_point");
-
-    /**
-     * When we added the warnings when conversion functions fail. Like {@code TO_INT('foo')}.
-     * Added in ESQL-1183.
-     */
-    private static final NodeFeature CONVERT_WARN = new NodeFeature("esql.convert_warn");
-
-    /**
-     * When we flipped the return type of {@code POW} to always return a double. Changed
-     * in #102183.
-     */
-    private static final NodeFeature POW_DOUBLE = new NodeFeature("esql.pow_double");
-
-    // /**
-    // * Support for loading {@code geo_point} fields.
-    // */
-    // private static final NodeFeature GEO_SHAPE_SUPPORT = new NodeFeature("esql.geo_shape");
+    private Set<NodeFeature> snapshotBuildFeatures() {
+        assert Build.current().isSnapshot() : Build.current();
+        return Set.of(METRICS_SYNTAX);
+    }
 
     @Override
-    public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.ofEntries(
-            Map.entry(TransportEsqlStatsAction.ESQL_STATS_FEATURE, Version.V_8_11_0),
-            Map.entry(MV_WARN, Version.V_8_12_0),
-            Map.entry(GEO_POINT_SUPPORT, Version.V_8_12_0),
-            Map.entry(CONVERT_WARN, Version.V_8_12_0),
-            Map.entry(POW_DOUBLE, Version.V_8_12_0)
-            // Map.entry(GEO_SHAPE_SUPPORT, Version.V_8_13_0)
-        );
+    public Set<NodeFeature> getFeatures() {
+        Set<NodeFeature> features = Set.of();
+        if (Build.current().isSnapshot()) {
+            return Collections.unmodifiableSet(Sets.union(features, snapshotBuildFeatures()));
+        } else {
+            return features;
+        }
     }
 }

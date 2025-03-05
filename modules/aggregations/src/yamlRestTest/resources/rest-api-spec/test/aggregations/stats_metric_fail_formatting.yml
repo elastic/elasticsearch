@@ -1,0 +1,44 @@
+setup:
+  - do:
+      indices.create:
+          index: test_date
+          body:
+            settings:
+              number_of_shards: 1
+            mappings:
+              properties:
+                date_field:
+                   type : date
+                   format: date_hour_minute_second_millis
+
+
+  - do:
+       bulk:
+         refresh: true
+         body:
+           - index:
+               _index: test_date
+               _id:    "1"
+           - date_field: 9999-01-01T00:00:00.000
+           - index:
+               _index: test_date
+               _id:    "2"
+           - date_field: 9999-01-01T00:00:00.000
+
+---
+"fail formatting":
+
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: fixed in 8.15.0
+  - do:
+      catch: /Cannot format stat \[sum\] with format \[DocValueFormat.DateTime\(format\[date_hour_minute_second_millis\] locale\[(en)?\], Z, MILLISECONDS\)\]/
+      search:
+        index: test_date
+        body:
+          size: 0
+          aggs:
+            the_stats:
+              stats:
+                field: date_field
+

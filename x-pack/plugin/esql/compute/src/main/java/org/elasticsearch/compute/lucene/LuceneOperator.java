@@ -11,6 +11,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.TimeValue;
@@ -32,8 +34,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -65,6 +69,10 @@ public abstract class LuceneOperator extends SourceOperator {
     long processingNanos;
     int pagesEmitted;
     boolean doneCollecting;
+    /**
+     * Count of rows this operator has emitted.
+     */
+    private long rowsEmitted;
 
     protected LuceneOperator(BlockFactory blockFactory, int maxPageSize, LuceneSliceQueue sliceQueue) {
         this.blockFactory = blockFactory;
@@ -72,9 +80,58 @@ public abstract class LuceneOperator extends SourceOperator {
         this.sliceQueue = sliceQueue;
     }
 
-    public interface Factory extends SourceOperator.SourceOperatorFactory {
-        int taskConcurrency();
+    public abstract static class Factory implements SourceOperator.SourceOperatorFactory {
+        protected final DataPartitioning dataPartitioning;
+        protected final int taskConcurrency;
+        protected final int limit;
+        protected final ScoreMode scoreMode;
+        protected final LuceneSliceQueue sliceQueue;
+
+        /**
+         * Build the factory.
+         *
+         * @param scoreMode the {@link ScoreMode} passed to {@link IndexSearcher#createWeight}
+         */
+        protected Factory(
+            List<? extends ShardContext> contexts,
+            Function<ShardContext, Query> queryFunction,
+            DataPartitioning dataPartitioning,
+            int taskConcurrency,
+            int limit,
+            ScoreMode scoreMode
+        ) {
+            this.limit = limit;
+            this.scoreMode = scoreMode;
+            this.dataPartitioning = dataPartitioning;
+            var weightFunction = weightFunction(queryFunction, scoreMode);
+            this.sliceQueue = LuceneSliceQueue.create(contexts, weightFunction, dataPartitioning, taskConcurrency);
+            this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
+        }
+
+        public final int taskConcurrency() {
+            return taskConcurrency;
+        }
+
+        public final int limit() {
+            return limit;
+        }
     }
+
+    @Override
+    public final Page getOutput() {
+        try {
+            Page page = getCheckedOutput();
+            if (page != null) {
+                pagesEmitted++;
+                rowsEmitted += page.getPositionCount();
+            }
+            return page;
+        } catch (IOException ioe) {
+            throw new UncheckedIOException(ioe);
+        }
+    }
+
+    protected abstract Page getCheckedOutput() throws IOException;
 
     @Override
     public void close() {}
@@ -95,7 +152,7 @@ public abstract class LuceneOperator extends SourceOperator {
             logger.trace("Starting {}", partialLeaf);
             final LeafReaderContext leaf = partialLeaf.leafReaderContext();
             if (currentScorer == null || currentScorer.leafReaderContext() != leaf) {
-                final Weight weight = currentSlice.weight().get();
+                final Weight weight = currentSlice.weight();
                 processedQueries.add(weight.getQuery());
                 currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, leaf);
             }
@@ -175,10 +232,18 @@ public abstract class LuceneOperator extends SourceOperator {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("maxPageSize=").append(maxPageSize);
+        sb.append("shards = ").append(sortedUnion(processedShards, sliceQueue.remainingShardsIdentifiers()));
+        sb.append(", maxPageSize = ").append(maxPageSize);
         describe(sb);
         sb.append("]");
         return sb.toString();
+    }
+
+    private static Set<String> sortedUnion(Collection<String> a, Collection<String> b) {
+        var result = new TreeSet<String>();
+        result.addAll(a);
+        result.addAll(b);
+        return result;
     }
 
     protected abstract void describe(StringBuilder sb);
@@ -198,18 +263,19 @@ public abstract class LuceneOperator extends SourceOperator {
         private final int processedSlices;
         private final Set<String> processedQueries;
         private final Set<String> processedShards;
-        private final long processingNanos;
+        private final long processNanos;
         private final int totalSlices;
         private final int pagesEmitted;
         private final int sliceIndex;
         private final int sliceMin;
         private final int sliceMax;
         private final int current;
+        private final long rowsEmitted;
 
         private Status(LuceneOperator operator) {
             processedSlices = operator.processedSlices;
             processedQueries = operator.processedQueries.stream().map(Query::toString).collect(Collectors.toCollection(TreeSet::new));
-            processingNanos = operator.processingNanos;
+            processNanos = operator.processingNanos;
             processedShards = new TreeSet<>(operator.processedShards);
             sliceIndex = operator.sliceIndex;
             totalSlices = operator.sliceQueue.totalSlices();
@@ -229,59 +295,67 @@ public abstract class LuceneOperator extends SourceOperator {
                 current = scorer.position;
             }
             pagesEmitted = operator.pagesEmitted;
+            rowsEmitted = operator.rowsEmitted;
         }
 
         Status(
             int processedSlices,
             Set<String> processedQueries,
             Set<String> processedShards,
-            long processingNanos,
+            long processNanos,
             int sliceIndex,
             int totalSlices,
             int pagesEmitted,
             int sliceMin,
             int sliceMax,
-            int current
+            int current,
+            long rowsEmitted
         ) {
             this.processedSlices = processedSlices;
             this.processedQueries = processedQueries;
             this.processedShards = processedShards;
-            this.processingNanos = processingNanos;
+            this.processNanos = processNanos;
             this.sliceIndex = sliceIndex;
             this.totalSlices = totalSlices;
             this.pagesEmitted = pagesEmitted;
             this.sliceMin = sliceMin;
             this.sliceMax = sliceMax;
             this.current = current;
+            this.rowsEmitted = rowsEmitted;
         }
 
         Status(StreamInput in) throws IOException {
             processedSlices = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_STATUS_INCLUDE_LUCENE_QUERIES)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 processedQueries = in.readCollectionAsSet(StreamInput::readString);
                 processedShards = in.readCollectionAsSet(StreamInput::readString);
             } else {
                 processedQueries = Collections.emptySet();
                 processedShards = Collections.emptySet();
             }
-            processingNanos = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readVLong() : 0;
+            processNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
             sliceIndex = in.readVInt();
             totalSlices = in.readVInt();
             pagesEmitted = in.readVInt();
             sliceMin = in.readVInt();
             sliceMax = in.readVInt();
             current = in.readVInt();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                rowsEmitted = in.readVLong();
+            } else {
+                rowsEmitted = 0;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(processedSlices);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_STATUS_INCLUDE_LUCENE_QUERIES)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeCollection(processedQueries, StreamOutput::writeString);
                 out.writeCollection(processedShards, StreamOutput::writeString);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
-                out.writeVLong(processingNanos);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+                out.writeVLong(processNanos);
             }
             out.writeVInt(sliceIndex);
             out.writeVInt(totalSlices);
@@ -289,6 +363,9 @@ public abstract class LuceneOperator extends SourceOperator {
             out.writeVInt(sliceMin);
             out.writeVInt(sliceMax);
             out.writeVInt(current);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
+                out.writeVLong(rowsEmitted);
+            }
         }
 
         @Override
@@ -309,7 +386,7 @@ public abstract class LuceneOperator extends SourceOperator {
         }
 
         public long processNanos() {
-            return processingNanos;
+            return processNanos;
         }
 
         public int sliceIndex() {
@@ -336,15 +413,19 @@ public abstract class LuceneOperator extends SourceOperator {
             return current;
         }
 
+        public long rowsEmitted() {
+            return rowsEmitted;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("processed_slices", processedSlices);
             builder.field("processed_queries", processedQueries);
             builder.field("processed_shards", processedShards);
-            builder.field("processing_nanos", processingNanos);
+            builder.field("process_nanos", processNanos);
             if (builder.humanReadable()) {
-                builder.field("processing_time", TimeValue.timeValueNanos(processingNanos));
+                builder.field("process_time", TimeValue.timeValueNanos(processNanos));
             }
             builder.field("slice_index", sliceIndex);
             builder.field("total_slices", totalSlices);
@@ -352,6 +433,7 @@ public abstract class LuceneOperator extends SourceOperator {
             builder.field("slice_min", sliceMin);
             builder.field("slice_max", sliceMax);
             builder.field("current", current);
+            builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
         }
 
@@ -363,18 +445,19 @@ public abstract class LuceneOperator extends SourceOperator {
             return processedSlices == status.processedSlices
                 && processedQueries.equals(status.processedQueries)
                 && processedShards.equals(status.processedShards)
-                && processingNanos == status.processingNanos
+                && processNanos == status.processNanos
                 && sliceIndex == status.sliceIndex
                 && totalSlices == status.totalSlices
                 && pagesEmitted == status.pagesEmitted
                 && sliceMin == status.sliceMin
                 && sliceMax == status.sliceMax
-                && current == status.current;
+                && current == status.current
+                && rowsEmitted == status.rowsEmitted;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(processedSlices, sliceIndex, totalSlices, pagesEmitted, sliceMin, sliceMax, current);
+            return Objects.hash(processedSlices, sliceIndex, totalSlices, pagesEmitted, sliceMin, sliceMax, current, rowsEmitted);
         }
 
         @Override
@@ -393,7 +476,8 @@ public abstract class LuceneOperator extends SourceOperator {
             final var query = queryFunction.apply(ctx);
             final var searcher = ctx.searcher();
             try {
-                return searcher.createWeight(searcher.rewrite(new ConstantScoreQuery(query)), scoreMode, 1);
+                Query actualQuery = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
+                return searcher.createWeight(searcher.rewrite(actualQuery), scoreMode, 1);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

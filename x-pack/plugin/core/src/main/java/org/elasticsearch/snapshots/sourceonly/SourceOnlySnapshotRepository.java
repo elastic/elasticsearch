@@ -33,6 +33,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
@@ -73,12 +74,7 @@ import static org.elasticsearch.core.Strings.format;
  * match_all scroll searches in order to reindex the data.
  */
 public final class SourceOnlySnapshotRepository extends FilterRepository {
-    private static final Setting<String> DELEGATE_TYPE = new Setting<>(
-        "delegate_type",
-        "",
-        Function.identity(),
-        Setting.Property.NodeScope
-    );
+    private static final Setting<String> DELEGATE_TYPE = Setting.simpleString("delegate_type", Setting.Property.NodeScope);
     public static final Setting<Boolean> SOURCE_ONLY = Setting.boolSetting(
         "index.source_only",
         false,
@@ -116,7 +112,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     private static Metadata metadataToSnapshot(Collection<IndexId> indices, Metadata metadata) {
         Metadata.Builder builder = Metadata.builder(metadata);
         for (IndexId indexId : indices) {
-            IndexMetadata index = metadata.index(indexId.getName());
+            IndexMetadata index = metadata.getProject().index(indexId.getName());
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index);
             // for a minimal restore we basically disable indexing on all fields and only create an index
             // that is valid from an operational perspective. ie. it will have all metadata fields like version/
@@ -139,8 +135,9 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     @Override
     public void snapshotShard(SnapshotShardContext context) {
         final MapperService mapperService = context.mapperService();
-        if (mapperService.documentMapper() != null // if there is no mapping this is null
-            && mapperService.documentMapper().sourceMapper().isComplete() == false) {
+        if ((mapperService.documentMapper() != null // if there is no mapping this is null
+            && mapperService.documentMapper().sourceMapper().isComplete() == false)
+            || (mapperService.documentMapper() == null && SourceFieldMapper.isStored(mapperService.getIndexSettings()) == false)) {
             context.onFailure(
                 new IllegalStateException(
                     "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source"
@@ -173,7 +170,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 protected void closeInternal() {
                     // do nothing;
                 }
-            }, Store.OnClose.EMPTY);
+            }, Store.OnClose.EMPTY, mapperService.getIndexSettings().getIndexSortConfig().hasIndexSort());
             Supplier<Query> querySupplier = mapperService.hasNested()
                 ? () -> Queries.newNestedFilter(mapperService.getIndexSettings().getIndexVersionCreated())
                 : null;

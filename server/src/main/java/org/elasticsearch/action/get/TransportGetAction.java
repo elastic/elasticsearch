@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.get;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -19,18 +21,19 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -42,6 +45,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -68,6 +72,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ExecutorSelector executorSelector,
         NodeClient client
@@ -78,6 +83,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             clusterService,
             transportService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             GetRequest::new,
             threadPool.executor(ThreadPool.Names.GET)
@@ -95,10 +101,10 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) {
+    protected ShardIterator shards(ProjectState project, InternalRequest request) {
         ShardIterator iterator = clusterService.operationRouting()
             .getShards(
-                clusterService.state(),
+                project,
                 request.concreteIndex(),
                 request.request().id(),
                 request.request().routing(),
@@ -107,14 +113,11 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         if (iterator == null) {
             return null;
         }
-        return new PlainShardIterator(
-            iterator.shardId(),
-            iterator.getShardRoutings().stream().filter(shardRouting -> OperationRouting.canSearchShard(shardRouting, state)).toList()
-        );
+        return ShardIterator.allSearchableShards(iterator);
     }
 
     @Override
-    protected void resolveRequest(ClusterState state, InternalRequest request) {
+    protected void resolveRequest(ProjectState state, InternalRequest request) {
         // update the routing (request#index here is possibly an alias)
         request.request().routing(state.metadata().resolveIndexRouting(request.request().routing(), request.request().index()));
     }
@@ -124,13 +127,11 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
-            assert indexShard.indexSettings().isFastRefresh() == false
-                : "a search shard should not receive a TransportGetAction for an index with fast refresh";
             handleGetOnUnpromotableShard(request, indexShard, listener);
             return;
         }
-        assert DiscoveryNode.isStateless(clusterService.getSettings()) == false || indexShard.indexSettings().isFastRefresh()
-            : "in Stateless a promotable to primary shard can receive a TransportGetAction only if an index has the fast refresh setting";
+        assert DiscoveryNode.isStateless(clusterService.getSettings()) == false
+            : "in Stateless a promotable to primary shard should not receive a TransportGetAction";
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
             asyncGet(request, shardId, listener);
         } else {
@@ -168,7 +169,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     @Override
     protected Executor getExecutor(GetRequest request, ShardId shardId) {
         final ClusterState clusterState = clusterService.state();
-        if (clusterState.metadata().getIndexSafe(shardId.getIndex()).isSystem()) {
+        if (projectResolver.getProjectMetadata(clusterState).getIndexSafe(shardId.getIndex()).isSystem()) {
             return threadPool.executor(executorSelector.executorForGet(shardId.getIndexName()));
         } else if (indicesService.indexServiceSafe(shardId.getIndex()).getIndexSettings().isSearchThrottled()) {
             return threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED);
@@ -211,7 +212,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 logger,
                 threadPool.getThreadContext()
             );
-            getFromTranslog(request, indexShard, state, observer, listener);
+            getFromTranslog(request, indexShard, projectResolver.getProjectState(state), observer, listener);
         } else {
             // A non-real-time get with no explicit refresh requested.
             super.asyncShardOperation(request, shardId, listener);
@@ -221,7 +222,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     private void getFromTranslog(
         GetRequest request,
         IndexShard indexShard,
-        ClusterState state,
+        ProjectState state,
         ClusterStateObserver observer,
         ActionListener<GetResponse> listener
     ) {
@@ -232,15 +233,19 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             listener.onFailure(e);
             return;
         }
+        ProjectId projectId = state.projectId();
         final var retryingListener = listener.delegateResponse((l, e) -> {
             final var cause = ExceptionsHelper.unwrapCause(e);
             logger.debug("get_from_translog failed", cause);
-            if (cause instanceof ShardNotFoundException || cause instanceof IndexNotFoundException) {
+            if (cause instanceof ShardNotFoundException
+                || cause instanceof IndexNotFoundException
+                || cause instanceof AlreadyClosedException) {
+                // TODO AlreadyClosedException the engine reset should be fixed by ES-10826
                 logger.debug("retrying get_from_translog");
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        getFromTranslog(request, indexShard, state, observer, l);
+                        getFromTranslog(request, indexShard, state.projectState(projectId), observer, l);
                     }
 
                     @Override
@@ -250,7 +255,13 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        l.onFailure(new ElasticsearchException("Timed out retrying get_from_translog", cause));
+                        // TODO AlreadyClosedException the engine reset should be fixed by ES-10826
+                        if (cause instanceof AlreadyClosedException) {
+                            // Do an additional retry just in case AlreadyClosedException didn't generate a cluster update
+                            tryGetFromTranslog(request, indexShard, node, l);
+                        } else {
+                            l.onFailure(new ElasticsearchException("Timed out retrying get_from_translog", cause));
+                        }
                     }
                 });
             } else {
@@ -284,23 +295,23 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                     } else {
                         assert r.segmentGeneration() > -1L;
                         assert r.primaryTerm() > Engine.UNKNOWN_PRIMARY_TERM;
-                        indexShard.waitForPrimaryTermAndGeneration(
-                            r.primaryTerm(),
-                            r.segmentGeneration(),
-                            listener.delegateFailureAndWrap((ll, aLong) -> super.asyncShardOperation(request, shardId, ll))
+                        final ActionListener<Long> termAndGenerationListener = ContextPreservingActionListener.wrapPreservingContext(
+                            listener.delegateFailureAndWrap((ll, aLong) -> super.asyncShardOperation(request, shardId, ll)),
+                            threadPool.getThreadContext()
                         );
+                        indexShard.waitForPrimaryTermAndGeneration(r.primaryTerm(), r.segmentGeneration(), termAndGenerationListener);
                     }
                 }
             }), TransportGetFromTranslogAction.Response::new, getExecutor(request, shardId))
         );
     }
 
-    static DiscoveryNode getCurrentNodeOfPrimary(ClusterState clusterState, ShardId shardId) {
+    static DiscoveryNode getCurrentNodeOfPrimary(ProjectState clusterState, ShardId shardId) {
         final var primaryShard = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
         if (primaryShard.active() == false) {
             throw new NoShardAvailableActionException(shardId, "primary shard is not active");
         }
-        DiscoveryNode node = clusterState.nodes().get(primaryShard.currentNodeId());
+        DiscoveryNode node = clusterState.cluster().nodes().get(primaryShard.currentNodeId());
         assert node != null;
         return node;
     }

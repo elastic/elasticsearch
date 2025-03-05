@@ -12,12 +12,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -41,8 +43,6 @@ public final class QueryPragmas implements Writeable {
         DataPartitioning.SEGMENT
     );
 
-    public static final Setting<Boolean> TIME_SERIES_MODE = Setting.boolSetting("time_series", false);
-
     /**
      * Size of a page in entries with {@code 0} being a special value asking
      * to adaptively size based on the number of columns in the page.
@@ -56,6 +56,10 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<TimeValue> STATUS_INTERVAL = Setting.timeSetting("status_interval", Driver.DEFAULT_STATUS_INTERVAL);
 
     public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
+
+    public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
+
+    public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -126,12 +130,27 @@ public final class QueryPragmas implements Writeable {
         return MAX_CONCURRENT_SHARDS_PER_NODE.get(settings);
     }
 
-    public boolean isEmpty() {
-        return settings.isEmpty();
+    /**
+     * Returns true if each data node should perform a local reduction for sort, limit, topN, stats or false if the coordinator node
+     * will perform the reduction.
+     */
+    public boolean nodeLevelReduction() {
+        return NODE_LEVEL_REDUCTION.get(settings);
     }
 
-    public boolean timeSeriesMode() {
-        return TIME_SERIES_MODE.get(settings);
+    /**
+     * The maximum amount of memory we can use for {@link Expression#fold} during planing. This
+     * defaults to 5% of memory available on the current node. If this method is called on the
+     * coordinating node, this is 5% of the coordinating node's memory. If it's called on a data
+     * node, it's 5% of the data node. That's an <strong>exciting</strong> inconsistency. But it's
+     * important. Bigger nodes have more space to do folding.
+     */
+    public ByteSizeValue foldLimit() {
+        return FOLD_LIMIT.get(settings);
+    }
+
+    public boolean isEmpty() {
+        return settings.isEmpty();
     }
 
     @Override
@@ -145,5 +164,10 @@ public final class QueryPragmas implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(settings);
+    }
+
+    @Override
+    public String toString() {
+        return settings.toString();
     }
 }

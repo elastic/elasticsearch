@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -67,6 +68,7 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -454,8 +456,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public Function<String, Predicate<String>> getFieldFilter() {
-        List<Function<String, Predicate<String>>> items = filterPlugins(MapperPlugin.class).stream()
+    public Function<String, FieldPredicate> getFieldFilter() {
+        List<Function<String, FieldPredicate>> items = filterPlugins(MapperPlugin.class).stream()
             .map(p -> p.getFieldFilter())
             .filter(p -> p.equals(NOOP_FIELD_FILTER) == false)
             .toList();
@@ -622,7 +624,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @SuppressWarnings("unchecked")
-    private <T> List<T> filterPlugins(Class<T> type) {
+    protected <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T) p)).collect(Collectors.toList());
     }
 
@@ -636,10 +638,15 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        return filterPlugins(MapperPlugin.class).stream()
+        Map<String, MetadataFieldMapper.TypeParser> pluginsMetadataMappers = filterPlugins(MapperPlugin.class).stream()
             .map(MapperPlugin::getMetadataMappers)
             .flatMap(map -> map.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        // the xpack plugin itself exposes a metadata mapper so let's include it as well
+        Map<String, MetadataFieldMapper.TypeParser> metadataMappersIncludingXPackPlugin = new HashMap<>(pluginsMetadataMappers);
+        metadataMappersIncludingXPackPlugin.putAll(super.getMetadataMappers());
+        return metadataMappersIncludingXPackPlugin;
     }
 
     @Override
@@ -673,8 +680,9 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     @Override
     public void cleanUpFeature(
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         Client client,
-        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
+        ActionListener<ResetFeatureStateStatus> finalListener
     ) {
         List<SystemIndexPlugin> systemPlugins = filterPlugins(SystemIndexPlugin.class);
 
@@ -691,7 +699,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 }
             })
         );
-        systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, client, allListeners));
+        systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, projectResolver, client, allListeners));
     }
 
     @Override

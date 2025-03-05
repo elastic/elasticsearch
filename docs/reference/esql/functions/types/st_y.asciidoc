@@ -1,6 +1,0 @@
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-point | result
-cartesian_point | double
-geo_point | double
-|===

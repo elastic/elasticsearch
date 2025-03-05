@@ -31,8 +31,8 @@ setup:
           - '{"metric": {"min": -100, "max": -40} }'
 ---
 "Test min_max aggs":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "Aggregate metric fields have been added in 7.11"
 
   - do:
@@ -55,8 +55,8 @@ setup:
 
 ---
 "Test min_max aggs with query":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "Aggregate metric fields have been added in 7.11"
 
   - do:

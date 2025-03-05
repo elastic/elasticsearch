@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -11,7 +12,7 @@ package org.elasticsearch.ingest.geoip;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction;
+import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -19,8 +20,6 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 
 import java.io.IOException;
@@ -29,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,8 +63,8 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
          * slowly to pass.
          */
         assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
-        GeoIpDownloaderStatsAction.Request req = new GeoIpDownloaderStatsAction.Request();
-        GeoIpDownloaderStatsAction.Response response = client().execute(GeoIpDownloaderStatsAction.INSTANCE, req).actionGet();
+        GeoIpStatsAction.Request req = new GeoIpStatsAction.Request();
+        GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, req).actionGet();
         XContentTestUtils.JsonMapView jsonMapView = new XContentTestUtils.JsonMapView(convertToMap(response));
         assertThat(jsonMapView.get("stats.successful_downloads"), equalTo(0));
         assertThat(jsonMapView.get("stats.failed_downloads"), equalTo(0));
@@ -78,7 +76,7 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
 
         assertBusy(() -> {
-            GeoIpDownloaderStatsAction.Response res = client().execute(GeoIpDownloaderStatsAction.INSTANCE, req).actionGet();
+            GeoIpStatsAction.Response res = client().execute(GeoIpStatsAction.INSTANCE, req).actionGet();
             XContentTestUtils.JsonMapView view = new XContentTestUtils.JsonMapView(convertToMap(res));
             assertThat(view.get("stats.successful_downloads"), equalTo(4));
             assertThat(view.get("stats.failed_downloads"), equalTo(0));
@@ -98,30 +96,23 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
     }
 
     private void putPipeline() throws IOException {
-        BytesReference bytes;
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
+        putJsonPipeline("_id", (builder, params) -> {
+            builder.startArray("processors");
             {
-                builder.startArray("processors");
+                builder.startObject();
                 {
-                    builder.startObject();
+                    builder.startObject("geoip");
                     {
-                        builder.startObject("geoip");
-                        {
-                            builder.field("field", "ip");
-                            builder.field("target_field", "ip-city");
-                            builder.field("database_file", "GeoLite2-City.mmdb");
-                        }
-                        builder.endObject();
+                        builder.field("field", "ip");
+                        builder.field("target_field", "ip-city");
+                        builder.field("database_file", "GeoLite2-City.mmdb");
                     }
                     builder.endObject();
                 }
-                builder.endArray();
+                builder.endObject();
             }
-            builder.endObject();
-            bytes = BytesReference.bytes(builder);
-        }
-        assertAcked(clusterAdmin().preparePutPipeline("_id", bytes, XContentType.JSON).get());
+            return builder.endArray();
+        });
     }
 
     public static Map<String, Object> convertToMap(ToXContent part) throws IOException {

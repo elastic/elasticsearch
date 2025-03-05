@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -42,16 +43,19 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
 
         private final String[] nodeIds;
 
-        public Request(String... nodeIds) {
+        public Request(TimeValue masterNodeTimeout, String... nodeIds) {
+            super(masterNodeTimeout);
             this.nodeIds = nodeIds;
         }
 
-        public static Request readFrom(StreamInput in) throws IOException {
-            return new Request(in.readStringArray());
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            nodeIds = in.readStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeStringArray(this.nodeIds);
         }
 

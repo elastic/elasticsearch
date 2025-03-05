@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -14,10 +15,10 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.plugins.FieldPredicate;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.Predicate;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -46,7 +47,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             s -> true,
             new String[] { "-nested" },
             Strings.EMPTY_ARRAY,
-            f -> true,
+            FieldPredicate.ACCEPT_ALL,
             getMockIndexShard(),
             true
         );
@@ -74,7 +75,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 s -> true,
                 new String[] { "+metadata" },
                 Strings.EMPTY_ARRAY,
-                f -> true,
+                FieldPredicate.ACCEPT_ALL,
                 getMockIndexShard(),
                 true
             );
@@ -87,7 +88,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
                 s -> true,
                 new String[] { "-metadata" },
                 Strings.EMPTY_ARRAY,
-                f -> true,
+                FieldPredicate.ACCEPT_ALL,
                 getMockIndexShard(),
                 true
             );
@@ -120,7 +121,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             s -> true,
             new String[] { "-multifield" },
             Strings.EMPTY_ARRAY,
-            f -> true,
+            FieldPredicate.ACCEPT_ALL,
             getMockIndexShard(),
             true
         );
@@ -151,7 +152,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             s -> true,
             new String[] { "-parent" },
             Strings.EMPTY_ARRAY,
-            f -> true,
+            FieldPredicate.ACCEPT_ALL,
             getMockIndexShard(),
             true
         );
@@ -171,7 +172,22 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             } }
             """);
         SearchExecutionContext sec = createSearchExecutionContext(mapperService);
-        Predicate<String> securityFilter = f -> f.startsWith("permitted");
+        FieldPredicate securityFilter = new FieldPredicate() {
+            @Override
+            public boolean test(String field) {
+                return field.startsWith("permitted");
+            }
+
+            @Override
+            public String modifyHash(String hash) {
+                return "only-permitted:" + hash;
+            }
+
+            @Override
+            public long ramBytesUsed() {
+                return 0;
+            }
+        };
 
         {
             Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
@@ -223,7 +239,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             s -> true,
             Strings.EMPTY_ARRAY,
             new String[] { "text", "keyword" },
-            f -> true,
+            FieldPredicate.ACCEPT_ALL,
             getMockIndexShard(),
             true
         );

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.persistent;
@@ -30,12 +31,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -77,6 +79,12 @@ import static org.junit.Assert.fail;
 public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
     public static final ActionType<TestTasksResponse> TEST_ACTION = new ActionType<>("cluster:admin/persistent/task_test");
+    public static final Setting<PersistentTasksExecutor.Scope> PERSISTENT_TASK_SCOPE_SETTING = Setting.enumSetting(
+        PersistentTasksExecutor.Scope.class,
+        "cluster.test_persistent_tasks_executor.scope",
+        PersistentTasksExecutor.Scope.PROJECT,
+        Setting.Property.NodeScope
+    );
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -91,7 +99,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return Collections.singletonList(new TestPersistentTasksExecutor(clusterService));
+        final var scope = PERSISTENT_TASK_SCOPE_SETTING.get(settingsModule.getSettings());
+        return Collections.singletonList(new TestPersistentTasksExecutor(clusterService, scope));
     }
 
     @Override
@@ -116,6 +125,11 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 State::fromXContent
             )
         );
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(PERSISTENT_TASK_SCOPE_SETTING);
     }
 
     public static class TestParams implements PersistentTaskParams {
@@ -294,12 +308,19 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
         public static final String NAME = "cluster:admin/persistent/test";
         private final ClusterService clusterService;
+        private final Scope scope;
 
         private static volatile boolean nonClusterStateCondition = true;
 
-        public TestPersistentTasksExecutor(ClusterService clusterService) {
+        public TestPersistentTasksExecutor(ClusterService clusterService, Scope scope) {
             super(NAME, clusterService.threadPool().generic());
             this.clusterService = clusterService;
+            this.scope = scope;
+        }
+
+        @Override
+        public Scope scope() {
+            return scope;
         }
 
         public static void setNonClusterStateCondition(boolean nonClusterStateCondition) {
@@ -531,7 +552,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 transportService,
                 actionFilters,
                 TestTasksRequest::new,
-                TestTasksResponse::new,
                 TestTaskResponse::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );

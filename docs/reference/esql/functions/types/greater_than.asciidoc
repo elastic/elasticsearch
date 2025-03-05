@@ -1,5 +1,0 @@
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-lhs | rhs | result
-integer | integer | boolean
-|===

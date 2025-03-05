@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -26,7 +27,9 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -37,6 +40,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,6 +49,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadataVerifier.isReadOnlySupportedVersion;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
@@ -123,13 +128,20 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             newState = ClusterState.builder(initialState);
         } else {
             logger.trace("processing node joins, but we are not the master. current master: {}", currentNodes.getMasterNode());
-            throw new NotMasterException("Node [" + currentNodes.getLocalNode() + "] not master for join request");
+            throw new NotMasterException(
+                Strings.format(
+                    "Node [%s] not master for join request. Current known master [%s], current term [%d]",
+                    currentNodes.getLocalNode(),
+                    currentNodes.getMasterNode(),
+                    term
+                )
+            );
         }
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
         Map<String, CompatibilityVersions> compatibilityVersionsMap = new HashMap<>(newState.compatibilityVersions());
-        Map<String, Set<String>> nodeFeatures = new HashMap<>(newState.nodeFeatures());
-        Set<String> allNodesFeatures = ClusterFeatures.calculateAllNodeFeatures(nodeFeatures.values());
+        Map<String, Set<String>> nodeFeatures = new HashMap<>(newState.nodeFeatures()); // as present in cluster state
+        Set<String> effectiveClusterFeatures = calculateEffectiveClusterFeatures(newState.nodes(), nodeFeatures);
 
         assert nodesBuilder.isLocalNodeElectedMaster();
 
@@ -165,14 +177,22 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         }
                         blockForbiddenVersions(compatibilityVersions.transportVersion());
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
-                        enforceNodeFeatureBarrier(node.getId(), allNodesFeatures, features);
+                        Set<String> newNodeEffectiveFeatures = enforceNodeFeatureBarrier(node, effectiveClusterFeatures, features);
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster
-                        ensureIndexCompatibility(node.getMinIndexVersion(), node.getMaxIndexVersion(), initialState.getMetadata());
+                        ensureIndexCompatibility(
+                            node.getMinIndexVersion(),
+                            node.getMinReadOnlyIndexVersion(),
+                            node.getMaxIndexVersion(),
+                            initialState.getMetadata()
+                        );
+
                         nodesBuilder.add(node);
                         compatibilityVersionsMap.put(node.getId(), compatibilityVersions);
+                        // store the actual node features here, not including assumed features, as this is persisted in cluster state
                         nodeFeatures.put(node.getId(), features);
-                        allNodesFeatures.retainAll(features);
+                        effectiveClusterFeatures.retainAll(newNodeEffectiveFeatures);
+
                         nodesChanged = true;
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
@@ -341,9 +361,38 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
     private static void blockForbiddenVersions(TransportVersion joiningTransportVersion) {
         if (FORBIDDEN_VERSIONS.contains(joiningTransportVersion)) {
             throw new IllegalStateException(
-                "A node with transport version " + joiningTransportVersion + " is forbidden from joining this cluster"
+                "A node with transport version " + joiningTransportVersion.toReleaseVersion() + " is forbidden from joining this cluster"
             );
         }
+    }
+
+    /**
+     * Calculate the cluster's effective features. This includes all features that are assumed on any nodes in the cluster,
+     * that are also present across the whole cluster as a result.
+     */
+    private Set<String> calculateEffectiveClusterFeatures(DiscoveryNodes nodes, Map<String, Set<String>> nodeFeatures) {
+        if (FeatureService.featuresCanBeAssumedForNodes(nodes)) {
+            Set<String> assumedFeatures = featureService.getNodeFeatures()
+                .values()
+                .stream()
+                .filter(NodeFeature::assumedAfterNextCompatibilityBoundary)
+                .map(NodeFeature::id)
+                .collect(Collectors.toSet());
+
+            // add all assumed features to the featureset of all nodes of the next major version
+            nodeFeatures = new HashMap<>(nodeFeatures);
+            for (var node : nodes.getNodes().entrySet()) {
+                if (FeatureService.featuresCanBeAssumedForNode(node.getValue())) {
+                    assert nodeFeatures.containsKey(node.getKey()) : "Node " + node.getKey() + " does not have any features";
+                    nodeFeatures.computeIfPresent(node.getKey(), (k, v) -> {
+                        var newFeatures = new HashSet<>(v);
+                        return newFeatures.addAll(assumedFeatures) ? newFeatures : v;
+                    });
+                }
+            }
+        }
+
+        return ClusterFeatures.calculateAllNodeFeatures(nodeFeatures.values());
     }
 
     /**
@@ -351,31 +400,40 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
      * will not be created with a newer version of elasticsearch as well as that all indices are newer or equal to the minimum index
      * compatibility version.
      * @see IndexVersions#MINIMUM_COMPATIBLE
+     * @see IndexVersions#MINIMUM_READONLY_COMPATIBLE
      * @throws IllegalStateException if any index is incompatible with the given version
      */
-    public static void ensureIndexCompatibility(IndexVersion minSupportedVersion, IndexVersion maxSupportedVersion, Metadata metadata) {
+    public static void ensureIndexCompatibility(
+        IndexVersion minSupportedVersion,
+        IndexVersion minReadOnlySupportedVersion,
+        IndexVersion maxSupportedVersion,
+        Metadata metadata
+    ) {
         // we ensure that all indices in the cluster we join are compatible with us no matter if they are
         // closed or not we can't read mappings of these indices so we need to reject the join...
-        for (IndexMetadata idxMetadata : metadata) {
+        for (IndexMetadata idxMetadata : metadata.indicesAllProjects()) {
             if (idxMetadata.getCompatibilityVersion().after(maxSupportedVersion)) {
                 throw new IllegalStateException(
                     "index "
                         + idxMetadata.getIndex()
                         + " version not supported: "
-                        + idxMetadata.getCompatibilityVersion()
+                        + idxMetadata.getCompatibilityVersion().toReleaseVersion()
                         + " maximum compatible index version is: "
-                        + maxSupportedVersion
+                        + maxSupportedVersion.toReleaseVersion()
                 );
             }
             if (idxMetadata.getCompatibilityVersion().before(minSupportedVersion)) {
-                throw new IllegalStateException(
-                    "index "
-                        + idxMetadata.getIndex()
-                        + " version not supported: "
-                        + idxMetadata.getCompatibilityVersion()
-                        + " minimum compatible index version is: "
-                        + minSupportedVersion
-                );
+                boolean isReadOnlySupported = isReadOnlySupportedVersion(idxMetadata, minSupportedVersion, minReadOnlySupportedVersion);
+                if (isReadOnlySupported == false) {
+                    throw new IllegalStateException(
+                        "index "
+                            + idxMetadata.getIndex()
+                            + " version not supported: "
+                            + idxMetadata.getCompatibilityVersion().toReleaseVersion()
+                            + " minimum compatible index version is: "
+                            + minSupportedVersion.toReleaseVersion()
+                    );
+                }
             }
         }
     }
@@ -427,9 +485,9 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         if (joiningCompatibilityVersions.transportVersion().before(minClusterTransportVersion)) {
             throw new IllegalStateException(
                 "node with transport version ["
-                    + joiningCompatibilityVersions.transportVersion()
+                    + joiningCompatibilityVersions.transportVersion().toReleaseVersion()
                     + "] may not join a cluster with minimum transport version ["
-                    + minClusterTransportVersion
+                    + minClusterTransportVersion.toReleaseVersion()
                     + "]"
             );
         }
@@ -452,13 +510,44 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
     }
 
-    private void enforceNodeFeatureBarrier(String nodeId, Set<String> existingNodesFeatures, Set<String> newNodeFeatures) {
+    /**
+     * Enforces the feature join barrier - a joining node should have all features already present in all existing nodes in the cluster
+     *
+     * @return The set of features that this node has (including assumed features)
+     */
+    private Set<String> enforceNodeFeatureBarrier(DiscoveryNode node, Set<String> effectiveClusterFeatures, Set<String> newNodeFeatures) {
         // prevent join if it does not have one or more features that all other nodes have
-        Set<String> missingFeatures = new HashSet<>(existingNodesFeatures);
+        Set<String> missingFeatures = new HashSet<>(effectiveClusterFeatures);
         missingFeatures.removeAll(newNodeFeatures);
 
-        if (missingFeatures.isEmpty() == false) {
-            throw new IllegalStateException("Node " + nodeId + " is missing required features " + missingFeatures);
+        if (missingFeatures.isEmpty()) {
+            // nothing missing - all ok
+            return newNodeFeatures;
+        }
+
+        if (FeatureService.featuresCanBeAssumedForNode(node)) {
+            // it might still be ok for this node to join if this node can have assumed features,
+            // and all the missing features are assumed
+            // we can get the NodeFeature object direct from this node's registered features
+            // as all existing nodes in the cluster have the features present in existingNodesFeatures, including this one
+            newNodeFeatures = new HashSet<>(newNodeFeatures);
+            for (Iterator<String> it = missingFeatures.iterator(); it.hasNext();) {
+                String feature = it.next();
+                NodeFeature nf = featureService.getNodeFeatures().get(feature);
+                if (nf.assumedAfterNextCompatibilityBoundary()) {
+                    // its ok for this feature to be missing from this node
+                    it.remove();
+                    // and it should be assumed to still be in the cluster
+                    newNodeFeatures.add(feature);
+                }
+                // even if we don't remove it, still continue, so the exception message below is accurate
+            }
+        }
+
+        if (missingFeatures.isEmpty()) {
+            return newNodeFeatures;
+        } else {
+            throw new IllegalStateException("Node " + node.getId() + " is missing required features " + missingFeatures);
         }
     }
 
@@ -468,7 +557,12 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> validators = new ArrayList<>();
         validators.add((node, state) -> {
             ensureNodesCompatibility(node.getVersion(), state.getNodes());
-            ensureIndexCompatibility(node.getMinIndexVersion(), node.getMaxIndexVersion(), state.getMetadata());
+            ensureIndexCompatibility(
+                node.getMinIndexVersion(),
+                node.getMinReadOnlyIndexVersion(),
+                node.getMaxIndexVersion(),
+                state.getMetadata()
+            );
         });
         validators.addAll(onJoinValidators);
         return Collections.unmodifiableCollection(validators);

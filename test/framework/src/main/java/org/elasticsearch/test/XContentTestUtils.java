@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -45,17 +46,25 @@ public final class XContentTestUtils {
     }
 
     public static Map<String, Object> convertToMap(ChunkedToXContent chunkedToXContent) throws IOException {
-        return convertToMap(ChunkedToXContent.wrapAsToXContent(chunkedToXContent));
+        return convertToMap(chunkedToXContent, EMPTY_PARAMS);
+    }
+
+    public static Map<String, Object> convertToMap(ChunkedToXContent chunkedToXContent, ToXContent.Params params) throws IOException {
+        return convertToMap(ChunkedToXContent.wrapAsToXContent(chunkedToXContent), params);
     }
 
     public static Map<String, Object> convertToMap(ToXContent part) throws IOException {
+        return convertToMap(part, EMPTY_PARAMS);
+    }
+
+    public static Map<String, Object> convertToMap(ToXContent part, ToXContent.Params params) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         if (part.isFragment()) {
             builder.startObject();
-            part.toXContent(builder, EMPTY_PARAMS);
+            part.toXContent(builder, params);
             builder.endObject();
         } else {
-            part.toXContent(builder, EMPTY_PARAMS);
+            part.toXContent(builder, params);
         }
         return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
     }
@@ -353,6 +362,11 @@ public final class XContentTestUtils {
                 }
             }
             return (T) context;
+        }
+
+        @Override
+        public String toString() {
+            return "JsonMapView{map=" + map + '}';
         }
     }
 }

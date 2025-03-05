@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -111,6 +113,8 @@ public final class PemUtils {
             return privateKey;
         } catch (AccessControlException e) {
             throw SslFileUtil.accessControlFailure("PEM private key", List.of(path), e, null);
+        } catch (NotEntitledException e) {
+            throw SslFileUtil.notEntitledFailure("PEM private key", List.of(path), e, null);
         } catch (IOException e) {
             throw SslFileUtil.ioException("PEM private key", List.of(path), e);
         } catch (GeneralSecurityException e) {

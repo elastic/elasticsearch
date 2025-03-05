@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -16,7 +17,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsRequestTaskSettingsTests.getRequestTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsRequestTaskSettingsTests.createRequestTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -24,7 +25,7 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
 
     public void testOverrideWith_OverridesUser() {
         var model = createModel("url", "org", "api_key", "model_name", null);
-        var requestTaskSettingsMap = getRequestTaskSettingsMap("user_override");
+        var requestTaskSettingsMap = createRequestTaskSettingsMap("user_override");
 
         var overriddenModel = OpenAiEmbeddingsModel.of(model, requestTaskSettingsMap);
 
@@ -59,8 +60,28 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
             "service",
-            new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, 1536, null, false),
+            new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, 1536, null, false, null),
             new OpenAiEmbeddingsTaskSettings(user),
+            null,
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static OpenAiEmbeddingsModel createModel(
+        String url,
+        @Nullable String org,
+        String apiKey,
+        String modelName,
+        @Nullable String user,
+        ChunkingSettings chunkingSettings
+    ) {
+        return new OpenAiEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, 1536, null, false, null),
+            new OpenAiEmbeddingsTaskSettings(user),
+            chunkingSettings,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
@@ -76,8 +97,9 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
             "id",
             TaskType.TEXT_EMBEDDING,
             "service",
-            new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, 1536, null, false),
+            new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, 1536, null, false, null),
             new OpenAiEmbeddingsTaskSettings(user),
+            null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
@@ -94,8 +116,9 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
             "id",
             TaskType.TEXT_EMBEDDING,
             "service",
-            new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, 1536, tokenLimit, false),
+            new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, 1536, tokenLimit, false, null),
             new OpenAiEmbeddingsTaskSettings(user),
+            null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
@@ -113,8 +136,9 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
             "id",
             TaskType.TEXT_EMBEDDING,
             "service",
-            new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, false),
+            new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, false, null),
             new OpenAiEmbeddingsTaskSettings(user),
+            null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
@@ -134,8 +158,9 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
             "id",
             TaskType.TEXT_EMBEDDING,
             "service",
-            new OpenAiEmbeddingsServiceSettings(modelName, url, org, similarityMeasure, dimensions, tokenLimit, dimensionsSetByUser),
+            new OpenAiEmbeddingsServiceSettings(modelName, url, org, similarityMeasure, dimensions, tokenLimit, dimensionsSetByUser, null),
             new OpenAiEmbeddingsTaskSettings(user),
+            null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

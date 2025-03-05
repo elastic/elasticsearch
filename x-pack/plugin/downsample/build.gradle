@@ -1,9 +1,9 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
-  name 'x-pack-downsample'
-  description 'Elasticsearch Expanded Pack Plugin - Downsample'
-  classname 'org.elasticsearch.xpack.downsample.Downsample'
+  name = 'x-pack-downsample'
+  description = 'Elasticsearch Expanded Pack Plugin - Downsample'
+  classname ='org.elasticsearch.xpack.downsample.Downsample'
   extendedPlugins = ['x-pack-aggregate-metric']
 }
 

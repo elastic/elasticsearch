@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.security.audit;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
@@ -81,14 +79,14 @@ public class AuditIT extends ESRestTestCase {
     }
 
     public void testAuditAuthenticationSuccess() throws Exception {
-        final Request request = new Request("GET", randomFrom("/_security/_authenticate", "/_xpack/security/_authenticate"));
+        final Request request = new Request("GET", "/_security/_authenticate");
         executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
             assertThat(event, hasEntry(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, "REALM"));
         });
     }
 
     public void testAuditAuthenticationFailure() throws Exception {
-        final Request request = new Request("GET", randomFrom("/_security/_authenticate", "/_xpack/security/_authenticate"));
+        final Request request = new Request("GET", "/_security/_authenticate");
         String basicAuth = basicAuthHeaderValue(API_USER, new SecureString(new char[0]));
         request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", basicAuth).addParameter("ignore", "401"));
         executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_FAILED, event -> {});
@@ -96,7 +94,7 @@ public class AuditIT extends ESRestTestCase {
 
     public void testFilteringOfRequestBodies() throws Exception {
         final String username = randomAlphaOfLength(4) + randomIntBetween(100, 999);
-        final Request request = new Request(randomFrom("PUT", "POST"), randomFrom("/_security/user/", "/_xpack/security/user/") + username);
+        final Request request = new Request(randomFrom("PUT", "POST"), "/_security/user/" + username);
         final String password = randomAlphaOfLength(4) + randomIntBetween(10, 99) + randomAlphaOfLength(4);
         request.setJsonEntity("{ \"password\":\"" + password + "\", \"roles\":[\"superuser\"] }");
         executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
@@ -141,15 +139,6 @@ public class AuditIT extends ESRestTestCase {
     }
 
     private static Response executeRequest(Request request) throws IOException {
-        if (request.getEndpoint().startsWith("/_xpack/security/")) {
-            final RequestOptions options = request.getOptions()
-                .toBuilder()
-                .addHeader("Content-Type", "application/json; compatible-with=7")
-                .addHeader("Accept", "application/json; compatible-with=7")
-                .setWarningsHandler(WarningsHandler.PERMISSIVE)
-                .build();
-            request.setOptions(options);
-        }
         return client().performRequest(request);
     }
 

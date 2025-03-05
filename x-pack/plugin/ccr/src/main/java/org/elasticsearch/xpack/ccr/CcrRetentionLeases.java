@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Locale;
 import java.util.Optional;
@@ -79,7 +81,7 @@ public class CcrRetentionLeases {
         final TimeValue timeout
     ) {
         try {
-            final PlainActionFuture<ActionResponse.Empty> response = new PlainActionFuture<>();
+            final PlainActionFuture<ActionResponse.Empty> response = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
             asyncAddRetentionLease(leaderShardId, retentionLeaseId, retainingSequenceNumber, remoteClient, response);
             response.actionGet(timeout);
             return Optional.empty();

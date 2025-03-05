@@ -23,7 +23,7 @@ public class ScheduleNowTransformActionRequestTests extends AbstractWireSerializ
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLengthBetween(1, 20), TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
+        return new Request(randomAlphaOfLengthBetween(1, 20), randomTimeValue());
     }
 
     @Override

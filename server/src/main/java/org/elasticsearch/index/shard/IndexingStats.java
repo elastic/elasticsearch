@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.shard;
@@ -13,7 +14,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -34,6 +34,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         private long indexTimeInMillis;
         private long indexCurrent;
         private long indexFailedCount;
+        private long indexFailedDueToVersionConflictCount;
         private long deleteCount;
         private long deleteTimeInMillis;
         private long deleteCurrent;
@@ -50,6 +51,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             indexTimeInMillis = in.readVLong();
             indexCurrent = in.readVLong();
             indexFailedCount = in.readVLong();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.TRACK_INDEX_FAILED_DUE_TO_VERSION_CONFLICT_METRIC)) {
+                indexFailedDueToVersionConflictCount = in.readVLong();
+            }
             deleteCount = in.readVLong();
             deleteTimeInMillis = in.readVLong();
             deleteCurrent = in.readVLong();
@@ -67,6 +71,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             long indexTimeInMillis,
             long indexCurrent,
             long indexFailedCount,
+            long indexFailedDueToVersionConflictCount,
             long deleteCount,
             long deleteTimeInMillis,
             long deleteCurrent,
@@ -80,6 +85,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             this.indexTimeInMillis = indexTimeInMillis;
             this.indexCurrent = indexCurrent;
             this.indexFailedCount = indexFailedCount;
+            this.indexFailedDueToVersionConflictCount = indexFailedDueToVersionConflictCount;
             this.deleteCount = deleteCount;
             this.deleteTimeInMillis = deleteTimeInMillis;
             this.deleteCurrent = deleteCurrent;
@@ -96,6 +102,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             indexTimeInMillis += stats.indexTimeInMillis;
             indexCurrent += stats.indexCurrent;
             indexFailedCount += stats.indexFailedCount;
+            indexFailedDueToVersionConflictCount += stats.indexFailedDueToVersionConflictCount;
 
             deleteCount += stats.deleteCount;
             deleteTimeInMillis += stats.deleteTimeInMillis;
@@ -122,6 +129,13 @@ public class IndexingStats implements Writeable, ToXContentFragment {
          */
         public long getIndexFailedCount() {
             return indexFailedCount;
+        }
+
+        /**
+         * The number of indexing operations that failed because of a version conflict (a subset of all index failed operations)
+         */
+        public long getIndexFailedDueToVersionConflictCount() {
+            return indexFailedDueToVersionConflictCount;
         }
 
         /**
@@ -191,6 +205,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             out.writeVLong(indexTimeInMillis);
             out.writeVLong(indexCurrent);
             out.writeVLong(indexFailedCount);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.TRACK_INDEX_FAILED_DUE_TO_VERSION_CONFLICT_METRIC)) {
+                out.writeVLong(indexFailedDueToVersionConflictCount);
+            }
             out.writeVLong(deleteCount);
             out.writeVLong(deleteTimeInMillis);
             out.writeVLong(deleteCurrent);
@@ -209,6 +226,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             builder.humanReadableField(Fields.INDEX_TIME_IN_MILLIS, Fields.INDEX_TIME, getIndexTime());
             builder.field(Fields.INDEX_CURRENT, indexCurrent);
             builder.field(Fields.INDEX_FAILED, indexFailedCount);
+            builder.field(Fields.INDEX_FAILED_DUE_TO_VERSION_CONFLICT, indexFailedDueToVersionConflictCount);
 
             builder.field(Fields.DELETE_TOTAL, deleteCount);
             builder.humanReadableField(Fields.DELETE_TIME_IN_MILLIS, Fields.DELETE_TIME, getDeleteTime());
@@ -232,6 +250,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 && indexTimeInMillis == that.indexTimeInMillis
                 && indexCurrent == that.indexCurrent
                 && indexFailedCount == that.indexFailedCount
+                && indexFailedDueToVersionConflictCount == that.indexFailedDueToVersionConflictCount
                 && deleteCount == that.deleteCount
                 && deleteTimeInMillis == that.deleteTimeInMillis
                 && deleteCurrent == that.deleteCurrent
@@ -249,6 +268,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 indexTimeInMillis,
                 indexCurrent,
                 indexFailedCount,
+                indexFailedDueToVersionConflictCount,
                 deleteCount,
                 deleteTimeInMillis,
                 deleteCurrent,
@@ -304,13 +324,6 @@ public class IndexingStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.INDEXING);
         totalStats.toXContent(builder, params);
-        if (builder.getRestApiVersion() == RestApiVersion.V_7 && params.param("types") != null) {
-            builder.startObject(Fields.TYPES);
-            builder.startObject(MapperService.SINGLE_MAPPING_NAME);
-            totalStats.toXContent(builder, params);
-            builder.endObject();
-            builder.endObject();
-        }
         builder.endObject();
         return builder;
     }
@@ -330,12 +343,12 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
     static final class Fields {
         static final String INDEXING = "indexing";
-        static final String TYPES = "types";
         static final String INDEX_TOTAL = "index_total";
         static final String INDEX_TIME = "index_time";
         static final String INDEX_TIME_IN_MILLIS = "index_time_in_millis";
         static final String INDEX_CURRENT = "index_current";
         static final String INDEX_FAILED = "index_failed";
+        static final String INDEX_FAILED_DUE_TO_VERSION_CONFLICT = "index_failed_due_to_version_conflict";
         static final String DELETE_TOTAL = "delete_total";
         static final String DELETE_TIME = "delete_time";
         static final String DELETE_TIME_IN_MILLIS = "delete_time_in_millis";

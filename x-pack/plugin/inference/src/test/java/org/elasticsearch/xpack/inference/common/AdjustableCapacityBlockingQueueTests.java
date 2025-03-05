@@ -233,6 +233,65 @@ public class AdjustableCapacityBlockingQueueTests extends ESTestCase {
         assertThat(queue.size(), is(0));
     }
 
+    public void testPeek_ReturnsItemWithoutRemoving() {
+        var queue = new AdjustableCapacityBlockingQueue<>(QUEUE_CREATOR, 1);
+        assertThat(queue.size(), is(0));
+
+        queue.offer(0);
+        assertThat(queue.size(), is(1));
+        assertThat(queue.peek(), is(0));
+        assertThat(queue.size(), is(1));
+        assertThat(queue.peek(), is(0));
+    }
+
+    public void testPeek_ExistingItem_RemainsAtFront_AfterCapacityChange() throws InterruptedException {
+        var queue = new AdjustableCapacityBlockingQueue<>(QUEUE_CREATOR, 1);
+        queue.offer(0);
+        assertThat(queue.size(), is(1));
+        assertThat(queue.remainingCapacity(), is(0));
+        assertThat(queue.peek(), is(0));
+
+        queue.setCapacity(2);
+        assertThat(queue.remainingCapacity(), is(1));
+        assertThat(queue.peek(), is(0));
+
+        queue.offer(1);
+        assertThat(queue.peek(), is(0));
+        assertThat(queue.take(), is(0));
+        assertThat(queue.peek(), is(1));
+    }
+
+    public void testPoll_ReturnsNull_WhenNoItemsAreAvailable() {
+        var queue = new AdjustableCapacityBlockingQueue<>(QUEUE_CREATOR, 1);
+        assertNull(queue.poll());
+    }
+
+    public void testPoll_ReturnsFirstElement() {
+        var queue = new AdjustableCapacityBlockingQueue<>(QUEUE_CREATOR, 1);
+        queue.offer(0);
+        assertThat(queue.poll(), is(0));
+        assertThat(queue.size(), is(0));
+        assertThat(queue.remainingCapacity(), is(1));
+    }
+
+    public void testPoll_ReturnsFirstElement_AfterCapacityIncrease() {
+        var queue = new AdjustableCapacityBlockingQueue<>(QUEUE_CREATOR, 1);
+        queue.offer(0);
+        queue.setCapacity(2);
+        queue.offer(1);
+
+        assertThat(queue.remainingCapacity(), is(0));
+        assertThat(queue.size(), is(2));
+
+        assertThat(queue.poll(), is(0));
+        assertThat(queue.size(), is(1));
+        assertThat(queue.remainingCapacity(), is(1));
+
+        assertThat(queue.poll(), is(1));
+        assertThat(queue.size(), is(0));
+        assertThat(queue.remainingCapacity(), is(2));
+    }
+
     public static <E> AdjustableCapacityBlockingQueue.QueueCreator<E> mockQueueCreator(BlockingQueue<E> backingQueue) {
         return new AdjustableCapacityBlockingQueue.QueueCreator<>() {
             @Override

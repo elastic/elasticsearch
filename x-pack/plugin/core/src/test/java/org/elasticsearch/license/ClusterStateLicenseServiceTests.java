@@ -64,11 +64,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Due to changes in JDK9 where locale data is used from CLDR, the licence message will differ in jdk 8 and jdk9+
- * https://openjdk.java.net/jeps/252
- * We run ES with -Djava.locale.providers=SPI,COMPAT and same option has to be applied when running this test from IDE
- */
 public class ClusterStateLicenseServiceTests extends ESTestCase {
 
     // must use member mock for generic
@@ -199,7 +194,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             assertThat(response.getStatus(), equalTo(PostStartBasicResponse.Status.GENERATED_BASIC));
         };
         final PlainActionFuture<PostStartBasicResponse> future = new PlainActionFuture<>();
-        service.startBasicLicense(new PostStartBasicRequest(), future);
+        service.startBasicLicense(new PostStartBasicRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT), future);
 
         if (future.isDone()) {
             // If validation failed, the future might be done without calling the updater task.
@@ -276,6 +271,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
         final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
+
         final ClusterStateLicenseService service = new ClusterStateLicenseService(
             settings,
             threadPool,
@@ -284,7 +280,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             licenseState
         );
 
-        final PutLicenseRequest request = new PutLicenseRequest();
+        final PutLicenseRequest request = new PutLicenseRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.license(toSpec(license), XContentType.JSON);
         final PlainActionFuture<PutLicenseResponse> future = new PlainActionFuture<>();
         service.registerLicense(request, future);

@@ -64,8 +64,10 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
      */
     public void maybeCreateNodeEnrollmentToken(Consumer<String> consumer, Iterator<TimeValue> backoff) {
         // the enrollment token can only be used against the node that generated it
-        final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().nodesIds("_local")
-            .addMetrics(NodesInfoMetrics.Metric.HTTP.metricName(), NodesInfoMetrics.Metric.TRANSPORT.metricName());
+        final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest("_local").addMetrics(
+            NodesInfoMetrics.Metric.HTTP.metricName(),
+            NodesInfoMetrics.Metric.TRANSPORT.metricName()
+        );
 
         client.execute(TransportNodesInfoAction.TYPE, nodesInfoRequest, ActionListener.wrap(response -> {
             assert response.getNodes().size() == 1;
@@ -132,8 +134,7 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
      */
     public void createKibanaEnrollmentToken(Consumer<EnrollmentToken> consumer, Iterator<TimeValue> backoff) {
         // the enrollment token can only be used against the node that generated it
-        final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().nodesIds("_local")
-            .addMetric(NodesInfoMetrics.Metric.HTTP.metricName());
+        final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest("_local").addMetric(NodesInfoMetrics.Metric.HTTP.metricName());
         client.execute(TransportNodesInfoAction.TYPE, nodesInfoRequest, ActionListener.wrap(response -> {
             assert response.getNodes().size() == 1;
             NodeInfo nodeInfo = response.getNodes().get(0);

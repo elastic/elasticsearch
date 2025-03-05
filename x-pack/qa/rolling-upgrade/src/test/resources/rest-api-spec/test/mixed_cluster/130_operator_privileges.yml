@@ -1,9 +1,9 @@
 ---
 "Test operator privileges will work in the mixed cluster":
 
-  - skip:
-      features: headers
-      version: " - 7.10.99"
+  - requires:
+      test_runner_features: headers
+      cluster_features: ["gte_v7.11.0"]
       reason: "operator privileges are available since 7.11"
 
   # The default user ("test_user") is an operator, so this works

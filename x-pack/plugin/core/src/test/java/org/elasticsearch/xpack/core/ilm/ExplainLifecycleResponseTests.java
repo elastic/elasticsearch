@@ -12,16 +12,35 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class ExplainLifecycleResponseTests extends AbstractXContentSerializingTestCase<ExplainLifecycleResponse> {
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<ExplainLifecycleResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "explain_lifecycle_response",
+        a -> new ExplainLifecycleResponse(
+            ((List<IndexLifecycleExplainResponse>) a[0]).stream()
+                .collect(Collectors.toMap(IndexLifecycleExplainResponse::getIndex, Function.identity()))
+        )
+    );
+    static {
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.constructorArg(),
+            (p, c, n) -> IndexLifecycleExplainResponse.PARSER.apply(p, c),
+            ExplainLifecycleResponse.INDICES_FIELD
+        );
+    }
 
     @Override
     protected ExplainLifecycleResponse createTestInstance() {
@@ -51,7 +70,7 @@ public class ExplainLifecycleResponseTests extends AbstractXContentSerializingTe
 
     @Override
     protected ExplainLifecycleResponse doParseInstance(XContentParser parser) throws IOException {
-        return ExplainLifecycleResponse.fromXContent(parser);
+        return PARSER.apply(parser, null);
     }
 
     @Override
@@ -61,7 +80,7 @@ public class ExplainLifecycleResponseTests extends AbstractXContentSerializingTe
 
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new))
+            List.of(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new))
         );
     }
 

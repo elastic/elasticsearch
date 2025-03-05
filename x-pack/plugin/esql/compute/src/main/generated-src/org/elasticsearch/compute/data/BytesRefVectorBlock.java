@@ -8,11 +8,13 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a {@link BytesRefVector}. Cannot represent multi-values or nulls.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class BytesRefVectorBlock extends AbstractVectorBlock implements BytesRefBlock {
 
@@ -28,6 +30,16 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     @Override
     public BytesRefVector asVector() {
         return vector;
+    }
+
+    @Override
+    public OrdinalBytesRefBlock asOrdinals() {
+        var ordinals = vector.asOrdinals();
+        if (ordinals != null) {
+            return ordinals.asBlock();
+        } else {
+            return null;
+        }
     }
 
     @Override
@@ -48,6 +60,22 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     @Override
     public BytesRefBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
+    public ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public BytesRefBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override

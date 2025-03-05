@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -108,6 +109,7 @@ public class ServerProcessBuilder {
             esHome.resolve("lib").toString(),
             // Special circumstances require some modules (not depended on by the main server module) to be explicitly added:
             "--add-modules=jdk.net", // needed to reflectively set extended socket options
+            "--add-modules=jdk.management.agent", // needed by external debug tools to grab thread and heap dumps
             // we control the module path, which may have additional modules not required by server
             "--add-modules=ALL-MODULE-PATH",
             "-m",
@@ -154,7 +156,7 @@ public class ServerProcessBuilder {
         boolean success = false;
         try {
             jvmProcess = createProcess(getCommand(), getJvmArgs(), jvmOptions, getEnvironment(), processStarter);
-            errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream());
+            errorPump = new ErrorPumpThread(terminal, jvmProcess.getErrorStream());
             errorPump.start();
             sendArgs(serverArgs, jvmProcess.getOutputStream());
 

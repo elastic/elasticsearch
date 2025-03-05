@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -27,18 +28,14 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public final class SearchHits implements Writeable, ChunkedToXContent, RefCounted, Iterable<SearchHit> {
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
-    public static final SearchHits EMPTY_WITH_TOTAL_HITS = SearchHits.empty(new TotalHits(0, Relation.EQUAL_TO), 0);
+    public static final SearchHits EMPTY_WITH_TOTAL_HITS = SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, 0);
     public static final SearchHits EMPTY_WITHOUT_TOTAL_HITS = SearchHits.empty(null, 0);
 
     private final SearchHit[] hits;
@@ -288,19 +285,18 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         assert hasReferences();
-        return Iterators.concat(Iterators.single((b, p) -> b.startObject(Fields.HITS)), Iterators.single((b, p) -> {
+        return Iterators.concat(Iterators.single((b, p) -> {
+            b.startObject(Fields.HITS);
             boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
             if (totalHitAsInt) {
-                long total = totalHits == null ? -1 : totalHits.value;
+                long total = totalHits == null ? -1 : totalHits.value();
                 b.field(Fields.TOTAL, total);
             } else if (totalHits != null) {
                 b.startObject(Fields.TOTAL);
-                b.field("value", totalHits.value);
-                b.field("relation", totalHits.relation == Relation.EQUAL_TO ? "eq" : "gte");
+                b.field("value", totalHits.value());
+                b.field("relation", totalHits.relation() == Relation.EQUAL_TO ? "eq" : "gte");
                 b.endObject();
             }
-            return b;
-        }), Iterators.single((b, p) -> {
             if (Float.isNaN(maxScore)) {
                 b.nullField(Fields.MAX_SCORE);
             } else {
@@ -308,50 +304,6 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
             }
             return b;
         }), ChunkedToXContentHelper.array(Fields.HITS, Iterators.forArray(hits)), ChunkedToXContentHelper.endObject());
-    }
-
-    public static SearchHits fromXContent(XContentParser parser) throws IOException {
-        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            parser.nextToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        }
-        XContentParser.Token token = parser.currentToken();
-        String currentFieldName = null;
-        List<SearchHit> hits = new ArrayList<>();
-        TotalHits totalHits = null;
-        float maxScore = 0f;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (Fields.TOTAL.equals(currentFieldName)) {
-                    // For BWC with nodes pre 7.0
-                    long value = parser.longValue();
-                    totalHits = value == -1 ? null : new TotalHits(value, Relation.EQUAL_TO);
-                } else if (Fields.MAX_SCORE.equals(currentFieldName)) {
-                    maxScore = parser.floatValue();
-                }
-            } else if (token == XContentParser.Token.VALUE_NULL) {
-                if (Fields.MAX_SCORE.equals(currentFieldName)) {
-                    maxScore = Float.NaN; // NaN gets rendered as null-field
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if (Fields.HITS.equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        hits.add(SearchHit.fromXContent(parser));
-                    }
-                } else {
-                    parser.skipChildren();
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (Fields.TOTAL.equals(currentFieldName)) {
-                    totalHits = parseTotalHitsFragment(parser);
-                } else {
-                    parser.skipChildren();
-                }
-            }
-        }
-        return SearchHits.unpooled(hits.toArray(SearchHits.EMPTY), totalHits, maxScore);
     }
 
     @Override

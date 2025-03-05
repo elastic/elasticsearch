@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.lucene.grouping;
 
@@ -113,11 +114,11 @@ public class SinglePassGroupingCollectorSearchAfterTests extends ESTestCase {
         TopFieldDocs topDocs = searcher.search(query, topFieldCollectorManager);
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(sortField.getField(), collapseTopFieldDocs.field);
-        assertEquals(totalHits, collapseTopFieldDocs.totalHits.value);
+        assertEquals(totalHits, collapseTopFieldDocs.totalHits.value());
         assertEquals(expectedNumGroups, collapseTopFieldDocs.scoreDocs.length);
 
-        assertEquals(TotalHits.Relation.EQUAL_TO, collapseTopFieldDocs.totalHits.relation);
-        assertEquals(totalHits, topDocs.totalHits.value);
+        assertEquals(TotalHits.Relation.EQUAL_TO, collapseTopFieldDocs.totalHits.relation());
+        assertEquals(totalHits, topDocs.totalHits.value());
 
         Object currentValue = null;
         int topDocsIndex = 0;

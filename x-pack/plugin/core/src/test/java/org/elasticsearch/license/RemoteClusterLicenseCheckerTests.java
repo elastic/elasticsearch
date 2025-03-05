@@ -20,6 +20,7 @@ import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 
 import java.util.ArrayList;
@@ -147,7 +148,11 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
         final ThreadPool threadPool = createMockThreadPool();
         final Client client = createMockClient(threadPool);
-        final RemoteClusterClient remoteClient = client.getRemoteClusterClient("", Runnable::run);
+        final RemoteClusterClient remoteClient = client.getRemoteClusterClient(
+            "",
+            Runnable::run,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
         doAnswer(invocationMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<XPackInfoResponse> listener = (ActionListener<XPackInfoResponse>) invocationMock.getArguments()[2];
@@ -196,7 +201,11 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
         final ThreadPool threadPool = createMockThreadPool();
         final Client client = createMockClient(threadPool);
-        final RemoteClusterClient remoteClient = client.getRemoteClusterClient("", Runnable::run);
+        final RemoteClusterClient remoteClient = client.getRemoteClusterClient(
+            "",
+            Runnable::run,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
         doAnswer(invocationMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<XPackInfoResponse> listener = (ActionListener<XPackInfoResponse>) invocationMock.getArguments()[2];
@@ -240,7 +249,11 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         final String failingClusterAlias = randomFrom(remoteClusterAliases);
         final ThreadPool threadPool = createMockThreadPool();
         final Client client = createMockClientThatThrowsOnGetRemoteClusterClient(threadPool, failingClusterAlias);
-        final RemoteClusterClient remoteClient = client.getRemoteClusterClient("", Runnable::run);
+        final RemoteClusterClient remoteClient = client.getRemoteClusterClient(
+            "",
+            Runnable::run,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
         doAnswer(invocationMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<XPackInfoResponse> listener = (ActionListener<XPackInfoResponse>) invocationMock.getArguments()[2];
@@ -285,7 +298,11 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
         try {
             final Client client = createMockClient(threadPool);
-            final RemoteClusterClient remoteClient = client.getRemoteClusterClient("", Runnable::run);
+            final RemoteClusterClient remoteClient = client.getRemoteClusterClient(
+                "",
+                Runnable::run,
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+            );
             doAnswer(invocationMock -> {
                 assertTrue(threadPool.getThreadContext().isSystemContext());
                 @SuppressWarnings("unchecked")
@@ -321,7 +338,11 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
             } else {
                 client = createMockClient(threadPool);
             }
-            final RemoteClusterClient remoteClient = client.getRemoteClusterClient("", Runnable::run);
+            final RemoteClusterClient remoteClient = client.getRemoteClusterClient(
+                "",
+                Runnable::run,
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+            );
             doAnswer(invocationMock -> {
                 @SuppressWarnings("unchecked")
                 ActionListener<XPackInfoResponse> listener = (ActionListener<XPackInfoResponse>) invocationMock.getArguments()[2];
@@ -411,7 +432,11 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
     public void testCheckRemoteClusterLicencesNoLicenseMetadata() {
         final ThreadPool threadPool = createMockThreadPool();
         final Client client = createMockClient(threadPool);
-        final RemoteClusterClient remoteClient = client.getRemoteClusterClient("", Runnable::run);
+        final RemoteClusterClient remoteClient = client.getRemoteClusterClient(
+            "",
+            Runnable::run,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
         doAnswer(invocationMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<XPackInfoResponse> listener = (ActionListener<XPackInfoResponse>) invocationMock.getArguments()[2];
@@ -478,14 +503,17 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
 
     private Client createMockClient(final ThreadPool threadPool) {
         final var remoteClient = mock(RemoteClusterClient.class);
-        return createMockClient(threadPool, client -> when(client.getRemoteClusterClient(anyString(), any())).thenReturn(remoteClient));
+        return createMockClient(
+            threadPool,
+            client -> when(client.getRemoteClusterClient(anyString(), any(), any())).thenReturn(remoteClient)
+        );
     }
 
     private Client createMockClientThatThrowsOnGetRemoteClusterClient(final ThreadPool threadPool, final String clusterAlias) {
         final var remoteClient = mock(RemoteClusterClient.class);
         return createMockClient(threadPool, client -> {
-            when(client.getRemoteClusterClient(eq(clusterAlias), any())).thenThrow(new IllegalArgumentException());
-            when(client.getRemoteClusterClient(argThat(a -> not(clusterAlias).matches(a)), any())).thenReturn(remoteClient);
+            when(client.getRemoteClusterClient(eq(clusterAlias), any(), any())).thenThrow(new IllegalArgumentException());
+            when(client.getRemoteClusterClient(argThat(a -> not(clusterAlias).matches(a)), any(), any())).thenReturn(remoteClient);
         });
     }
 

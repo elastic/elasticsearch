@@ -23,15 +23,14 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -55,7 +54,6 @@ public class TransportRetryAction extends TransportMasterNodeAction<TransportRet
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         IndexLifecycleService indexLifecycleService
     ) {
         super(
@@ -65,7 +63,6 @@ public class TransportRetryAction extends TransportMasterNodeAction<TransportRet
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -83,7 +80,7 @@ public class TransportRetryAction extends TransportMasterNodeAction<TransportRet
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 for (String index : request.indices()) {
-                    IndexMetadata idxMeta = newState.metadata().index(index);
+                    IndexMetadata idxMeta = newState.metadata().getProject().index(index);
                     LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                     StepKey retryStep = new StepKey(lifecycleState.phase(), lifecycleState.action(), lifecycleState.step());
                     if (idxMeta == null) {
@@ -114,10 +111,11 @@ public class TransportRetryAction extends TransportMasterNodeAction<TransportRet
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
-        private String[] indices = Strings.EMPTY_ARRAY;
+        private String[] indices;
         private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
-        public Request(String... indices) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String... indices) {
+            super(masterNodeTimeout, ackTimeout);
             this.indices = indices;
         }
 
@@ -126,8 +124,6 @@ public class TransportRetryAction extends TransportMasterNodeAction<TransportRet
             this.indices = in.readStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
-
-        public Request() {}
 
         @Override
         public Request indices(String... indices) {

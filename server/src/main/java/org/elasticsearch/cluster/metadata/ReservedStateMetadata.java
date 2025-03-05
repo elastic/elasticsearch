@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -46,6 +47,10 @@ public record ReservedStateMetadata(
     ReservedStateErrorMetadata errorMetadata
 ) implements SimpleDiffable<ReservedStateMetadata>, ToXContentFragment {
 
+    public static final Long NO_VERSION = Long.MIN_VALUE; // use min long as sentinel for uninitialized version
+    public static final Long EMPTY_VERSION = -1L; // use -1 as sentinel for empty metadata
+    public static final Long RESTORED_VERSION = 0L; // use 0 as sentinel for metadata restored from snapshot
+
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField HANDLERS = new ParseField("handlers");
     private static final ParseField ERRORS_METADATA = new ParseField("errors");
@@ -84,6 +89,21 @@ public record ReservedStateMetadata(
         Set<String> intersect = new HashSet<>(handlerMetadata.keys());
         intersect.retainAll(modified);
         return Collections.unmodifiableSet(intersect);
+    }
+
+    /**
+     * Get the reserved keys for the handler name
+     *
+     * @param handlerName handler name to get keys for
+     * @return set of keys for that handler
+     */
+    public Set<String> keys(String handlerName) {
+        ReservedStateHandlerMetadata handlerMetadata = handlers.get(handlerName);
+        if (handlerMetadata == null || handlerMetadata.keys().isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        return Collections.unmodifiableSet(handlerMetadata.keys());
     }
 
     /**
@@ -209,7 +229,7 @@ public record ReservedStateMetadata(
          */
         public Builder(String namespace) {
             this.namespace = namespace;
-            this.version = -1L;
+            this.version = NO_VERSION;
             this.handlers = new HashMap<>();
             this.errorMetadata = null;
         }

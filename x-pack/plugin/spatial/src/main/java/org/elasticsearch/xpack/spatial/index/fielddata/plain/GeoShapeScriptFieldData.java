@@ -70,10 +70,6 @@ public final class GeoShapeScriptFieldData extends AbstractShapeIndexFieldData<G
                 return 0;
             }
 
-            @Override
-            public void close() {
-
-            }
         };
     }
 }

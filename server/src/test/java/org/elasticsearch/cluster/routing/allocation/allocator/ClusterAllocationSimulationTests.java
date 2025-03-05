@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -138,7 +139,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         final var metadata = metadataBuilder.build();
 
         final var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        for (final var indexMetadata : metadata) {
+        for (final var indexMetadata : metadata.getProject()) {
             routingTableBuilder.addAsNew(indexMetadata);
         }
 
@@ -321,11 +322,12 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 final var unassignedIterator = routingNodes.unassigned().iterator();
                 while (unassignedIterator.hasNext()) {
                     final var shardRouting = unassignedIterator.next();
-                    final var badNodes = routingAllocation.routingTable()
-                        .index(shardRouting.index())
-                        .shard(shardRouting.id())
-                        .assignedShards()
+                    final var badNodes = routingAllocation.globalRoutingTable()
+                        .routingTables()
+                        .values()
                         .stream()
+                        .filter(table -> table.hasIndex(shardRouting.index()))
+                        .flatMap(table -> table.index(shardRouting.index()).shard(shardRouting.id()).assignedShards().stream())
                         .map(ShardRouting::currentNodeId)
                         .collect(Collectors.toSet());
                     unassignedIterator.initialize(
@@ -387,8 +389,9 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 for (ShardRouting shardRouting : routingNode) {
                     shards += 1;
                     totalBytes += shardSizesByIndex.get(shardRouting.index().getName());
-                    totalWriteLoad += TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(clusterState.metadata().index(shardRouting.index()))
-                        .orElseThrow(() -> new AssertionError("missing write load"));
+                    totalWriteLoad += TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(
+                        clusterState.metadata().getProject().index(shardRouting.index())
+                    ).orElseThrow(() -> new AssertionError("missing write load"));
                 }
 
                 results.startObject();
@@ -489,7 +492,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             clusterService,
             (clusterState, routingAllocationAction) -> strategyRef.get()
                 .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationAction),
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         ) {
             @Override
             public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {

@@ -17,7 +17,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.metrics.AggregateMetricsAggregatorsRegistrar;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
@@ -32,7 +32,7 @@ public class AggregateMetricMapperPlugin extends Plugin implements MapperPlugin,
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return singletonMap(AggregateDoubleMetricFieldMapper.CONTENT_TYPE, AggregateDoubleMetricFieldMapper.PARSER);
+        return singletonMap(AggregateMetricDoubleFieldMapper.CONTENT_TYPE, AggregateMetricDoubleFieldMapper.PARSER);
     }
 
     @Override

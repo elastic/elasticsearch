@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.watcher.transport.actions.execute;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,12 +24,6 @@ public class ExecuteWatchResponse extends ActionResponse implements ToXContentOb
 
     private final String recordId;
     private final XContentSource recordSource;
-
-    public ExecuteWatchResponse(StreamInput in) throws IOException {
-        super(in);
-        recordId = in.readString();
-        recordSource = XContentSource.readFrom(in);
-    }
 
     public ExecuteWatchResponse(String recordId, BytesReference recordSource, XContentType contentType) {
         this.recordId = recordId;

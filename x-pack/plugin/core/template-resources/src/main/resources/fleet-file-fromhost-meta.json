@@ -25,6 +25,9 @@
           "@timestamp": {
             "type": "date"
           },
+          "namespaces": {
+            "type": "keyword"
+          },
           "upload_start": {
             "type": "date"
           },

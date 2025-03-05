@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -14,7 +15,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,7 +37,7 @@ import java.util.function.UnaryOperator;
 /**
  * Contains metadata about registered snapshot repositories
  */
-public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implements Custom {
+public class RepositoriesMetadata extends AbstractNamedDiffable<Metadata.ClusterCustom> implements Metadata.ClusterCustom {
 
     public static final String TYPE = "repositories";
 
@@ -182,8 +182,8 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
         this.repositories = in.readCollectionAsImmutableList(RepositoryMetadata::new);
     }
 
-    public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(Custom.class, TYPE, in);
+    public static NamedDiff<Metadata.ClusterCustom> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(Metadata.ClusterCustom.class, TYPE, in);
     }
 
     /**

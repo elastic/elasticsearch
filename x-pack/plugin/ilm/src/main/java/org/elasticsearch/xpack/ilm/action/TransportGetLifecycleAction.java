@@ -15,9 +15,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,12 +33,14 @@ import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.Response;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 public class TransportGetLifecycleAction extends TransportMasterNodeAction<Request, Response> {
+
+    private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportGetLifecycleAction(
@@ -45,6 +48,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -54,10 +58,11 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             Response::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -67,11 +72,12 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
         if (cancellableTask.notifyIfCancelled(listener)) {
             return;
         }
+        var project = projectResolver.getProjectMetadata(state);
 
-        IndexLifecycleMetadata metadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata metadata = project.custom(IndexLifecycleMetadata.TYPE);
         if (metadata == null) {
             if (request.getPolicyNames().length == 0) {
-                listener.onResponse(new Response(Collections.emptyList()));
+                listener.onResponse(new Response(List.of()));
             } else {
                 listener.onFailure(
                     new ResourceNotFoundException("Lifecycle policy not found: {}", Arrays.toString(request.getPolicyNames()))
@@ -106,7 +112,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                                     policyMetadata.getPolicy(),
                                     policyMetadata.getVersion(),
                                     policyMetadata.getModifiedDateString(),
-                                    LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, state, policyMetadata.getName())
+                                    LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, project, policyMetadata.getName())
                                 )
                             );
                         }
@@ -123,7 +129,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                             policyMetadata.getPolicy(),
                             policyMetadata.getVersion(),
                             policyMetadata.getModifiedDateString(),
-                            LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, state, policyMetadata.getName())
+                            LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, project, policyMetadata.getName())
                         )
                     );
                 }

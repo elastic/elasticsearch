@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata.ordinals;
@@ -19,7 +20,6 @@ import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
@@ -40,13 +40,13 @@ public class MultiOrdinals extends Ordinals {
         float acceptableOverheadRatio
     ) {
         int bitsPerOrd = PackedInts.bitsRequired(numOrds);
-        bitsPerOrd = PackedInts.fastestFormatAndBits(numDocsWithValue, bitsPerOrd, acceptableOverheadRatio).bitsPerValue;
+        bitsPerOrd = PackedInts.fastestFormatAndBits(numDocsWithValue, bitsPerOrd, acceptableOverheadRatio).bitsPerValue();
         // Compute the worst-case number of bits per value for offsets in the worst case, eg. if no docs have a value at the
         // beginning of the block and all docs have one at the end of the block
         final float avgValuesPerDoc = (float) numDocsWithValue / maxDoc;
         final int maxDelta = (int) Math.ceil(OFFSETS_PAGE_SIZE * (1 - avgValuesPerDoc) * avgValuesPerDoc);
         int bitsPerOffset = PackedInts.bitsRequired(maxDelta) + 1; // +1 because of the sign
-        bitsPerOffset = PackedInts.fastestFormatAndBits(maxDoc, bitsPerOffset, acceptableOverheadRatio).bitsPerValue;
+        bitsPerOffset = PackedInts.fastestFormatAndBits(maxDoc, bitsPerOffset, acceptableOverheadRatio).bitsPerValue();
 
         final long expectedMultiSizeInBytes = (long) numDocsWithValue * bitsPerOrd + (long) maxDoc * bitsPerOffset;
         final long expectedSingleSizeInBytes = (long) maxDoc * bitsPerOrd;
@@ -107,7 +107,6 @@ public class MultiOrdinals extends Ordinals {
 
         private int currentDoc = -1;
         private long currentStartOffset;
-        private long currentEndOffset;
 
         SingleDocs(MultiOrdinals ordinals, ValuesHolder values) {
             this.valueCount = (int) ordinals.valueCount;
@@ -122,11 +121,10 @@ public class MultiOrdinals extends Ordinals {
         }
 
         @Override
-        public boolean advanceExact(int docId) throws IOException {
+        public boolean advanceExact(int docId) {
             currentDoc = docId;
             currentStartOffset = docId != 0 ? endOffsets.get(docId - 1) : 0;
-            currentEndOffset = endOffsets.get(docId);
-            return currentStartOffset != currentEndOffset;
+            return currentStartOffset != endOffsets.get(docId);
         }
 
         @Override
@@ -155,6 +153,7 @@ public class MultiOrdinals extends Ordinals {
 
         private long currentOffset;
         private long currentEndOffset;
+        private int count;
 
         MultiDocs(MultiOrdinals ordinals, ValuesHolder values) {
             this.valueCount = ordinals.valueCount;
@@ -169,24 +168,22 @@ public class MultiOrdinals extends Ordinals {
         }
 
         @Override
-        public boolean advanceExact(int docId) throws IOException {
+        public boolean advanceExact(int docId) {
             currentOffset = docId != 0 ? endOffsets.get(docId - 1) : 0;
             currentEndOffset = endOffsets.get(docId);
+            count = Math.toIntExact(currentEndOffset - currentOffset);
             return currentOffset != currentEndOffset;
         }
 
         @Override
-        public long nextOrd() throws IOException {
-            if (currentOffset == currentEndOffset) {
-                return SortedSetDocValues.NO_MORE_ORDS;
-            } else {
-                return ords.get(currentOffset++);
-            }
+        public long nextOrd() {
+            assert currentOffset != currentEndOffset;
+            return ords.get(currentOffset++);
         }
 
         @Override
         public int docValueCount() {
-            return Math.toIntExact(currentEndOffset - currentOffset);
+            return count;
         }
 
         @Override

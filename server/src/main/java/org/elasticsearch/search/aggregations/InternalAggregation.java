@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
@@ -32,7 +35,6 @@ import java.util.function.Function;
  */
 public abstract class InternalAggregation implements Aggregation, NamedWriteable {
     protected final String name;
-
     protected final Map<String, Object> metadata;
 
     /**
@@ -49,8 +51,15 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * Read from a stream.
      */
     protected InternalAggregation(StreamInput in) throws IOException {
-        name = in.readString();
-        metadata = in.readGenericMap();
+        final String name = in.readString();
+        final Map<String, Object> metadata = in.readGenericMap();
+        if (in instanceof DelayableWriteable.Deduplicator d) {
+            this.name = d.deduplicate(name);
+            this.metadata = metadata == null || metadata.isEmpty() ? metadata : d.deduplicate(metadata);
+        } else {
+            this.name = name;
+            this.metadata = metadata;
+        }
     }
 
     @Override
@@ -138,6 +147,11 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             @Override
             public InternalAggregation get() {
                 return aggregatorReducer == null ? current : aggregatorReducer.get();
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(aggregatorReducer);
             }
         };
     }

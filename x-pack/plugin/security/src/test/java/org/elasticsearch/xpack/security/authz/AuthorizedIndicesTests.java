@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -51,7 +52,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             Role.EMPTY,
             getRequestInfo(""),
-            Metadata.EMPTY_METADATA.getIndicesLookup(),
+            Metadata.EMPTY_METADATA.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertTrue(authorizedIndices.all().get().isEmpty());
@@ -111,7 +112,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            metadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(authorizedIndices.all().get(), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
@@ -130,7 +131,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            Metadata.EMPTY_METADATA.getIndicesLookup(),
+            Metadata.EMPTY_METADATA.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertTrue(authorizedIndices.all().get().isEmpty());
@@ -141,7 +142,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            Metadata.EMPTY_METADATA.getIndicesLookup(),
+            Metadata.EMPTY_METADATA.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertTrue(authorizedIndices.all().get().isEmpty());
@@ -173,7 +174,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            metadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(authorizedIndices.all().get(), containsInAnyOrder("an-index", "another-index"));
@@ -211,7 +212,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            metadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(
@@ -222,7 +223,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndicesSuperUser = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            metadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(
@@ -293,7 +294,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            metadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(authorizedIndices.all().get(), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
@@ -378,7 +379,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             requestInfo,
-            metadata.getIndicesLookup(),
+            metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(authorizedIndices.all().get(), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab", "adatastream1", backingIndex));
@@ -393,7 +394,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public static AuthorizationEngine.RequestInfo getRequestInfo(String action) {
-        return getRequestInfo(TransportRequest.Empty.INSTANCE, action);
+        return getRequestInfo(new EmptyRequest(), action);
     }
 
     public static AuthorizationEngine.RequestInfo getRequestInfo(TransportRequest request, String action) {

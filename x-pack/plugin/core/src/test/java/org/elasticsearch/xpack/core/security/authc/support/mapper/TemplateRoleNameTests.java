@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authc.support.mapper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -89,7 +90,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testEvaluateRoles() throws Exception {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
@@ -145,7 +146,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidate() {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
@@ -173,7 +174,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidateWillPassWithEmptyContext() {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
@@ -204,7 +205,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidateWillFailForSyntaxError() {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
@@ -268,7 +269,7 @@ public class TemplateRoleNameTests extends ESTestCase {
         final Settings settings = Settings.builder().put("script.allowed_types", ScriptService.ALLOW_NONE).build();
         final ScriptService scriptService = new ScriptService(
             settings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
@@ -285,7 +286,7 @@ public class TemplateRoleNameTests extends ESTestCase {
         final Settings settings = Settings.builder().put("script.allowed_types", ScriptService.ALLOW_NONE).build();
         final ScriptService scriptService = new ScriptService(
             settings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
@@ -294,9 +295,11 @@ public class TemplateRoleNameTests extends ESTestCase {
         final Metadata metadata = mock(Metadata.class);
         final StoredScriptSource storedScriptSource = mock(StoredScriptSource.class);
         final ScriptMetadata scriptMetadata = new ScriptMetadata.Builder(null).storeScript("foo", storedScriptSource).build();
+        final ProjectMetadata project = mock(ProjectMetadata.class);
         when(clusterChangedEvent.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
-        when(metadata.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
+        when(project.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
+        when(metadata.getProject()).thenReturn(project);
         when(storedScriptSource.getLang()).thenReturn("mustache");
         when(storedScriptSource.getSource()).thenReturn("");
         when(storedScriptSource.getOptions()).thenReturn(Collections.emptyMap());
@@ -314,7 +317,7 @@ public class TemplateRoleNameTests extends ESTestCase {
     public void testValidateWillFailWhenStoredScriptIsNotFound() {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
@@ -322,9 +325,11 @@ public class TemplateRoleNameTests extends ESTestCase {
         final ClusterState clusterState = mock(ClusterState.class);
         final Metadata metadata = mock(Metadata.class);
         final ScriptMetadata scriptMetadata = new ScriptMetadata.Builder(null).build();
+        final ProjectMetadata project = mock(ProjectMetadata.class);
         when(clusterChangedEvent.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
-        when(metadata.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
+        when(project.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
+        when(metadata.getProject()).thenReturn(project);
         scriptService.applyClusterState(clusterChangedEvent);
 
         final BytesReference storedScript = new BytesArray("""

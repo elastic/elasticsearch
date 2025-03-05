@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.repositories.reservedstate;
 
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -20,9 +22,7 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -42,7 +42,8 @@ import static org.mockito.Mockito.spy;
  */
 public class ReservedRepositoryActionTests extends ESTestCase {
 
-    private TransformState processJSON(ReservedRepositoryAction action, TransformState prevState, String json) throws Exception {
+    private TransformState<ClusterState> processJSON(ReservedRepositoryAction action, TransformState<ClusterState> prevState, String json)
+        throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             return action.transform(action.fromXContent(parser), prevState);
         }
@@ -52,7 +53,7 @@ public class ReservedRepositoryActionTests extends ESTestCase {
         var repositoriesService = mockRepositoriesService();
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
         ReservedRepositoryAction action = new ReservedRepositoryAction(repositoriesService);
 
         String badPolicyJSON = """
@@ -75,12 +76,12 @@ public class ReservedRepositoryActionTests extends ESTestCase {
         var repositoriesService = mockRepositoriesService();
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
         ReservedRepositoryAction action = new ReservedRepositoryAction(repositoriesService);
 
         String emptyJSON = "";
 
-        TransformState updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState<ClusterState> updatedState = processJSON(action, prevState, emptyJSON);
         assertEquals(0, updatedState.keys().size());
         assertEquals(prevState.state(), updatedState.state());
 
@@ -109,7 +110,7 @@ public class ReservedRepositoryActionTests extends ESTestCase {
         var repositoriesService = mockRepositoriesService();
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState prevState = new TransformState(state, Set.of("repo1"));
+        TransformState<ClusterState> prevState = new TransformState<>(state, Set.of("repo1"));
         ReservedRepositoryAction action = new ReservedRepositoryAction(repositoriesService);
 
         String emptyJSON = "";
@@ -122,7 +123,6 @@ public class ReservedRepositoryActionTests extends ESTestCase {
         );
     }
 
-    @SuppressWarnings("unchecked")
     private RepositoriesService mockRepositoriesService() {
         var fsFactory = new Repository.Factory() {
             @Override
@@ -134,15 +134,14 @@ public class ReservedRepositoryActionTests extends ESTestCase {
         };
 
         ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         RepositoriesService repositoriesService = spy(
             new RepositoriesService(
                 Settings.EMPTY,
                 mock(ClusterService.class),
-                transportService,
                 Map.of(),
                 Map.of("fs", fsFactory),
                 threadPool,
+                mock(NodeClient.class),
                 null
             )
         );

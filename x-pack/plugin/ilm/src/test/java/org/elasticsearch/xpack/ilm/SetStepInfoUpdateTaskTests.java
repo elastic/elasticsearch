@@ -8,20 +8,17 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -66,7 +63,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
 
         SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo);
         ClusterState newState = task.execute(clusterState);
-        LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState lifecycleState = newState.getMetadata().getProject().index(index).getLifecycleExecutionState();
         StepKey actualKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(currentStepKey));
         assertThat(lifecycleState.phaseTime(), nullValue());
@@ -119,25 +116,18 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
 
         SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo);
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "warning",
-                SetStepInfoUpdateTask.class.getCanonicalName(),
-                Level.WARN,
-                "*policy [" + policy + "] for index [" + index + "] failed trying to set step info for step [" + currentStepKey + "]."
-            )
-        );
+        try (var mockLog = MockLog.capture(SetStepInfoUpdateTask.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "warning",
+                    SetStepInfoUpdateTask.class.getCanonicalName(),
+                    Level.WARN,
+                    "*policy [" + policy + "] for index [" + index + "] failed trying to set step info for step [" + currentStepKey + "]."
+                )
+            );
 
-        final Logger taskLogger = LogManager.getLogger(SetStepInfoUpdateTask.class);
-        Loggers.addAppender(taskLogger, mockAppender);
-        try {
             task.onFailure(new RuntimeException("test exception"));
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(taskLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -153,7 +143,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
 
     private void setStateToKey(StepKey stepKey) {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
-            clusterState.metadata().index(index).getLifecycleExecutionState()
+            clusterState.metadata().getProject().index(index).getLifecycleExecutionState()
         );
         lifecycleState.setPhase(stepKey.phase());
         lifecycleState.setAction(stepKey.action());
@@ -163,7 +153,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
             .metadata(
                 Metadata.builder(clusterState.getMetadata())
                     .put(
-                        IndexMetadata.builder(clusterState.getMetadata().index(index))
+                        IndexMetadata.builder(clusterState.getMetadata().getProject().index(index))
                             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
                     )
             )

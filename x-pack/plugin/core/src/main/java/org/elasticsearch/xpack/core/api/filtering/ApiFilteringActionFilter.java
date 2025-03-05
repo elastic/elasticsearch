@@ -14,7 +14,8 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+
+import static org.elasticsearch.xpack.core.security.operator.OperatorPrivilegesUtil.isOperator;
 
 public abstract class ApiFilteringActionFilter<Res extends ActionResponse> implements MappedActionFilter {
 
@@ -32,11 +33,6 @@ public abstract class ApiFilteringActionFilter<Res extends ActionResponse> imple
     }
 
     @Override
-    public int order() {
-        return 0;
-    }
-
-    @Override
     public final String actionName() {
         return actionName;
     }
@@ -50,7 +46,7 @@ public abstract class ApiFilteringActionFilter<Res extends ActionResponse> imple
         ActionFilterChain<Request, Response> chain
     ) {
         final ActionListener<Response> responseFilteringListener;
-        if (isOperator() == false && actionName.equals(action)) {
+        if (isOperator(threadContext) == false && actionName.equals(action)) {
             responseFilteringListener = listener.map(this::filter);
         } else {
             responseFilteringListener = listener;
@@ -65,12 +61,6 @@ public abstract class ApiFilteringActionFilter<Res extends ActionResponse> imple
         } else {
             return response;
         }
-    }
-
-    private boolean isOperator() {
-        return AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
-            threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
-        );
     }
 
     protected abstract Res filterResponse(Res response) throws Exception;

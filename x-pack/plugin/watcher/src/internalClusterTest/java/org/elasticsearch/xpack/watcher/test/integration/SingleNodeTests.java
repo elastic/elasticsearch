@@ -46,7 +46,7 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
     // the watch should be executed properly, despite the index being created and the cluster state listener being reloaded
     public void testThatLoadingWithNonExistingIndexWorks() throws Exception {
         stopWatcher();
-        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         IndexMetadata metadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, clusterStateResponse.getState().metadata());
         String watchIndexName = metadata.getIndex().getName();
         assertAcked(indicesAdmin().prepareDelete(watchIndexName));
@@ -69,7 +69,7 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
             assertThat(refreshResponse.getStatus(), equalTo(RestStatus.OK));
             assertResponse(
                 prepareSearch(".watcher-history*").setSize(0),
-                searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(1L)))
+                searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), is(greaterThanOrEqualTo(1L)))
             );
         }, 30, TimeUnit.SECONDS);
     }

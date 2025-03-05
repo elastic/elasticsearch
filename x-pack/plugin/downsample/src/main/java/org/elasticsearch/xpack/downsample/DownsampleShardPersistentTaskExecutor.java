@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -34,6 +33,7 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -188,6 +188,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     static void realNodeOperation(
         Client client,
         IndicesService indicesService,
+        DownsampleMetrics downsampleMetrics,
         DownsampleShardTask task,
         DownsampleShardTaskParams params,
         BytesRef lastDownsampledTsid
@@ -209,6 +210,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                         task,
                         client,
                         indicesService.indexServiceSafe(params.shardId().getIndex()),
+                        downsampleMetrics,
                         params.shardId(),
                         params.downsampleIndex(),
                         params.downsampleConfig(),
@@ -303,17 +305,26 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
 
             private final Client client;
             private final IndicesService indicesService;
+            private final DownsampleMetrics downsampleMetrics;
 
             @Inject
-            public TA(TransportService transportService, ActionFilters actionFilters, Client client, IndicesService indicesService) {
-                super(NAME, actionFilters, transportService.getTaskManager());
+            public TA(
+                TransportService transportService,
+                ActionFilters actionFilters,
+                Client client,
+                IndicesService indicesService,
+                DownsampleMetrics downsampleMetrics
+            ) {
+                // TODO: consider moving to Downsample.DOWSAMPLE_TASK_THREAD_POOL_NAME and simplify realNodeOperation
+                super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
                 this.client = client;
                 this.indicesService = indicesService;
+                this.downsampleMetrics = downsampleMetrics;
             }
 
             @Override
             protected void doExecute(Task t, Request request, ActionListener<ActionResponse.Empty> listener) {
-                realNodeOperation(client, indicesService, request.task, request.params, request.lastDownsampleTsid);
+                realNodeOperation(client, indicesService, downsampleMetrics, request.task, request.params, request.lastDownsampleTsid);
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }
         }

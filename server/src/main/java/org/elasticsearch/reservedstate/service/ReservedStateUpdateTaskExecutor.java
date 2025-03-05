@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate.service;
@@ -21,7 +22,7 @@ import org.elasticsearch.core.Tuple;
 /**
  * Reserved cluster state update task executor
  */
-public class ReservedStateUpdateTaskExecutor extends SimpleBatchedExecutor<ReservedStateUpdateTask, Void> {
+public class ReservedStateUpdateTaskExecutor extends SimpleBatchedExecutor<ReservedStateUpdateTask<?>, Void> {
 
     private static final Logger logger = LogManager.getLogger(ReservedStateUpdateTaskExecutor.class);
 
@@ -33,12 +34,12 @@ public class ReservedStateUpdateTaskExecutor extends SimpleBatchedExecutor<Reser
     }
 
     @Override
-    public Tuple<ClusterState, Void> executeTask(ReservedStateUpdateTask task, ClusterState clusterState) {
+    public Tuple<ClusterState, Void> executeTask(ReservedStateUpdateTask<?> task, ClusterState clusterState) {
         return Tuple.tuple(task.execute(clusterState), null);
     }
 
     @Override
-    public void taskSucceeded(ReservedStateUpdateTask task, Void unused) {
+    public void taskSucceeded(ReservedStateUpdateTask<?> task, Void unused) {
         task.listener().onResponse(ActionResponse.Empty.INSTANCE);
     }
 

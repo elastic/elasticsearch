@@ -28,7 +28,9 @@ import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -39,6 +41,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestGetBuiltinPrivilegesAction.class);
+    // TODO remove this once we can update docs tests again
+    private static final Set<String> FAILURE_STORE_PRIVILEGES_TO_EXCLUDE = Set.of("read_failure_store");
     private final GetBuiltinPrivilegesResponseTranslator responseTranslator;
 
     public RestGetBuiltinPrivilegesAction(
@@ -62,19 +66,28 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final boolean restrictResponse = request.hasParam(RestRequest.PATH_RESTRICTED);
         return channel -> client.execute(
             GetBuiltinPrivilegesAction.INSTANCE,
             new GetBuiltinPrivilegesRequest(),
             new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(GetBuiltinPrivilegesResponse response, XContentBuilder builder) throws Exception {
-                    final var translatedResponse = responseTranslator.translate(response, restrictResponse);
+                    final var translatedResponse = responseTranslator.translate(response);
                     builder.startObject();
                     builder.array("cluster", translatedResponse.getClusterPrivileges());
-                    builder.array("index", translatedResponse.getIndexPrivileges());
+                    builder.array("index", filterOutFailureStorePrivileges(translatedResponse));
+                    String[] remoteClusterPrivileges = translatedResponse.getRemoteClusterPrivileges();
+                    if (remoteClusterPrivileges.length > 0) { // remote clusters are not supported in stateless mode, so hide entirely
+                        builder.array("remote_cluster", remoteClusterPrivileges);
+                    }
                     builder.endObject();
                     return new RestResponse(RestStatus.OK, builder);
+                }
+
+                private static String[] filterOutFailureStorePrivileges(GetBuiltinPrivilegesResponse translatedResponse) {
+                    return Arrays.stream(translatedResponse.getIndexPrivileges())
+                        .filter(p -> false == FAILURE_STORE_PRIVILEGES_TO_EXCLUDE.contains(p))
+                        .toArray(String[]::new);
                 }
             }
         );
@@ -82,9 +95,9 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     protected Exception innerCheckFeatureAvailable(RestRequest request) {
-        final boolean restrictPath = request.hasParam(RestRequest.PATH_RESTRICTED);
-        assert false == restrictPath || DiscoveryNode.isStateless(settings);
-        if (false == restrictPath) {
+        final boolean shouldRestrictForServerless = shouldRestrictForServerless(request);
+        assert false == shouldRestrictForServerless || DiscoveryNode.isStateless(settings);
+        if (false == shouldRestrictForServerless) {
             return super.innerCheckFeatureAvailable(request);
         }
         // This is a temporary hack: we are re-using the native roles setting as an overall feature flag for custom roles.
@@ -103,4 +116,7 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
         }
     }
 
+    private boolean shouldRestrictForServerless(RestRequest request) {
+        return request.isServerlessRequest() && false == request.isOperatorRequest();
+    }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch;
@@ -17,7 +18,10 @@ import org.elasticsearch.search.fetch.subphase.StoredFieldsPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Set;
+
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -64,6 +68,17 @@ public class StoredFieldsSpecTests extends ESTestCase {
         StoredFieldsSpec spec = subPhaseProcessor.storedFieldsSpec();
         assertFalse(spec.requiresSource());
         assertTrue(spec.requiresMetadata());
+    }
+
+    public void testNoCloneOnMerge() {
+        StoredFieldsSpec spec = StoredFieldsSpec.NO_REQUIREMENTS;
+        spec = spec.merge(StoredFieldsSpec.NEEDS_SOURCE);
+        assertThat(spec.requiredStoredFields(), sameInstance(StoredFieldsSpec.NO_REQUIREMENTS.requiredStoredFields()));
+
+        StoredFieldsSpec needsCat = new StoredFieldsSpec(false, false, Set.of("cat"));
+        StoredFieldsSpec withCat = spec.merge(needsCat);
+        spec = withCat.merge(StoredFieldsSpec.NO_REQUIREMENTS);
+        assertThat(spec.requiredStoredFields(), sameInstance(withCat.requiredStoredFields()));
     }
 
     private static SearchContext searchContext(SearchSourceBuilder sourceBuilder) {

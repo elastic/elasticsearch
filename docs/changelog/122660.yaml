@@ -1,0 +1,5 @@
+pr: 122660
+summary: Render `aggregate_metric_double`
+area: "ES|QL"
+type: enhancement
+issues: []

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 
-import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -19,14 +18,14 @@ import java.util.function.Supplier;
 public interface InferenceRequest {
 
     /**
-     * Returns the creator that handles building an executable request based on the input provided.
+     * Returns the manager that handles building and executing an inference request.
      */
-    ExecutableRequestCreator getRequestCreator();
+    RequestManager getRequestManager();
 
     /**
-     * Returns the text input associated with this request.
+     * Returns the inputs associated with the request.
      */
-    List<String> getInput();
+    InferenceInputs getInferenceInputs();
 
     /**
      * Returns the listener to notify of the results.

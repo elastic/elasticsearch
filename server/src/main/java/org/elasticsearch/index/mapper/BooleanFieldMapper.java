@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -48,6 +49,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -68,7 +70,7 @@ public class BooleanFieldMapper extends FieldMapper {
         return (BooleanFieldMapper) in;
     }
 
-    public static final class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
@@ -85,13 +87,18 @@ public class BooleanFieldMapper extends FieldMapper {
         ).acceptsNull();
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
-        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(
+            m -> toType(m).builderParams.onScriptError(),
+            script
+        );
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final ScriptCompiler scriptCompiler;
 
         private final IndexVersion indexCreatedVersion;
+
+        private final Parameter<Boolean> dimension;
 
         public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion) {
             super(name);
@@ -105,25 +112,58 @@ public class BooleanFieldMapper extends FieldMapper {
             );
             this.script.precludesParameters(ignoreMalformed, nullValue);
             addScriptValidation(script, indexed, docValues);
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).fieldType().isDimension()).addValidator(v -> {
+                if (v && (indexed.getValue() == false || docValues.getValue() == false)) {
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM
+                            + "] requires that ["
+                            + indexed.name
+                            + "] and ["
+                            + docValues.name
+                            + "] are true"
+                    );
+                }
+            });
+        }
+
+        public Builder dimension(boolean dimension) {
+            this.dimension.setValue(dimension);
+            return this;
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { meta, docValues, indexed, nullValue, stored, script, onScriptError, ignoreMalformed };
+            return new Parameter<?>[] {
+                meta,
+                docValues,
+                indexed,
+                nullValue,
+                stored,
+                script,
+                onScriptErrorParam,
+                ignoreMalformed,
+                dimension };
         }
 
         @Override
         public BooleanFieldMapper build(MapperBuilderContext context) {
+            if (inheritDimensionParameterFromParentObject(context)) {
+                dimension(true);
+            }
             MappedFieldType ft = new BooleanFieldType(
-                context.buildFullName(name()),
+                context.buildFullName(leafName()),
                 indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
                 stored.getValue(),
                 docValues.getValue(),
                 nullValue.getValue(),
                 scriptValues(),
-                meta.getValue()
+                meta.getValue(),
+                dimension.getValue()
             );
-            return new BooleanFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, context.isSourceSynthetic(), this);
+            hasScript = script.get() != null;
+            onScriptError = onScriptErrorParam.getValue();
+            return new BooleanFieldMapper(leafName(), ft, builderParams(this, context), context.isSourceSynthetic(), this);
         }
 
         private FieldValues<Boolean> scriptValues() {
@@ -133,23 +173,21 @@ public class BooleanFieldMapper extends FieldMapper {
             BooleanFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), BooleanFieldScript.CONTEXT);
             return scriptFactory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name(), script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(leafName(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
     }
 
-    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
-
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.scriptCompiler(), IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated()),
-        MINIMUM_COMPATIBILITY_VERSION
+    public static final TypeParser PARSER = createTypeParserWithLegacySupport(
+        (n, c) -> new Builder(n, c.scriptCompiler(), IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated())
     );
 
     public static final class BooleanFieldType extends TermBasedFieldType {
 
         private final Boolean nullValue;
         private final FieldValues<Boolean> scriptValues;
+        private final boolean isDimension;
 
         public BooleanFieldType(
             String name,
@@ -158,11 +196,13 @@ public class BooleanFieldMapper extends FieldMapper {
             boolean hasDocValues,
             Boolean nullValue,
             FieldValues<Boolean> scriptValues,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean isDimension
         ) {
             super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
+            this.isDimension = isDimension;
         }
 
         public BooleanFieldType(String name) {
@@ -174,7 +214,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         public BooleanFieldType(String name, boolean isIndexed, boolean hasDocValues) {
-            this(name, isIndexed, isIndexed, hasDocValues, false, null, Collections.emptyMap());
+            this(name, isIndexed, isIndexed, hasDocValues, false, null, Collections.emptyMap(), false);
         }
 
         @Override
@@ -185,6 +225,11 @@ public class BooleanFieldMapper extends FieldMapper {
         @Override
         public boolean isSearchable() {
             return isIndexed() || hasDocValues();
+        }
+
+        @Override
+        public boolean isDimension() {
+            return isDimension;
         }
 
         @Override
@@ -275,7 +320,9 @@ public class BooleanFieldMapper extends FieldMapper {
             }
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                return new SortedNumericIndexFieldData.Builder(name(), NumericType.BOOLEAN, BooleanDocValuesField::new);
+                // boolean fields are indexed, but not with points
+                boolean indexed = false;
+                return new SortedNumericIndexFieldData.Builder(name(), NumericType.BOOLEAN, BooleanDocValuesField::new, indexed);
             }
 
             if (operation == FielddataOperation.SCRIPT) {
@@ -317,8 +364,9 @@ public class BooleanFieldMapper extends FieldMapper {
             if (isIndexed()) {
                 return super.termsQuery(values, context);
             } else {
+                Set<?> dedupe = new HashSet<>(values);
                 BooleanQuery.Builder builder = new BooleanQuery.Builder();
-                for (Object value : values) {
+                for (Object value : dedupe) {
                     builder.add(termQuery(value, context), BooleanClause.Occur.SHOULD);
                 }
                 return new ConstantScoreQuery(builder.build());
@@ -381,12 +429,11 @@ public class BooleanFieldMapper extends FieldMapper {
     protected BooleanFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         boolean storeMalformedFields,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
+        super(simpleName, mappedFieldType, builderParams);
         this.nullValue = builder.nullValue.getValue();
         this.stored = builder.stored.getValue();
         this.indexed = builder.indexed.getValue();
@@ -430,7 +477,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (storeMalformedFields) {
                         // Save a copy of the field so synthetic source can load it
-                        context.doc().add(IgnoreMalformedStoredValues.storedField(name(), context.parser()));
+                        context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
                     }
                 } else {
                     throw e;
@@ -443,6 +490,10 @@ public class BooleanFieldMapper extends FieldMapper {
     private void indexValue(DocumentParserContext context, Boolean value) {
         if (value == null) {
             return;
+        }
+
+        if (fieldType().isDimension()) {
+            context.getRoutingFields().addBoolean(fieldType().name(), value);
         }
         if (indexed) {
             context.doc().add(new StringField(fieldType().name(), value ? Values.TRUE : Values.FALSE, Field.Store.NO));
@@ -469,7 +520,17 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).init(this);
+        return new Builder(leafName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).dimension(fieldType().isDimension())
+            .init(this);
+    }
+
+    @Override
+    public void doValidate(MappingLookup lookup) {
+        if (fieldType().isDimension() && null != lookup.nestedLookup().getNestedParent(fullPath())) {
+            throw new IllegalArgumentException(
+                TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + " can't be configured in nested field [" + fullPath() + "]"
+            );
+        }
     }
 
     @Override
@@ -483,25 +544,18 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasScript()) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
-        if (hasDocValues == false) {
-            throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (hasDocValues) {
+            return new SyntheticSourceSupport.Native(
+                () -> new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()) {
+                    @Override
+                    protected void writeValue(XContentBuilder b, long value) throws IOException {
+                        b.value(value == 1);
+                    }
+                }
             );
         }
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        return new SortedNumericDocValuesSyntheticFieldLoader(name(), simpleName(), ignoreMalformed.value()) {
-            @Override
-            protected void writeValue(XContentBuilder b, long value) throws IOException {
-                b.value(value == 1);
-            }
-        };
+
+        return super.syntheticSourceSupport();
     }
 }

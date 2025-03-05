@@ -91,9 +91,5 @@ public class EsqlStatsResponse extends BaseNodesResponse<EsqlStatsResponse.NodeS
             return builder;
         }
 
-        static NodeStatsResponse readNodeResponse(StreamInput in) throws IOException {
-            return new NodeStatsResponse(in);
-        }
-
     }
 }

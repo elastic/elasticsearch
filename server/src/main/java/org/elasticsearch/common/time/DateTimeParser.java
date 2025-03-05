@@ -1,19 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
 
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
-import java.util.Optional;
 
 /**
  * An object that can parse strings into datetime objects
@@ -23,13 +22,9 @@ interface DateTimeParser {
 
     Locale getLocale();
 
-    String getFormatString();
-
     DateTimeParser withZone(ZoneId zone);
 
     DateTimeParser withLocale(Locale locale);
-
-    void applyToBuilder(DateTimeFormatterBuilder builder);
 
     /**
      * Parses the specified string.
@@ -45,5 +40,5 @@ interface DateTimeParser {
      * <p>
      * The pattern must fully match, using the whole string. It must not throw exceptions if parsing fails.
      */
-    Optional<TemporalAccessor> tryParse(CharSequence str);
+    ParseResult tryParse(CharSequence str);
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -93,6 +94,9 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             // Each document always has exactly one tsid and one timestamp:
             SortedDocValues tsIdDocValues = DocValues.getSorted(reader, TimeSeriesIdFieldMapper.NAME);
             SortedNumericDocValues timestampDocValues = DocValues.getSortedNumeric(reader, DataStream.TIMESTAMP_FIELD_NAME);
+            SortedDocValues routingHashDocValues = builders == null
+                ? DocValues.getSorted(reader, TimeSeriesRoutingHashFieldMapper.NAME)
+                : null;
             for (int i = 0; i < docIdsInLeaf.length; i++) {
                 int docId = docIdsInLeaf[i];
 
@@ -107,11 +111,12 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                     var routingBuilder = builders[i];
                     ids[i] = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, new byte[16]);
                 } else {
-                    SortedDocValues routingHashDocValues = DocValues.getSorted(reader, TimeSeriesRoutingHashFieldMapper.NAME);
                     found = routingHashDocValues.advanceExact(docId);
                     assert found;
                     BytesRef routingHashBytes = routingHashDocValues.lookupOrd(routingHashDocValues.ordValue());
-                    int routingHash = TimeSeriesRoutingHashFieldMapper.decode(Uid.decodeId(routingHashBytes.bytes));
+                    int routingHash = TimeSeriesRoutingHashFieldMapper.decode(
+                        Uid.decodeId(routingHashBytes.bytes, routingHashBytes.offset, routingHashBytes.length)
+                    );
                     ids[i] = TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp);
                 }
             }

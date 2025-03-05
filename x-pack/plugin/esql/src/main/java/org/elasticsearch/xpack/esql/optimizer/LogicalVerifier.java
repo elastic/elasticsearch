@@ -7,14 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.capabilities.Validatable;
-import org.elasticsearch.xpack.esql.optimizer.OptimizerRules.LogicalPlanDependencyCheck;
-import org.elasticsearch.xpack.ql.common.Failures;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 public final class LogicalVerifier {
 
-    private static final LogicalPlanDependencyCheck DEPENDENCY_CHECK = new LogicalPlanDependencyCheck();
     public static final LogicalVerifier INSTANCE = new LogicalVerifier();
 
     private LogicalVerifier() {}
@@ -22,20 +21,26 @@ public final class LogicalVerifier {
     /** Verifies the optimized logical plan. */
     public Failures verify(LogicalPlan plan) {
         Failures failures = new Failures();
+        Failures dependencyFailures = new Failures();
 
         plan.forEachUp(p -> {
-            // dependency check
-            // FIXME: re-enable
-            // DEPENDENCY_CHECK.checkPlan(p, failures);
+            PlanConsistencyChecker.checkPlan(p, dependencyFailures);
 
             if (failures.hasFailures() == false) {
+                if (p instanceof PostOptimizationVerificationAware pova) {
+                    pova.postOptimizationVerification(failures);
+                }
                 p.forEachExpression(ex -> {
-                    if (ex instanceof Validatable v) {
-                        v.validate(failures);
+                    if (ex instanceof PostOptimizationVerificationAware va) {
+                        va.postOptimizationVerification(failures);
                     }
                 });
             }
         });
+
+        if (dependencyFailures.hasFailures()) {
+            throw new IllegalStateException(dependencyFailures.toString());
+        }
 
         return failures;
     }

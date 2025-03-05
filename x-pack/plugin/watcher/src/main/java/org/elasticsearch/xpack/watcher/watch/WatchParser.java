@@ -91,18 +91,6 @@ public class WatchParser {
         return parse(name, includeStatus, false, source, now, xContentType, false, sourceSeqNo, sourcePrimaryTerm);
     }
 
-    public Watch parse(
-        String name,
-        boolean includeStatus,
-        BytesReference source,
-        ZonedDateTime now,
-        XContentType xContentType,
-        long sourceSeqNo,
-        long sourcePrimaryTerm
-    ) throws IOException {
-        return parse(name, includeStatus, false, source, now, xContentType, false, sourceSeqNo, sourcePrimaryTerm);
-    }
-
     /**
      * Parses the watch represented by the given source. When parsing, any sensitive data that the
      * source might contain (e.g. passwords) will be converted to {@link Secret secrets}

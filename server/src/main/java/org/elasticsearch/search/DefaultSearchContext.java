@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.OrdinalMap;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -17,9 +20,10 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchShardTask;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -32,6 +36,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -65,11 +70,14 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
+import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.tasks.CancellableTask;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -96,8 +104,10 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexShard indexShard;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
+    private final long memoryAccountingBufferSize;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
+    private RankFeatureResult rankFeatureResult;
     private FetchSearchResult fetchResult;
     private final float queryBoost;
     private final boolean lowLevelCancellation;
@@ -123,8 +133,8 @@ final class DefaultSearchContext extends SearchContext {
     private CollapseContext collapse;
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
-    private SearchShardTask task;
-    private RankShardContext rankShardContext;
+    private CancellableTask task;
+    private QueryPhaseRankShardContext queryPhaseRankShardContext;
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -160,7 +170,8 @@ final class DefaultSearchContext extends SearchContext {
         Executor executor,
         SearchService.ResultsType resultsType,
         boolean enableQueryPhaseParallelCollection,
-        int minimumDocsPerSlice
+        int minimumDocsPerSlice,
+        long memoryAccountingBufferSize
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -171,6 +182,7 @@ final class DefaultSearchContext extends SearchContext {
             this.shardTarget = shardTarget;
             this.indexService = readerContext.indexService();
             this.indexShard = readerContext.indexShard();
+            this.memoryAccountingBufferSize = memoryAccountingBufferSize;
 
             Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
             int maximumNumberOfSlices = determineMaximumNumberOfSlices(
@@ -180,7 +192,7 @@ final class DefaultSearchContext extends SearchContext {
                 enableQueryPhaseParallelCollection,
                 field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
             );
-            if (executor == null) {
+            if (executor == null || maximumNumberOfSlices <= 1) {
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
@@ -245,12 +257,34 @@ final class DefaultSearchContext extends SearchContext {
                 if (ordinalMap != null) {
                     return ordinalMap.getValueCount();
                 }
-                if (directoryReader.leaves().size() == 0) {
+                if (directoryReader.leaves().isEmpty()) {
                     return 0;
                 }
                 return global.load(directoryReader.leaves().get(0)).getOrdinalsValues().getValueCount();
             }
+        } else if (indexFieldData instanceof IndexNumericFieldData indexNumericFieldData) {
+            final IndexNumericFieldData.NumericType type = indexNumericFieldData.getNumericType();
+            try {
+                if (type == IndexNumericFieldData.NumericType.INT || type == IndexNumericFieldData.NumericType.SHORT) {
+                    final IndexReader reader = directoryReader.getContext().reader();
+                    final byte[] min = PointValues.getMinPackedValue(reader, indexFieldData.getFieldName());
+                    final byte[] max = PointValues.getMaxPackedValue(reader, indexFieldData.getFieldName());
+                    if (min != null && max != null) {
+                        return NumericUtils.sortableBytesToInt(max, 0) - NumericUtils.sortableBytesToInt(min, 0) + 1;
+                    }
+                } else if (type == IndexNumericFieldData.NumericType.LONG) {
+                    final IndexReader reader = directoryReader.getContext().reader();
+                    final byte[] min = PointValues.getMinPackedValue(reader, indexFieldData.getFieldName());
+                    final byte[] max = PointValues.getMaxPackedValue(reader, indexFieldData.getFieldName());
+                    if (min != null && max != null) {
+                        return NumericUtils.sortableBytesToLong(max, 0) - NumericUtils.sortableBytesToLong(min, 0) + 1;
+                    }
+                }
+            } catch (IOException ioe) {
+                return -1L;
+            }
         }
+        //
         return -1L;
     }
 
@@ -262,6 +296,7 @@ final class DefaultSearchContext extends SearchContext {
         ToLongFunction<String> fieldCardinality
     ) {
         return executor instanceof ThreadPoolExecutor tpe
+            && tpe.getQueue().size() <= tpe.getMaximumPoolSize()
             && isParallelCollectionSupportedForResults(resultsType, request.source(), fieldCardinality, enableQueryPhaseParallelCollection)
                 ? tpe.getMaximumPoolSize()
                 : 1;
@@ -280,6 +315,17 @@ final class DefaultSearchContext extends SearchContext {
             return source == null || source.supportsParallelCollection(fieldCardinality);
         }
         return false;
+    }
+
+    @Override
+    public void addRankFeatureResult() {
+        this.rankFeatureResult = new RankFeatureResult(this.readerContext.id(), this.shardTarget, this.request);
+        addReleasable(rankFeatureResult::decRef);
+    }
+
+    @Override
+    public RankFeatureResult rankFeatureResult() {
+        return rankFeatureResult;
     }
 
     @Override
@@ -336,7 +382,7 @@ final class DefaultSearchContext extends SearchContext {
             );
         }
         if (rescore != null) {
-            if (sort != null) {
+            if (RescorePhase.validateSort(sort) == false) {
                 throw new IllegalArgumentException("Cannot use [sort] option in conjunction with [rescore].");
             }
             int maxWindow = indexService.getIndexSettings().getMaxRescoreWindow();
@@ -391,7 +437,7 @@ final class DefaultSearchContext extends SearchContext {
         this.query = buildFilteredQuery(query);
         if (lowLevelCancellation) {
             searcher().addQueryCancellation(() -> {
-                final SearchShardTask task = getTask();
+                final CancellableTask task = getTask();
                 if (task != null) {
                     task.ensureNotCancelled();
                 }
@@ -403,10 +449,9 @@ final class DefaultSearchContext extends SearchContext {
     public Query buildFilteredQuery(Query query) {
         List<Query> filters = new ArrayList<>();
         NestedLookup nestedLookup = searchExecutionContext.nestedLookup();
-        NestedHelper nestedHelper = new NestedHelper(nestedLookup, searchExecutionContext::isFieldMapped);
         if (nestedLookup != NestedLookup.EMPTY
-            && nestedHelper.mightMatchNestedDocs(query)
-            && (aliasFilter == null || nestedHelper.mightMatchNestedDocs(aliasFilter))) {
+            && NestedHelper.mightMatchNestedDocs(query, searchExecutionContext)
+            && (aliasFilter == null || NestedHelper.mightMatchNestedDocs(aliasFilter, searchExecutionContext))) {
             filters.add(Queries.newNonNestedFilter(searchExecutionContext.indexVersionCreated()));
         }
 
@@ -481,7 +526,6 @@ final class DefaultSearchContext extends SearchContext {
         return this;
     }
 
-    @Override
     public void addSearchExt(SearchExtBuilder searchExtBuilder) {
         // it's ok to use the writeable name here given that we enforce it to be the same as the name of the element that gets
         // parsed by the corresponding parser. There is one single name and one single way to retrieve the parsed object from the context.
@@ -508,19 +552,18 @@ final class DefaultSearchContext extends SearchContext {
         return suggest;
     }
 
-    @Override
     public void suggest(SuggestionSearchContext suggest) {
         this.suggest = suggest;
     }
 
     @Override
-    public RankShardContext rankShardContext() {
-        return rankShardContext;
+    public QueryPhaseRankShardContext queryPhaseRankShardContext() {
+        return queryPhaseRankShardContext;
     }
 
     @Override
-    public void rankShardContext(RankShardContext rankShardContext) {
-        this.rankShardContext = rankShardContext;
+    public void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext) {
+        this.queryPhaseRankShardContext = queryPhaseRankShardContext;
     }
 
     @Override
@@ -613,7 +656,6 @@ final class DefaultSearchContext extends SearchContext {
         return timeout;
     }
 
-    @Override
     public void timeout(TimeValue timeout) {
         this.timeout = timeout;
     }
@@ -688,7 +730,6 @@ final class DefaultSearchContext extends SearchContext {
         return searchAfter;
     }
 
-    @Override
     public SearchContext collapse(CollapseContext collapse) {
         this.collapse = collapse;
         return this;
@@ -786,7 +827,6 @@ final class DefaultSearchContext extends SearchContext {
         return this.groupStats;
     }
 
-    @Override
     public void groupStats(List<String> groupStats) {
         this.groupStats = groupStats;
     }
@@ -866,17 +906,27 @@ final class DefaultSearchContext extends SearchContext {
         return profilers;
     }
 
+    @Override
+    public CircuitBreaker circuitBreaker() {
+        return indexService.breakerService().getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    @Override
+    public long memAccountingBufferSize() {
+        return memoryAccountingBufferSize;
+    }
+
     public void setProfilers(Profilers profilers) {
         this.profilers = profilers;
     }
 
     @Override
-    public void setTask(SearchShardTask task) {
+    public void setTask(CancellableTask task) {
         this.task = task;
     }
 
     @Override
-    public SearchShardTask getTask() {
+    public CancellableTask getTask() {
         return task;
     }
 
@@ -909,8 +959,8 @@ final class DefaultSearchContext extends SearchContext {
                         // to the routing path.
                         Set<String> matchingRoutingPaths = new TreeSet<>(routingPaths);
                         for (Mapper mapper : indexService.mapperService().mappingLookup().fieldMappers()) {
-                            if (mapper instanceof KeywordFieldMapper && indexRouting.matchesField(mapper.name())) {
-                                matchingRoutingPaths.add(mapper.name());
+                            if (mapper instanceof KeywordFieldMapper && indexRouting.matchesField(mapper.fullPath())) {
+                                matchingRoutingPaths.add(mapper.fullPath());
                             }
                         }
                         routingPaths = new ArrayList<>(matchingRoutingPaths);

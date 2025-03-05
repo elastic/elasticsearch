@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -88,13 +89,14 @@ public class ClusterInfoSimulator {
     public void simulateShardStarted(ShardRouting shard) {
         assert shard.initializing();
 
+        var project = allocation.metadata().projectFor(shard.index());
         var size = getExpectedShardSize(
             shard,
             UNAVAILABLE_EXPECTED_SHARD_SIZE,
             getClusterInfo(),
             allocation.snapshotShardSizeInfo(),
-            allocation.metadata(),
-            allocation.routingTable()
+            project,
+            allocation.routingTable(project.id())
         );
         if (size != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
             if (shard.relocatingNodeId() != null) {
@@ -106,10 +108,7 @@ public class ClusterInfoSimulator {
                 if (shouldReserveSpaceForInitializingShard(shard, allocation.metadata())) {
                     modifyDiskUsage(shard.currentNodeId(), -size);
                 }
-                shardSizes.put(
-                    shardIdentifierFromRouting(shard),
-                    allocation.metadata().getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size
-                );
+                shardSizes.put(shardIdentifierFromRouting(shard), project.getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size);
             }
         }
     }

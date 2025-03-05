@@ -182,10 +182,7 @@ public class LegacyDocValuesIterables {
                         try {
                             if (nextDocID > values.docID()) {
                                 if (values.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                                    ordCount = 0;
-                                    while (values.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
-                                        ordCount++;
-                                    }
+                                    ordCount = values.docValueCount();
                                 }
                             }
                             int result;
@@ -225,6 +222,7 @@ public class LegacyDocValuesIterables {
 
                 return new Iterator<Number>() {
                     private boolean nextIsSet;
+                    private int currentIndex = 0;
                     private long nextOrd;
 
                     private void setNext() {
@@ -232,17 +230,22 @@ public class LegacyDocValuesIterables {
                             if (nextIsSet == false) {
                                 if (values.docID() == -1) {
                                     values.nextDoc();
+                                    currentIndex = 0;
                                 }
                                 while (true) {
                                     if (values.docID() == DocIdSetIterator.NO_MORE_DOCS) {
                                         nextOrd = -1;
                                         break;
                                     }
-                                    nextOrd = values.nextOrd();
-                                    if (nextOrd != -1) {
-                                        break;
+                                    if (currentIndex < values.docValueCount()) {
+                                        nextOrd = values.nextOrd();
+                                        currentIndex++;
+                                        if (nextOrd != -1) {
+                                            break;
+                                        }
                                     }
                                     values.nextDoc();
+                                    currentIndex = 0;
                                 }
                                 nextIsSet = true;
                             }

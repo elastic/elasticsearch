@@ -191,7 +191,7 @@ public class MlLifeCycleServiceTests extends ESTestCase {
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
                                 "1",
-                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom())
+                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom(), null)
                                     .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                             )
                             .build()
@@ -215,12 +215,12 @@ public class MlLifeCycleServiceTests extends ESTestCase {
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
                                 "1",
-                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom())
+                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom(), null)
                                     .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STOPPED, ""))
                             )
                             .addNewAssignment(
                                 "2",
-                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom())
+                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom(), null)
                                     .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STOPPING, ""))
                             )
                             .build()
@@ -244,12 +244,12 @@ public class MlLifeCycleServiceTests extends ESTestCase {
                         TrainedModelAssignmentMetadata.Builder.empty()
                             .addNewAssignment(
                                 "1",
-                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom())
+                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom(), null)
                                     .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STOPPED, ""))
                             )
                             .addNewAssignment(
                                 "2",
-                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom())
+                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom(), null)
                                     .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STOPPED, ""))
                             )
                             .build()

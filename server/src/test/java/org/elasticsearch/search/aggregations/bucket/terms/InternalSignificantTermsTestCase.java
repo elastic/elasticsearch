@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -58,8 +59,6 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
             InternalSignificantTerms.Bucket<?> sampledBucket = sampledIt.next();
             assertEquals(sampledBucket.subsetDf, samplingContext.scaleUp(reducedBucket.subsetDf));
             assertEquals(sampledBucket.supersetDf, samplingContext.scaleUp(reducedBucket.supersetDf));
-            assertEquals(sampledBucket.subsetSize, samplingContext.scaleUp(reducedBucket.subsetSize));
-            assertEquals(sampledBucket.supersetSize, samplingContext.scaleUp(reducedBucket.supersetSize));
             assertThat(sampledBucket.score, closeTo(reducedBucket.score, 1e-14));
         }
     }

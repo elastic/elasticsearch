@@ -317,18 +317,20 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 modelRegistry.getModelWithSecrets(inferenceId, modelLoadingListener);
                 return;
             }
+            // TODO More efficiently batch requests
             int currentBatchSize = Math.min(requests.size(), batchSize);
-
             final ChunkingSettings chunkingSettings = requests.getFirst().chunkingSettings;
-            final List<FieldInferenceRequest> nextBatch = new ArrayList<>();
-            final List<String> inputs = new ArrayList<>();
+            final List<FieldInferenceRequest> currentBatch = new ArrayList<>();
             for (FieldInferenceRequest request : requests) {
-                if (Objects.equals(chunkingSettings, request.chunkingSettings) && inputs.size() < currentBatchSize) {
-                    inputs.add(request.input);
-                } else {
-                    nextBatch.add(request);
+                if (Objects.equals(request.chunkingSettings, chunkingSettings) == false || currentBatch.size() >= currentBatchSize) {
+                    break;
                 }
+                currentBatch.add(request);
             }
+
+            final List<FieldInferenceRequest> nextBatch = requests.subList(currentBatch.size(), requests.size());
+            final List<String> inputs = currentBatch.stream().map(FieldInferenceRequest::input).collect(Collectors.toList());
+
             ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {
                 @Override
                 public void onResponse(List<ChunkedInference> results) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -24,9 +25,12 @@ import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -140,7 +144,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         ElasticsearchAssertions.assertAcked(
             client().admin()
                 .indices()
-                .prepareAliases()
+                .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .addAlias("employees", "engineers", new MatchQueryBuilder("dept", "engineering"))
                 .addAlias("employees", "sales", new MatchQueryBuilder("dept", "sales"))
         );
@@ -248,6 +252,52 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             ensureClusterSizeConsistency();
             Exception error = expectThrows(Exception.class, () -> run("from events,logs | KEEP timestamp,message"));
             assertThat(error.getMessage(), containsString("no shard copies found"));
+        }
+    }
+
+    public void testSkipOnIndexName() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        int numIndices = between(2, 10);
+        Map<String, Integer> indexToNumDocs = new HashMap<>();
+        for (int i = 0; i < numIndices; i++) {
+            String index = "events-" + i;
+            ElasticsearchAssertions.assertAcked(
+                client().admin().indices().prepareCreate(index).setMapping("timestamp", "type=long", "message", "type=keyword")
+            );
+            BulkRequestBuilder bulk = client().prepareBulk(index).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            int docs = between(1, 5);
+            long timestamp = 1;
+            for (int d = 0; d < docs; d++) {
+                bulk.add(new IndexRequest().source("timestamp", ++timestamp, "message", "v-" + d));
+            }
+            bulk.get();
+            indexToNumDocs.put(index, docs);
+        }
+        Set<String> queriedIndices = ConcurrentCollections.newConcurrentSet();
+        for (TransportService ts : internalCluster().getInstances(TransportService.class)) {
+            MockTransportService mockTransportService = as(ts, MockTransportService.class);
+            mockTransportService.addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
+                DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
+                for (ShardId shardId : dataNodeRequest.shardIds()) {
+                    queriedIndices.add(shardId.getIndexName());
+                }
+                handler.messageReceived(request, channel, task);
+            });
+        }
+        try {
+            for (int i = 0; i < numIndices; i++) {
+                queriedIndices.clear();
+                String index = "events-" + i;
+                try (EsqlQueryResponse resp = run("from events* METADATA _index | WHERE _index ==  \"" + index + "\" | KEEP timestamp")) {
+                    assertThat(getValuesList(resp), hasSize(indexToNumDocs.get(index)));
+                }
+                assertThat(queriedIndices, equalTo(Set.of(index)));
+            }
+        } finally {
+            for (TransportService ts : internalCluster().getInstances(TransportService.class)) {
+                MockTransportService mockTransportService = as(ts, MockTransportService.class);
+                mockTransportService.clearAllRules();
+            }
         }
     }
 }

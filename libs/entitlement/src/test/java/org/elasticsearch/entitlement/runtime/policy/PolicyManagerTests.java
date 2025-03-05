@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
 import org.elasticsearch.entitlement.runtime.policy.agent.TestAgent;
 import org.elasticsearch.entitlement.runtime.policy.agent.inner.TestInnerAgent;
@@ -411,6 +412,9 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testFilesEntitlementsWithExclusive() {
+        var baseTestPath = Path.of("/tmp").toAbsolutePath();
+        var testPath1 = Path.of("/tmp/test").toAbsolutePath();
+        var testPath2 = Path.of("/tmp/test/foo").toAbsolutePath();
         var iae = expectThrows(
             IllegalArgumentException.class,
             () -> new PolicyManager(
@@ -425,10 +429,7 @@ public class PolicyManagerTests extends ESTestCase {
                                 "test",
                                 List.of(
                                     new FilesEntitlement(
-                                        List.of(
-                                            FilesEntitlement.FileData.ofPath(Path.of("/tmp/test"), FilesEntitlement.Mode.READ)
-                                                .withExclusive(true)
-                                        )
+                                        List.of(FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ).withExclusive(true))
                                     )
                                 )
                             )
@@ -442,10 +443,7 @@ public class PolicyManagerTests extends ESTestCase {
                                 "test",
                                 List.of(
                                     new FilesEntitlement(
-                                        List.of(
-                                            FilesEntitlement.FileData.ofPath(Path.of("/tmp/test"), FilesEntitlement.Mode.READ)
-                                                .withExclusive(true)
-                                        )
+                                        List.of(FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ).withExclusive(true))
                                     )
                                 )
                             )
@@ -460,7 +458,7 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertTrue(iae.getMessage().contains("duplicate/overlapping exclusive paths found in files entitlements:"));
-        assertTrue(iae.getMessage().contains("[test] [/tmp/test]]"));
+        assertTrue(iae.getMessage().contains(Strings.format("[test] [%s]]", testPath1.toString())));
 
         iae = expectThrows(
             IllegalArgumentException.class,
@@ -473,9 +471,8 @@ public class PolicyManagerTests extends ESTestCase {
                             List.of(
                                 new FilesEntitlement(
                                     List.of(
-                                        FilesEntitlement.FileData.ofPath(Path.of("/tmp/test/foo"), FilesEntitlement.Mode.READ)
-                                            .withExclusive(true),
-                                        FilesEntitlement.FileData.ofPath(Path.of("/tmp/"), FilesEntitlement.Mode.READ)
+                                        FilesEntitlement.FileData.ofPath(testPath2, FilesEntitlement.Mode.READ).withExclusive(true),
+                                        FilesEntitlement.FileData.ofPath(baseTestPath, FilesEntitlement.Mode.READ)
                                     )
                                 )
                             )
@@ -492,10 +489,7 @@ public class PolicyManagerTests extends ESTestCase {
                                 "test",
                                 List.of(
                                     new FilesEntitlement(
-                                        List.of(
-                                            FilesEntitlement.FileData.ofPath(Path.of("/tmp/test"), FilesEntitlement.Mode.READ)
-                                                .withExclusive(true)
-                                        )
+                                        List.of(FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ).withExclusive(true))
                                     )
                                 )
                             )
@@ -510,8 +504,12 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            "duplicate/overlapping exclusive paths found in files entitlements: "
-                + "[[plugin1] [test] [/tmp/test]] and [[(server)] [test] [/tmp/test/foo]]",
+            Strings.format(
+                "duplicate/overlapping exclusive paths found in files entitlements: "
+                    + "[[plugin1] [test] [%s]] and [[(server)] [test] [%s]]",
+                testPath1,
+                testPath2
+            ),
             iae.getMessage()
         );
     }

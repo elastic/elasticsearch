@@ -112,55 +112,6 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         verify(auditor, never()).warning(any(), any());
     }
 
-    public void testRemoteClusterVersionCheck() {
-        Map<String, TransportVersion> clusterVersions = Map.of(
-            "modern_cluster_1",
-            TransportVersion.current(),
-            "modern_cluster_2",
-            TransportVersion.current(),
-            "old_cluster_1",
-            TransportVersions.V_7_0_0
-        );
-
-        Map<String, Object> field = Map.of("runtime_field_foo", Map.of("type", "keyword", "script", ""));
-
-        DatafeedConfig config = new DatafeedConfig.Builder(DatafeedConfigTests.createRandomizedDatafeedConfig("foo")).setRuntimeMappings(
-            field
-        ).build();
-        ElasticsearchStatusException ex = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> TransportStartDatafeedAction.checkRemoteConfigVersions(
-                config,
-                Arrays.asList("old_cluster_1", "modern_cluster_2"),
-                clusterVersions::get
-            )
-        );
-        assertThat(
-            ex.getMessage(),
-            containsString(
-                "remote clusters are expected to run at least version [7.11.0] (reason: [runtime_mappings]), "
-                    + "but the following clusters were too old: [old_cluster_1]"
-            )
-        );
-
-        // The rest should not throw
-        TransportStartDatafeedAction.checkRemoteConfigVersions(
-            config,
-            Arrays.asList("modern_cluster_1", "modern_cluster_2"),
-            clusterVersions::get
-        );
-
-        DatafeedConfig configWithoutRuntimeMappings = new DatafeedConfig.Builder().setId("foo-datafeed")
-            .setIndices(Collections.singletonList("bar"))
-            .setJobId("foo")
-            .build();
-        TransportStartDatafeedAction.checkRemoteConfigVersions(
-            configWithoutRuntimeMappings,
-            Arrays.asList("old_cluster_1", "modern_cluster_2"),
-            clusterVersions::get
-        );
-    }
-
     public static TransportStartDatafeedAction.DatafeedTask createDatafeedTask(
         long id,
         String type,

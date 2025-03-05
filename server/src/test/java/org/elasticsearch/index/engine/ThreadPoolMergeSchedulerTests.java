@@ -10,7 +10,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.MergeScheduler;
+import org.apache.lucene.index.MergeScheduler.MergeSource;
 import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.store.MergeInfo;
 import org.elasticsearch.common.settings.Settings;
@@ -24,6 +24,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -31,7 +39,7 @@ import static org.mockito.Mockito.when;
 public class ThreadPoolMergeSchedulerTests extends ESTestCase {
 
     DeterministicTaskQueue deterministicTaskQueue;
-    ThreadPool testThreadPool;
+    ThreadPool mergesExecutorThreadPool;
     Settings settingsWithMergeScheduler;
     IndexSettings indexSettings;
     ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
@@ -39,15 +47,50 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
     @Before
     public void setUpThreadPool() {
         deterministicTaskQueue = new DeterministicTaskQueue();
-        testThreadPool = deterministicTaskQueue.getThreadPool();
+        mergesExecutorThreadPool = deterministicTaskQueue.getThreadPool();
         settingsWithMergeScheduler = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .build();
         indexSettings = IndexSettingsModule.newIndexSettings("index", settingsWithMergeScheduler);
         threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
-            testThreadPool,
+            mergesExecutorThreadPool,
             settingsWithMergeScheduler
         );
+    }
+
+    public void testMergesExecuteInSizeOrder() throws IOException {
+        try (
+            ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
+                new ShardId("index", "_na_", 1),
+                indexSettings,
+                threadPoolMergeExecutorService
+            )
+        ) {
+            List<MergePolicy.OneMerge> executedMergesList = new ArrayList<>();
+            int mergeCount = randomIntBetween(2, 10);
+            for (int i = 0; i < mergeCount; i++) {
+                MergeSource mergeSource = mock(MergeSource.class);
+                MergePolicy.OneMerge oneMerge = mock(MergePolicy.OneMerge.class);
+                when(oneMerge.getStoreMergeInfo()).thenReturn(
+                        new MergeInfo(randomNonNegativeInt(), randomLongBetween(1L, 10L), randomBoolean(), randomFrom(-1, randomNonNegativeInt()))
+                );
+                when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
+                when(mergeSource.getNextMerge()).thenReturn(oneMerge, (MergePolicy.OneMerge) null);
+                doAnswer(invocation -> {
+                    executedMergesList.add((MergePolicy.OneMerge) invocation.getArguments()[0]);
+                    return null;
+                }).when(mergeSource).merge(any(MergePolicy.OneMerge.class));
+                threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
+            }
+            deterministicTaskQueue.runAllTasks();
+            assertThat(executedMergesList.size(), is(mergeCount));
+            // assert merges are executed in ascending size order
+            for (int i = 1; i < mergeCount; i++) {
+                assertThat(executedMergesList.get(i - 1).getStoreMergeInfo().estimatedMergeBytes(),
+                        lessThanOrEqualTo(executedMergesList.get(i).getStoreMergeInfo().estimatedMergeBytes()));
+            }
+        }
+        assertTrue(threadPoolMergeExecutorService.allDone());
     }
 
     public void testAutoIOThrottleForMergeTasksWhenSchedulerDisablesIt() throws Exception {
@@ -64,7 +107,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             new MergeInfo(randomNonNegativeInt(), randomNonNegativeLong(), randomBoolean(), randomFrom(-1, randomNonNegativeInt()))
         );
         when(oneMerge.getMergeProgress()).thenReturn(oneMergeProgress);
-        MergeScheduler.MergeSource mergeSource = mock(MergeScheduler.MergeSource.class);
+        MergeSource mergeSource = mock(MergeSource.class);
         when(mergeSource.getNextMerge()).thenReturn(oneMerge);
         try (
             ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
@@ -99,7 +142,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             new MergeInfo(randomNonNegativeInt(), randomNonNegativeLong(), randomBoolean(), randomNonNegativeInt())
         );
         when(oneMerge.getMergeProgress()).thenReturn(oneMergeProgress);
-        MergeScheduler.MergeSource mergeSource = mock(MergeScheduler.MergeSource.class);
+        MergeSource mergeSource = mock(MergeSource.class);
         when(mergeSource.getNextMerge()).thenReturn(oneMerge);
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
         try (

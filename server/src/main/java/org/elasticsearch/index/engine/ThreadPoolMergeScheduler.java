@@ -84,6 +84,21 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
     }
 
+    // used for tests
+    ThreadPoolMergeScheduler(
+        ShardId shardId,
+        MergeSchedulerConfig mergeSchedulerConfig,
+        Logger logger,
+        MergeTracking mergeTracking,
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService
+    ) {
+        this.shardId = shardId;
+        this.config = mergeSchedulerConfig;
+        this.logger = logger;
+        this.mergeTracking = mergeTracking;
+        this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
+    }
+
     @Override
     public Set<OnGoingMerge> onGoingMerges() {
         return mergeTracking.onGoingMerges();
@@ -283,6 +298,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         // the combined IO rate per node is, roughly, 'thread_pool_size * merge_queue#targetMBPerSec', as
         // the per-thread IO rate is updated, best effort, for all running merge threads concomitantly.
         if (merge.isAborted()) {
+            // merges can theoretically be aborted at any moment
             return in;
         }
         MergeTask mergeTask = currentlyRunningMergeTasks.get(merge);
@@ -408,7 +424,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
 
         long estimatedMergeSize() {
-            return onGoingMerge.getMerge().estimatedMergeBytes;
+            return onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes();
         }
 
         @Override

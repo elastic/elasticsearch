@@ -570,7 +570,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         }
     }
 
-    private boolean runOneTask(DeterministicTaskQueue deterministicTaskQueue) {
+    private static boolean runOneTask(DeterministicTaskQueue deterministicTaskQueue) {
         while (deterministicTaskQueue.hasAnyTasks()) {
             if (deterministicTaskQueue.hasRunnableTasks()) {
                 deterministicTaskQueue.runRandomTask();

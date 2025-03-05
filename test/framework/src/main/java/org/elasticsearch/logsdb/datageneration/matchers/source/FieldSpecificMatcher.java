@@ -365,6 +365,14 @@ interface FieldSpecificMatcher {
                 // This a documented behavior.
                 return false;
             }
+            if (value instanceof String s) {
+                try {
+                    return Boolean.parseBoolean(s);
+                } catch (Exception e) {
+                    // malformed
+                    return value;
+                }
+            }
 
             return value;
         }

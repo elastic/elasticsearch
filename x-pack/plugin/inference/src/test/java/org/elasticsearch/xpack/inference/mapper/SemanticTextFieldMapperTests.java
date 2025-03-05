@@ -54,6 +54,7 @@ import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.XFeatureField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -90,6 +91,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FI
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_ELSER_2_INFERENCE_ID;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -642,6 +644,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
             Model model1 = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
             Model model2 = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+            ChunkingSettings chunkingSettings = generateRandomChunkingSettings();
             XContentBuilder mapping = mapping(b -> {
                 addSemanticTextMapping(b, fieldName1, model1.getInferenceEntityId(), setSearchInferenceId ? searchInferenceId : null);
                 addSemanticTextMapping(b, fieldName2, model2.getInferenceEntityId(), setSearchInferenceId ? searchInferenceId : null);
@@ -670,8 +673,15 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                         useLegacyFormat,
                         b,
                         List.of(
-                            randomSemanticText(useLegacyFormat, fieldName1, model1, List.of("a b", "c"), XContentType.JSON),
-                            randomSemanticText(useLegacyFormat, fieldName2, model2, List.of("d e f"), XContentType.JSON)
+                            randomSemanticText(
+                                useLegacyFormat,
+                                fieldName1,
+                                model1,
+                                chunkingSettings,
+                                List.of("a b", "c"),
+                                XContentType.JSON
+                            ),
+                            randomSemanticText(useLegacyFormat, fieldName2, model2, chunkingSettings, List.of("d e f"), XContentType.JSON)
                         )
                     )
                 )
@@ -842,7 +852,15 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     public void testModelSettingsRequiredWithChunks() throws IOException {
         // Create inference results where model settings are set to null and chunks are provided
         Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
-        SemanticTextField randomSemanticText = randomSemanticText(useLegacyFormat, "field", model, List.of("a"), XContentType.JSON);
+        ChunkingSettings chunkingSettings = generateRandomChunkingSettings();
+        SemanticTextField randomSemanticText = randomSemanticText(
+            useLegacyFormat,
+            "field",
+            model,
+            chunkingSettings,
+            List.of("a"),
+            XContentType.JSON
+        );
         SemanticTextField inferenceResults = new SemanticTextField(
             randomSemanticText.useLegacyFormat(),
             randomSemanticText.fieldName(),
@@ -853,7 +871,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 randomSemanticText.inference().chunks()
             ),
             randomSemanticText.contentType(),
-            SemanticTextFieldTests.generateRandomChunkingSettings()
+            chunkingSettings
         );
 
         MapperService mapperService = createMapperService(
@@ -898,7 +916,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             List.of(),
             new SemanticTextField.InferenceResult(inferenceId, modelSettings, Map.of()),
             XContentType.JSON,
-            SemanticTextFieldTests.generateRandomChunkingSettings()
+            generateRandomChunkingSettings()
         );
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         if (useLegacyFormat) {

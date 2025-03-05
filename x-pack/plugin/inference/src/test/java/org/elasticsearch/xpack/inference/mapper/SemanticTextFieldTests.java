@@ -118,6 +118,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 useLegacyFormat,
                 NAME,
                 TestModel.createRandomInstance(),
+                generateRandomChunkingSettings(),
                 rawValues,
                 randomFrom(XContentType.values())
             );
@@ -218,6 +219,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         boolean useLegacyFormat,
         String fieldName,
         Model model,
+        ChunkingSettings chunkingSettings,
         List<String> inputs,
         XContentType contentType
     ) throws IOException {
@@ -229,13 +231,22 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs);
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
         };
-        return semanticTextFieldFromChunkedInferenceResults(useLegacyFormat, fieldName, model, inputs, results, contentType);
+        return semanticTextFieldFromChunkedInferenceResults(
+            useLegacyFormat,
+            fieldName,
+            model,
+            chunkingSettings,
+            inputs,
+            results,
+            contentType
+        );
     }
 
     public static SemanticTextField semanticTextFieldFromChunkedInferenceResults(
         boolean useLegacyFormat,
         String fieldName,
         Model model,
+        ChunkingSettings chunkingSettings,
         List<String> inputs,
         ChunkedInference results,
         XContentType contentType
@@ -273,7 +284,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 Map.of(fieldName, chunks)
             ),
             contentType,
-            generateRandomChunkingSettings()
+            chunkingSettings
         );
     }
 

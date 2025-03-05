@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -543,6 +544,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         for (var entry : fieldInferenceMap.values()) {
             String field = entry.getName();
             var model = modelMap.get(entry.getInferenceId());
+            ChunkingSettings chunkingSettings = entry.getChunkingSettings() != null
+                ? ChunkingSettingsBuilder.fromMap(new HashMap<>(entry.getChunkingSettings()))
+                : null;
             Object inputObject = randomSemanticTextInput();
             String inputText = inputObject.toString();
             docMap.put(field, inputObject);
@@ -562,13 +566,21 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                     useLegacyFormat,
                     field,
                     model,
+                    chunkingSettings,
                     List.of(inputText),
                     results,
                     requestContentType
                 );
             } else {
                 Map<String, List<String>> inputTextMap = Map.of(field, List.of(inputText));
-                semanticTextField = randomSemanticText(useLegacyFormat, field, model, List.of(inputText), requestContentType);
+                semanticTextField = randomSemanticText(
+                    useLegacyFormat,
+                    field,
+                    model,
+                    chunkingSettings,
+                    List.of(inputText),
+                    requestContentType
+                );
                 model.putResult(inputText, toChunkedResult(useLegacyFormat, inputTextMap, semanticTextField));
             }
 

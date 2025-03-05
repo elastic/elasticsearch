@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,6 +51,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *                       {@link IndexVersions#INFERENCE_METADATA_FIELDS}, null otherwise.
  * @param inference The inference result.
  * @param contentType The {@link XContentType} used to store the embeddings chunks.
+ * @param chunkingSettings The {@link ChunkingSettings} used to override model chunking defaults
  */
 public record SemanticTextField(
     boolean useLegacyFormat,
@@ -71,16 +73,7 @@ public record SemanticTextField(
     static final String CHUNKED_START_OFFSET_FIELD = "start_offset";
     static final String CHUNKED_END_OFFSET_FIELD = "end_offset";
     static final String MODEL_SETTINGS_FIELD = "model_settings";
-    static final String TASK_TYPE_FIELD = "task_type";
-    static final String DIMENSIONS_FIELD = "dimensions";
-    static final String SIMILARITY_FIELD = "similarity";
-    static final String ELEMENT_TYPE_FIELD = "element_type";
-    // Chunking settings
     static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
-    static final String STRATEGY_FIELD = "strategy";
-    static final String MAX_CHUNK_SIZE_FIELD = "max_chunk_size";
-    static final String OVERLAP_FIELD = "overlap";
-    static final String SENTENCE_OVERLAP_FIELD = "sentence_overlap";
 
     public record InferenceResult(String inferenceId, MinimalServiceSettings modelSettings, Map<String, List<Chunk>> chunks) {}
 
@@ -194,6 +187,9 @@ public record SemanticTextField(
     private static final ConstructingObjectParser<SemanticTextField, ParserContext> SEMANTIC_TEXT_FIELD_PARSER =
         new ConstructingObjectParser<>(SemanticTextFieldMapper.CONTENT_TYPE, true, (args, context) -> {
             List<String> originalValues = (List<String>) args[0];
+            InferenceResult inferenceResult = (InferenceResult) args[1];
+            Map<String, Object> chunkingSettingsMap = (Map<String, Object>) args[2];
+            ChunkingSettings chunkingSettings = chunkingSettingsMap != null ? ChunkingSettingsBuilder.fromMap(chunkingSettingsMap) : null;
             if (context.useLegacyFormat() == false) {
                 if (originalValues != null && originalValues.isEmpty() == false) {
                     throw new IllegalArgumentException("Unknown field [" + TEXT_FIELD + "]");
@@ -204,9 +200,9 @@ public record SemanticTextField(
                 context.useLegacyFormat(),
                 context.fieldName(),
                 originalValues,
-                (InferenceResult) args[1],
+                inferenceResult,
                 context.xContentType(),
-                (ChunkingSettings) args[2]
+                chunkingSettings
             );
         });
 

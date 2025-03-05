@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -43,6 +44,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingByte;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingSparse;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.semanticTextFieldFromChunkedInferenceResults;
@@ -51,12 +53,14 @@ import static org.hamcrest.Matchers.equalTo;
 public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase {
     private final Model model1;
     private final Model model2;
+    private final ChunkingSettings chunkingSettings;
     private final boolean useSynthetic;
     private final boolean useIncludesExcludes;
 
     public SemanticInferenceMetadataFieldsRecoveryTests(boolean useSynthetic, boolean useIncludesExcludes) {
         this.model1 = randomModel(TaskType.TEXT_EMBEDDING);
         this.model2 = randomModel(TaskType.SPARSE_EMBEDDING);
+        this.chunkingSettings = generateRandomChunkingSettings();
         this.useSynthetic = useSynthetic;
         this.useIncludesExcludes = useIncludesExcludes;
     }
@@ -105,6 +109,11 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
             builder.field("similarity", model1.getServiceSettings().similarity().name());
             builder.field("element_type", model1.getServiceSettings().elementType().name());
             builder.endObject();
+            if (chunkingSettings != null) {
+                builder.startObject("chunking_settings");
+                chunkingSettings.toXContent(builder, null);
+                builder.endObject();
+            }
             builder.endObject();
 
             builder.startObject("semantic_2");
@@ -113,6 +122,11 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
             builder.startObject("model_settings");
             builder.field("task_type", model2.getTaskType().name());
             builder.endObject();
+            if (chunkingSettings != null) {
+                builder.startObject("chunking_settings");
+                chunkingSettings.toXContent(builder, null);
+                builder.endObject();
+            }
             builder.endObject();
 
             builder.endObject();
@@ -244,8 +258,8 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
             false,
             builder,
             List.of(
-                randomSemanticText(false, "semantic_2", model2, randomInputs(), XContentType.JSON),
-                randomSemanticText(false, "semantic_1", model1, randomInputs(), XContentType.JSON)
+                randomSemanticText(false, "semantic_2", model2, chunkingSettings, randomInputs(), XContentType.JSON),
+                randomSemanticText(false, "semantic_1", model1, chunkingSettings, randomInputs(), XContentType.JSON)
             )
         );
         builder.endObject();
@@ -256,6 +270,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
         boolean useLegacyFormat,
         String fieldName,
         Model model,
+        ChunkingSettings chunkingSettings,
         List<String> inputs,
         XContentType contentType
     ) throws IOException {
@@ -267,7 +282,15 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs, false);
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
         };
-        return semanticTextFieldFromChunkedInferenceResults(useLegacyFormat, fieldName, model, inputs, results, contentType);
+        return semanticTextFieldFromChunkedInferenceResults(
+            useLegacyFormat,
+            fieldName,
+            model,
+            chunkingSettings,
+            inputs,
+            results,
+            contentType
+        );
     }
 
     private static List<String> randomInputs() {

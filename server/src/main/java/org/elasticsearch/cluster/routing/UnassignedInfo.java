@@ -341,6 +341,8 @@ public record UnassignedInfo(
             out.writeByte((byte) Reason.PRIMARY_FAILED.ordinal());
         } else if (reason.equals(Reason.RESHARD_ADDED)
             && out.getTransportVersion().before(TransportVersions.UNASSIGENEDINFO_RESHARD_ADDED)) {
+                // We should have protection to ensure we do not reshard in mixed clusters
+                assert false;
                 out.writeByte((byte) Reason.FORCED_EMPTY_PRIMARY.ordinal());
             } else {
                 out.writeByte((byte) reason.ordinal());

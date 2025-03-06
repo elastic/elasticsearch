@@ -811,7 +811,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             Map<String, Processor.Factory> procMap = new HashMap<>();
-            procMap.put(NON_GEO_PROCESSOR_TYPE, (factories, tag, description, config) -> {
+            procMap.put(NON_GEO_PROCESSOR_TYPE, (factories, tag, description, config, projectId) -> {
                 readStringProperty(NON_GEO_PROCESSOR_TYPE, tag, config, "randomField");
                 return new AbstractProcessor(tag, description) {
                     @Override

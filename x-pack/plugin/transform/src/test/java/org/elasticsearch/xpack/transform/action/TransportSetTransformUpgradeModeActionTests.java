@@ -193,7 +193,7 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
 
     public void testDisableUpgradeMode() throws InterruptedException {
         doAnswer(ans -> {
-            ActionListener<Boolean> listener = ans.getArgument(2);
+            ActionListener<Boolean> listener = ans.getArgument(3);
             listener.onResponse(true);
             return null;
         }).when(persistentTasksService).waitForPersistentTasksCondition(any(), any(), any(), any());

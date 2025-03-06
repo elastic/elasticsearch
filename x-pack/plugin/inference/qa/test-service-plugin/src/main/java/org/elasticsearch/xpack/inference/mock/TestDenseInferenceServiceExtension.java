@@ -190,7 +190,6 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                     chunks.add(
                         new TextEmbeddingFloatResults.Chunk(
                             nonChunkedResults.embeddings().get(i).values(),
-                            c,
                             new ChunkedInference.TextOffset(offset, endOffset)
                         )
                     );

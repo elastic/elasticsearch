@@ -41,7 +41,7 @@ public class RestDeleteProjectAction extends BaseRestHandler {
         final DeleteProjectAction.Request deleteProjectRequest = new DeleteProjectAction.Request(
             getMasterNodeTimeout(restRequest),
             getAckTimeout(restRequest),
-            new ProjectId(restRequest.param("id"))
+            ProjectId.fromId(restRequest.param("id"))
         );
         return channel -> client.execute(DeleteProjectAction.INSTANCE, deleteProjectRequest, new RestToXContentListener<>(channel));
     }

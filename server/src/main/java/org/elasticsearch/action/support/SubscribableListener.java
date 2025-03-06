@@ -267,6 +267,13 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     /**
+     * @return return {@code true} if and only if this listener is done and has been completed successfully
+     */
+    public final boolean isSuccess() {
+        return state instanceof SuccessResult;
+    }
+
+    /**
      * @return the result with which this listener completed successfully, or throw the exception with which it failed.
      *
      * @throws AssertionError if this listener is not complete yet and assertions are enabled.

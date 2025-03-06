@@ -1826,7 +1826,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             service.chunkedInfer(
                 model,
                 null,
-                List.of("foo", "bar"),
+                List.of("a", "bb"),
                 new HashMap<>(),
                 null,
                 InputType.UNSPECIFIED,
@@ -1840,7 +1840,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 assertThat(results.getFirst(), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.getFirst();
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("foo", floatResult.chunks().getFirst().matchedText());
+                assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().getFirst().offset());
                 assertThat(floatResult.chunks().getFirst(), CoreMatchers.instanceOf(TextEmbeddingFloatResults.Chunk.class));
                 assertArrayEquals(
                     new float[] { 0.123f, -0.123f },
@@ -1852,7 +1852,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("bar", floatResult.chunks().getFirst().matchedText());
+                assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().getFirst().offset());
                 assertThat(floatResult.chunks().getFirst(), CoreMatchers.instanceOf(TextEmbeddingFloatResults.Chunk.class));
                 assertArrayEquals(
                     new float[] { 0.223f, -0.223f },
@@ -1872,7 +1872,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("input", List.of("foo", "bar"), "model", "voyage-3-large", "output_dtype", "float", "output_dimension", 1024))
+                is(Map.of("input", List.of("a", "bb"), "model", "voyage-3-large", "output_dtype", "float", "output_dimension", 1024))
             );
         }
     }

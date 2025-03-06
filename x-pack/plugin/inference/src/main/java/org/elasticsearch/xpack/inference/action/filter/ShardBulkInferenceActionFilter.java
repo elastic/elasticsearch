@@ -645,7 +645,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
     private static class EmptyChunkedInference implements ChunkedInference {
         @Override
-        public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) {
+        public Iterator<Chunk> chunksAsByteReference(XContent xcontent) {
             return Collections.emptyIterator();
         }
     }

@@ -180,7 +180,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
                 for (String c : chunkedInput) {
                     offset = input.indexOf(c, offset);
                     int endOffset = offset + c.length();
-                    chunks.add(new SparseEmbeddingResults.Chunk(tokens, c, new ChunkedInference.TextOffset(offset, endOffset)));
+                    chunks.add(new SparseEmbeddingResults.Chunk(tokens, new ChunkedInference.TextOffset(offset, endOffset)));
                 }
                 ChunkedInferenceEmbedding chunkedInferenceEmbedding = new ChunkedInferenceEmbedding(chunks);
                 results.add(chunkedInferenceEmbedding);

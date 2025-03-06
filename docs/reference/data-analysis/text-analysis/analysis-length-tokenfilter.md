@@ -42,6 +42,56 @@ The filter produces the following tokens:
 [ the, fox, over, the, lazy, dog ]
 ```
 
+% [source,console-result]
+% --------------------------------------------------
+% {
+%   "tokens": [
+%     {
+%       "token": "the",
+%       "start_offset": 0,
+%       "end_offset": 3,
+%       "type": "word",
+%       "position": 0
+%     },
+%     {
+%       "token": "fox",
+%       "start_offset": 16,
+%       "end_offset": 19,
+%       "type": "word",
+%       "position": 3
+%     },
+%     {
+%       "token": "over",
+%       "start_offset": 26,
+%       "end_offset": 30,
+%       "type": "word",
+%       "position": 5
+%     },
+%     {
+%       "token": "the",
+%       "start_offset": 31,
+%       "end_offset": 34,
+%       "type": "word",
+%       "position": 6
+%     },
+%     {
+%       "token": "lazy",
+%       "start_offset": 35,
+%       "end_offset": 39,
+%       "type": "word",
+%       "position": 7
+%     },
+%     {
+%       "token": "dog",
+%       "start_offset": 40,
+%       "end_offset": 43,
+%       "type": "word",
+%       "position": 8
+%     }
+%   ]
+% }
+% --------------------------------------------------
+
 
 ## Add to an analyzer [analysis-length-tokenfilter-analyzer-ex]
 

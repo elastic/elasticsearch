@@ -23,6 +23,8 @@ A `extended_stats_bucket` aggregation looks like this in isolation:
 }
 ```
 
+%  NOTCONSOLE
+
 $$$extended-stats-bucket-params$$$
 
 | Parameter Name | Description | Required | Default Value |
@@ -60,6 +62,8 @@ POST /sales/_search
   }
 }
 ```
+
+%  TEST[setup:sales]
 
 1. `bucket_paths` instructs this `extended_stats_bucket` aggregation that we want the calculate stats for the `sales` aggregation in the `sales_per_month` date histogram.
 
@@ -126,5 +130,11 @@ And the following may be the response:
    }
 }
 ```
+
+%  TESTRESPONSE[s/"took": 11/"took": $body.took/]
+
+%  TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+
+%  TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 

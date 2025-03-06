@@ -32,3 +32,5 @@ $$$append-options$$$
 }
 ```
 
+%  NOTCONSOLE
+

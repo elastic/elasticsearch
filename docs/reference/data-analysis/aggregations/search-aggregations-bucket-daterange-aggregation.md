@@ -31,6 +31,8 @@ POST /sales/_search?size=0
 }
 ```
 
+%  TEST[setup:sales s/now-10M\/M/10-2015/]
+
 1. < now minus 10 months, rounded down to the start of the month.
 2. >= now minus 10 months, rounded down to the start of the month.
 
@@ -62,6 +64,8 @@ Response:
   }
 }
 ```
+
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ::::{warning}
 If a format or date value is incomplete, the date range aggregation replaces any missing components with default values. See [Missing date components](/reference/query-languages/query-dsl-range-query.md#missing-date-components).
@@ -98,6 +102,8 @@ POST /sales/_search?size=0
    }
 }
 ```
+
+%  TEST[setup:sales]
 
 1. Documents without a value in the `date` field will be added to the "Older" bucket, as if they had a date value of "1976-11-30".
 
@@ -222,6 +228,8 @@ POST /sales/_search?size=0
 }
 ```
 
+%  TEST[setup:sales]
+
 1. This date will be converted to `2016-02-01T00:00:00.000+01:00`.
 2. `now/d` will be rounded to the beginning of the day in the CET time zone.
 
@@ -252,6 +260,8 @@ POST /sales/_search?size=0
 }
 ```
 
+%  TEST[setup:sales s/now-10M\/M/10-2015/]
+
 Response:
 
 ```console-result
@@ -276,6 +286,8 @@ Response:
 }
 ```
 
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
 It is also possible to customize the key for each range:
 
 $$$daterange-aggregation-keyed-multiple-keys-example$$$
@@ -298,6 +310,8 @@ POST /sales/_search?size=0
   }
 }
 ```
+
+%  TEST[setup:sales]
 
 Response:
 
@@ -326,5 +340,7 @@ Response:
   }
 }
 ```
+
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 

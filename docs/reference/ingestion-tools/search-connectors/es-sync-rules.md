@@ -235,6 +235,8 @@ A sample apartment looks like this in the `.json` format:
 }
 ```
 
+%  NOTCONSOLE
+
 The target data set should fulfill the following conditions:
 
 1. Every apartment should have at least **3 bedrooms**
@@ -303,6 +305,8 @@ Let’s assume that the apartment data is stored inside a MongoDB instance. For 
       }
     ]
 ```
+
+%  NOTCONSOLE
 
 To create these advanced sync rules navigate to the sync rules creation dialog and select the *Advanced rules* tab. You can now paste your aggregation pipeline into the input field under `aggregate.pipeline`:
 

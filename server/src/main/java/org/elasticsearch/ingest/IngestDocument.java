@@ -266,8 +266,7 @@ public final class IngestDocument {
             String pathElement = fieldPath.pathElements[i];
             if (context == null) {
                 return false;
-            }
-            if (context instanceof Map<?, ?> map) {
+            } else if (context instanceof Map<?, ?> map) {
                 context = map.get(pathElement);
             } else if (context instanceof List<?> list) {
                 int index;
@@ -292,11 +291,9 @@ public final class IngestDocument {
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         if (context == null) {
             return false;
-        }
-        if (context instanceof Map<?, ?> map) {
+        } else if (context instanceof Map<?, ?> map) {
             return map.containsKey(leafKey);
-        }
-        if (context instanceof List<?> list) {
+        } else if (context instanceof List<?> list) {
             try {
                 int index = Integer.parseInt(leafKey);
                 if (index >= 0 && index < list.size()) {
@@ -311,8 +308,9 @@ public final class IngestDocument {
             } catch (NumberFormatException e) {
                 return false;
             }
+        } else {
+            return false;
         }
-        return false;
     }
 
     /**
@@ -335,15 +333,13 @@ public final class IngestDocument {
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         if (context == null) {
             throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey, null));
-        }
-        if (context instanceof Map<?, ?> map) {
+        } else if (context instanceof Map<?, ?> map) {
             if (map.containsKey(leafKey)) {
                 map.remove(leafKey);
-                return;
+            } else {
+                throw new IllegalArgumentException(Errors.notPresent(path, leafKey));
             }
-            throw new IllegalArgumentException(Errors.notPresent(path, leafKey));
-        }
-        if (context instanceof List<?> list) {
+        } else if (context instanceof List<?> list) {
             int index;
             try {
                 index = Integer.parseInt(leafKey);
@@ -354,16 +350,15 @@ public final class IngestDocument {
                 throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
             }
             list.remove(index);
-            return;
+        } else {
+            throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey, context));
         }
-        throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey, context));
     }
 
     private static ResolveResult resolve(String pathElement, String fullPath, Object context) {
         if (context == null) {
             return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, null));
-        }
-        if (context instanceof Map<?, ?>) {
+        } else if (context instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;
             Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
@@ -372,8 +367,7 @@ public final class IngestDocument {
             } else {
                 return ResolveResult.success(object);
             }
-        }
-        if (context instanceof List<?> list) {
+        } else if (context instanceof List<?> list) {
             int index;
             try {
                 index = Integer.parseInt(pathElement);
@@ -384,8 +378,9 @@ public final class IngestDocument {
                 return ResolveResult.error(Errors.outOfBounds(fullPath, index, list.size()));
             }
             return ResolveResult.success(list.get(index));
+        } else {
+            return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, context));
         }
-        return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, context));
     }
 
     /**
@@ -520,8 +515,7 @@ public final class IngestDocument {
             String pathElement = fieldPath.pathElements[i];
             if (context == null) {
                 throw new IllegalArgumentException(Errors.cannotResolve(path, pathElement, null));
-            }
-            if (context instanceof Map) {
+            } else if (context instanceof Map<?, ?>) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> map = (Map<String, Object>) context;
                 Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
@@ -551,8 +545,7 @@ public final class IngestDocument {
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         if (context == null) {
             throw new IllegalArgumentException(Errors.cannotSet(path, leafKey, null));
-        }
-        if (context instanceof Map<?, ?>) {
+        } else if (context instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;
             if (append) {

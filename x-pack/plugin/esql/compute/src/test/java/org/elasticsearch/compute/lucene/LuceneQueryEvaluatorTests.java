@@ -12,6 +12,7 @@ import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -24,10 +25,6 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.OperatorTests;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -35,7 +32,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ShuffleDocsOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
@@ -54,30 +50,17 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static org.elasticsearch.compute.test.OperatorTestCase.randomPageSize;
-import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Base class for testing Lucene query evaluators.
+ */
 public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vector.Builder> extends ComputeTestCase {
 
     private static final String FIELD = "g";
-    // Scores are not interesting to this test, but enabled conditionally and effectively ignored just for coverage.
-    protected final boolean useScoring = randomBoolean();
-
-    private static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, Query query, boolean scoring) {
-        final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
-        return new LuceneSourceOperator.Factory(
-            List.of(searchContext),
-            ctx -> query,
-            randomFrom(DataPartitioning.values()),
-            randomIntBetween(1, 10),
-            randomPageSize(),
-            LuceneOperator.NO_LIMIT,
-            scoring
-        );
-    }
 
     @SuppressWarnings("unchecked")
     public void testDenseCollectorSmall() throws IOException {
-        try (LuceneQueryEvaluator.DenseCollector<U> collector = createDensecollector(0, 2)) {
+        try (LuceneQueryEvaluator.DenseCollector<U> collector = createDenseCollector(0, 2)) {
             collector.setScorer(getScorer());
             collector.collect(0);
             collector.collect(1);
@@ -93,7 +76,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
 
     @SuppressWarnings("unchecked")
     public void testDenseCollectorSimple() throws IOException {
-        try (LuceneQueryEvaluator.DenseCollector<U> collector = createDensecollector(0, 10)) {
+        try (LuceneQueryEvaluator.DenseCollector<U> collector = createDenseCollector(0, 10)) {
             collector.setScorer(getScorer());
             collector.collect(2);
             collector.collect(5);
@@ -112,7 +95,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
         int min = between(0, Integer.MAX_VALUE - length - 1);
         int max = min + length;
         boolean[] expected = new boolean[length];
-        try (LuceneQueryEvaluator.DenseCollector<U> collector = createDensecollector(min, max)) {
+        try (LuceneQueryEvaluator.DenseCollector<U> collector = createDenseCollector(min, max)) {
             collector.setScorer(getScorer());
             for (int i = 0; i < length; i++) {
                 expected[i] = randomBoolean();
@@ -133,31 +116,14 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
         Set<String> values = values();
         String term = values.iterator().next();
         List<Page> results = runQuery(values, new TermQuery(new Term(FIELD, term)), false);
-        assertTermQuery(term, results);
+        assertTermsQuery(results, Set.of(term), 1);
     }
 
     public void testTermQueryShuffled() throws IOException {
         Set<String> values = values();
         String term = values.iterator().next();
-        List<Page> results = runQuery(values, new TermQuery(new Term(FIELD, term)), true);
-        assertTermQuery(term, results);
-    }
-
-    private void assertTermQuery(String term, List<Page> results) {
-        int matchCount = 0;
-        for (Page page : results) {
-            int initialBlockIndex = initialBlockIndex(page);
-            BytesRefVector terms = page.<BytesRefBlock>getBlock(initialBlockIndex).asVector();
-            BooleanVector matches = page.<BooleanBlock>getBlock(initialBlockIndex + 1).asVector();
-            for (int i = 0; i < page.getPositionCount(); i++) {
-                BytesRef termAtPosition = terms.getBytesRef(i, new BytesRef());
-                assertThat(matches.getBoolean(i), equalTo(termAtPosition.utf8ToString().equals(term)));
-                if (matches.getBoolean(i)) {
-                    matchCount++;
-                }
-            }
-        }
-        assertThat(matchCount, equalTo(1));
+        List<Page> results = runQuery(values, new ConstantScoreQuery(new TermQuery(new Term(FIELD, term))), true);
+        assertTermsQuery(results, Set.of(term), 1);
     }
 
     public void testTermsQuery() throws IOException {
@@ -180,28 +146,10 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
             matchingBytes.add(new BytesRef(v));
         }
         List<Page> results = runQuery(values, new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_REWRITE, FIELD, matchingBytes), shuffleDocs);
-        int matchCount = 0;
-        for (Page page : results) {
-            int initialBlockIndex = initialBlockIndex(page);
-            BytesRefVector terms = page.<BytesRefBlock>getBlock(initialBlockIndex).asVector();
-            BooleanVector matches = page.<BooleanBlock>getBlock(initialBlockIndex + 1).asVector();
-            for (int i = 0; i < page.getPositionCount(); i++) {
-                BytesRef termAtPosition = terms.getBytesRef(i, new BytesRef());
-                assertThat(matches.getBoolean(i), equalTo(matching.contains(termAtPosition.utf8ToString())));
-                if (matches.getBoolean(i)) {
-                    matchCount++;
-                }
-            }
-        }
-        assertThat(matchCount, equalTo(expectedMatchCount));
+        assertTermsQuery(results, matching, expectedMatchCount);
     }
 
-    protected Operator createOperator(BlockFactory blockFactory, LuceneQueryEvaluator.ShardConfig[] shards) {
-        return new EvalOperator(blockFactory,  new LuceneQueryExpressionEvaluator(
-            blockFactory,
-            shards
-        ));
-    }
+    protected abstract void assertTermsQuery(List<Page> results, Set<String> matching, int expectedMatchCount);
 
     private List<Page> runQuery(Set<String> values, Query query, boolean shuffleDocs) throws IOException {
         DriverContext driverContext = driverContext();
@@ -240,7 +188,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
             List<Page> results = new ArrayList<>();
             Driver driver = TestDriverFactory.create(
                 driverContext,
-                LuceneQueryEvaluatorTests.luceneOperatorFactory(reader, new MatchAllDocsQuery(), useScoring)
+                LuceneQueryEvaluatorTests.luceneOperatorFactory(reader, new MatchAllDocsQuery(), usesScoring())
                     .get(driverContext),
                 operators,
                 new TestResultPageSinkOperator(results::add)
@@ -282,9 +230,9 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
     }
 
     // Returns the initial block index, ignoring the score block if scoring is enabled
-    private int initialBlockIndex(Page page) {
+    protected int termsBlockIndex(Page page) {
         assert page.getBlock(0) instanceof DocBlock : "expected doc block at index 0";
-        if (useScoring) {
+        if (usesScoring()) {
             assert page.getBlock(1) instanceof DoubleBlock : "expected double block at index 1";
             return 2;
         } else {
@@ -292,13 +240,54 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
         }
     }
 
-    protected abstract LuceneQueryEvaluator.DenseCollector<U> createDensecollector(int min, int max);
+    private static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, Query query, boolean scoring) {
+        final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
+        return new LuceneSourceOperator.Factory(
+            List.of(searchContext),
+            ctx -> query,
+            randomFrom(DataPartitioning.values()),
+            randomIntBetween(1, 10),
+            randomPageSize(),
+            LuceneOperator.NO_LIMIT,
+            scoring
+        );
+    }
 
+    // Returns the block index for the results to check
+    protected abstract int resultsBlockIndex(Page page);
+
+    /**
+     * Create a dense collector for the given range.
+     */
+    protected abstract LuceneQueryEvaluator.DenseCollector<U> createDenseCollector(int min, int max);
+
+    /**
+     * Returns a test scorer to use for scoring docs. Can be null
+     */
     protected abstract Scorable getScorer();
 
+    /**
+     * Retrieves the value at a given index from the vector. Need to do this as Vector does not export a generic get() method
+     */
     protected abstract Object getValueAt(T vector, int i);
 
+    /**
+     * Value that should be returned for a matching doc from the resulting vector
+     */
     protected abstract Object valueForMatch();
 
+    /**
+     * Value that should be returned for a non-matching doc from the resulting vector
+     */
     protected abstract Object valueForNoMatch();
+
+    /**
+     * Create the operator to test
+     */
+    protected abstract Operator createOperator(BlockFactory blockFactory, LuceneQueryEvaluator.ShardConfig[] shards);
+
+    /**
+     * Should the test use scoring?
+     */
+    protected abstract boolean usesScoring();
 }

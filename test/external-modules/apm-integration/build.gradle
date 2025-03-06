@@ -24,10 +24,6 @@ tasks.named("test").configure {
   enabled = false
 }
 
-tasks.named('javaRestTest').configure {
-  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
-}
-
 dependencies {
   clusterModules project(':modules:apm')
   implementation project(':libs:logging')

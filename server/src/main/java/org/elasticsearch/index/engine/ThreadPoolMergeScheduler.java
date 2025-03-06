@@ -400,7 +400,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
 
         void abortOnGoingMerge() {
-            // This interrupts the IndexWriter.
+            // {@code IndexWriter} checks the abort flag internally, while running the merge.
+            // The segments of an aborted merge become available to subsequent merges.
             onGoingMerge.getMerge().setAborted();
             // This ensures {@code OneMerge#close} gets invoked.
             // {@code IndexWriter} considers a merge as "running" once it has been pulled from the {@code MergeSource#getNextMerge},

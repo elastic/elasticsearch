@@ -361,7 +361,6 @@ _id:keyword
 scoresNonPushableFunctions
 
 required_capability: metadata_score
-required_capability: full_text_functions_disjunctions_score
 
 from books metadata _score 
 | where length(title) > 100
@@ -370,8 +369,8 @@ from books metadata _score
 ;
 
 book_no:keyword |  _score:double
-2924            | 0.0
-8678            | 0.0
+2924            | 1.0
+8678            | 1.0
 ;
 
 scoresPushableFunctions
@@ -423,6 +422,7 @@ book_no:keyword |  _score:double
 
 disjunctionScoresPushableNonPushableFunctions
 
+required_capability: metadata_score
 required_capability: full_text_functions_disjunctions_score
 
 from books metadata _score 
@@ -443,6 +443,7 @@ book_no:keyword |  _score:double
 
 disjunctionScoresMultipleClauses
 
+required_capability: metadata_score
 required_capability: full_text_functions_disjunctions_score
 
 from books metadata _score 

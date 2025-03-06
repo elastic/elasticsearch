@@ -98,6 +98,48 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testConjunctionPushableScoring() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(content, "fox") AND id > 4
+            | KEEP id, _score
+            | SORT _score DESC, id ASC
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values.size(), equalTo(1));
+
+            assertThat(values.get(0).get(0), equalTo(6));
+
+            // Matches full text query and pushable query
+            assertThat((Double) values.get(0).get(1), greaterThan(1.0));
+        }
+    }
+
+    public void testConjunctionNonPushableScoring() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(content, "fox") AND length(content) < 20
+            | KEEP id, _score
+            | SORT _score DESC, id ASC
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values.size(), equalTo(1));
+
+            assertThat(values.get(0).get(0), equalTo(1));
+
+            // Matches full text query and pushable query
+            assertThat((Double) values.get(0).get(1), greaterThan(1.0));
+        }
+    }
+
     public void testDisjunctionScoringPushableFunctions() {
         var query = """
             FROM test METADATA _score

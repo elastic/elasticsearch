@@ -47,6 +47,8 @@ Adds an index block to an index.
 ```console
 PUT /my-index-000001/_block/write
 ```
+%  TEST[s/^/PUT my-index-000001\n/]
+%  TEST[setup:my_index]
 
 
 ### {{api-request-title}} [add-index-block-api-request]

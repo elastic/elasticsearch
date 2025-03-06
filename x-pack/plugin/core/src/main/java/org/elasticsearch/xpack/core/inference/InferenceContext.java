@@ -15,7 +15,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-// TODO: docs
+/**
+ * Record for storing context alongside an inference request, typically used for metadata.
+ * This is mainly used to pass along inference context on the transport layer without relying on {@link org.elasticsearch.common.util.concurrent.ThreadContext},
+ * which depending on the internal {@link org.elasticsearch.client.internal.Client} throws away parts of the context, when passed along the transport layer.
+ *
+ * @param productUseCase - metadata for now mainly interesting for the Elastic Inference Service
+ */
 public record InferenceContext(String productUseCase) implements Writeable, ToXContent {
 
     public InferenceContext(StreamInput in) throws IOException {

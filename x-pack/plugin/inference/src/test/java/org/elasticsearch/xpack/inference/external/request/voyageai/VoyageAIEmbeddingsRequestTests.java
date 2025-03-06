@@ -209,6 +209,39 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         );
     }
 
+    public void testCreateRequest_InputTypeInternalIngest() throws IOException {
+        var request = createRequest(
+            List.of("abc"),
+            VoyageAIEmbeddingsModelTests.createModel(
+                "url",
+                "secret",
+                new VoyageAIEmbeddingsTaskSettings(InputType.INTERNAL_INGEST, null),
+                null,
+                null,
+                "model"
+            )
+        );
+
+        var httpRequest = request.createHttpRequest();
+        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
+        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        MatcherAssert.assertThat(
+            httpPost.getLastHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER).getValue(),
+            is(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
+        );
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        MatcherAssert.assertThat(
+            requestMap,
+            is(Map.of("input", List.of("abc"), "model", "model", "input_type", "document", "output_dtype", "float"))
+        );
+    }
+
     public static VoyageAIEmbeddingsRequest createRequest(List<String> input, VoyageAIEmbeddingsModel model) {
         return new VoyageAIEmbeddingsRequest(input, model);
     }

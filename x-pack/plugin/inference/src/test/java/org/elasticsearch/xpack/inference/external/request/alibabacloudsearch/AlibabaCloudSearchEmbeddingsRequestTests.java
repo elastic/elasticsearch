@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.request.alibabacloudsearch;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -54,6 +55,60 @@ public class AlibabaCloudSearchEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"))));
+    }
+
+    public void testCreateRequest_WithInputType_Search() throws IOException {
+        var request = createRequest(
+            List.of("abc"),
+            AlibabaCloudSearchEmbeddingsModelTests.createModel(
+                "embedding_test",
+                TaskType.TEXT_EMBEDDING,
+                AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("embeddings_test", "host", "default"),
+                AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH),
+                getSecretSettingsMap("secret")
+            )
+        );
+
+        var httpRequest = request.createHttpRequest();
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        MatcherAssert.assertThat(
+            httpPost.getURI().toString(),
+            is("https://host/v3/openapi/workspaces/default/text-embedding/embeddings_test")
+        );
+        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "input_type", "query")));
+    }
+
+    public void testCreateRequest_WithInputType_InternalIngest() throws IOException {
+        var request = createRequest(
+            List.of("abc"),
+            AlibabaCloudSearchEmbeddingsModelTests.createModel(
+                "embedding_test",
+                TaskType.TEXT_EMBEDDING,
+                AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("embeddings_test", "host", "default"),
+                AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.INTERNAL_INGEST),
+                getSecretSettingsMap("secret")
+            )
+        );
+
+        var httpRequest = request.createHttpRequest();
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        MatcherAssert.assertThat(
+            httpPost.getURI().toString(),
+            is("https://host/v3/openapi/workspaces/default/text-embedding/embeddings_test")
+        );
+        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "input_type", "document")));
     }
 
     public static AlibabaCloudSearchEmbeddingsRequest createRequest(List<String> input, AlibabaCloudSearchEmbeddingsModel model) {

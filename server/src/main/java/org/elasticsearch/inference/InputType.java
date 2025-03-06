@@ -22,6 +22,8 @@ public enum InputType {
     UNSPECIFIED,
     CLASSIFICATION,
     CLUSTERING,
+
+    // Use the following enums when calling the inference API internally
     INTERNAL_SEARCH,
     INTERNAL_INGEST;
 

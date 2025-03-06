@@ -167,17 +167,17 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
     }
 
     public void testValidation_Rerank_WithInputType() {
-        InferenceAction.Request queryRequest = new InferenceAction.Request(
+        InferenceAction.Request request = new InferenceAction.Request(
             TaskType.RERANK,
             "model",
-            "",
+            "query",
             List.of("input"),
             null,
             InputType.SEARCH,
             null,
             false
         );
-        ActionRequestValidationException queryError = queryRequest.validate();
+        ActionRequestValidationException queryError = request.validate();
         assertNotNull(queryError);
         assertThat(queryError.getMessage(), is("Validation Failed: 1: Field [input_type] cannot be specified for task type [rerank];"));
     }

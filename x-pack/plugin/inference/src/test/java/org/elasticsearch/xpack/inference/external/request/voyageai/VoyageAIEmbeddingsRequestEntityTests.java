@@ -167,7 +167,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
         var entity = new VoyageAIEmbeddingsRequestEntity(
             List.of("abc"),
             VoyageAIEmbeddingsServiceSettings.EMPTY_SETTINGS,
-            new VoyageAIEmbeddingsTaskSettings(InputType.INTERNAL_SEARCH, Boolean.FALSE),
+            new VoyageAIEmbeddingsTaskSettings(InputType.INTERNAL_SEARCH, null),
             "model"
         );
 
@@ -183,7 +183,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
         var entity = new VoyageAIEmbeddingsRequestEntity(
             List.of("abc"),
             VoyageAIEmbeddingsServiceSettings.EMPTY_SETTINGS,
-            new VoyageAIEmbeddingsTaskSettings(InputType.INTERNAL_INGEST, Boolean.FALSE),
+            new VoyageAIEmbeddingsTaskSettings(InputType.INTERNAL_INGEST, null),
             "model"
         );
 

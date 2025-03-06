@@ -146,7 +146,7 @@ public class GoogleAiStudioEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_SingleRequest_WritesInputTypeIfDefined() throws IOException {
-        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc"), "model", 8, InputType.INTERNAL_INGEST);
+        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc"), "model", null, InputType.INTERNAL_INGEST);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);

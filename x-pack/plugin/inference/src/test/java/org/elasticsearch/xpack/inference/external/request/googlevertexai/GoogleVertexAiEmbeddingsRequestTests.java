@@ -87,6 +87,24 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(requestMap, is(Map.of("instances", List.of(Map.of("content", "input", "task_type", "RETRIEVAL_QUERY")))));
     }
 
+    public void testCreateRequest_WithInternalInputTypeSet() throws IOException {
+        var model = "model";
+        var input = "input";
+
+        var request = createRequest(model, input, null, InputType.INTERNAL_INGEST);
+        var httpRequest = request.createHttpRequest();
+
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(requestMap, aMapWithSize(1));
+        assertThat(requestMap, is(Map.of("instances", List.of(Map.of("content", "input", "task_type", "RETRIEVAL_DOCUMENT")))));
+    }
+
     public void testTruncate_ReducesInputTextSizeByHalf() throws IOException {
         var model = "model";
         var input = "abcd";

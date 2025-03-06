@@ -864,68 +864,6 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testInfer_SendsEmbeddingsRequestWithInputType() throws IOException {
-        var modelId = "embedding-001";
-        var apiKey = "apiKey";
-        var input = "input";
-
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
-            String responseJson = """
-                {
-                     "embeddings": [
-                         {
-                             "values": [
-                                 0.0123,
-                                 -0.0123
-                             ]
-                         }
-                     ]
-                 }
-                """;
-
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = GoogleAiStudioEmbeddingsModelTests.createModel(modelId, apiKey, getUrl(webServer));
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                List.of(input),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
-            var result = listener.actionGet(TIMEOUT);
-
-            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
-            assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().get(0).getUri().getQuery(), endsWith(apiKey));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap, aMapWithSize(1));
-            assertThat(
-                requestMap.get("requests"),
-                Matchers.is(
-                    List.of(
-                        Map.of(
-                            "model",
-                            Strings.format("%s/%s", "models", modelId),
-                            "content",
-                            Map.of("parts", List.of(Map.of("text", input))),
-                            "taskType",
-                            "RETRIEVAL_QUERY"
-                        )
-                    )
-                )
-            );
-        }
-    }
-
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
         var modelId = "modelId";
         var apiKey = "apiKey";

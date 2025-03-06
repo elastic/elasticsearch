@@ -223,6 +223,74 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
         MatcherAssert.assertThat(requestMap, is(Map.of("texts", List.of("abc"), "truncate", "none", "embedding_types", List.of("float"))));
     }
 
+    public void testCreateRequest_WithInputType_Search() throws IOException {
+        var request = createRequest(
+            List.of("abc"),
+            CohereEmbeddingsModelTests.createModel(
+                "url",
+                "secret",
+                new CohereEmbeddingsTaskSettings(InputType.CLASSIFICATION, null),
+                null,
+                null,
+                null,
+                null
+            )
+        );
+
+        var httpRequest = request.createHttpRequest();
+        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
+        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        MatcherAssert.assertThat(
+            httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
+            is(CohereUtils.ELASTIC_REQUEST_SOURCE)
+        );
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        MatcherAssert.assertThat(
+            requestMap,
+            is(Map.of("texts", List.of("abc"), "embedding_types", List.of("float"), "input_type", "classification"))
+        );
+    }
+
+    public void testCreateRequest_WithInputType_InternalIngest() throws IOException {
+        var request = createRequest(
+            List.of("abc"),
+            CohereEmbeddingsModelTests.createModel(
+                "url",
+                "secret",
+                new CohereEmbeddingsTaskSettings(InputType.INTERNAL_INGEST, null),
+                null,
+                null,
+                null,
+                null
+            )
+        );
+
+        var httpRequest = request.createHttpRequest();
+        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
+        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        MatcherAssert.assertThat(
+            httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
+            is(CohereUtils.ELASTIC_REQUEST_SOURCE)
+        );
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        MatcherAssert.assertThat(
+            requestMap,
+            is(Map.of("texts", List.of("abc"), "embedding_types", List.of("float"), "input_type", "search_document"))
+        );
+    }
+
     public static CohereEmbeddingsRequest createRequest(List<String> input, CohereEmbeddingsModel model) {
         return new CohereEmbeddingsRequest(input, model);
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.amazonbedrock.AmazonBedrockActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
 
 import java.util.EnumSet;
@@ -32,7 +33,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.VALID_INTERNAL_INPUT_TYPE_VALUES;
 
 public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
-    static final String PROVIDER_WITH_TASK_TYPE = "cohere";
+    static final AmazonBedrockProvider PROVIDER_WITH_TASK_TYPE = AmazonBedrockProvider.COHERE;
     static final EnumSet<InputType> VALID_REQUEST_VALUES = EnumSet.of(
         InputType.INGEST,
         InputType.SEARCH,

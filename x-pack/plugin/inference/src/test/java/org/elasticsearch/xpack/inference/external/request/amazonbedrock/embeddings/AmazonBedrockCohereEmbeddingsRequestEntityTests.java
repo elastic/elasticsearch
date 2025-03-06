@@ -21,13 +21,20 @@ public class AmazonBedrockCohereEmbeddingsRequestEntityTests extends ESTestCase 
         var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(List.of("test input"), null);
         var builder = new AmazonBedrockJsonBuilder(entity);
         var result = builder.getStringContent();
-        assertThat(result, is("{\"texts\":[\"test input\"]}"));
+        assertThat(result, is("{\"texts\":[\"test input\"],\"input_type\":\"search_document\"}"));
+    }
+
+    public void testRequestEntity_GeneratesExpectedJsonBody_WithInternalInputType() throws IOException {
+        var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(List.of("test input"), InputType.INTERNAL_SEARCH);
+        var builder = new AmazonBedrockJsonBuilder(entity);
+        var result = builder.getStringContent();
+        assertThat(result, is("{\"texts\":[\"test input\"],\"input_type\":\"search_query\"}"));
     }
 
     public void testRequestEntity_GeneratesExpectedJsonBody_WithInputType() throws IOException {
-        var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(List.of("test input"), InputType.INTERNAL_INGEST);
+        var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(List.of("test input"), InputType.CLASSIFICATION);
         var builder = new AmazonBedrockJsonBuilder(entity);
         var result = builder.getStringContent();
-        assertThat(result, is("{\"texts\":[\"test input\"],\"input_type\":\"search_document\"}"));
+        assertThat(result, is("{\"texts\":[\"test input\"],\"input_type\":\"classification\"}"));
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.List;
@@ -50,6 +51,7 @@ public record JoinConfig(JoinType type, List<Attribute> matchFields, List<Attrib
         return type.resolved()
             && Resolvables.resolved(matchFields)
             && Resolvables.resolved(leftFields)
-            && Resolvables.resolved(rightFields);
+            && Resolvables.resolved(rightFields)
+            && leftFields.stream().noneMatch(e -> e.dataType() == DataType.UNSUPPORTED);
     }
 }

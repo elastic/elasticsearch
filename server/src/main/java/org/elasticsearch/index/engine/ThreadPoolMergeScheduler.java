@@ -410,6 +410,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
 
         long estimatedMergeSize() {
+            // TODO is it possible that `estimatedMergeBytes` be `0` for correctly initialize merges,
+            // or is it always the case that if `estimatedMergeBytes` is `0` that means that the merge has not yet been initialized?
             return onGoingMerge.getMerge().getStoreMergeInfo().estimatedMergeBytes();
         }
 

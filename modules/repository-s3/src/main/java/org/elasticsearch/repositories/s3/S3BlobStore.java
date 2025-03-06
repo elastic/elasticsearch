@@ -383,13 +383,6 @@ class S3BlobStore implements BlobStore {
             // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
             // first remove all keys that were sent in the request and then add back those that ran into an exception.
             logger.warn(buildDeletionErrorMessage(e), e);
-            logger.warn(
-                () -> format(
-                    "Failed to delete some blobs %s",
-                    e.getErrors().stream().map(err -> "[" + err.getKey() + "][" + err.getCode() + "][" + err.getMessage() + "]").toList()
-                ),
-                e
-            );
             deletionExceptions.useOrMaybeSuppress(e);
         } catch (AmazonClientException e) {
             // The AWS client threw any unexpected exception and did not execute the request at all so we do not

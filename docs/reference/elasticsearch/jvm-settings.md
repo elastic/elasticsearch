@@ -145,7 +145,7 @@ By default, {{es}} enables garbage collection (GC) logs. These are configured in
 
 You can reconfigure JVM logging using the command line options described in [JEP 158: Unified JVM Logging](https://openjdk.java.net/jeps/158). Unless you change the default `jvm.options` file directly, the {{es}} default configuration is applied in addition to your own settings. To disable the default configuration, first disable logging by supplying the `-Xlog:disable` option, then supply your own command line options. This disables *all* JVM logging, so be sure to review the available options and enable everything that you require.
 
-To see further options not contained in the original JEP, see [Enable Logging with the JVM Unified Logging Framework](https://docs.oracle.com/en/java/javase/13/docs/specs/man/java.md#enable-logging-with-the-jvm-unified-logging-framework).
+To see further options not contained in the original JEP, see [Enable Logging with the JVM Unified Logging Framework](https://docs.oracle.com/en/java/javase/13/docs/specs/man/java.html#enable-logging-with-the-jvm-unified-logging-framework).
 
 
 ### Examples [_examples_2]

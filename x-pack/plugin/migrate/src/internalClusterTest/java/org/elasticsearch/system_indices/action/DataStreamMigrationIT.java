@@ -47,8 +47,9 @@ import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 public class DataStreamMigrationIT extends AbstractFeatureMigrationIntegTest {
     private static final String TEST_DATA_STREAM_NAME = ".test-data-stream";
     private static final String DATA_STREAM_FEATURE = "ds-feature";
-    private static volatile SystemDataStreamDescriptor systemDataStreamDescriptor
-        = createSystemDataStreamDescriptor(NEEDS_UPGRADE_INDEX_VERSION);
+    private static volatile SystemDataStreamDescriptor systemDataStreamDescriptor = createSystemDataStreamDescriptor(
+        NEEDS_UPGRADE_INDEX_VERSION
+    );
 
     private static SystemDataStreamDescriptor createSystemDataStreamDescriptor(IndexVersion indexVersion) {
         return new SystemDataStreamDescriptor(
@@ -56,9 +57,11 @@ public class DataStreamMigrationIT extends AbstractFeatureMigrationIntegTest {
             "system data stream test",
             SystemDataStreamDescriptor.Type.EXTERNAL,
             ComposableIndexTemplate.builder()
-                .template(Template.builder()
-                    .dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(true))
-                    .settings(indexSettings(indexVersion, 1, 0)))
+                .template(
+                    Template.builder()
+                        .dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(true))
+                        .settings(indexSettings(indexVersion, 1, 0))
+                )
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build(),
             Map.of(),
@@ -164,8 +167,10 @@ public class DataStreamMigrationIT extends AbstractFeatureMigrationIntegTest {
     }
 
     private void simulateClusterUpgrade() throws Exception {
-        String indexVersionCreated = systemDataStreamDescriptor.getComposableIndexTemplate().template()
-            .settings().get(IndexMetadata.SETTING_VERSION_CREATED);
+        String indexVersionCreated = systemDataStreamDescriptor.getComposableIndexTemplate()
+            .template()
+            .settings()
+            .get(IndexMetadata.SETTING_VERSION_CREATED);
         assertThat(indexVersionCreated, is(NEEDS_UPGRADE_INDEX_VERSION.toString()));
         // we can't have NEEDS_UPGRADE_VERSION in settings anymore,
         // because those settings will be used in index rollover during data stream migration

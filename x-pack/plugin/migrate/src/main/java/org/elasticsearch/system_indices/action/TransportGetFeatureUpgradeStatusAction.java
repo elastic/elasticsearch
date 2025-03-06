@@ -164,7 +164,8 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
 
                 // we don't know migration of which backing index has failed,
                 // so, unfortunately, have to report exception for all indices for now
-                return descriptor.getMatchingIndices(state.metadata()).stream()
+                return descriptor.getMatchingIndices(state.metadata())
+                    .stream()
                     .sorted(String::compareTo)
                     .map(index -> state.metadata().index(index))
                     .map(
@@ -172,9 +173,9 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
                             indexMetadata.getIndex().getName(),
                             indexMetadata.getCreationVersion(),
                             dsException
-                        ));
-                }
-            );
+                        )
+                    );
+            });
 
         return Stream.concat(indexInfoStream, dataStreamsIndexInfoStream).toList();
     }

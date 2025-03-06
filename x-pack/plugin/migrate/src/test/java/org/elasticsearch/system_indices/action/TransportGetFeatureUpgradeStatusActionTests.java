@@ -139,13 +139,24 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
 
     private static SystemIndices.Feature getFeature() {
         SystemIndexDescriptor descriptor = SystemIndexDescriptorUtils.createUnmanaged(TEST_SYSTEM_INDEX_PATTERN, "descriptor for tests");
-        SystemDataStreamDescriptor dataStreamDescriptor = new SystemDataStreamDescriptor(DATA_STREAM_NAME,
-            "test data stream", SystemDataStreamDescriptor.Type.INTERNAL, ComposableIndexTemplate.builder().build(), Map.of(),
-            Collections.singletonList("origin"), "origin", ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS);
+        SystemDataStreamDescriptor dataStreamDescriptor = new SystemDataStreamDescriptor(
+            DATA_STREAM_NAME,
+            "test data stream",
+            SystemDataStreamDescriptor.Type.INTERNAL,
+            ComposableIndexTemplate.builder().build(),
+            Map.of(),
+            Collections.singletonList("origin"),
+            "origin",
+            ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+        );
 
         // system indices feature object
-        SystemIndices.Feature feature = new SystemIndices.Feature(FEATURE_NAME, "feature for tests",
-            List.of(descriptor), List.of(dataStreamDescriptor));
+        SystemIndices.Feature feature = new SystemIndices.Feature(
+            FEATURE_NAME,
+            "feature for tests",
+            List.of(descriptor),
+            List.of(dataStreamDescriptor)
+        );
         return feature;
     }
 
@@ -171,17 +182,15 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
             .system(true)
             .build();
 
-        DataStream dataStream = DataStream
-            .builder(DATA_STREAM_NAME, List.of(dsIndexMetadata.getIndex()))
+        DataStream dataStream = DataStream.builder(DATA_STREAM_NAME, List.of(dsIndexMetadata.getIndex()))
             .setSystem(true)
             .setHidden(true)
             .build();
 
         ClusterState clusterState = new ClusterState.Builder(ClusterState.EMPTY_STATE).metadata(
             new Metadata.Builder().dataStreams(Map.of(DATA_STREAM_NAME, dataStream), Collections.emptyMap())
-                .indices(Map.of(TEST_INDEX_1_NAME, indexMetadata1,
-                    ".test-index-2", indexMetadata2,
-                    BACKING_INDEX_NAME, dsIndexMetadata)).build()
+                .indices(Map.of(TEST_INDEX_1_NAME, indexMetadata1, ".test-index-2", indexMetadata2, BACKING_INDEX_NAME, dsIndexMetadata))
+                .build()
         ).build();
         return clusterState;
     }

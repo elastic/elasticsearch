@@ -610,7 +610,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
                     client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(backingIndex))
                 ).getDestIndex();
                 var settingsResponse = safeGet(
-                    indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(backingIndex, destIndex))
+                    indicesAdmin().getSettings(new GetSettingsRequest().indices(backingIndex, destIndex))
                 );
                 assertEquals(policyName, settingsResponse.getSetting(backingIndex, IndexMetadata.LIFECYCLE_NAME));
                 assertNull(settingsResponse.getSetting(destIndex, IndexMetadata.LIFECYCLE_NAME));

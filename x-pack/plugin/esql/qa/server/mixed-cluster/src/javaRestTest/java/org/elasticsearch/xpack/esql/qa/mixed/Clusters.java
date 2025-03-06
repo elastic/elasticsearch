@@ -14,7 +14,7 @@ import org.elasticsearch.test.cluster.util.Version;
 public class Clusters {
     public static ElasticsearchCluster mixedVersionCluster() {
         Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-        return ElasticsearchCluster.local()
+        var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .withNode(node -> node.version(oldVersion))
             .withNode(node -> node.version(Version.CURRENT))
@@ -22,7 +22,12 @@ public class Clusters {
             .withNode(node -> node.version(Version.CURRENT))
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
-            .setting("cluster.routing.rebalance.enable", "none") // disable relocation until we have retry in ESQL
-            .build();
+            .setting("cluster.routing.rebalance.enable", "none"); // disable relocation until we have retry in ESQL
+
+        if (oldVersion.before(Version.fromString("8.18.0"))) {
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+        return cluster.build();
     }
 }

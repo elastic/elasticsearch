@@ -517,9 +517,35 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return indexMode;
     }
 
+    /**
+     * Retrieves the lifecycle configuration meant for the backing indices.
+     */
     @Nullable
     public DataStreamLifecycle getDataLifecycle() {
         return lifecycle;
+    }
+
+    /**
+     * Retrieves the lifecycle configuration meant for the failure store. Currently, it's the same with {@link #getDataLifecycle()}
+     * but it will change.
+     */
+    @Nullable
+    public DataStreamLifecycle getFailuresLifecycle() {
+        return lifecycle;
+    }
+
+    /**
+     * Retrieves the correct lifecycle for the provided index. Returns null if the index does not belong to this data stream
+     */
+    @Nullable
+    public DataStreamLifecycle getDataLifecycleForIndex(Index index) {
+        if (backingIndices.containsIndex(index.getName())) {
+            return getDataLifecycle();
+        }
+        if (failureIndices.containsIndex(index.getName())) {
+            return getFailuresLifecycle();
+        }
+        return null;
     }
 
     /**

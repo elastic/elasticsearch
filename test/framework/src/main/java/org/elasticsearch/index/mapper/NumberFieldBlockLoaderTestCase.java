@@ -30,7 +30,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
         }
 
         if ((boolean) fieldMapping.getOrDefault("doc_values", false)) {
-            // Sorted and no duplicates
+            // Sorted
             var resultList = ((List<Object>) value).stream()
                 .map(v -> convert(v, nullValue, fieldMapping))
                 .filter(Objects::nonNull)

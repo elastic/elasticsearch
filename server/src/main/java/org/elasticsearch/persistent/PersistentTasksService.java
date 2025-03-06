@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -171,7 +172,29 @@ public class PersistentTasksService {
      * @param timeout a timeout for waiting
      * @param listener the callback listener
      */
+    @Deprecated(forRemoval = true)
     public void waitForPersistentTaskCondition(
+        final String taskId,
+        final Predicate<PersistentTask<?>> predicate,
+        final @Nullable TimeValue timeout,
+        final WaitForPersistentTaskListener<?> listener
+    ) {
+        final var projectId = clusterService.state().metadata().getProject().id();
+        waitForPersistentTaskCondition(projectId, taskId, predicate, timeout, listener);
+    }
+
+    /**
+     * Waits for a given persistent task to comply with a given predicate, then call back the listener accordingly.
+     *
+     * @param projectId the project ID
+     * @param taskId the persistent task id
+     * @param predicate the persistent task predicate to evaluate, must be able to handle {@code null} input which means either the project
+     *                  does not exist or persistent tasks for the project do not exist
+     * @param timeout a timeout for waiting
+     * @param listener the callback listener
+     */
+    public void waitForPersistentTaskCondition(
+        final ProjectId projectId,
         final String taskId,
         final Predicate<PersistentTask<?>> predicate,
         final @Nullable TimeValue timeout,
@@ -180,7 +203,8 @@ public class PersistentTasksService {
         ClusterStateObserver.waitForState(clusterService, threadPool.getThreadContext(), new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
-                listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(state, taskId));
+                final var project = state.metadata().projects().get(projectId);
+                listener.onResponse(project == null ? null : PersistentTasksCustomMetadata.getTaskWithId(project, taskId));
             }
 
             @Override
@@ -192,7 +216,15 @@ public class PersistentTasksService {
             public void onTimeout(TimeValue timeout) {
                 listener.onTimeout(timeout);
             }
-        }, clusterState -> predicate.test(PersistentTasksCustomMetadata.getTaskWithId(clusterState, taskId)), timeout, logger);
+        }, clusterState -> {
+            final var project = clusterState.metadata().projects().get(projectId);
+            if (project == null) {
+                logger.debug("project [{}] not found while waiting for persistent task [{}] to pass predicate", projectId, taskId);
+                return predicate.test(null);
+            } else {
+                return predicate.test(PersistentTasksCustomMetadata.getTaskWithId(project, taskId));
+            }
+        }, timeout, logger);
     }
 
     // visible for testing

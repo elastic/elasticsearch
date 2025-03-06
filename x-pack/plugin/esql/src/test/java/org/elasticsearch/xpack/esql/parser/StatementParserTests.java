@@ -3109,6 +3109,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
+    // [ and ( are used to trigger a double mode causing their symbol name (instead of text) to be used in error reporting
+    // this test checks that their are properly replaced in the error message
+    public void testPreserveParanthesis() {
+        // test for (
+        expectError("row a = 1 not in", "line 1:17: mismatched input '<EOF>' expecting '('");
+        // test for [
+        expectError("explain", "line 1:8: mismatched input '<EOF>' expecting '['");
+    }
+
     static Alias alias(String name, Expression value) {
         return new Alias(EMPTY, name, value);
     }

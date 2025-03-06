@@ -136,6 +136,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
                     followUpMerges[i] = oneMerge;
                 }
+                // the merge source with follow-up merges
                 when(mergeSource.getNextMerge()).thenReturn(firstMerge, followUpMerges);
                 AtomicBoolean isMergeInProgress = new AtomicBoolean();
                 AtomicInteger runMergeIdx = new AtomicInteger();
@@ -146,7 +147,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     assertTrue(isMergeInProgress.compareAndSet(false, true));
                     OneMerge mergeInvocation = (OneMerge) invocation.getArguments()[0];
                     assertFalse(mergeInvocation.isAborted());
-                    // assert merges run in the order they are submitted
+                    // assert merges run in the order they are produced by the merge source
                     if (runMergeIdx.get() == 0) {
                         assertThat(mergeInvocation, is(firstMerge));
                     } else {
@@ -159,8 +160,10 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     assertTrue(isMergeInProgress.compareAndSet(true, false));
                     return null;
                 }).when(mergeSource).merge(any(OneMerge.class));
+                // trigger run merges on the merge source
                 threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
                 do {
+                    // let merges run, but wait for the in-progress one to signal it is running
                     nextMergeSemaphore.acquire();
                     runMergeSemaphore.release();
                 } while (runMergeIdx.get() < followUpMergeCount);

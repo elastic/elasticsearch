@@ -7,13 +7,13 @@ mapped_pages:
 # Porter stem token filter [analysis-porterstem-tokenfilter]
 
 
-Provides [algorithmic stemming](docs-content://manage-data/data-store/text-analysis/stemming.md#algorithmic-stemmers) for the English language, based on the [Porter stemming algorithm](https://snowballstem.org/algorithms/porter/stemmer.md).
+Provides [algorithmic stemming](docs-content://manage-data/data-store/text-analysis/stemming.md#algorithmic-stemmers) for the English language, based on the [Porter stemming algorithm](https://snowballstem.org/algorithms/porter/stemmer.html).
 
 This filter tends to stem more aggressively than other English stemmer filters, such as the [`kstem`](/reference/data-analysis/text-analysis/analysis-kstem-tokenfilter.md) filter.
 
 The `porter_stem` filter is equivalent to the [`stemmer`](/reference/data-analysis/text-analysis/analysis-stemmer-tokenfilter.md) filter’s [`english`](/reference/data-analysis/text-analysis/analysis-stemmer-tokenfilter.md#analysis-stemmer-tokenfilter-language-parm) variant.
 
-The `porter_stem` filter uses Lucene’s [PorterStemFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/en/PorterStemFilter.md).
+The `porter_stem` filter uses Lucene’s [PorterStemFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/en/PorterStemFilter.html).
 
 ## Example [analysis-porterstem-tokenfilter-analyze-ex]
 

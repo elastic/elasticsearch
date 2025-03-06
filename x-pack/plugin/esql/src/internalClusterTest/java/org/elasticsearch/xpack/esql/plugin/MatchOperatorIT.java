@@ -221,7 +221,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     public void testScoring_Zero_OutsideQuery() {
         var query = """
             FROM test METADATA _score
-            | SORT _score DESC
+            | SORT content DESC
             | KEEP content, _score
             """;
 

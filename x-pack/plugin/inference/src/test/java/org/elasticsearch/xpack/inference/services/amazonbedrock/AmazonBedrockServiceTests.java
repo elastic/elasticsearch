@@ -1444,7 +1444,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 service.chunkedInfer(
                     model,
                     null,
-                    List.of("abc", "xyz"),
+                    List.of("a", "bb"),
                     new HashMap<>(),
                     InputType.INGEST,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1457,7 +1457,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
                     var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                     assertThat(floatResult.chunks(), hasSize(1));
-                    assertEquals("abc", floatResult.chunks().get(0).matchedText());
+                    assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
                     assertThat(floatResult.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
                     assertArrayEquals(
                         new float[] { 0.123F, 0.678F },
@@ -1469,7 +1469,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
                     var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                     assertThat(floatResult.chunks(), hasSize(1));
-                    assertEquals("xyz", floatResult.chunks().get(0).matchedText());
+                    assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
                     assertThat(floatResult.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
                     assertArrayEquals(
                         new float[] { 0.223F, 0.278F },

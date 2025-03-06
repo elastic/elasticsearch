@@ -2,6 +2,7 @@
 
 set -euo pipefail
 
+export MAX_WORKER_ENV=4
 # This is a workaround for https://github.com/gradle/gradle/issues/28159
 .ci/scripts/run-gradle.sh --no-daemon $@
 

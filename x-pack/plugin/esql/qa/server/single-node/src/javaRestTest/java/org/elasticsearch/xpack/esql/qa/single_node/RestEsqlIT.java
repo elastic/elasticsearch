@@ -17,19 +17,26 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.LogType;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.ClassRule;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,6 +44,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -328,6 +336,22 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 default -> throw new IllegalArgumentException("can't match " + description);
             }
         }
+    }
+
+    public void testProfileParsing() throws IOException {
+        indexTimestampData(1);
+
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | stats avg(value)");
+        builder.profile(true);
+        Map<String, Object> result = runEsql(builder);
+
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        try (XContentBuilder jsonOutputBuilder = new XContentBuilder(JsonXContent.jsonXContent, os)) {
+            parseProfile(result, jsonOutputBuilder);
+        }
+        String parsedProfile = os.toString(Charset.defaultCharset());
+
+        assertFalse(true);
     }
 
     public void testProfileOrdinalsGroupingOperator() throws IOException {

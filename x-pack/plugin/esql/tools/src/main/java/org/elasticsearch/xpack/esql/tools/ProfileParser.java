@@ -65,7 +65,7 @@ public class ProfileParser {
      * out to be tricky to use.
      */
     @SuppressWarnings("unchecked")
-    private static void parseProfile(Map<String, Object> parsedQueryResponseWithProfile, XContentBuilder outputBuilder) throws IOException {
+    public static void parseProfile(Map<String, Object> parsedQueryResponseWithProfile, XContentBuilder outputBuilder) throws IOException {
         Map<String, Object> profile = (Map<String, Object>) parsedQueryResponseWithProfile.get("profile");
         List<Map<String, Object>> drivers = (List<Map<String, Object>>) profile.get("drivers");
 

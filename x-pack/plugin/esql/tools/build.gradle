@@ -3,6 +3,7 @@ apply plugin: 'elasticsearch.java'
 dependencies {
   implementation project(":libs:x-content")
   implementation project(':libs:logging')
+  // Required for log4j, there's probably a more direct way to depend on it.
   implementation project(':test:framework')
 }
 

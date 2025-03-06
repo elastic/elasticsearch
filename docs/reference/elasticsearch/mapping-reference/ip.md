@@ -36,6 +36,8 @@ GET my-index-000001/_search
 }
 ```
 
+%  TESTSETUP
+
 ::::{note}
 You can also store ip ranges in a single field using an [ip_range data type](/reference/elasticsearch/mapping-reference/range.md).
 ::::
@@ -157,6 +159,8 @@ PUT idx/_doc/1
 }
 ```
 
+%  TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
 Will become:
 
 ```console-result
@@ -164,6 +168,8 @@ Will become:
   "ip": ["::afff:4567:890a", "10.10.12.123", "192.168.0.1", "2001:db8::1:0:0:1"]
 }
 ```
+
+%  TEST[s/^/{"_source":/ s/\n$/}/]
 
 ::::{note}
 IPv4 addresses are sorted as though they were IPv6 addresses prefixed by `::ffff:0:0:0/96` as specified by [rfc6144](https://datatracker.ietf.org/doc/html/rfc6144).

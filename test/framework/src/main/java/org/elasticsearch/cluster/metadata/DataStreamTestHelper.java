@@ -554,6 +554,16 @@ public final class DataStreamTestHelper {
             .build();
     }
 
+    public static ClusterState getClusterStateWithDataStream(
+        ProjectId projectId,
+        String dataStream,
+        List<Tuple<Instant, Instant>> timeSlices
+    ) {
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(getProjectWithDataStream(projectId, dataStream, timeSlices))
+            .build();
+    }
+
     public static ProjectMetadata getProjectWithDataStream(
         ProjectId projectId,
         String dataStream,

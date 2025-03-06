@@ -94,6 +94,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         Path baseWorkingDir;
         try {
             baseWorkingDir = Files.createTempDirectory(spec.getName());
+            DebugUtils.watchDirectory(baseWorkingDir);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

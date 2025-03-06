@@ -10,7 +10,6 @@
 package org.elasticsearch;
 
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -49,7 +48,7 @@ public class TransportVersions {
         return new TransportVersion(id);
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove the transport versions with which v9 will not need to interact
+    // TODO: ES-10337 we can remove all transport versions earlier than 8.18
     public static final TransportVersion ZERO = def(0);
     public static final TransportVersion V_7_0_0 = def(7_00_00_99);
     public static final TransportVersion V_7_1_0 = def(7_01_00_99);
@@ -99,8 +98,6 @@ public class TransportVersions {
     public static final TransportVersion V_8_16_1 = def(8_772_0_04);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_5 = def(8_772_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_6 = def(8_772_0_06);
-    public static final TransportVersion REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_773_0_00);
-    public static final TransportVersion REVERT_REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_774_0_00);
     public static final TransportVersion V_8_17_0 = def(8_797_0_02);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_3 = def(8_797_0_03);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_4 = def(8_797_0_04);
@@ -183,6 +180,9 @@ public class TransportVersions {
     public static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH = def(9_019_0_00);
     public static final TransportVersion JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_020_0_00);
     public static final TransportVersion RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(9_021_0_00);
+    public static final TransportVersion UNASSIGENEDINFO_RESHARD_ADDED = def(9_022_0_00);
+    public static final TransportVersion INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM = def(9_023_0_00);
+    public static final TransportVersion MAX_OPERATION_SIZE_REJECTIONS_ADDED = def(9_024_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

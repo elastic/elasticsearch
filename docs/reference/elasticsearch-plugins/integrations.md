@@ -60,7 +60,7 @@ Integrations are not plugins, but are external tools or modules that make it eas
 * [Spring Elasticsearch](https://github.com/dadoonet/spring-elasticsearch): Spring Factory for Elasticsearch
 * [Zeebe](https://zeebe.io): An Elasticsearch exporter acts as a bridge between Zeebe and Elasticsearch
 * [Apache Pulsar](https://pulsar.apache.org/docs/en/io-elasticsearch): The Elasticsearch Sink Connector is used to pull messages from Pulsar topics and persist the messages to an index.
-* [Micronaut Elasticsearch Integration](https://micronaut-projects.github.io/micronaut-elasticsearch/latest/guide/index.md): Integration of Micronaut with Elasticsearch
+* [Micronaut Elasticsearch Integration](https://micronaut-projects.github.io/micronaut-elasticsearch/latest/guide/index.html): Integration of Micronaut with Elasticsearch
 * [Apache StreamPipes](https://streampipes.apache.org): StreamPipes is a framework that enables users to work with IoT data sources.
 * [Apache MetaModel](https://metamodel.apache.org/): Providing a common interface for discovery, exploration of metadata and querying of different types of data sources.
 * [Micrometer](https://micrometer.io): Vendor-neutral application metrics facade. Think SLF4j, but for metrics.
@@ -84,7 +84,7 @@ Integrations are not plugins, but are external tools or modules that make it eas
 
 ### Supported by the community: [_supported_by_the_community_6]
 
-* [SPM for Elasticsearch](https://sematext.com/spm/index.md): Performance monitoring with live charts showing cluster and node stats, integrated alerts, email reports, etc.
+* [SPM for Elasticsearch](https://sematext.com/spm/index.html): Performance monitoring with live charts showing cluster and node stats, integrated alerts, email reports, etc.
 * [Zabbix monitoring template](https://www.zabbix.com/integrations/elasticsearch): Monitor the performance and status of your {{es}} nodes and cluster with Zabbix and receive events information.
 
 

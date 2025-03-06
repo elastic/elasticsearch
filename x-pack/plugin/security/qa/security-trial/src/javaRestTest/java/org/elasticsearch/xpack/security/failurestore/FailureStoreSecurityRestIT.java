@@ -227,8 +227,8 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         List<String> docIds = populateDataStream();
         assertThat(docIds.size(), equalTo(2));
         assertThat(docIds, hasItem("1"));
-        String successDocId = "1";
-        String failedDocId = docIds.stream().filter(id -> false == id.equals(successDocId)).findFirst().get();
+        String dataDocId = "1";
+        String failuresDocId = docIds.stream().filter(id -> false == id.equals(dataDocId)).findFirst().get();
 
         Request dataStream = new Request("GET", "/_data_stream/test1");
         Response response = adminClient().performRequest(dataStream);
@@ -245,101 +245,465 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         String dataIndexName = dataIndexNames.get(0);
         String failureIndexName = failureIndexNames.get(0);
 
+        Request aliasRequest = new Request("POST", "/_aliases");
+        aliasRequest.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "test1",
+                    "alias": "test-alias"
+                  }
+                }
+              ]
+            }
+            """);
+        assertOK(adminClient().performRequest(aliasRequest));
+
         // `*` with read access user _can_ read concrete failure index with only read
-        assertContainsDocIds(performRequest(STAR_READ_ONLY_USER, new Request("GET", "/" + failureIndexName + "/_search")), failedDocId);
+        expectDocIds(performRequest(STAR_READ_ONLY_USER, new Request("GET", "/" + failureIndexName + "/_search")), failuresDocId);
 
         // user with access to failures index
-        assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::failures/_search")), failedDocId);
-        assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test*::failures/_search")), failedDocId);
-        assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::failures/_search")), failedDocId);
-        assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*::failures/_search")), failedDocId);
-        assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.fs*/_search")), failedDocId);
-        assertContainsDocIds(
-            performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search")),
-            failedDocId
-        );
-        assertContainsDocIds(
+        expectDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test-alias::failures/_search")), failuresDocId);
+        expectDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::failures/_search")), failuresDocId);
+        expectDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test*::failures/_search")), failuresDocId);
+        expectDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::failures/_search")), failuresDocId);
+        expectDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*::failures/_search")), failuresDocId);
+        expectDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.fs*/_search")), failuresDocId);
+        expectDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search")), failuresDocId);
+        expectDocIds(
             performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search?ignore_unavailable=true")),
-            failedDocId
+            failuresDocId
         );
+
+        // todo also add superuser
+        List<String> users = List.of(DATA_ACCESS_USER, FAILURE_STORE_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER);
+
+        // search data
+        {
+            Request request = searchRequest("test1");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS_USER:
+                        expectThrows403(() -> performRequest(user, request));
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test1", "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS_USER:
+                        expectEmpty(performRequest(user, request));
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test-alias");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS_USER:
+                        expectThrows403(() -> performRequest(user, request));
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test-alias", "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS_USER:
+                        expectEmpty(performRequest(user, request));
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test*");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS_USER:
+                        expectEmpty(performRequest(user, request));
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("*1");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS_USER:
+                        expectEmpty(performRequest(user, request));
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("*");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS_USER:
+                        expectEmpty(performRequest(user, request));
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest(".ds*");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS_USER:
+                        expectEmpty(performRequest(user, request));
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest(dataIndexName);
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS_USER:
+                        expectThrows403(() -> performRequest(user, request));
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest(dataIndexName, "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS_USER:
+                        expectEmpty(performRequest(user, request));
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test2");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER:
+                        expectThrows404(() -> performRequest(user, request));
+                        break;
+                    case FAILURE_STORE_ACCESS_USER:
+                        expectThrows403(() -> performRequest(user, request));
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test2", "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER, FAILURE_STORE_ACCESS_USER:
+                        expectEmpty(performRequest(user, request));
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+
+        // search failures
+        {
+            Request request = searchRequest("test1::failures");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER:
+                        expectThrows403(() -> performRequest(user, request));
+                        break;
+                    case FAILURE_STORE_ACCESS_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test1::failures", "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER:
+                        expectEmpty(performRequest(user, request));
+                        break;
+                    case FAILURE_STORE_ACCESS_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test-alias::failures");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER:
+                        expectThrows403(() -> performRequest(user, request));
+                        break;
+                    case FAILURE_STORE_ACCESS_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test-alias::failures", "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER:
+                        expectEmpty(performRequest(user, request));
+                        break;
+                    case FAILURE_STORE_ACCESS_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test*::failures");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER:
+                        expectEmpty(performRequest(user, request));
+                        break;
+                    case FAILURE_STORE_ACCESS_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("*1::failures");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER:
+                        expectEmpty(performRequest(user, request));
+                        break;
+                    case FAILURE_STORE_ACCESS_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("*::failures");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER:
+                        expectEmpty(performRequest(user, request));
+                        break;
+                    case FAILURE_STORE_ACCESS_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest(".fs*");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER:
+                        expectEmpty(performRequest(user, request));
+                        break;
+                    case FAILURE_STORE_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest(failureIndexName);
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER:
+                        expectThrows403(() -> performRequest(user, request));
+                        break;
+                    case FAILURE_STORE_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest(failureIndexName, "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER:
+                        // TODO fix
+                        // expectEmpty(performRequest(user, request));
+                        break;
+                    case FAILURE_STORE_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test2::failures");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER:
+                        expectThrows403(() -> performRequest(user, request));
+                        break;
+                    case FAILURE_STORE_ACCESS_USER, BOTH_ACCESS_USER:
+                        expectThrows404(() -> performRequest(user, request));
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test2::failures", "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER, FAILURE_STORE_ACCESS_USER:
+                        expectEmpty(performRequest(user, request));
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
 
         expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test12::failures/_search")));
+
         expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
 
-        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::data/_search")));
-        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1/_search")));
         expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::data/_search")));
         expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2/_search")));
         expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search")));
         expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1,test1::failures/_search")));
 
-        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::data/_search?ignore_unavailable=true")));
-        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1/_search?ignore_unavailable=true")));
-        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::data/_search?ignore_unavailable=true")));
-        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2/_search?ignore_unavailable=true")));
-        assertEmpty(
+        expectEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::data/_search?ignore_unavailable=true")));
+        expectEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1/_search?ignore_unavailable=true")));
+        expectEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::data/_search?ignore_unavailable=true")));
+        expectEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2/_search?ignore_unavailable=true")));
+        expectEmpty(
             performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search?ignore_unavailable=true"))
         );
-        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.ds*/_search")));
-        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::data/_search")));
-        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1/_search")));
-
-        // user with access to data index
-        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/test1/_search")), successDocId);
-        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/test*/_search")), successDocId);
-        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/*1/_search")), successDocId);
-        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/*/_search")), successDocId);
-        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/.ds*/_search")), successDocId);
-        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search")), successDocId);
-        assertContainsDocIds(
-            performRequest(DATA_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search?ignore_unavailable=true")),
-            successDocId
-        );
+        expectEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.ds*/_search")));
+        expectEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::data/_search")));
+        expectEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1/_search")));
 
         expectThrows404(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test12/_search")));
         expectThrows404(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test2/_search")));
 
-        assertEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/test1::failures/_search?ignore_unavailable=true")));
-        assertEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/test2::failures/_search?ignore_unavailable=true")));
+        expectEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/test1::failures/_search?ignore_unavailable=true")));
+        expectEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/test2::failures/_search?ignore_unavailable=true")));
 
         expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test1::failures/_search")));
         expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
         expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search")));
-        assertEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/.fs*/_search")));
-        assertEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/*1::failures/_search")));
+        expectEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/.fs*/_search")));
+        expectEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/*1::failures/_search")));
 
         // user with access to everything
-        assertContainsDocIds(adminClient().performRequest(new Request("GET", "/test1::failures/_search")), failedDocId);
-        assertContainsDocIds(adminClient().performRequest(new Request("GET", "/test*::failures/_search")), failedDocId);
-        assertContainsDocIds(adminClient().performRequest(new Request("GET", "/*1::failures/_search")), failedDocId);
-        assertContainsDocIds(adminClient().performRequest(new Request("GET", "/*::failures/_search")), failedDocId);
-        assertContainsDocIds(adminClient().performRequest(new Request("GET", "/.fs*/_search")), failedDocId);
+        expectDocIds(adminClient().performRequest(new Request("GET", "/test1::failures/_search")), failuresDocId);
+        expectDocIds(adminClient().performRequest(new Request("GET", "/test*::failures/_search")), failuresDocId);
+        expectDocIds(adminClient().performRequest(new Request("GET", "/*1::failures/_search")), failuresDocId);
+        expectDocIds(adminClient().performRequest(new Request("GET", "/*::failures/_search")), failuresDocId);
+        expectDocIds(adminClient().performRequest(new Request("GET", "/.fs*/_search")), failuresDocId);
 
         expectThrows404(() -> adminClient().performRequest(new Request("GET", "/test12::failures/_search")));
         expectThrows404(() -> adminClient().performRequest(new Request("GET", "/test2::failures/_search")));
 
-        assertEmpty(adminClient().performRequest(new Request("GET", "/test12::failures/_search?ignore_unavailable=true")));
-        assertEmpty(adminClient().performRequest(new Request("GET", "/test2::failures/_search?ignore_unavailable=true")));
+        expectEmpty(adminClient().performRequest(new Request("GET", "/test12::failures/_search?ignore_unavailable=true")));
+        expectEmpty(adminClient().performRequest(new Request("GET", "/test2::failures/_search?ignore_unavailable=true")));
 
-        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test1::failures/_search")), failedDocId);
-        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test*::failures/_search")), failedDocId);
-        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*1::failures/_search")), failedDocId);
-        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*::failures/_search")), failedDocId);
-        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/.fs*/_search")), failedDocId);
+        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test1::failures/_search")), failuresDocId);
+        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test*::failures/_search")), failuresDocId);
+        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*1::failures/_search")), failuresDocId);
+        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*::failures/_search")), failuresDocId);
+        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/.fs*/_search")), failuresDocId);
 
         expectThrows404(() -> performRequest(BOTH_ACCESS_USER, new Request("GET", "/test12::failures/_search")));
         expectThrows404(() -> performRequest(BOTH_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
 
-        assertEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test12::failures/_search?ignore_unavailable=true")));
-        assertEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test2::failures/_search?ignore_unavailable=true")));
+        expectEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test12::failures/_search?ignore_unavailable=true")));
+        expectEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test2::failures/_search?ignore_unavailable=true")));
 
-        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test1/_search")), successDocId);
-        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test*/_search")), successDocId);
-        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*1/_search")), successDocId);
-        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*/_search")), successDocId);
+        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test1/_search")), dataDocId);
+        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test*/_search")), dataDocId);
+        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*1/_search")), dataDocId);
+        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*/_search")), dataDocId);
 
-        assertEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test12/_search?ignore_unavailable=true")));
-        assertEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test2/_search?ignore_unavailable=true")));
+        expectEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test12/_search?ignore_unavailable=true")));
+        expectEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test2/_search?ignore_unavailable=true")));
+
+        // destructive operations below
 
         // user with manage access to data stream does NOT get direct access to failure index
         expectThrows403(() -> deleteIndex(MANAGE_ACCESS_USER, failureIndexName));
@@ -360,21 +724,29 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrows404(() -> adminClient().performRequest(new Request("GET", "/" + failureIndexName + "/_search")));
     }
 
-    private static void expectThrows404(ThrowingRunnable get) {
-        expectThrows(get, 404);
+    private Request searchRequest(String searchTarget) {
+        return searchRequest(searchTarget, "");
     }
 
-    private static void expectThrows403(ThrowingRunnable get) {
-        expectThrows(get, 403);
+    private Request searchRequest(String searchTarget, String pathParamString) {
+        return new Request("GET", Strings.format("/%s/_search%s", searchTarget, pathParamString));
     }
 
-    private static void expectThrows(ThrowingRunnable get, int statusCode) {
-        var ex = expectThrows(ResponseException.class, get);
+    private static void expectThrows404(ThrowingRunnable runnable) {
+        expectThrows(runnable, 404);
+    }
+
+    private static void expectThrows403(ThrowingRunnable runnable) {
+        expectThrows(runnable, 403);
+    }
+
+    private static void expectThrows(ThrowingRunnable runnable, int statusCode) {
+        var ex = expectThrows(ResponseException.class, runnable);
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(statusCode));
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertContainsDocIds(Response response, String... docIds) throws IOException {
+    private static void expectDocIds(Response response, String... docIds) throws IOException {
         assertOK(response);
         final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
         try {
@@ -387,7 +759,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         }
     }
 
-    private static void assertEmpty(Response response) throws IOException {
+    private static void expectEmpty(Response response) throws IOException {
         assertOK(response);
         final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
         try {
@@ -445,27 +817,38 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         return randomBoolean() ? populateDataStreamWithBulkRequest() : populateDataStreamWithDocRequests();
     }
 
-    @SuppressWarnings("unchecked")
     private List<String> populateDataStreamWithDocRequests() throws IOException {
-        var bulkRequest = new Request("POST", "/_bulk?refresh=true");
-        bulkRequest.setJsonEntity("""
-            { "create" : { "_index" : "test1", "_id" : "1" } }
-            { "@timestamp": 1, "age" : 1, "name" : "jack", "email" : "jack@example.com" }
-            { "create" : { "_index" : "test1", "_id" : "2" } }
-            { "@timestamp": 2, "age" : "this should be an int", "name" : "jack", "email" : "jack@example.com" }
-            """);
-        Response response = performRequest(WRITE_ACCESS_USER, bulkRequest);
-        assertOK(response);
-        // we need this dance because the ID for the failed document is random, **not** 2
-        Map<String, Object> stringObjectMap = responseAsMap(response);
-        List<Object> items = (List<Object>) stringObjectMap.get("items");
         List<String> ids = new ArrayList<>();
-        for (Object item : items) {
-            Map<String, Object> itemMap = (Map<String, Object>) item;
-            Map<String, Object> create = (Map<String, Object>) itemMap.get("create");
-            assertThat(create.get("status"), equalTo(201));
-            ids.add((String) create.get("_id"));
-        }
+
+        var dataStreamName = "test1";
+        var docRequest = new Request("PUT", "/" + dataStreamName + "/_doc/1?refresh=true&op_type=create");
+        docRequest.setJsonEntity("""
+            {
+               "@timestamp": 1,
+               "age" : 1,
+               "name" : "jack",
+               "email" : "jack@example.com"
+            }
+            """);
+        Response response = performRequest(WRITE_ACCESS_USER, docRequest);
+        assertOK(response);
+        Map<String, Object> responseAsMap = responseAsMap(response);
+        ids.add((String) responseAsMap.get("_id"));
+
+        docRequest = new Request("PUT", "/" + dataStreamName + "/_doc/2?refresh=true&op_type=create");
+        docRequest.setJsonEntity("""
+            {
+               "@timestamp": 2,
+               "age" : "this should be an int",
+               "name" : "jack",
+               "email" : "jack@example.com"
+            }
+            """);
+        response = performRequest(WRITE_ACCESS_USER, docRequest);
+        assertOK(response);
+        responseAsMap = responseAsMap(response);
+        ids.add((String) responseAsMap.get("_id"));
+
         return ids;
     }
 

@@ -9,18 +9,15 @@ package org.elasticsearch.xpack.inference.external.request.openai;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
@@ -30,19 +27,17 @@ import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUt
 public class OpenAiEmbeddingsRequest implements Request {
 
     private final Truncator truncator;
-    private final OpenAiAccount account;
     private final Truncator.TruncationResult truncationResult;
     private final OpenAiEmbeddingsModel model;
 
     public OpenAiEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, OpenAiEmbeddingsModel model) {
         this.truncator = Objects.requireNonNull(truncator);
-        this.account = OpenAiAccount.of(model, OpenAiEmbeddingsRequest::buildDefaultUri);
         this.truncationResult = Objects.requireNonNull(input);
         this.model = Objects.requireNonNull(model);
     }
 
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(account.uri());
+        HttpPost httpPost = new HttpPost(model.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(
@@ -58,9 +53,9 @@ public class OpenAiEmbeddingsRequest implements Request {
         httpPost.setEntity(byteEntity);
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
+        httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
 
-        var org = account.organizationId();
+        var org = model.rateLimitServiceSettings().organizationId();
         if (org != null) {
             httpPost.setHeader(createOrgHeader(org));
         }
@@ -75,7 +70,7 @@ public class OpenAiEmbeddingsRequest implements Request {
 
     @Override
     public URI getURI() {
-        return account.uri();
+        return model.uri();
     }
 
     @Override
@@ -88,12 +83,5 @@ public class OpenAiEmbeddingsRequest implements Request {
     @Override
     public boolean[] getTruncationInfo() {
         return truncationResult.truncated().clone();
-    }
-
-    public static URI buildDefaultUri() throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(OpenAiUtils.HOST)
-            .setPathSegments(OpenAiUtils.VERSION_1, OpenAiUtils.EMBEDDINGS_PATH)
-            .build();
     }
 }

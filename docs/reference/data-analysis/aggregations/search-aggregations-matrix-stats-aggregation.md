@@ -69,7 +69,6 @@ GET /_search
   }
 }
 ```
-
 %  TEST[s/_search/_search\?filter_path=aggregations/]
 
 The aggregation type is `matrix_stats` and the `fields` setting defines the set of fields (as an array) for computing the statistics. The above request returns the following response:
@@ -115,9 +114,7 @@ The aggregation type is `matrix_stats` and the `fields` setting defines the set 
   }
 }
 ```
-
 %  TESTRESPONSE[s/\.\.\.//]
-
 %  TESTRESPONSE[s/: (\-)?[0-9\.E]+/: $body.$_path/]
 
 The `doc_count` field indicates the number of documents involved in the computation of the statistics.

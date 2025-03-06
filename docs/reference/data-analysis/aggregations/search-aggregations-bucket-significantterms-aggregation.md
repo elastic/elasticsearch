@@ -77,7 +77,6 @@ GET /_search
   }
 }
 ```
-
 %  TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
@@ -102,9 +101,7 @@ Response:
   }
 }
 ```
-
 %  TESTRESPONSE[s/\.\.\.//]
-
 %  TESTRESPONSE[s/: (0\.)?[0-9]+/: $body.$_path/]
 
 When querying an index of all crimes from all police forces, what these results show is that the British Transport Police force stand out as a force dealing with a disproportionately large number of bicycle thefts. Ordinarily, bicycle thefts represent only 1% of crimes (66799/5064554) but for the British Transport Police, who handle crime on railways and stations, 7% of crimes (3640/47347) is a bike theft. This is a significant seven-fold increase in frequency and so this anomaly was highlighted as the top crime type.
@@ -137,7 +134,6 @@ GET /_search
   }
 }
 ```
-
 %  TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
@@ -189,11 +185,8 @@ Response:
   }
 }
 ```
-
 %  TESTRESPONSE[s/\.\.\.//]
-
 %  TESTRESPONSE[s/: (0\.)?[0-9]+/: $body.$_path/]
-
 %  TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 
 Now we have anomaly detection for each of the police forces using a single request.
@@ -309,7 +302,6 @@ The JLH score can be used as a significance score by adding the parameter
 	 "jlh": {
 	 }
 ```
-
 %  NOTCONSOLE
 
 The scores are derived from the doc frequencies in *foreground* and *background* sets. The *absolute* change in popularity (foregroundPercent - backgroundPercent) would favor common terms whereas the *relative* change in popularity (foregroundPercent/ backgroundPercent) would favor rare terms. Rare vs common is essentially a precision vs recall balance and so the absolute and relative changes are multiplied to provide a sweet spot between precision and recall.
@@ -324,7 +316,6 @@ Mutual information as described in "Information Retrieval", Manning et al., Chap
 	      "include_negatives": true
 	 }
 ```
-
 %  NOTCONSOLE
 
 Mutual information does not differentiate between terms that are descriptive for the subset or for documents outside the subset. The significant terms therefore can contain terms that appear more or less frequent in the subset than outside the subset. To filter out the terms that appear less often in the subset than in documents outside the subset, `include_negatives` can be set to `false`.
@@ -334,7 +325,6 @@ Per default, the assumption is that the documents in the bucket are also contain
 ```js
 "background_is_superset": false
 ```
-
 %  NOTCONSOLE
 
 
@@ -346,7 +336,6 @@ Chi square as described in "Information Retrieval", Manning et al., Chapter 13.5
 	 "chi_square": {
 	 }
 ```
-
 %  NOTCONSOLE
 
 Chi square behaves like mutual information and can be configured with the same parameters `include_negatives` and `background_is_superset`.
@@ -360,7 +349,6 @@ Google normalized distance as described in ["The Google Similarity Distance", Ci
 	 "gnd": {
 	 }
 ```
-
 %  NOTCONSOLE
 
 `gnd` also accepts the `background_is_superset` parameter.
@@ -445,7 +433,6 @@ GET /_search
   }
 }
 ```
-
 %  TEST[s/_search/_search?size=0/]
 
 
@@ -462,7 +449,6 @@ It would be hard for a seasoned boxer to win a championship if the prize was awa
 	 "percentage": {
 	 }
 ```
-
 %  NOTCONSOLE
 
 
@@ -487,7 +473,6 @@ Customized scores can be implemented via a script:
 	      }
             }
 ```
-
 %  NOTCONSOLE
 
 Scripts can be inline (as in above example), indexed or stored on disk. For details on the options, see [script documentation](docs-content://explore-analyze/scripting.md).

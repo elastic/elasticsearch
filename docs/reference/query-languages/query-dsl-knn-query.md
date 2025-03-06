@@ -32,6 +32,7 @@ PUT my-image-index
   }
 }
 ```
+% TEST[continued]
 
 1. Index your data.
 
@@ -158,6 +159,7 @@ POST my-image-index/_search
   }
 }
 ```
+% TEST[continued]
 
 
 ## Hybrid search with knn query [knn-query-in-hybrid-search]
@@ -194,6 +196,7 @@ POST my-image-index/_search
   }
 }
 ```
+% TEST[continued]
 
 
 ## Knn query inside a nested query [knn-query-with-nested-query]
@@ -225,6 +228,7 @@ A sample query can look like below:
   }
 }
 ```
+%  NOTCONSOLE
 
 
 ## Knn query with aggregations [knn-query-aggregations]

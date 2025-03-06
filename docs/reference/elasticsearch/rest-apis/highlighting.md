@@ -31,6 +31,7 @@ GET /_search
   }
 }
 ```
+%  TEST[setup:my_index]
 
 {{es}} supports three highlighters: `unified`, `plain`, and `fvh` (fast vector highlighter) for `text` and `keyword` fields and the `semantic` highlighter for `semantic_text` fields. You can specify the highlighter `type` you want to use for each field or rely on the field type’s default highlighter.
 
@@ -251,6 +252,7 @@ GET /_search
   }
 }
 ```
+%  TEST[setup:my_index]
 
 
 ## Specify a highlight query [specify-highlight-query]
@@ -314,6 +316,7 @@ GET /_search
   }
 }
 ```
+%  TEST[setup:my_index]
 
 
 ## Set highlighter type [set-highlighter-type]
@@ -333,6 +336,7 @@ GET /_search
   }
 }
 ```
+%  TEST[setup:my_index]
 
 
 ## Configure highlighting tags [configure-tags]
@@ -354,6 +358,7 @@ GET /_search
   }
 }
 ```
+%  TEST[setup:my_index]
 
 When using the fast vector highlighter, you can specify additional tags and the "importance" is ordered.
 
@@ -372,6 +377,7 @@ GET /_search
   }
 }
 ```
+%  TEST[setup:my_index]
 
 You can also use the built-in `styled` tag schema:
 
@@ -389,6 +395,7 @@ GET /_search
   }
 }
 ```
+%  TEST[setup:my_index]
 
 
 ## Highlight in all fields [highlight-all]
@@ -409,6 +416,7 @@ GET /_search
   }
 }
 ```
+%  TEST[setup:my_index]
 
 
 ## Combine matches on multiple fields [matched-fields]
@@ -444,6 +452,7 @@ PUT index1
   }
 }
 ```
+%  TEST[continued]
 
 ```console
 PUT index1/_bulk?refresh=true
@@ -452,6 +461,7 @@ PUT index1/_bulk?refresh=true
 { "index" : {"_id": "doc2"} }
 {"comment": "running with scissors"}
 ```
+%  TEST[continued]
 
 ```console
 GET index1/_search
@@ -470,6 +480,7 @@ GET index1/_search
   }
 }
 ```
+%  TEST[continued]
 
 The above request matches both "run with scissors" and "running with scissors" and would highlight "running" and "scissors" but not "run". If both phrases appear in a large document then "running with scissors" is sorted above "run with scissors" in the fragments list because there are more matches in that fragment.
 
@@ -513,6 +524,7 @@ The above request matches both "run with scissors" and "running with scissors" a
   }
 }
 ```
+%  TESTRESPONSE[s/.../"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 
 The below request highlights "run" as well as "running" and "scissors", because the `matched_fields` parameter instructs that for highlighting we need to combine matches from the `comment.english` field with the matches from the original `comment` field.
 
@@ -535,6 +547,7 @@ GET index1/_search
   }
 }
 ```
+%  TEST[continued]
 
 ```console-result
 {
@@ -576,6 +589,8 @@ GET index1/_search
   }
 }
 ```
+%  TESTRESPONSE[s/.../"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+::::::
 ::::::
 
 ::::::{tab-item} FVH
@@ -602,6 +617,7 @@ PUT index2
   }
 }
 ```
+%  TEST[continued]
 
 ```console
 PUT index2/_bulk?refresh=true
@@ -610,6 +626,7 @@ PUT index2/_bulk?refresh=true
 { "index" : {"_id": "doc2"} }
 {"comment": "running with scissors"}
 ```
+%  TEST[continued]
 
 ```console
 GET index2/_search
@@ -630,6 +647,7 @@ GET index2/_search
   }
 }
 ```
+%  TEST[continued]
 
 The above request matches both "run with scissors" and "running with scissors" and would highlight "running" and "scissors" but not "run". If both phrases appear in a large document then "running with scissors" is sorted above "run with scissors" in the fragments list because there are more matches in that fragment.
 
@@ -673,6 +691,7 @@ The above request matches both "run with scissors" and "running with scissors" a
   }
 }
 ```
+%  TESTRESPONSE[s/.../"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 
 The below request highlights "run" as well as "running" and "scissors", because the `matched_fields` parameter instructs that for highlighting we need to combine matches from the `comment` and `comment.english` fields.
 
@@ -696,6 +715,7 @@ GET index2/_search
   }
 }
 ```
+%  TEST[continued]
 
 ```console-result
 {
@@ -737,6 +757,7 @@ GET index2/_search
   }
 }
 ```
+%  TESTRESPONSE[s/.../"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 
 The below request wouldn’t highlight "run" or "scissor" but shows that it is just fine not to list the field to which the matches are combined (`comment.english`) in the matched fields.
 
@@ -760,6 +781,7 @@ GET index2/_search
   }
 }
 ```
+%  TEST[continued]
 
 ```console-result
 {
@@ -801,6 +823,7 @@ GET index2/_search
   }
 }
 ```
+%  TESTRESPONSE[s/.../"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 
 :::::{note}
 There is a small amount of overhead involved with setting `matched_fields` to a non-empty array so always prefer
@@ -812,6 +835,7 @@ There is a small amount of overhead involved with setting `matched_fields` to a 
         }
     }
 ```
+%  NOTCONSOLE
 
 to
 
@@ -825,6 +849,8 @@ to
         }
     }
 ```
+%  NOTCONSOLE
+::::::
 ::::::
 
 :::::::
@@ -852,6 +878,7 @@ GET /_search
   }
 }
 ```
+%  TEST[setup:my_index]
 
 None of the highlighters built into Elasticsearch care about the order that the fields are highlighted but a plugin might.
 
@@ -873,6 +900,7 @@ GET /_search
   }
 }
 ```
+%  TEST[setup:my_index]
 
 On top of this it is possible to specify that highlighted fragments need to be sorted by score:
 
@@ -890,6 +918,7 @@ GET /_search
   }
 }
 ```
+%  TEST[setup:my_index]
 
 If the `number_of_fragments` value is set to `0` then no fragments are produced, instead the whole content of the field is returned, and of course it is highlighted. This can be very handy if short texts (like document title or address) need to be highlighted but no fragmentation is required. Note that `fragment_size` is ignored in this case.
 
@@ -907,6 +936,7 @@ GET /_search
   }
 }
 ```
+%  TEST[setup:my_index]
 
 When using `fvh` one can use `fragment_offset` parameter to control the margin to start highlighting from.
 
@@ -929,6 +959,7 @@ GET /_search
   }
 }
 ```
+%  TEST[setup:my_index]
 
 
 ## Highlight using the postings list [highlight-postings-list]
@@ -988,6 +1019,7 @@ GET my-index-000001/_search
   }
 }
 ```
+%  TEST[setup:messages]
 
 Response:
 
@@ -1020,6 +1052,7 @@ Response:
   }
 }
 ```
+%  TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
 
 ```console
 GET my-index-000001/_search
@@ -1039,6 +1072,7 @@ GET my-index-000001/_search
   }
 }
 ```
+%  TEST[setup:messages]
 
 Response:
 
@@ -1070,6 +1104,7 @@ Response:
   }
 }
 ```
+%  TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
 
 If the `number_of_fragments` option is set to `0`, `NullFragmenter` is used which does not fragment the text at all. This is useful for highlighting the entire contents of a document or field.
 
@@ -1137,6 +1172,7 @@ PUT test_index
   }
 }
 ```
+%  NOTCONSOLE
 
 We put the following document into the index:
 
@@ -1146,6 +1182,7 @@ PUT test_index/_doc/doc1
   "content" : "For you I'm only a fox like a hundred thousand other foxes. But if you tame me, we'll need each other. You'll be the only boy in the world for me. I'll be the only fox in the world for you."
 }
 ```
+%  NOTCONSOLE
 
 And we ran the following query with a highlight request:
 
@@ -1164,6 +1201,7 @@ GET test_index/_search
   }
 }
 ```
+%  NOTCONSOLE
 
 After `doc1` is found as a hit for this query, this hit will be passed to the unified highlighter for highlighting the field `content` of the document. Since the field `content` was not indexed either with offsets or term vectors, its raw field value will be analyzed, and in-memory index will be built from the terms that match the query:
 

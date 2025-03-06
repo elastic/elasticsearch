@@ -42,6 +42,7 @@ Here is an example that adds the parsed date to the `timestamp` field based on t
   ]
 }
 ```
+%  NOTCONSOLE
 
 The `timezone` and `locale` processor parameters are templated. This means that their values can be extracted from fields within documents. The example below shows how to extract the locale/timezone details from existing fields, `my_timezone` and `my_locale`, in the ingested document that contain the timezone and locale values.
 
@@ -61,4 +62,5 @@ The `timezone` and `locale` processor parameters are templated. This means that 
   ]
 }
 ```
+%  NOTCONSOLE
 

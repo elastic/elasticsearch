@@ -2,4 +2,5 @@ pr: 121787
 summary: Added optional parameters to QSTR ES|QL function
 area: Search
 type: feature
-issues: []
+issues:
+ - 120933

@@ -31,20 +31,26 @@ public final class ShardSearchPerIndexTimeTrackingMetrics implements SearchOpera
     }
 
     @Override
-    public void onPreQueryPhase(SearchContext searchContext) {
-        //System.out.println("Query phase is about to start");
+    public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
+        trackExecutionTime(searchContext, tookInNanos);
     }
 
     @Override
-    public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
+    public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
+        trackExecutionTime(searchContext, tookInNanos);
+    }
+
+    private void trackExecutionTime(SearchContext searchContext, long tookInNanos) {
         String indexName = searchContext.indexShard().shardId().getIndexName();
-        Tuple<LongAdder, ExponentiallyWeightedMovingAverage> t = indexExecutionTime.computeIfAbsent(
-            indexName,
-            k -> new Tuple<>(new LongAdder(), new ExponentiallyWeightedMovingAverage(0.3, 0)) // TODO pass trakcing config
-        );
-        t.v1().add(tookInNanos);
-        t.v2().addValue(tookInNanos);
-        logger.info("Listener : Task execution time for index [{}] is [{}] [{}]", indexName, tookInNanos, Thread.currentThread().getName());
+        if(indexName != null) {
+            Tuple<LongAdder, ExponentiallyWeightedMovingAverage> t = indexExecutionTime.computeIfAbsent(
+                    indexName,
+                    k -> new Tuple<>(new LongAdder(), new ExponentiallyWeightedMovingAverage(0.3, 0)) // TODO pass trakcing config
+            );
+            t.v1().add(tookInNanos);
+            t.v2().addValue(tookInNanos);
+            logger.info("Listener : Task execution time for index [{}] is [{}] [{}]", indexName, tookInNanos, Thread.currentThread().getName());
+        }
     }
 
     /**

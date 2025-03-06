@@ -341,7 +341,6 @@ $$$es-connectors-dropbox-client-sync-rules-advanced-example-1$$$
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 $$$es-connectors-dropbox-client-sync-rules-advanced-example-2$$$
 **Example: Query with file extension filter**
@@ -359,7 +358,6 @@ $$$es-connectors-dropbox-client-sync-rules-advanced-example-2$$$
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 $$$es-connectors-dropbox-client-sync-rules-advanced-example-3$$$
@@ -382,7 +380,6 @@ $$$es-connectors-dropbox-client-sync-rules-advanced-example-3$$$
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 $$$es-connectors-dropbox-client-sync-rules-advanced-limitations$$$

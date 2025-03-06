@@ -248,7 +248,6 @@ $$$es-connectors-network-drive-client-indexing-files-and-folders-recursively-wit
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 $$$es-connectors-network-drive-client-indexing-files-and-folders-directly-inside-folder$$$
 **Indexing files and folders directly inside folder**
@@ -260,7 +259,6 @@ $$$es-connectors-network-drive-client-indexing-files-and-folders-directly-inside
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 $$$es-connectors-network-drive-client-indexing-files-and-folders-directly-inside-a-set-of-folders$$$
@@ -274,7 +272,6 @@ $$$es-connectors-network-drive-client-indexing-files-and-folders-directly-inside
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 $$$es-connectors-network-drive-client-excluding-files-and-folders-that-match-a-pattern$$$
 **Excluding files and folders that match a pattern**
@@ -286,7 +283,6 @@ $$$es-connectors-network-drive-client-excluding-files-and-folders-that-match-a-p
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 

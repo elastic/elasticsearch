@@ -403,7 +403,6 @@ Example:
 }
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 This rule will not extract content of any drive items (files in document libraries) that haven’t been modified for 60 days or more.
 

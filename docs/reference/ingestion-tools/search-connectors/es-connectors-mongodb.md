@@ -198,7 +198,6 @@ Incorrect (`new Date()` will be interpreted as string):
 }
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 Correct (usage of [$$NOW](https://www.mongodb.com/docs/manual/reference/aggregation-variables/#mongodb-variable-variable.NOW)):
 
@@ -419,7 +418,6 @@ For example:
 }
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 `find` queries also support additional options, for example the `projection` object:
 
@@ -440,7 +438,6 @@ For example:
   }
 }
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 Where the available options are:

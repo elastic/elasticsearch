@@ -154,7 +154,6 @@ PUT idx/_doc/1
   "kwd": ["foo", "foo", "bar", "baz"]
 }
 ```
-%  TEST[s/^/{"_source":/ s/\n$/}/]
 %  TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
 
 Will become:
@@ -202,6 +201,7 @@ Will become:
   "kwd": ["foo", "foo", "bar", "baz"]
 }
 ```
+%  TEST[s/^/{"_source":/ s/\n$/}/]
 
 Values longer than `ignore_above` are preserved but sorted to the end. For example:
 

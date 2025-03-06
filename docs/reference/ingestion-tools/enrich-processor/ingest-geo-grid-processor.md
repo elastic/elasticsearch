@@ -125,7 +125,6 @@ PUT geocells/_doc/1?pipeline=geohex2shape
 GET geocells/_doc/1
 ```
 %  TEST[continued]
-%  TEST[continued]
 
 The response shows how the ingest-processor has replaced the `geocell` field with an indexable `geo_shape`:
 
@@ -183,6 +182,7 @@ PUT geocells/_doc/1?pipeline=geohex2shape
 
 GET geocells/_doc/1
 ```
+%  TEST[continued]
 
 The response from this index request:
 

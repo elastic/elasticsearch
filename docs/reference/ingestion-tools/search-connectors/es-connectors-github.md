@@ -364,7 +364,6 @@ $$$es-connectors-github-client-sync-rules-advanced-branch$$$
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 $$$es-connectors-github-client-sync-rules-advanced-issue-key$$$
 **Indexing document based on issue query related to bugs via issue key**
@@ -380,7 +379,6 @@ $$$es-connectors-github-client-sync-rules-advanced-issue-key$$$
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 $$$es-connectors-github-client-sync-rules-advanced-pr-key$$$
 **Indexing document based on PR query related to open PR’s via PR key**
@@ -395,7 +393,6 @@ $$$es-connectors-github-client-sync-rules-advanced-pr-key$$$
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 $$$es-connectors-github-client-sync-rules-advanced-issue-query-branch-name$$$
@@ -413,7 +410,6 @@ $$$es-connectors-github-client-sync-rules-advanced-issue-query-branch-name$$$
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 ::::{note}
@@ -441,7 +437,6 @@ $$$es-connectors-github-client-sync-rules-advanced-overlapping$$$
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 ::::{note}

@@ -311,7 +311,6 @@ This connector supports [advanced sync rules](/reference/ingestion-tools/search-
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 **Example 2**: Queries for indexing data based on `created` and `lastmodified` time.
 
@@ -326,7 +325,6 @@ This connector supports [advanced sync rules](/reference/ingestion-tools/search-
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 **Example 3**: Query for indexing only given types in a **Space** with key *SD*.
 
@@ -337,7 +335,6 @@ This connector supports [advanced sync rules](/reference/ingestion-tools/search-
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 ::::{note}

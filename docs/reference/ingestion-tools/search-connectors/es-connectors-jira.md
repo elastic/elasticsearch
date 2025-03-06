@@ -322,7 +322,6 @@ This connector supports [advanced sync rules](/reference/ingestion-tools/search-
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 **Example 2**: Query to index data based on priority of issues for given projects.
 
@@ -334,7 +333,6 @@ This connector supports [advanced sync rules](/reference/ingestion-tools/search-
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 **Example 3**: Query to index data based on assignee and created time.
 
@@ -345,7 +343,6 @@ This connector supports [advanced sync rules](/reference/ingestion-tools/search-
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 

@@ -336,7 +336,6 @@ These rules fetch all records from both the `employee` and `customer` tables. Th
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 $$$es-connectors-ms-sql-client-sync-rules-example-one-where$$$
 **Example: One WHERE query**
@@ -352,7 +351,6 @@ This rule fetches only the records from the `employee` table where the `emp_id` 
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 $$$es-connectors-ms-sql-client-sync-rules-example-one-join$$$
 **Example: One JOIN query**
@@ -367,7 +365,6 @@ This rule fetches records by performing an INNER JOIN between the `employee` and
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 ::::{warning}

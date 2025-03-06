@@ -713,10 +713,6 @@ class NodeConstruction {
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
-        var executor = threadPool.executor(ThreadPool.Names.SEARCH);
-        if (executor instanceof TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor perIndexExecutor) {
-            clusterService.addListener(new SearchIndexTimeTrackingCleanupService(perIndexExecutor));
-        }
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
@@ -825,8 +821,12 @@ class NodeConstruction {
             threadPool::relativeTimeInMillis
         );
         MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics);
+
+        ShardSearchPerIndexTimeTrackingMetrics listener = new ShardSearchPerIndexTimeTrackingMetrics();
         final List<SearchOperationListener> searchOperationListeners = List.of(
-            new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry()), new ShardSearchPerIndexTimeTrackingMetrics());
+            new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry()), listener);
+
+        clusterService.addListener(new SearchIndexTimeTrackingCleanupService(listener));
 
         List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call

@@ -11,23 +11,24 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.search.stats.ShardSearchPerIndexTimeTrackingMetrics;
 
 /**
  * Service responsible for cleaning up task execution time tracking for deleted indices.
  * Implements the ClusterStateListener interface to listen for cluster state changes.
  */
 public class SearchIndexTimeTrackingCleanupService implements ClusterStateListener {
-    private TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor executor;
+
+    private ShardSearchPerIndexTimeTrackingMetrics listener;
 
     /**
-     * Constructs a new SearchIndexTimeTrackingCleanupService.
+     * Constructor.
      *
-     * @param executor the executor that tracks task execution times per index
+     * @param listener the listener for shard search time tracking metrics
      */
-    public SearchIndexTimeTrackingCleanupService(TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor executor) {
-        this.executor = executor;
+    public SearchIndexTimeTrackingCleanupService(ShardSearchPerIndexTimeTrackingMetrics listener) {
+        this.listener = listener;
     }
 
     /**
@@ -38,7 +39,7 @@ public class SearchIndexTimeTrackingCleanupService implements ClusterStateListen
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         for (Index index : event.indicesDeleted()) {
-            executor.stopTrackingIndex(index.getName());
+            listener.stopTrackingIndex(index.getName());
         }
     }
 }

@@ -40,7 +40,7 @@ public final class ShardSearchPerIndexTimeTrackingMetrics implements SearchOpera
         String indexName = searchContext.indexShard().shardId().getIndexName();
         Tuple<LongAdder, ExponentiallyWeightedMovingAverage> t = indexExecutionTime.computeIfAbsent(
             indexName,
-            k -> new Tuple<>(new LongAdder(), new ExponentiallyWeightedMovingAverage(0.3, 0))
+            k -> new Tuple<>(new LongAdder(), new ExponentiallyWeightedMovingAverage(0.3, 0)) // TODO pass trakcing config
         );
         t.v1().add(tookInNanos);
         t.v2().addValue(tookInNanos);

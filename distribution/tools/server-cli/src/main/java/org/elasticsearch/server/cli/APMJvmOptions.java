@@ -48,7 +48,6 @@ class APMJvmOptions {
 
         // ES does not use auto-instrumentation.
         "instrument", "false",
-        "delay_agent_premain_ms", "30000",
         "enable_experimental_instrumentations", "true"
         );
 

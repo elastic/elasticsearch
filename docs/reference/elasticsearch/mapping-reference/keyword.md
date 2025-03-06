@@ -151,6 +151,8 @@ PUT idx/_doc/1
   "kwd": ["foo", "foo", "bar", "baz"]
 }
 ```
+%  TEST[s/^/{"_source":/ s/\n$/}/]
+%  TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
 
 Will become:
 
@@ -159,6 +161,7 @@ Will become:
   "kwd": ["bar", "baz", "foo"]
 }
 ```
+%  TEST[s/^/{"_source":/ s/\n$/}/]
 
 If a `keyword` field sets `store` to `true` then order and duplicates are preserved. For example:
 
@@ -187,6 +190,7 @@ PUT idx/_doc/1
   "kwd": ["foo", "foo", "bar", "baz"]
 }
 ```
+%  TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
 
 Will become:
 
@@ -223,6 +227,7 @@ PUT idx/_doc/1
   "kwd": ["foo", "foo", "bang", "bar", "baz"]
 }
 ```
+%  TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
 
 Will become:
 
@@ -231,6 +236,7 @@ Will become:
   "kwd": ["bar", "baz", "foo", "bang"]
 }
 ```
+%  TEST[s/^/{"_source":/ s/\n$/}/]
 
 
 ## Constant keyword field type [constant-keyword-field-type]
@@ -275,6 +281,7 @@ POST logs-debug/_doc
   "message": "Starting up Elasticsearch"
 }
 ```
+% TEST[continued]
 
 However providing a value that is different from the one configured in the mapping is disallowed.
 
@@ -411,6 +418,7 @@ PUT idx/_doc/1
   "card": ["king", "ace", "ace", "jack"]
 }
 ```
+%  TEST[s/$/\nGET idx/_doc/1?filter_path=_source\n/]
 
 Will become:
 
@@ -419,3 +427,4 @@ Will become:
   "card": ["ace", "jack", "king"]
 }
 ```
+%  TEST[s/^/{"_source":/ s/\n$/}/]

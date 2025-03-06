@@ -25,6 +25,8 @@ POST /sales/_search?size=0
 }
 ```
 
+%  TEST[setup:sales]
+
 Response:
 
 ```console-result
@@ -38,6 +40,8 @@ Response:
   }
 }
 ```
+
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 As can be seen, the name of the aggregation (`min_price` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 
@@ -69,6 +73,21 @@ POST /sales/_search
 }
 ```
 
+%  TEST[setup:sales]
+
+%  TEST[s/_search/_search?filter_path=aggregations/]
+
+% [source,console-result]
+% --------------------------------------------------
+% {
+%   "aggregations": {
+%       "min_price": {
+%           "value": 8.0
+%       }
+%   }
+% }
+% --------------------------------------------------
+
 
 ## Missing value [_missing_value_12]
 
@@ -87,6 +106,8 @@ POST /sales/_search
   }
 }
 ```
+
+%  TEST[setup:sales]
 
 1. Documents without a value in the `grade` field will fall into the same bucket as documents that have the value `10`.
 

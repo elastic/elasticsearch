@@ -21,6 +21,8 @@ A `sum_bucket` aggregation looks like this in isolation:
 }
 ```
 
+%  NOTCONSOLE
+
 $$$sum-bucket-params$$$
 
 | Parameter Name | Description | Required | Default Value |
@@ -57,6 +59,8 @@ POST /sales/_search
   }
 }
 ```
+
+%  TEST[setup:sales]
 
 1. `buckets_path` instructs this sum_bucket aggregation that we want the sum of the `sales` aggregation in the `sales_per_month` date histogram.
 
@@ -104,5 +108,11 @@ And the following may be the response:
    }
 }
 ```
+
+%  TESTRESPONSE[s/"took": 11/"took": $body.took/]
+
+%  TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+
+%  TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 

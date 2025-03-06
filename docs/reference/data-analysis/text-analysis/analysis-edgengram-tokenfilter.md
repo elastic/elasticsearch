@@ -45,6 +45,84 @@ The filter produces the following tokens:
 [ t, th, q, qu, b, br, f, fo, j, ju ]
 ```
 
+% [source,console-result]
+% --------------------------------------------------
+% {
+%   "tokens" : [
+%     {
+%       "token" : "t",
+%       "start_offset" : 0,
+%       "end_offset" : 3,
+%       "type" : "<ALPHANUM>",
+%       "position" : 0
+%     },
+%     {
+%       "token" : "th",
+%       "start_offset" : 0,
+%       "end_offset" : 3,
+%       "type" : "<ALPHANUM>",
+%       "position" : 0
+%     },
+%     {
+%       "token" : "q",
+%       "start_offset" : 4,
+%       "end_offset" : 9,
+%       "type" : "<ALPHANUM>",
+%       "position" : 1
+%     },
+%     {
+%       "token" : "qu",
+%       "start_offset" : 4,
+%       "end_offset" : 9,
+%       "type" : "<ALPHANUM>",
+%       "position" : 1
+%     },
+%     {
+%       "token" : "b",
+%       "start_offset" : 10,
+%       "end_offset" : 15,
+%       "type" : "<ALPHANUM>",
+%       "position" : 2
+%     },
+%     {
+%       "token" : "br",
+%       "start_offset" : 10,
+%       "end_offset" : 15,
+%       "type" : "<ALPHANUM>",
+%       "position" : 2
+%     },
+%     {
+%       "token" : "f",
+%       "start_offset" : 16,
+%       "end_offset" : 19,
+%       "type" : "<ALPHANUM>",
+%       "position" : 3
+%     },
+%     {
+%       "token" : "fo",
+%       "start_offset" : 16,
+%       "end_offset" : 19,
+%       "type" : "<ALPHANUM>",
+%       "position" : 3
+%     },
+%     {
+%       "token" : "j",
+%       "start_offset" : 20,
+%       "end_offset" : 25,
+%       "type" : "<ALPHANUM>",
+%       "position" : 4
+%     },
+%     {
+%       "token" : "ju",
+%       "start_offset" : 20,
+%       "end_offset" : 25,
+%       "type" : "<ALPHANUM>",
+%       "position" : 4
+%     }
+%   ]
+% }
+% --------------------------------------------------
+
 
 ## Add to an analyzer [analysis-edgengram-tokenfilter-analyzer-ex]
 

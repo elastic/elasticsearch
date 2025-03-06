@@ -58,7 +58,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             }
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, singleInputRequest)) {
-            var request = InferenceAction.Request.parseRequest("model_id", TaskType.SPARSE_EMBEDDING, InferenceContext.empty(), parser).build();
+            var request = InferenceAction.Request.parseRequest("model_id", TaskType.SPARSE_EMBEDDING, InferenceContext.empty(), parser)
+                .build();
             assertThat(request.getInput(), contains("single text input"));
         }
 
@@ -174,7 +175,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             }
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, singleInputRequest)) {
-            var request = InferenceAction.Request.parseRequest("model_id", TaskType.SPARSE_EMBEDDING,InferenceContext.empty(), parser).build();
+            var request = InferenceAction.Request.parseRequest("model_id", TaskType.SPARSE_EMBEDDING, InferenceContext.empty(), parser)
+                .build();
             assertThat(request.getInputType(), is(InputType.UNSPECIFIED));
         }
     }

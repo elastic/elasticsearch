@@ -11,23 +11,21 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
 
 import java.io.IOException;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} to run a Lucene {@link Query} during
- * the compute engine's normal execution, yielding matches/does not match into
- * a {@link BooleanVector}. It's much faster to push these to the
- * {@link LuceneSourceOperator} or the like, but sometimes this isn't possible. So
- * this evaluator is here to save the day.
+ * {@link ScoreOperator.ExpressionScorer} to run a Lucene {@link Query} during
+ * the compute engine's normal execution, yielding the corresponding scores into
+ * a {@link DoubleVector}.
+ * Elements that don't match will have a score of {@link #NO_MATCH_SCORE}.
+ * @see LuceneQueryScoreEvaluator
  */
 public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator<DoubleVector.Builder> implements ScoreOperator.ExpressionScorer {
 
@@ -53,7 +51,7 @@ public class LuceneQueryScoreEvaluator extends LuceneQueryEvaluator<DoubleVector
     }
 
     @Override
-    protected DoubleVector.Builder createBuilder(BlockFactory blockFactory, int size) {
+    protected DoubleVector.Builder createVectorBuilder(BlockFactory blockFactory, int size) {
         return blockFactory.newDoubleVectorFixedBuilder(size);
     }
 

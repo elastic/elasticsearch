@@ -123,6 +123,9 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
         return context -> new BinaryLogicScorer(context, toScorer.toScorer(left()).get(context), toScorer.toScorer(right()).get(context));
     }
 
+    /**
+     * Binary logic adds together scores coming from the left and right expressions, both for conjunctions and disjunctions
+     */
     private record BinaryLogicScorer(DriverContext driverContext, ScoreOperator.ExpressionScorer left, ScoreOperator.ExpressionScorer right)
         implements
             ScoreOperator.ExpressionScorer {

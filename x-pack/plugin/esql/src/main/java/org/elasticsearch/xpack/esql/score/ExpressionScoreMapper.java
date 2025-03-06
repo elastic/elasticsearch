@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.score;
 
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.ScoreOperator.ExpressionScorer;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -15,7 +14,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import java.util.List;
 
 /**
- * Expressions that have a mapping to an {@link ExpressionEvaluator}.
+ * Maps expressions that have a mapping to an {@link ExpressionScorer}. Allows for transforming expressions into their corresponding scores.
  */
 public interface ExpressionScoreMapper {
     interface ToScorer {

@@ -23,9 +23,8 @@ import java.io.IOException;
 /**
  * {@link EvalOperator.ExpressionEvaluator} to run a Lucene {@link Query} during
  * the compute engine's normal execution, yielding matches/does not match into
- * a {@link BooleanVector}. It's much faster to push these to the
- * {@link LuceneSourceOperator} or the like, but sometimes this isn't possible. So
- * this evaluator is here to save the day.
+ * a {@link BooleanVector}.
+ * @see LuceneQueryScoreEvaluator
  */
 public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<BooleanVector.Builder>
     implements
@@ -51,7 +50,7 @@ public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<Boolean
     }
 
     @Override
-    protected BooleanVector.Builder createBuilder(BlockFactory blockFactory, int size) {
+    protected BooleanVector.Builder createVectorBuilder(BlockFactory blockFactory, int size) {
         return blockFactory.newBooleanVectorFixedBuilder(size);
     }
 

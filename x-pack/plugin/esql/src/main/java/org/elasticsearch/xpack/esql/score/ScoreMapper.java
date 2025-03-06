@@ -16,6 +16,9 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardCo
 
 import java.util.List;
 
+/**
+ * Maps an expression tree into ExpressionScorer.Factory, so scores can be evaluated for an expression tree.
+ */
 public class ScoreMapper {
 
     public static ScoreOperator.ExpressionScorer.Factory toScorer(Expression expression, List<ShardContext> shardContexts) {

@@ -20,13 +20,11 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -38,11 +36,13 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} to run a Lucene {@link Query} during
- * the compute engine's normal execution, yielding matches/does not match into
- * a {@link BooleanVector}. It's much faster to push these to the
- * {@link LuceneSourceOperator} or the like, but sometimes this isn't possible. So
- * this evaluator is here to save the day.
+ * Base class for evaluating a Lucene query at the compute engine and providing a Block as a result.
+ * Subclasses can override methods to decide what type of {@link Block} should be returned, and how to add results to it
+ * based on documents on the Page matching the query or not.
+ * See {@link LuceneQueryExpressionEvaluator} for an example of how to use this class and {@link LuceneQueryScoreEvaluator} for
+ * examples of subclasses that provide different types of scoring results for different ESQL constructs.
+ * It's much faster to push queries to the {@link LuceneSourceOperator} or the like, but sometimes this isn't possible. So
+ * this class is here to save the day.
  */
 public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements Releasable {
 
@@ -111,7 +111,7 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
         int min = docs.docs().getInt(0);
         int max = docs.docs().getInt(docs.getPositionCount() - 1);
         int length = max - min + 1;
-        try (T scoreBuilder = createBuilder(blockFactory, length)) {
+        try (T scoreBuilder = createVectorBuilder(blockFactory, length)) {
             if (length == docs.getPositionCount() && length > 1) {
                 return segmentState.scoreDense(scoreBuilder, min, max);
             }
@@ -139,7 +139,7 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
         int prevShard = -1;
         int prevSegment = -1;
         SegmentState segmentState = null;
-        try (T scoreBuilder = createBuilder(blockFactory, docs.getPositionCount())) {
+        try (T scoreBuilder = createVectorBuilder(blockFactory, docs.getPositionCount())) {
             for (int i = 0; i < docs.getPositionCount(); i++) {
                 int shard = docs.shards().getInt(docs.shards().getInt(map[i]));
                 int segment = docs.segments().getInt(map[i]);
@@ -174,6 +174,9 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
         return shardState;
     }
 
+    /**
+     * Contains shard search related information, like the weight and index searcher
+     */
     private class ShardState {
         private final Weight weight;
         private final IndexSearcher searcher;
@@ -196,6 +199,9 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
         }
     }
 
+    /**
+     * Contains segment search related information, like the leaf reader context and bulk scorer
+     */
     private class SegmentState {
         private final Weight weight;
         private final LeafReaderContext ctx;
@@ -369,13 +375,29 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
         }
     }
 
+    /**
+     * Returns the score mode to use on searches
+     */
     protected abstract ScoreMode scoreMode();
 
+    /**
+     * Creates a vector where all positions correspond to elements that don't match the query
+     */
     protected abstract Vector createNoMatchVector(BlockFactory blockFactory, int size);
 
-    protected abstract T createBuilder(BlockFactory blockFactory, int size);
+    /**
+     * Creates the corresponding vector builder to store the results of evaluating the query
+     */
+    protected abstract T createVectorBuilder(BlockFactory blockFactory, int size);
 
+    /**
+     * Appends a matching result to a builder created by @link createVectorBuilder}
+     */
+    protected abstract void appendMatch(T builder, Scorable scorer) throws IOException;
+
+    /**
+     * Appends a non matching result to a builder created by @link createVectorBuilder}
+     */
     protected abstract void appendNoMatch(T builder);
 
-    protected abstract void appendMatch(T builder, Scorable scorer) throws IOException;
 }

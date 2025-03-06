@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -28,8 +29,10 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -205,20 +208,6 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = new ActionRequestValidationException();
-            if (MlStrings.isValidId(this.inferenceEntityId) == false) {
-                validationException.addValidationError(Messages.getMessage(Messages.INVALID_ID, "inference_id", this.inferenceEntityId));
-            }
-
-            if (validationException.validationErrors().isEmpty() == false) {
-                return validationException;
-            } else {
-                return null;
-            }
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -237,29 +226,52 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final ModelConfigurations model;
+        private final List<ModelConfigurations> endpoints;
+
+        public Response(List<ModelConfigurations> endpoints) {
+            this.endpoints = endpoints;
+        }
 
         public Response(ModelConfigurations model) {
-            this.model = model;
+            endpoints = new ArrayList<>();
+            endpoints.add(model);
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            model = new ModelConfigurations(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_WILDCARD_ALLOWED)) {
+                endpoints = in.readCollectionAsList(ModelConfigurations::new);
+            } else {
+                endpoints = new ArrayList<>();
+                endpoints.add(new ModelConfigurations(in));
+            }
         }
 
         public ModelConfigurations getModel() {
-            return model;
+            return endpoints.get(0);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            model.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_WILDCARD_ALLOWED)) {
+                out.writeCollection(endpoints);
+            } else {
+                endpoints.get(0).writeTo(out);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return model.toFilteredXContent(builder, params);
+            builder.startObject();
+            builder.startArray("endpoints");
+            for (var endpoint : endpoints) {
+                if (endpoint != null) {
+                    endpoint.toFilteredXContent(builder, params);
+                }
+            }
+            builder.endArray();
+            builder.endObject();
+            return builder;
         }
 
         @Override
@@ -267,12 +279,12 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return Objects.equals(model, response.model);
+            return Objects.equals(endpoints, response.endpoints);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(model);
+            return Objects.hash(endpoints);
         }
     }
 }

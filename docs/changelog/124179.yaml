@@ -1,0 +1,5 @@
+pr: 124179
+summary: Align Get/Update Inference APIs with index API pattern
+area: Inference
+type: enhancement
+issues: []

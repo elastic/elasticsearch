@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
@@ -49,12 +50,15 @@ import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.inference.common.InferenceExceptions;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -118,80 +122,91 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         var bodyTaskType = request.getContentAsSettings().taskType();
         var resolvedTaskType = resolveTaskType(request.getTaskType(), bodyTaskType != null ? bodyTaskType.toString() : null);
 
-        AtomicReference<InferenceService> service = new AtomicReference<>();
+        SubscribableListener.<List<UnparsedModel>>newForked(listener -> {
+            checkEndpointsExists(request.getInferenceEntityId(), resolvedTaskType, listener);
+        }).<List<ModelConfigurations>>andThen((upperListener, unparsedModels) -> {
+            List<ModelConfigurations> existingUnparsedModels = Collections.synchronizedList(new ArrayList<>());
 
-        var inferenceEntityId = request.getInferenceEntityId();
+            try (var listeners = new RefCountingListener(upperListener.map(v -> existingUnparsedModels))) {
+                for (UnparsedModel model : unparsedModels) {
+                    AtomicReference<InferenceService> service = new AtomicReference<>();
+                    String existingInferenceEntityId = model.inferenceEntityId();
 
-        SubscribableListener.<UnparsedModel>newForked(listener -> { checkEndpointExists(inferenceEntityId, listener); })
-            .<UnparsedModel>andThen((listener, unparsedModel) -> {
+                    SubscribableListener.<UnparsedModel>newForked(listener -> { checkEndpointExists(model.inferenceEntityId(), listener); })
+                        .<UnparsedModel>andThen((listener, unparsedModel) -> {
 
-                Optional<InferenceService> optionalService = serviceRegistry.getService(unparsedModel.service());
-                if (optionalService.isEmpty()) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            "Service [{}] not found",
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            unparsedModel.service()
-                        )
-                    );
-                } else {
-                    service.set(optionalService.get());
-                    listener.onResponse(unparsedModel);
-                }
-            })
-            .<Boolean>andThen((listener, existingUnparsedModel) -> {
-
-                Model existingParsedModel = service.get()
-                    .parsePersistedConfigWithSecrets(
-                        request.getInferenceEntityId(),
-                        existingUnparsedModel.taskType(),
-                        new HashMap<>(existingUnparsedModel.settings()),
-                        new HashMap<>(existingUnparsedModel.secrets())
-                    );
-
-                Model newModel = combineExistingModelWithNewSettings(
-                    existingParsedModel,
-                    request.getContentAsSettings(),
-                    service.get().name(),
-                    resolvedTaskType
-                );
-
-                if (isInClusterService(service.get().name())) {
-                    updateInClusterEndpoint(request, newModel, existingParsedModel, listener);
-                } else {
-                    modelRegistry.updateModelTransaction(newModel, existingParsedModel, listener);
-                }
-            })
-            .<ModelConfigurations>andThen((listener, didUpdate) -> {
-                if (didUpdate) {
-                    modelRegistry.getModel(inferenceEntityId, ActionListener.wrap((unparsedModel) -> {
-                        if (unparsedModel == null) {
-                            listener.onFailure(
-                                new ElasticsearchStatusException(
-                                    "Failed to update model, updated model not found",
-                                    RestStatus.INTERNAL_SERVER_ERROR
-                                )
-                            );
-                        } else {
-                            listener.onResponse(
-                                service.get()
-                                    .parsePersistedConfig(
-                                        request.getInferenceEntityId(),
-                                        resolvedTaskType,
-                                        new HashMap<>(unparsedModel.settings())
+                            Optional<InferenceService> optionalService = serviceRegistry.getService(unparsedModel.service());
+                            if (optionalService.isEmpty()) {
+                                listener.onFailure(
+                                    new ElasticsearchStatusException(
+                                        "Service [{}] not found",
+                                        RestStatus.INTERNAL_SERVER_ERROR,
+                                        unparsedModel.service()
                                     )
-                                    .getConfigurations()
-                            );
-                        }
-                    }, listener::onFailure));
-                } else {
-                    listener.onFailure(new ElasticsearchStatusException("Failed to update model", RestStatus.INTERNAL_SERVER_ERROR));
-                }
+                                );
+                            } else {
+                                service.set(optionalService.get());
+                                listener.onResponse(unparsedModel);
+                            }
+                        })
+                        .<Boolean>andThen((listener, existingUnparsedModel) -> {
 
-            }).<UpdateInferenceModelAction.Response>andThen((listener, modelConfig) -> {
-                listener.onResponse(new UpdateInferenceModelAction.Response(modelConfig));
-            })
-            .addListener(masterListener);
+                            Model existingParsedModel = service.get()
+                                .parsePersistedConfigWithSecrets(
+                                    existingInferenceEntityId,
+                                    existingUnparsedModel.taskType(),
+                                    new HashMap<>(existingUnparsedModel.settings()),
+                                    new HashMap<>(existingUnparsedModel.secrets())
+                                );
+
+                            Model newModel = combineExistingModelWithNewSettings(
+                                existingParsedModel,
+                                request.getContentAsSettings(),
+                                service.get().name(),
+                                resolvedTaskType
+                            );
+
+                            if (isInClusterService(service.get().name())) {
+                                updateInClusterEndpoint(existingInferenceEntityId, request, newModel, existingParsedModel, listener);
+                            } else {
+                                modelRegistry.updateModelTransaction(newModel, existingParsedModel, listener);
+                            }
+                        })
+                        .<ModelConfigurations>andThen((listener, didUpdate) -> {
+                            if (didUpdate) {
+                                modelRegistry.getModel(existingInferenceEntityId, ActionListener.wrap((unparsedModel) -> {
+                                    if (unparsedModel == null) {
+                                        listener.onFailure(
+                                            new ElasticsearchStatusException(
+                                                "Failed to update model, updated model not found",
+                                                RestStatus.INTERNAL_SERVER_ERROR
+                                            )
+                                        );
+                                    } else {
+                                        listener.onResponse(
+                                            service.get()
+                                                .parsePersistedConfig(
+                                                    existingInferenceEntityId,
+                                                    resolvedTaskType,
+                                                    new HashMap<>(unparsedModel.settings())
+                                                )
+                                                .getConfigurations()
+                                        );
+                                    }
+                                }, listener::onFailure));
+                            } else {
+                                listener.onFailure(
+                                    new ElasticsearchStatusException("Failed to update model", RestStatus.INTERNAL_SERVER_ERROR)
+                                );
+                            }
+
+                        })
+                        .addListener(listeners.acquire(existingUnparsedModels::add));
+                }
+            }
+        }).<UpdateInferenceModelAction.Response>andThen((listener, existingUnparsedModels) -> {
+            listener.onResponse(new UpdateInferenceModelAction.Response(existingUnparsedModels));
+        }).addListener(masterListener);
     }
 
     /**
@@ -249,6 +264,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     }
 
     private void updateInClusterEndpoint(
+        String inferenceEntityId,
         UpdateInferenceModelAction.Request request,
         Model newModel,
         Model existingParsedModel,
@@ -271,7 +287,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             logger.info(
                 "Updating trained model deployment [{}] for inference entity [{}] with [{}] num_allocations",
                 deploymentId,
-                request.getInferenceEntityId(),
+                inferenceEntityId,
                 numAllocations
             );
             client.execute(UpdateTrainedModelDeploymentAction.INSTANCE, updateRequest, delegate);
@@ -337,6 +353,22 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                 listener.onFailure(e);
             }
         }));
+    }
+
+    private void checkEndpointsExists(String inferenceEntityId, TaskType taskType, ActionListener<List<UnparsedModel>> listener) {
+        if (Strings.isAllOrWildcard(inferenceEntityId)) {
+            modelRegistry.getModelsByTaskType(taskType, listener);
+        } else if (inferenceEntityId.contains(",") || inferenceEntityId.contains("*")) {
+            modelRegistry.getModelsByTaskTypeAndInferenceEntityExpression(taskType, inferenceEntityId, listener);
+        } else {
+            modelRegistry.getModel(inferenceEntityId, listener.delegateFailureAndWrap((delegate, unparsedModel) -> {
+                if (taskType.isAnyOrSame(unparsedModel.taskType()) == false) {
+                    delegate.onFailure(InferenceExceptions.mismatchedTaskTypeException(taskType, unparsedModel.taskType()));
+                    return;
+                }
+                listener.onResponse(List.of(unparsedModel));
+            }));
+        }
     }
 
     private static XContentParser getParser(UpdateInferenceModelAction.Request request) throws IOException {

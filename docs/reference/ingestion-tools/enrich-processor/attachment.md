@@ -24,7 +24,7 @@ $$$attachment-options$$$
 | `properties` | no | all properties |  Array of properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language` |
 | `ignore_missing` | no | `false` | If `true` and `field` does not exist, the processor quietly exits without modifying the document |
 | `remove_binary` | encouraged | `false` | If `true`, the binary `field` will be removed from the document. This option is not required, but setting it explicitly is encouraged, and omitting it will result in a warning. |
-| `resource_name` | no |  | Field containing the name of the resource to decode. If specified, the processor passes this resource name to the underlying Tika library to enable [Resource Name Based Detection](https://tika.apache.org/1.24.1/detection.md#Resource_Name_Based_Detection). |
+| `resource_name` | no |  | Field containing the name of the resource to decode. If specified, the processor passes this resource name to the underlying Tika library to enable [Resource Name Based Detection](https://tika.apache.org/1.24.1/detection.html#Resource_Name_Based_Detection). |
 
 
 ### Example [attachment-json-ex]

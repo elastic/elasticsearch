@@ -1,5 +1,0 @@
-pr: 122199
-summary: Fix issues that prevents using search only snapshots for indices that use index sorting. This is includes Logsdb and time series indices.
-area: Logs
-type: bug
-issues: []

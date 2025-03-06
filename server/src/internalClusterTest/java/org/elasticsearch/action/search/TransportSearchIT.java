@@ -313,8 +313,9 @@ public class TransportSearchIT extends ESIntegTestCase {
             prepareCreate("test3").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards))
         );
         assertAcked(
-            indicesAdmin().prepareAliases().addAlias("test1", "testAlias"),
-            indicesAdmin().prepareAliases().addAlias(new String[] { "test2", "test3" }, "testFailedAlias")
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test1", "testAlias"),
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAlias(new String[] { "test2", "test3" }, "testFailedAlias")
         );
 
         long[] validCheckpoints = new long[numberOfShards];

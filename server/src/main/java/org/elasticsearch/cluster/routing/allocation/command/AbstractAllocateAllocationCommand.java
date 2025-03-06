@@ -109,7 +109,7 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         shardId = in.readVInt();
         node = in.readString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
-            projectId = new ProjectId(in);
+            projectId = ProjectId.readFrom(in);
         } else {
             projectId = Metadata.DEFAULT_PROJECT_ID;
         }

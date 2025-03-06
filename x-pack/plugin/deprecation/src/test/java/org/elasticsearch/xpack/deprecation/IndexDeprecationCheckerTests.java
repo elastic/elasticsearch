@@ -599,7 +599,6 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         settings.put(FrozenEngine.INDEX_FROZEN.getKey(), true);
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         DataStream dataStream = newInstance(randomAlphaOfLength(10), List.of(indexMetadata.getIndex()));
-        Metadata metadata = Metadata.builder().dataStreams(Map.of(dataStream.getName(), dataStream), Map.of()).build();
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put(indexMetadata, true).dataStreams(Map.of(dataStream.getName(), dataStream), Map.of()))
             .build();

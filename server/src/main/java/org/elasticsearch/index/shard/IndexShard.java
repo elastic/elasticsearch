@@ -4313,17 +4313,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert waitForEngineOrClosedShardListeners.isDone();
         try {
             synchronized (engineMutex) {
-                final var currentEngine = getEngine();
-                currentEngine.prepareForEngineReset();
-                var engineConfig = newEngineConfig(replicationTracker);
                 verifyNotClosed();
-                IOUtils.close(currentEngine);
-                var newEngine = createEngine(engineConfig);
-                currentEngineReference.set(newEngine);
+                getEngine().prepareForEngineReset();
+                var newEngine = createEngine(newEngineConfig(replicationTracker));
+                IOUtils.close(currentEngineReference.getAndSet(newEngine));
                 onNewEngine(newEngine);
             }
             onSettingsChanged();
         } catch (Exception e) {
+            // we want to fail the shard in the case prepareForEngineReset throws
             failShard("unable to reset engine", e);
         }
     }
@@ -4493,14 +4491,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Registers a listener for an event when the shard advances to the provided primary term and segment generation
+     * Registers a listener for an event when the shard advances to the provided primary term and segment generation.
+     * Completes the listener with a {@link IndexShardClosedException} if the shard is closed.
      */
     public void waitForPrimaryTermAndGeneration(long primaryTerm, long segmentGeneration, ActionListener<Long> listener) {
-        waitForEngineOrClosedShard(
-            listener.delegateFailureAndWrap(
-                (l, ignored) -> getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, l)
-            )
-        );
+        waitForEngineOrClosedShard(listener.delegateFailureAndWrap((l, ignored) -> {
+            if (state == IndexShardState.CLOSED) {
+                l.onFailure(new IndexShardClosedException(shardId));
+            } else {
+                getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, l);
+            }
+        }));
     }
 
     /**

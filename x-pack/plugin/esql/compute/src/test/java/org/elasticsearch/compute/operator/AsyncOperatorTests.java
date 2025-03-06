@@ -30,6 +30,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -112,7 +113,7 @@ public class AsyncOperatorTests extends ESTestCase {
             }
         };
         int maxConcurrentRequests = randomIntBetween(1, 10);
-        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, maxConcurrentRequests) {
+        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, threadPool.getThreadContext(), maxConcurrentRequests) {
             final LookupService lookupService = new LookupService(threadPool, globalBlockFactory, dict, maxConcurrentRequests);
 
             @Override
@@ -141,7 +142,7 @@ public class AsyncOperatorTests extends ESTestCase {
         if (randomBoolean()) {
             int limit = between(0, ids.size());
             it = ids.subList(0, limit).iterator();
-            intermediateOperators.add(new LimitOperator(limit));
+            intermediateOperators.add(new LimitOperator(new Limiter(limit)));
         } else {
             it = ids.iterator();
         }
@@ -165,8 +166,7 @@ public class AsyncOperatorTests extends ESTestCase {
             }
         });
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Driver driver = new Driver(
-            "test",
+        Driver driver = TestDriverFactory.create(
             driverContext,
             sourceOperator,
             intermediateOperators,
@@ -182,7 +182,7 @@ public class AsyncOperatorTests extends ESTestCase {
         Map<Page, ActionListener<Page>> handlers = new HashMap<>();
 
         TestOp(DriverContext driverContext, int maxOutstandingRequests) {
-            super(driverContext, maxOutstandingRequests);
+            super(driverContext, threadPool.getThreadContext(), maxOutstandingRequests);
         }
 
         @Override
@@ -262,7 +262,7 @@ public class AsyncOperatorTests extends ESTestCase {
         );
         int maxConcurrentRequests = randomIntBetween(1, 10);
         AtomicBoolean failed = new AtomicBoolean();
-        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, maxConcurrentRequests) {
+        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, threadPool.getThreadContext(), maxConcurrentRequests) {
             @Override
             protected void performAsync(Page inputPage, ActionListener<Page> listener) {
                 ActionRunnable<Page> command = new ActionRunnable<>(listener) {
@@ -302,7 +302,7 @@ public class AsyncOperatorTests extends ESTestCase {
         };
         SinkOperator outputOperator = new PageConsumerOperator(Page::releaseBlocks);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Driver driver = new Driver("test", driverContext, sourceOperator, List.of(asyncOperator), outputOperator, localBreaker);
+        Driver driver = TestDriverFactory.create(driverContext, sourceOperator, List.of(asyncOperator), outputOperator, localBreaker);
         Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), future);
         assertBusy(() -> assertTrue(future.isDone()));
         if (failed.get()) {
@@ -324,7 +324,7 @@ public class AsyncOperatorTests extends ESTestCase {
         for (int i = 0; i < iters; i++) {
             DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
             CyclicBarrier barrier = new CyclicBarrier(2);
-            AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, between(1, 10)) {
+            AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, threadPool.getThreadContext(), between(1, 10)) {
                 @Override
                 protected void performAsync(Page inputPage, ActionListener<Page> listener) {
                     ActionRunnable<Page> command = new ActionRunnable<>(listener) {

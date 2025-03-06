@@ -333,7 +333,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 null,
                 false,
                 null,
-                null
+                null,
+                false
             )
         );
     }
@@ -353,7 +354,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 null,
                 false,
                 null,
-                null
+                null,
+                false
             )
         );
     }
@@ -361,7 +363,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
         doTestRequireDocValues(
-            new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap(), false)
+            new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap(), false, false)
         );
     }
 

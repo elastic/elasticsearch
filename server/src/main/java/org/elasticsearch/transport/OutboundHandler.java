@@ -12,13 +12,13 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.HandlingTimeTracker;
@@ -113,17 +113,12 @@ final class OutboundHandler {
             isHandshake,
             compressionScheme
         );
-        if (request.tryIncRef() == false) {
-            assert false : "request [" + request + "] has been released already";
-            throw new AlreadyClosedException("request [" + request + "] has been released already");
-        }
-        sendMessage(channel, message, ResponseStatsConsumer.NONE, () -> {
-            try {
-                messageListener.onRequestSent(node, requestId, action, request, options);
-            } finally {
-                request.decRef();
-            }
-        });
+        sendMessage(
+            channel,
+            message,
+            ResponseStatsConsumer.NONE,
+            () -> messageListener.onRequestSent(node, requestId, action, request, options)
+        );
     }
 
     /**
@@ -151,15 +146,9 @@ final class OutboundHandler {
             isHandshake,
             compressionScheme
         );
-        response.mustIncRef();
+        assert response.hasReferences();
         try {
-            sendMessage(channel, message, responseStatsConsumer, () -> {
-                try {
-                    messageListener.onResponseSent(requestId, action, response);
-                } finally {
-                    response.decRef();
-                }
-            });
+            sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, response));
         } catch (Exception ex) {
             if (isHandshake) {
                 logger.error(
@@ -222,7 +211,6 @@ final class OutboundHandler {
                 Releasables.closeExpectNoException(onAfter);
             }
         }
-        final Releasable release = Releasables.wrap(byteStreamOutput, onAfter);
         final BytesReference message;
         boolean serializeSuccess = false;
         try {
@@ -233,11 +221,20 @@ final class OutboundHandler {
             throw e;
         } finally {
             if (serializeSuccess == false) {
-                release.close();
+                Releasables.close(byteStreamOutput, onAfter);
             }
         }
         responseStatsConsumer.addResponseStats(message.length());
-        internalSend(channel, message, networkMessage, ActionListener.running(release::close));
+        internalSend(
+            channel,
+            message,
+            networkMessage,
+            ActionListener.releasing(
+                message instanceof ReleasableBytesReference r
+                    ? Releasables.wrap(byteStreamOutput, onAfter, r)
+                    : Releasables.wrap(byteStreamOutput, onAfter)
+            )
+        );
     }
 
     private void internalSend(

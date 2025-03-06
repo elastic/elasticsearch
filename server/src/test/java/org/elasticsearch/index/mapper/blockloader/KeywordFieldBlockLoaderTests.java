@@ -46,7 +46,6 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
 
         if ((boolean) fieldMapping.getOrDefault("doc_values", false)) {
             // Sorted and no duplicates
-
             var resultList = convertValues.andThen(Stream::distinct)
                 .andThen(Stream::sorted)
                 .andThen(Stream::toList)
@@ -57,18 +56,6 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         // store: "true" and source
         var resultList = convertValues.andThen(Stream::toList).apply(((List<String>) value).stream());
         return maybeFoldList(resultList);
-    }
-
-    private Object maybeFoldList(List<?> list) {
-        if (list.isEmpty()) {
-            return null;
-        }
-
-        if (list.size() == 1) {
-            return list.get(0);
-        }
-
-        return list;
     }
 
     private BytesRef convert(String value, String nullValue, int ignoreAbove) {

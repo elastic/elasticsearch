@@ -1575,6 +1575,84 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
+    public void testInsist_fieldIsMappedToNonKeywordSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 client_ip | KEEP @timestamp, client_ip",
+            Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_fieldIsMappedToKeywordSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 message | KEEP @timestamp, message",
+            Set.of("@timestamp", "@timestamp.*", "message", "message.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_fieldDoesNotExistSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 foo | KEEP @timestamp, foo",
+            Set.of("@timestamp", "@timestamp.*", "foo", "foo.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_fieldIsUnmappedSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 unmapped_message | KEEP @timestamp, unmapped_message",
+            Set.of("@timestamp", "@timestamp.*", "unmapped_message", "unmapped_message.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_multiFieldTestSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 message, unmapped_message, client_ip, foo | KEEP @timestamp, unmapped_message",
+            Set.of(
+                "@timestamp",
+                "@timestamp.*",
+                "message",
+                "message.*",
+                "unmapped_message",
+                "unmapped_message.*",
+                "client_ip",
+                "client_ip.*",
+                "foo",
+                "foo.*"
+            ),
+            Set.of()
+        );
+    }
+
+    public void testInsist_fieldIsMappedToDifferentTypesMultiIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM sample_data_ts_long, sample_data METADATA _index | INSIST_🐔 @timestamp | KEEP _index, @timestamp",
+            Set.of("@timestamp", "@timestamp.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_multiFieldMappedMultiIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data_ts_long, sample_data METADATA _index
+                | INSIST_🐔 @timestamp, unmapped_message
+                | INSIST_🐔 message, foo
+                | KEEP _index, @timestamp, message, foo""",
+            Set.of("@timestamp", "@timestamp.*", "message", "message.*", "unmapped_message", "unmapped_message.*", "foo", "foo.*"),
+            Set.of()
+        );
+    }
+
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {
         var preAnalysisResult = new EsqlSession.PreAnalysisResult(null);
         return EsqlSession.fieldNames(parser.createStatement(query), enrichPolicyMatchFields, preAnalysisResult).fieldNames();

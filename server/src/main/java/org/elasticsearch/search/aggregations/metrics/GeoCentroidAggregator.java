@@ -93,7 +93,6 @@ final class GeoCentroidAggregator extends MetricsAggregator {
     }
 
     private LeafBucketCollector getLeafCollector(GeoPointValues values, LeafBucketCollector sub) {
-        final CompensatedSum compensatedSum = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -104,16 +103,8 @@ final class GeoCentroidAggregator extends MetricsAggregator {
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.
                     final GeoPoint value = values.pointValue();
-                    // latitude
-                    compensatedSum.reset(latSum.get(bucket), latCompensations.get(bucket));
-                    compensatedSum.add(value.getLat());
-                    latSum.set(bucket, compensatedSum.value());
-                    latCompensations.set(bucket, compensatedSum.delta());
-                    // longitude
-                    compensatedSum.reset(lonSum.get(bucket), lonCompensations.get(bucket));
-                    compensatedSum.add(value.getLon());
-                    lonSum.set(bucket, compensatedSum.value());
-                    lonCompensations.set(bucket, compensatedSum.delta());
+                    SumAggregator.computeSum(bucket, value.getLat(), latSum, latCompensations);
+                    SumAggregator.computeSum(bucket, value.getLon(), lonSum, lonCompensations);
                 }
             }
         };

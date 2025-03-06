@@ -326,9 +326,9 @@ class IndexLifecycleRunner {
             // ILM is stopped, so do not try to run async action
             logger.debug(
                 "expected step for index [{}] with policy [{}] is [{}], not running async action",
-                currentStep.getKey(),
                 index,
-                policy
+                policy,
+                expectedStepKey
             );
             return;
         }

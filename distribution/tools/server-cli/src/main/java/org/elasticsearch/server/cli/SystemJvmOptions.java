@@ -67,6 +67,8 @@ final class SystemJvmOptions {
                 "-Dlog4j2.disable.jmx=true",
                 "-Dlog4j2.formatMsgNoLookups=true",
                 "-Djava.locale.providers=" + getLocaleProviders(),
+                // Enable vectorization for whatever version we are running. This ensures we use vectorization even when running EA builds.
+                "-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=" + Runtime.version().feature(),
                 // Pass through distribution type
                 "-Des.distribution.type=" + distroType
             ),

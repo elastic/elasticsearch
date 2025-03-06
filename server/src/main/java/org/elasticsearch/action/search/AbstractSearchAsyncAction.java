@@ -135,7 +135,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         this.skippedCount = skipped;
         this.shardsIts = iterators;
-        outstandingShards = new AtomicInteger(shardsIts.size() - skipped);
+        outstandingShards = new AtomicInteger(iterators.size());
         successfulOps = new AtomicInteger(skipped);
         this.shardIterators = iterators.toArray(new SearchShardIterator[0]);
         // we later compute the shard index based on the natural order of the shards

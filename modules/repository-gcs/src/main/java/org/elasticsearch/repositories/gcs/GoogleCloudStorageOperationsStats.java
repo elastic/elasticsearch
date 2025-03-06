@@ -19,9 +19,98 @@ import java.util.stream.Collectors;
 
 final class GoogleCloudStorageOperationsStats {
 
+    private final String bucketName;
+    private final StatsTracker tracker;
+
+    GoogleCloudStorageOperationsStats(String bucketName, boolean isStateless) {
+        this.bucketName = bucketName;
+        if (isStateless) {
+            this.tracker = new ServerlessTracker(bucketName);
+        } else {
+            this.tracker = new StatefulTracker();
+        }
+    }
+
+    GoogleCloudStorageOperationsStats(String bucketName) {
+        this(bucketName, false);
+    }
+
+    public String bucketName() {
+        return bucketName;
+    }
+
+    public StatsTracker tracker() {
+        return tracker;
+    }
+
+    public enum Operation {
+        GET_OBJECT("GetObject"),
+        LIST_OBJECTS("ListObjects"),
+        INSERT_OBJECT("InsertObject");
+
+        private final String key;
+
+        Operation(String key) {
+            this.key = key;
+        }
+
+        public String key() {
+            return key;
+        }
+    }
+
+    sealed interface StatsTracker permits ServerlessTracker, StatefulTracker {
+        void trackRequest(OperationPurpose purpose, Operation operation);
+
+        void trackOperation(OperationPurpose purpose, Operation operation);
+
+        Map<String, BlobStoreActionStats> toMap();
+
+        default void trackOperationAndRequest(OperationPurpose purpose, Operation operation) {
+            trackOperation(purpose, operation);
+            trackRequest(purpose, operation);
+        }
+    }
+
     /**
-     * Every operation purpose and operation has a set of counters.
-     * Represented by {@code Map<Purpose,Map<Operation,Counters>>}
+     * Stateful tracker is single dimension: Operation only. The OperationPurpose is ignored.
+     */
+    static final class StatefulTracker implements StatsTracker {
+
+        private final EnumMap<Operation, Counters> counters;
+
+        StatefulTracker() {
+            this.counters = new EnumMap<>(Operation.class);
+            for (var operation : Operation.values()) {
+                counters.put(operation, new Counters(operation.key()));
+            }
+        }
+
+        @Override
+        public void trackRequest(OperationPurpose purpose, Operation operation) {
+            // dont track requests, only operations
+        }
+
+        @Override
+        public void trackOperation(OperationPurpose purpose, Operation operation) {
+            counters.get(operation).operations().add(1);
+        }
+
+        @Override
+        public Map<String, BlobStoreActionStats> toMap() {
+            return counters.values().stream().collect(Collectors.toUnmodifiableMap(Counters::name, (c) -> {
+                var ops = c.operations().sum();
+                return new BlobStoreActionStats(ops, ops);
+            }));
+        }
+
+    }
+
+    /**
+     * Serverless tracker is 2-dimensional: OperationPurpose and Operations.
+     * Every combination of these has own set of counters: number of operations and number of http requests.
+     * A single operation might have multiple HTTP requests, for example a single ResumableUpload operation
+     * can perform a series of HTTP requests with size up to {@link GoogleCloudStorageBlobStore#SDK_DEFAULT_CHUNK_SIZE}.
      * <pre>
      * {@code
      * | Purpose      | Operation       | OperationsCnt | RequestCnt |
@@ -35,63 +124,52 @@ final class GoogleCloudStorageOperationsStats {
      * }
      * </pre>
      */
-    private final EnumMap<OperationPurpose, EnumMap<Operation, Counters>> counters;
-    private final String bucketName;
+    static final class ServerlessTracker implements StatsTracker {
+        private final EnumMap<OperationPurpose, EnumMap<Operation, Counters>> counters;
 
-    GoogleCloudStorageOperationsStats(String bucketName) {
-        this.bucketName = bucketName;
-        this.counters = new EnumMap<>(OperationPurpose.class);
-        for (var purpose : OperationPurpose.values()) {
-            var operations = new EnumMap<Operation, Counters>(Operation.class);
-            for (var operation : Operation.values()) {
-                operations.put(operation, new Counters(purpose, operation));
+        ServerlessTracker(String bucketName) {
+            this.counters = new EnumMap<>(OperationPurpose.class);
+            for (var purpose : OperationPurpose.values()) {
+                var operations = new EnumMap<Operation, Counters>(Operation.class);
+                for (var operation : Operation.values()) {
+                    operations.put(operation, new Counters(purpose.getKey() + "_" + operation.key()));
+                }
+                counters.put(purpose, operations);
             }
-            counters.put(purpose, operations);
         }
-    }
 
-    public String bucketName() {
-        return bucketName;
-    }
-
-    void trackOperation(OperationPurpose purpose, Operation operation) {
-        counters.get(purpose).get(operation).operations.add(1);
-    }
-
-    void trackRequest(OperationPurpose purpose, Operation operation) {
-        counters.get(purpose).get(operation).requests.add(1);
-    }
-
-    void trackRequestAndOperation(OperationPurpose purpose, Operation operation) {
-        var c = counters.get(purpose).get(operation);
-        c.requests.add(1);
-        c.operations.add(1);
-    }
-
-    Map<String, BlobStoreActionStats> toMap() {
-        return counters.values()
-            .stream()
-            .flatMap(ops -> ops.values().stream())
-            .collect(Collectors.toUnmodifiableMap(Counters::name, (c) -> new BlobStoreActionStats(c.operations.sum(), c.requests.sum())));
-    }
-
-    public enum Operation {
-        GET_METADATA("GetMetadata"),
-        GET_OBJECT("GetObject"),
-        LIST_OBJECTS("ListObjects"),
-        MULTIPART_UPLOAD("MultipartUpload"),
-        RESUMABLE_UPLOAD("ResumableUpload");
-
-        final String name;
-
-        Operation(String name) {
-            this.name = name;
+        @Override
+        public void trackOperation(OperationPurpose purpose, Operation operation) {
+            counters.get(purpose).get(operation).operations.add(1);
         }
+
+        @Override
+        public void trackRequest(OperationPurpose purpose, Operation operation) {
+            counters.get(purpose).get(operation).requests.add(1);
+        }
+
+        @Override
+        public void trackOperationAndRequest(OperationPurpose purpose, Operation operation) {
+            var c = counters.get(purpose).get(operation);
+            c.requests.add(1);
+            c.operations.add(1);
+        }
+
+        @Override
+        public Map<String, BlobStoreActionStats> toMap() {
+            return counters.values()
+                .stream()
+                .flatMap(ops -> ops.values().stream())
+                .collect(
+                    Collectors.toUnmodifiableMap(Counters::name, (c) -> new BlobStoreActionStats(c.operations.sum(), c.requests.sum()))
+                );
+        }
+
     }
 
     private record Counters(String name, LongAdder operations, LongAdder requests) {
-        Counters(OperationPurpose purpose, Operation operation) {
-            this(purpose.name() + '_' + operation.name(), new LongAdder(), new LongAdder());
+        Counters(String name) {
+            this(name, new LongAdder(), new LongAdder());
         }
     }
 }

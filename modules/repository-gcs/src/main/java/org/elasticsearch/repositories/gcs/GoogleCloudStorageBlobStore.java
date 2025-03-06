@@ -130,7 +130,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.repositoryName = repositoryName;
         this.storageService = storageService;
         this.bigArrays = bigArrays;
-        this.stats = new GoogleCloudStorageOperationsStats(bucketName);
+        this.stats = new GoogleCloudStorageOperationsStats(bucketName, storageService.isStateless());
         this.bufferSize = bufferSize;
         this.casBackoffPolicy = casBackoffPolicy;
     }
@@ -397,7 +397,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 final WritableByteChannel writeChannel = channelRef.get();
                 if (writeChannel != null) {
                     SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
-                    stats.trackOperation(purpose, Operation.RESUMABLE_UPLOAD);
+                    stats.tracker().trackOperation(purpose, Operation.INSERT_OBJECT);
                 } else {
                     writeBlob(purpose, blobName, buffer.bytes(), failIfAlreadyExists);
                 }
@@ -467,7 +467,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 // we do with the GET/LIST operations since this operations
                 // can trigger multiple underlying http requests but only one
                 // operation is billed.
-                stats.trackOperation(purpose, Operation.RESUMABLE_UPLOAD);
+                stats.tracker().trackOperation(purpose, Operation.INSERT_OBJECT);
                 return;
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
@@ -519,7 +519,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             // we do with the GET/LIST operations since this operations
             // can trigger multiple underlying http requests but only one
             // operation is billed.
-            stats.trackOperation(purpose, Operation.MULTIPART_UPLOAD);
+            stats.tracker().trackOperation(purpose, Operation.INSERT_OBJECT);
         } catch (final StorageException se) {
             if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
                 throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
@@ -638,7 +638,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     @Override
     public Map<String, BlobStoreActionStats> stats() {
-        return stats.toMap();
+        return stats.tracker().toMap();
     }
 
     private static final class WritableBlobChannel implements WritableByteChannel {
@@ -749,7 +749,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                         Storage.BlobTargetOption.generationMatch()
                     )
                 );
-                stats.trackOperation(purpose, Operation.MULTIPART_UPLOAD);
+                stats.tracker().trackOperation(purpose, Operation.INSERT_OBJECT);
                 return OptionalBytesReference.of(expected);
             } catch (Exception e) {
                 final var serviceException = unwrapServiceException(e);

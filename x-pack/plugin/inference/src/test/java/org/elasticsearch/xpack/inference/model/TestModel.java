@@ -26,7 +26,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -40,13 +42,35 @@ public class TestModel extends Model {
     }
 
     public static TestModel createRandomInstance(TaskType taskType) {
+        return createRandomInstance(taskType, null);
+    }
+
+    public static TestModel createRandomInstance(TaskType taskType, List<SimilarityMeasure> excludedSimilarities) {
         var elementType = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(DenseVectorFieldMapper.ElementType.values()) : null;
         var dimensions = taskType == TaskType.TEXT_EMBEDDING
             ? DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 64)
             : null;
-        var similarity = taskType == TaskType.TEXT_EMBEDDING
-            ? randomFrom(DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType))
-            : null;
+
+        SimilarityMeasure similarity = null;
+        if (taskType == TaskType.TEXT_EMBEDDING) {
+            List<SimilarityMeasure> supportedSimilarities = new ArrayList<>(
+                DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType)
+            );
+            if (excludedSimilarities != null) {
+                supportedSimilarities.removeAll(excludedSimilarities);
+            }
+
+            if (supportedSimilarities.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "No supported similarities for combination of element type ["
+                        + elementType
+                        + "] and excluded similarities "
+                        + (excludedSimilarities == null ? List.of() : excludedSimilarities)
+                );
+            }
+
+            similarity = randomFrom(supportedSimilarities);
+        }
 
         return new TestModel(
             randomAlphaOfLength(4),

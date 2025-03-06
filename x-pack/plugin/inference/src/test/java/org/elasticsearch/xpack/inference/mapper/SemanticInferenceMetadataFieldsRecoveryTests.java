@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -54,7 +55,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
     private final boolean useIncludesExcludes;
 
     public SemanticInferenceMetadataFieldsRecoveryTests(boolean useSynthetic, boolean useIncludesExcludes) {
-        this.model1 = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
+        this.model1 = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING, List.of(SimilarityMeasure.COSINE));
         this.model2 = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         this.useSynthetic = useSynthetic;
         this.useIncludesExcludes = useIncludesExcludes;

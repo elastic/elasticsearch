@@ -324,12 +324,7 @@ class IndexLifecycleRunner {
         }
         if (expectedStepKey.phase() == null && expectedStepKey.name() == null && expectedStepKey.action() == null) {
             // ILM is stopped, so do not try to run async action
-            logger.debug(
-                "expected step for index [{}] with policy [{}] is [{}], not running async action",
-                index,
-                policy,
-                expectedStepKey
-            );
+            logger.debug("expected step for index [{}] with policy [{}] is [{}], not running async action", index, policy, expectedStepKey);
             return;
         }
         logger.trace(

@@ -198,9 +198,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test171AdditionalCliOptionsAreForwarded
   issue: https://github.com/elastic/elasticsearch/issues/120925
-- class: org.elasticsearch.action.search.SearchProgressActionListenerIT
-  method: testSearchProgressWithQuery
-  issue: https://github.com/elastic/elasticsearch/issues/120994
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950

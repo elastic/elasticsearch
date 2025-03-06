@@ -367,7 +367,15 @@ public class IndexAbstractionResolverTests extends ESTestCase {
     }
 
     private List<String> resolveAbstractions(List<String> expressions, IndicesOptions indicesOptions, Supplier<Set<String>> mask) {
-        return indexAbstractionResolver.resolveIndexAbstractions(expressions, indicesOptions, projectMetadata, mask, (idx) -> true, true);
+        return indexAbstractionResolver.resolveIndexAbstractions(
+            expressions,
+            indicesOptions,
+            projectMetadata,
+            // TODO
+            sel -> mask,
+            (idx, sel) -> true,
+            true
+        );
     }
 
     private boolean isIndexVisible(String index, String selector) {

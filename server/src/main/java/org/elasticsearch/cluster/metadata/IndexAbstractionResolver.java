@@ -22,7 +22,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Predicate;
+import java.util.function.BiPredicate;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class IndexAbstractionResolver {
@@ -37,8 +38,8 @@ public class IndexAbstractionResolver {
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         ProjectMetadata projectMetadata,
-        Supplier<Set<String>> allAuthorizedAndAvailable,
-        Predicate<String> isAuthorized,
+        Function<String, Supplier<Set<String>>> allAuthorizedAndAvailableBySelector,
+        BiPredicate<String, String> isAuthorized,
         boolean includeDataStreams
     ) {
         List<String> finalIndices = new ArrayList<>();
@@ -71,12 +72,8 @@ public class IndexAbstractionResolver {
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
-                for (String authorizedIndex : allAuthorizedAndAvailable.get()) {
-                    Tuple<String, String> tuple = IndexNameExpressionResolver.splitSelectorExpression(authorizedIndex);
-                    authorizedIndex = tuple.v1();
-                    String authorizedSelectorString = tuple.v2();
-                    if (selectorsMatch(selectorString, authorizedSelectorString)
-                        && Regex.simpleMatch(indexAbstraction, authorizedIndex)
+                for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selectorString).get()) {
+                    if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
                             indexAbstraction,
                             selectorString,
@@ -106,26 +103,15 @@ public class IndexAbstractionResolver {
                 resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                 if (minus) {
                     finalIndices.removeAll(resolvedIndices);
-                } else if (indicesOptions.ignoreUnavailable() == false
-                    || isAuthorized.test(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, selectorString))) {
-                        // Unauthorized names are considered unavailable, so if `ignoreUnavailable` is `true` they should be silently
-                        // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action
-                        // handler, see: https://github.com/elastic/elasticsearch/issues/90215
-                        finalIndices.addAll(resolvedIndices);
-                    }
+                } else if (indicesOptions.ignoreUnavailable() == false || isAuthorized.test(indexAbstraction, selectorString)) {
+                    // Unauthorized names are considered unavailable, so if `ignoreUnavailable` is `true` they should be silently
+                    // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action
+                    // handler, see: https://github.com/elastic/elasticsearch/issues/90215
+                    finalIndices.addAll(resolvedIndices);
+                }
             }
         }
         return finalIndices;
-    }
-
-    public static boolean selectorsMatch(String selectorString, String authorizedSelectorString) {
-        IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString) == null
-            ? IndexComponentSelector.DATA
-            : IndexComponentSelector.getByKey(selectorString);
-        IndexComponentSelector authorizedSelector = IndexComponentSelector.getByKey(authorizedSelectorString) == null
-            ? IndexComponentSelector.DATA
-            : IndexComponentSelector.getByKey(authorizedSelectorString);
-        return selector == authorizedSelector;
     }
 
     private static void resolveSelectorsAndCollect(

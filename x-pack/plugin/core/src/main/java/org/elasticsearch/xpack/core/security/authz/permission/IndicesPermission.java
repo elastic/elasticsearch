@@ -195,7 +195,7 @@ public final class IndicesPermission {
         // public for tests
         public IsResourceAuthorizedPredicate(
             StringMatcher resourceNameMatcher,
-            StringMatcher failureAccessNameMatcher,
+            StringMatcher failureStoreNameMatcher,
             StringMatcher additionalNonDatastreamNameMatcher
         ) {
             this((String name, @Nullable IndexAbstraction indexAbstraction) -> {
@@ -205,7 +205,7 @@ public final class IndicesPermission {
                 assert indexAbstraction == null || indexAbstractionName.equals(indexAbstraction.getName());
                 if (IndexComponentSelector.FAILURES.equals(selector)) {
                     // TODO assert isPartOfDataStream if indexAbstraction is not null
-                    return failureAccessNameMatcher.test(indexAbstractionName);
+                    return failureStoreNameMatcher.test(indexAbstractionName);
                 }
                 return resourceNameMatcher.test(indexAbstractionName)
                     || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(indexAbstractionName));
@@ -227,11 +227,11 @@ public final class IndicesPermission {
 
         /**
          * Verifies if access is authorized to the given {@param indexAbstraction} resource.
-         * The resource must exist. Otherwise, use the {@link #test(String, IndexAbstraction)} method.
+         * The resource must exist. Otherwise, use the {@link #test(String, IndexComponentSelector, IndexAbstraction)} method.
          * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
          */
-        public final boolean test(IndexAbstraction indexAbstraction) {
-            return test(indexAbstraction.getName(), indexAbstraction);
+        public boolean test(IndexAbstraction indexAbstraction, IndexComponentSelector selector) {
+            return test(indexAbstraction.getName(), selector, indexAbstraction);
         }
 
         /**
@@ -240,7 +240,7 @@ public final class IndicesPermission {
          * if it doesn't.
          * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
          */
-        public boolean test(String name, @Nullable IndexAbstraction indexAbstraction) {
+        public boolean test(String name, IndexComponentSelector selector, @Nullable IndexAbstraction indexAbstraction) {
             return biPredicate.test(name, indexAbstraction);
         }
 

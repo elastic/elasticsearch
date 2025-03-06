@@ -36,7 +36,6 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,6 +43,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -109,6 +109,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -884,14 +885,7 @@ public class RBACEngine implements AuthorizationEngine {
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    boolean dataAccessGranted = predicate.test(indexAbstraction);
-                    // TODO can we also skip if the data stream does not have failure indices?
-                    boolean failureAccessGranted = (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM)
-                        && predicate.test(
-                            IndexNameExpressionResolver.combineSelector(indexAbstraction.getName(), IndexComponentSelector.FAILURES),
-                            indexAbstraction
-                        );
-                    if (dataAccessGranted) {
+                    if (predicate.test(indexAbstraction, IndexComponentSelector.DATA)) {
                         indicesAndAliases.add(indexAbstraction.getName());
                         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                             // add data stream and its backing indices for any authorized data streams
@@ -900,47 +894,51 @@ public class RBACEngine implements AuthorizationEngine {
                             }
                         }
                     }
-                    if (failureAccessGranted) {
-                        // TODO hack hack hack
-                        indicesAndAliases.add(
-                            IndexNameExpressionResolver.combineSelector(indexAbstraction.getName(), IndexComponentSelector.FAILURES)
-                        );
-                        for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
-                            indicesAndAliases.add(index.getName());
-                        }
-                    }
                 }
             } else {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM && predicate.test(indexAbstraction)) {
+                    if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
+                        && predicate.test(indexAbstraction, IndexComponentSelector.DATA)) {
                         indicesAndAliases.add(indexAbstraction.getName());
                     }
                 }
             }
             timeChecker.accept(indicesAndAliases);
             return indicesAndAliases;
-        }, name -> {
+        }, () -> {
+            if (includeDataStreams == false) {
+                return Collections.emptySet();
+            }
+            Set<String> indicesAndAliases = new HashSet<>();
+            for (IndexAbstraction indexAbstraction : lookup.values()) {
+                if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
+                    && predicate.test(indexAbstraction, IndexComponentSelector.FAILURES)) {
+                    indicesAndAliases.add(indexAbstraction.getName());
+                    // add data stream and its backing failure indices for any authorized data streams
+                    for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
+                        indicesAndAliases.add(index.getName());
+                    }
+                }
+            }
+            return indicesAndAliases;
+        }, (name, selectorString) -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
+            final IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);
             if (indexAbstraction == null) {
                 // test access (by name) to a resource that does not currently exist
                 // the action handler must handle the case of accessing resources that do not exist
-                return predicate.test(name, null);
+                return predicate.test(name, selector, null);
             } else {
                 if (indexAbstraction.isFailureIndexOfDataStream()) {
-                    // TODO remove selector, add selector, remove selector, selectors, selectors, selectors
-                    return predicate.test(
-                        IndexNameExpressionResolver.combineSelector(
-                            indexAbstraction.getParentDataStream().getName(),
-                            IndexComponentSelector.FAILURES
-                        ),
-                        indexAbstraction.getParentDataStream()
-                    ) || predicate.test(indexAbstraction);
+                    // TODO explain
+                    return predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES)
+                        || predicate.test(indexAbstraction, selector);
                 }
                 // We check the parent data stream first if there is one. For testing requested indices, this is most likely
                 // more efficient than checking the index name first because we recommend grant privileges over data stream
                 // instead of backing indices.
-                return (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream()))
-                    || predicate.test(indexAbstraction);
+                return (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream(), selector))
+                    || predicate.test(indexAbstraction, selector);
             }
         });
     }
@@ -1067,22 +1065,30 @@ public class RBACEngine implements AuthorizationEngine {
 
     static final class AuthorizedIndices implements AuthorizationEngine.AuthorizedIndices {
 
-        private final CachedSupplier<Set<String>> allAuthorizedAndAvailableSupplier;
-        private final Predicate<String> isAuthorizedPredicate;
+        private final CachedSupplier<Set<String>> authorizedAndAvailableSupplier;
+        private final CachedSupplier<Set<String>> failureStoreAuthorizedAndAvailableSupplier;
+        private final BiPredicate<String, String> isAuthorizedPredicate;
 
-        AuthorizedIndices(Supplier<Set<String>> allAuthorizedAndAvailableSupplier, Predicate<String> isAuthorizedPredicate) {
-            this.allAuthorizedAndAvailableSupplier = CachedSupplier.wrap(allAuthorizedAndAvailableSupplier);
+        AuthorizedIndices(
+            Supplier<Set<String>> authorizedAndAvailableSupplier,
+            Supplier<Set<String>> failureStoreAuthorizedAndAvailableSupplier,
+            BiPredicate<String, String> isAuthorizedPredicate
+        ) {
+            this.authorizedAndAvailableSupplier = CachedSupplier.wrap(authorizedAndAvailableSupplier);
+            this.failureStoreAuthorizedAndAvailableSupplier = CachedSupplier.wrap(failureStoreAuthorizedAndAvailableSupplier);
             this.isAuthorizedPredicate = Objects.requireNonNull(isAuthorizedPredicate);
         }
 
         @Override
-        public Supplier<Set<String>> all() {
-            return allAuthorizedAndAvailableSupplier;
+        public Supplier<Set<String>> all(@Nullable String selector) {
+            return IndexComponentSelector.FAILURES.equals(IndexComponentSelector.getByKey(selector))
+                ? failureStoreAuthorizedAndAvailableSupplier
+                : authorizedAndAvailableSupplier;
         }
 
         @Override
-        public boolean check(String name) {
-            return this.isAuthorizedPredicate.test(name);
+        public boolean check(String name, @Nullable String selector) {
+            return isAuthorizedPredicate.test(name, selector);
         }
     }
 }

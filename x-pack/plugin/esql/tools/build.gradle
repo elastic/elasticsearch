@@ -1,0 +1,14 @@
+apply plugin: 'elasticsearch.java'
+
+dependencies {
+  implementation project(":libs:x-content")
+  implementation project(':libs:logging')
+  implementation project(':test:framework')
+}
+
+tasks.register("parseProfile", JavaExec) {
+  group = "Execution"
+  description = "Parses the output of a query run with profile:true to be imported into the Chromium trace viewer (about:tracing) or Perfetto."
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = "org.elasticsearch.xpack.esql.ProfileParser"
+}

@@ -238,9 +238,7 @@ public final class IngestDocument {
         } else if (object instanceof String string) {
             return Base64.getDecoder().decode(string);
         } else {
-            throw new IllegalArgumentException(
-                "Content field [" + path + "] of unknown type [" + object.getClass().getName() + "], must be string or byte array"
-            );
+            throw new IllegalArgumentException(Errors.notStringOrByteArray(path, object));
         }
     }
 
@@ -276,15 +274,7 @@ public final class IngestDocument {
                     int index = Integer.parseInt(pathElement);
                     if (index < 0 || index >= list.size()) {
                         if (failOutOfRange) {
-                            throw new IllegalArgumentException(
-                                "["
-                                    + index
-                                    + "] is out of bounds for array with length ["
-                                    + list.size()
-                                    + "] as part of path ["
-                                    + path
-                                    + "]"
-                            );
+                            throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
                         } else {
                             return false;
                         }
@@ -309,9 +299,7 @@ public final class IngestDocument {
                     return true;
                 } else {
                     if (failOutOfRange) {
-                        throw new IllegalArgumentException(
-                            "[" + index + "] is out of bounds for array with length [" + list.size() + "] as part of path [" + path + "]"
-                        );
+                        throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
                     } else {
                         return false;
                     }
@@ -346,45 +334,34 @@ public final class IngestDocument {
                 map.remove(leafKey);
                 return;
             }
-            throw new IllegalArgumentException("field [" + leafKey + "] not present as part of path [" + path + "]");
+            throw new IllegalArgumentException(Errors.notPresent(path, leafKey));
         }
         if (context instanceof List<?> list) {
             int index;
             try {
                 index = Integer.parseInt(leafKey);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException(
-                    "[" + leafKey + "] is not an integer, cannot be used as an index as part of path [" + path + "]",
-                    e
-                );
+                throw new IllegalArgumentException(Errors.notInteger(path, leafKey), e);
             }
             if (index < 0 || index >= list.size()) {
-                throw new IllegalArgumentException(
-                    "[" + index + "] is out of bounds for array with length [" + list.size() + "] as part of path [" + path + "]"
-                );
+                throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
             }
             list.remove(index);
             return;
         }
-
-        if (context == null) {
-            throw new IllegalArgumentException("cannot remove [" + leafKey + "] from null as part of path [" + path + "]");
-        }
-        throw new IllegalArgumentException(
-            "cannot remove [" + leafKey + "] from object of type [" + context.getClass().getName() + "] as part of path [" + path + "]"
-        );
+        throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey, context));
     }
 
     private static ResolveResult resolve(String pathElement, String fullPath, Object context) {
         if (context == null) {
-            return ResolveResult.error("cannot resolve [" + pathElement + "] from null as part of path [" + fullPath + "]");
+            return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, null));
         }
         if (context instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;
             Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
             if (object == NOT_FOUND) {
-                return ResolveResult.error("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
+                return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
             } else {
                 return ResolveResult.success(object);
             }
@@ -394,26 +371,14 @@ public final class IngestDocument {
             try {
                 index = Integer.parseInt(pathElement);
             } catch (NumberFormatException e) {
-                return ResolveResult.error(
-                    "[" + pathElement + "] is not an integer, cannot be used as an index as part of path [" + fullPath + "]"
-                );
+                return ResolveResult.error(Errors.notInteger(fullPath, pathElement));
             }
             if (index < 0 || index >= list.size()) {
-                return ResolveResult.error(
-                    "[" + index + "] is out of bounds for array with length [" + list.size() + "] as part of path [" + fullPath + "]"
-                );
+                return ResolveResult.error(Errors.outOfBounds(fullPath, index, list.size()));
             }
             return ResolveResult.success(list.get(index));
         }
-        return ResolveResult.error(
-            "cannot resolve ["
-                + pathElement
-                + "] from object of type ["
-                + context.getClass().getName()
-                + "] as part of path ["
-                + fullPath
-                + "]"
-        );
+        return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, context));
     }
 
     /**
@@ -547,7 +512,7 @@ public final class IngestDocument {
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
             String pathElement = fieldPath.pathElements[i];
             if (context == null) {
-                throw new IllegalArgumentException("cannot resolve [" + pathElement + "] from null as part of path [" + path + "]");
+                throw new IllegalArgumentException(Errors.cannotResolve(path, pathElement, null));
             }
             if (context instanceof Map) {
                 @SuppressWarnings("unchecked")
@@ -565,33 +530,20 @@ public final class IngestDocument {
                 try {
                     index = Integer.parseInt(pathElement);
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException(
-                        "[" + pathElement + "] is not an integer, cannot be used as an index as part of path [" + path + "]",
-                        e
-                    );
+                    throw new IllegalArgumentException(Errors.notInteger(path, pathElement), e);
                 }
                 if (index < 0 || index >= list.size()) {
-                    throw new IllegalArgumentException(
-                        "[" + index + "] is out of bounds for array with length [" + list.size() + "] as part of path [" + path + "]"
-                    );
+                    throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
                 }
                 context = list.get(index);
             } else {
-                throw new IllegalArgumentException(
-                    "cannot resolve ["
-                        + pathElement
-                        + "] from object of type ["
-                        + context.getClass().getName()
-                        + "] as part of path ["
-                        + path
-                        + "]"
-                );
+                throw new IllegalArgumentException(Errors.cannotResolve(path, pathElement, context));
             }
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         if (context == null) {
-            throw new IllegalArgumentException("cannot set [" + leafKey + "] with null parent as part of path [" + path + "]");
+            throw new IllegalArgumentException(Errors.cannotSet(path, leafKey, null));
         }
         if (context instanceof Map) {
             @SuppressWarnings("unchecked")
@@ -618,15 +570,10 @@ public final class IngestDocument {
             try {
                 index = Integer.parseInt(leafKey);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException(
-                    "[" + leafKey + "] is not an integer, cannot be used as an index as part of path [" + path + "]",
-                    e
-                );
+                throw new IllegalArgumentException(Errors.notInteger(path, leafKey), e);
             }
             if (index < 0 || index >= list.size()) {
-                throw new IllegalArgumentException(
-                    "[" + index + "] is out of bounds for array with length [" + list.size() + "] as part of path [" + path + "]"
-                );
+                throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
             }
             if (append) {
                 Object object = list.get(index);
@@ -638,15 +585,7 @@ public final class IngestDocument {
             }
             list.set(index, value);
         } else {
-            throw new IllegalArgumentException(
-                "cannot set ["
-                    + leafKey
-                    + "] with parent object of type ["
-                    + context.getClass().getName()
-                    + "] as part of path ["
-                    + path
-                    + "]"
-            );
+            throw new IllegalArgumentException(Errors.cannotSet(path, leafKey, context));
         }
     }
 
@@ -703,9 +642,7 @@ public final class IngestDocument {
         if (clazz.isInstance(object)) {
             return clazz.cast(object);
         }
-        throw new IllegalArgumentException(
-            "field [" + path + "] of type [" + object.getClass().getName() + "] cannot be cast to [" + clazz.getName() + "]"
-        );
+        throw new IllegalArgumentException(Errors.cannotCast(path, object, clazz));
     }
 
     /**
@@ -1145,6 +1082,59 @@ public final class IngestDocument {
         @Override
         public Set<Entry<String, Object>> entrySet() {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    private static final class Errors {
+        private Errors() {
+            // utility class
+        }
+
+        private static String cannotCast(String path, Object value, Class<?> clazz) {
+            return "field [" + path + "] of type [" + value.getClass().getName() + "] cannot be cast to [" + clazz.getName() + "]";
+        }
+
+        private static String cannotRemove(String path, String key, Object value) {
+            if (value == null) {
+                return "cannot remove [" + key + "] from null as part of path [" + path + "]";
+            } else {
+                final String type = value.getClass().getName();
+                return "cannot remove [" + key + "] from object of type [" + type + "] as part of path [" + path + "]";
+            }
+        }
+
+        private static String cannotResolve(String path, String key, Object value) {
+            if (value == null) {
+                return "cannot resolve [" + key + "] from null as part of path [" + path + "]";
+            } else {
+                final String type = value.getClass().getName();
+                return "cannot resolve [" + key + "] from object of type [" + type + "] as part of path [" + path + "]";
+            }
+        }
+
+        private static String cannotSet(String path, String key, Object value) {
+            if (value == null) {
+                return "cannot set [" + key + "] with null parent as part of path [" + path + "]";
+            } else {
+                final String type = value.getClass().getName();
+                return "cannot set [" + key + "] with parent object of type [" + type + "] as part of path [" + path + "]";
+            }
+        }
+
+        private static String outOfBounds(String path, int index, int length) {
+            return "[" + index + "] is out of bounds for array with length [" + length + "] as part of path [" + path + "]";
+        }
+
+        private static String notInteger(String path, String key) {
+            return "[" + key + "] is not an integer, cannot be used as an index as part of path [" + path + "]";
+        }
+
+        private static String notPresent(String path, String key) {
+            return "field [" + key + "] not present as part of path [" + path + "]";
+        }
+
+        private static String notStringOrByteArray(String path, Object value) {
+            return "Content field [" + path + "] of unknown type [" + value.getClass().getName() + "], must be string or byte array";
         }
     }
 }

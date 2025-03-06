@@ -458,8 +458,13 @@ public class PolicyManagerTests extends ESTestCase {
                 Set.of()
             )
         );
-        assertThat(iae.getMessage(), equalTo("Path [/base/test] is already exclusive to [plugin1][test.module1]," +
-            " cannot add exclusive access for [plugin2][test.module2]"));
+        assertThat(
+            iae.getMessage(),
+            equalTo(
+                "Path [/base/test] is already exclusive to [plugin1][test.module1],"
+                    + " cannot add exclusive access for [plugin2][test.module2]"
+            )
+        );
 
         iae = expectThrows(
             IllegalArgumentException.class,

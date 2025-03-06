@@ -247,7 +247,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             taskId,
             predicate,
             request.getTimeout(),
-            new PersistentTasksService.WaitForPersistentTaskListener<>() {
+            new PersistentTasksService.WaitForPersistentTaskListener<SnapshotUpgradeTaskParams>() {
                 @Override
                 public void onResponse(PersistentTask<SnapshotUpgradeTaskParams> persistentTask) {
                     if (predicate.getException() != null) {

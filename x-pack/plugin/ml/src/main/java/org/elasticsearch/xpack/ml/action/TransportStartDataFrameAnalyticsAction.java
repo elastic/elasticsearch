@@ -36,6 +36,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -457,10 +458,11 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             task.getId(),
             predicate,
             timeout,
-            new PersistentTasksService.WaitForPersistentTaskListener<>() {
+
+            new PersistentTasksService.WaitForPersistentTaskListener<PersistentTaskParams>() {
 
                 @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<TaskParams> persistentTask) {
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask) {
                     if (predicate.exception != null) {
                         // We want to return to the caller without leaving an unassigned persistent task, to match
                         // what would have happened if the error had been detected in the "fast fail" validation
@@ -528,14 +530,14 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private static class AnalyticsPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<TaskParams>> {
+    private static class AnalyticsPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
 
         private volatile Exception exception;
         private volatile String node = "";
         private volatile String assignmentExplanation;
 
         @Override
-        public boolean test(PersistentTasksCustomMetadata.PersistentTask<TaskParams> persistentTask) {
+        public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
             if (persistentTask == null) {
                 return false;
             }

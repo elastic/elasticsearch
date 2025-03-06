@@ -357,14 +357,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private static class JobPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams>> {
+    private static class JobPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
 
         private volatile Exception exception;
         private volatile String node = "";
         private volatile boolean shouldCancel;
 
         @Override
-        public boolean test(PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> persistentTask) {
+        public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
             JobState jobState = JobState.CLOSED;
             String reason = null;
             if (persistentTask != null) {
@@ -381,7 +381,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
                 // This logic is only appropriate when opening a job, not when reallocating following a failure,
                 // and this is why this class must only be used when opening a job
-                OpenJobAction.JobParams params = persistentTask.getParams();
+                OpenJobAction.JobParams params = (OpenJobAction.JobParams) persistentTask.getParams();
                 Optional<ElasticsearchException> assignmentException = checkAssignmentState(assignment, params.getJobId(), logger);
                 if (assignmentException.isPresent()) {
                     exception = assignmentException.get();

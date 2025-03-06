@@ -173,11 +173,11 @@ public class PersistentTasksService {
      * @param listener the callback listener
      */
     @Deprecated(forRemoval = true)
-    public <P extends PersistentTaskParams> void waitForPersistentTaskCondition(
+    public void waitForPersistentTaskCondition(
         final String taskId,
-        final Predicate<PersistentTask<P>> predicate,
+        final Predicate<PersistentTask<?>> predicate,
         final @Nullable TimeValue timeout,
-        final WaitForPersistentTaskListener<P> listener
+        final WaitForPersistentTaskListener<?> listener
     ) {
         final var projectId = clusterService.state().metadata().getProject().id();
         waitForPersistentTaskCondition(projectId, taskId, predicate, timeout, listener);
@@ -192,19 +192,17 @@ public class PersistentTasksService {
      * @param timeout a timeout for waiting
      * @param listener the callback listener
      */
-    public <P extends PersistentTaskParams> void waitForPersistentTaskCondition(
+    public void waitForPersistentTaskCondition(
         final ProjectId projectId,
         final String taskId,
-        final Predicate<PersistentTask<P>> predicate,
+        final Predicate<PersistentTask<?>> predicate,
         final @Nullable TimeValue timeout,
-        final WaitForPersistentTaskListener<P> listener
+        final WaitForPersistentTaskListener<?> listener
     ) {
         ClusterStateObserver.waitForState(clusterService, threadPool.getThreadContext(), new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
-                final var project = state.metadata().projects().get(projectId);
-                final PersistentTask<P> task = project == null ? null : PersistentTasksCustomMetadata.getTaskWithId(project, taskId);
-                listener.onResponse(task);
+                listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(state.metadata().getProject(projectId), taskId));
             }
 
             @Override
@@ -216,11 +214,13 @@ public class PersistentTasksService {
             public void onTimeout(TimeValue timeout) {
                 listener.onTimeout(timeout);
             }
-        }, clusterState -> {
-            final var project = clusterState.metadata().projects().get(projectId);
-            final PersistentTask<P> task = project == null ? null : PersistentTasksCustomMetadata.getTaskWithId(project, taskId);
-            return predicate.test(task);
-        }, timeout, logger);
+        },
+            clusterState -> predicate.test(
+                PersistentTasksCustomMetadata.getTaskWithId(clusterState.metadata().getProject(projectId), taskId)
+            ),
+            timeout,
+            logger
+        );
     }
 
     // visible for testing

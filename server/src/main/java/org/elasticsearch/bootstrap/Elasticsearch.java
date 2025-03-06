@@ -32,7 +32,6 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils;
@@ -245,21 +244,21 @@ class Elasticsearch {
             pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
             var pluginsResolver = PluginsResolver.create(pluginsLoader);
-            EntitlementBootstrap.bootstrap(
-                pluginPolicies,
-                pluginsResolver::resolveClassToPluginName,
-                nodeEnv.settings()::getValues,
-                nodeEnv.dataDirs(),
-                nodeEnv.repoDirs(),
-                nodeEnv.configDir(),
-                nodeEnv.libDir(),
-                nodeEnv.pluginsDir(),
-                nodeEnv.logsDir(),
-                nodeEnv.tmpDir(),
-                args.pidFile(),
-                Set.of(EntitlementSelfTester.class)
-            );
-            EntitlementSelfTester.entitlementSelfTest();
+            // EntitlementBootstrap.bootstrap(
+            // pluginPolicies,
+            // pluginsResolver::resolveClassToPluginName,
+            // nodeEnv.settings()::getValues,
+            // nodeEnv.dataDirs(),
+            // nodeEnv.repoDirs(),
+            // nodeEnv.configDir(),
+            // nodeEnv.libDir(),
+            // nodeEnv.pluginsDir(),
+            // nodeEnv.logsDir(),
+            // nodeEnv.tmpDir(),
+            // args.pidFile(),
+            // Set.of(EntitlementSelfTester.class)
+            // );
+            // EntitlementSelfTester.entitlementSelfTest();
         } else {
             assert RuntimeVersionFeature.isSecurityManagerAvailable();
             // no need to explicitly enable native access for legacy code

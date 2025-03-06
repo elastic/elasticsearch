@@ -149,13 +149,13 @@ public class DriverSleepsTests extends AbstractWireSerializingTestCase<DriverSle
             expectedCounts.compute(reason, (k, v) -> v == null ? 1 : v + 1);
 
             sleeps = sleeps.sleep(reason, now);
-            expectedFirst.add(new DriverSleeps.Sleep(reason, now, 0));
+            expectedFirst.add(new DriverSleeps.Sleep(reason, "", now, 0));
             assertThat(sleeps, equalTo(new DriverSleeps(expectedCounts, expectedFirst, expectedFirst)));
             assertXContent(sleeps, expectedCounts, expectedFirst, expectedFirst);
 
             now++;
             sleeps = sleeps.wake(now);
-            expectedFirst.set(expectedFirst.size() - 1, new DriverSleeps.Sleep(reason, now - 1, now));
+            expectedFirst.set(expectedFirst.size() - 1, new DriverSleeps.Sleep(reason, "", now - 1, now));
             assertThat(sleeps, equalTo(new DriverSleeps(expectedCounts, expectedFirst, expectedFirst)));
             assertXContent(sleeps, expectedCounts, expectedFirst, expectedFirst);
         }
@@ -172,13 +172,13 @@ public class DriverSleepsTests extends AbstractWireSerializingTestCase<DriverSle
 
             sleeps = sleeps.sleep(reason, now);
             expectedLast.remove(0);
-            expectedLast.add(new DriverSleeps.Sleep(reason, now, 0));
+            expectedLast.add(new DriverSleeps.Sleep(reason, "", now, 0));
             assertThat(sleeps, equalTo(new DriverSleeps(expectedCounts, expectedFirst, expectedLast)));
             assertXContent(sleeps, expectedCounts, expectedFirst, expectedLast);
 
             now++;
             sleeps = sleeps.wake(now);
-            expectedLast.set(expectedLast.size() - 1, new DriverSleeps.Sleep(reason, now - 1, now));
+            expectedLast.set(expectedLast.size() - 1, new DriverSleeps.Sleep(reason, "", now - 1, now));
             assertThat(sleeps, equalTo(new DriverSleeps(expectedCounts, expectedFirst, expectedLast)));
             assertXContent(sleeps, expectedCounts, expectedFirst, expectedLast);
         }

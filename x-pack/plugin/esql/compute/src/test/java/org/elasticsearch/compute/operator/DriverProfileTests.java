@@ -41,8 +41,8 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
             ),
             new DriverSleeps(
                 Map.of("driver time", 1L),
-                List.of(new DriverSleeps.Sleep("driver time", 1, 1)),
-                List.of(new DriverSleeps.Sleep("driver time", 1, 1))
+                List.of(new DriverSleeps.Sleep("driver time", "", 1, 1)),
+                List.of(new DriverSleeps.Sleep("driver time", "", 1, 1))
             )
         );
         assertThat(Strings.toString(status, true, true), equalTo("""

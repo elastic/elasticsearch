@@ -8,19 +8,12 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.search.Scorable;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneQueryEvaluator.DenseCollector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
-
-import java.util.List;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,21 +37,6 @@ public class LuceneQueryExpressionEvaluatorTests extends LuceneQueryEvaluatorTes
     }
 
     @Override
-    protected Object getValueAt(BooleanVector vector, int i) {
-        return vector.getBoolean(i);
-    }
-
-    @Override
-    protected Object valueForMatch() {
-        return true;
-    }
-
-    @Override
-    protected Object valueForNoMatch() {
-        return false;
-    }
-
-    @Override
     protected Operator createOperator(BlockFactory blockFactory, LuceneQueryEvaluator.ShardConfig[] shards) {
         return new EvalOperator(blockFactory,  new LuceneQueryExpressionEvaluator(
             blockFactory,
@@ -78,7 +56,12 @@ public class LuceneQueryExpressionEvaluatorTests extends LuceneQueryEvaluatorTes
     }
 
     @Override
-    protected void assertResultMatch(BooleanVector resultVector, int position, boolean isMatch) {
+    protected void assertCollectedResultMatch(BooleanVector resultVector, int position, boolean isMatch) {
+        assertThat(resultVector.getBoolean(position), equalTo(isMatch));
+    }
+
+    @Override
+    protected void assertTermResultMatch(BooleanVector resultVector, int position, boolean isMatch) {
         assertThat(resultVector.getBoolean(position), equalTo(isMatch));
     }
 }

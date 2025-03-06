@@ -46,21 +46,6 @@ public class LuceneQueryScoreEvaluatorTests extends LuceneQueryEvaluatorTests<Do
     }
 
     @Override
-    protected Object getValueAt(DoubleVector vector, int i) {
-        return vector.getDouble(i);
-    }
-
-    @Override
-    protected Object valueForMatch() {
-        return (double) TEST_SCORE;
-    }
-
-    @Override
-    protected Object valueForNoMatch() {
-        return NO_MATCH_SCORE;
-    }
-
-    @Override
     protected Operator createOperator(BlockFactory blockFactory, LuceneQueryEvaluator.ShardConfig[] shards) {
         return new ScoreOperator(blockFactory, new LuceneQueryScoreEvaluator(blockFactory, shards), 1);
     }
@@ -72,12 +57,22 @@ public class LuceneQueryScoreEvaluatorTests extends LuceneQueryEvaluatorTests<Do
 
     @Override
     protected int resultsBlockIndex(Page page) {
-        // Uses the score block
+        // Reuses the score block
         return 1;
     }
 
     @Override
-    protected void assertResultMatch(DoubleVector resultVector, int position, boolean isMatch) {
+    protected void assertCollectedResultMatch(DoubleVector resultVector, int position, boolean isMatch) {
+        if (isMatch) {
+            assertThat(resultVector.getDouble(position), equalTo((double)TEST_SCORE));
+        } else {
+            // All docs have a default score coming from Lucene
+            assertThat(resultVector.getDouble(position), equalTo(NO_MATCH_SCORE));
+        }
+    }
+
+        @Override
+    protected void assertTermResultMatch(DoubleVector resultVector, int position, boolean isMatch) {
         if (isMatch) {
             assertThat(resultVector.getDouble(position), greaterThan(DEFAULT_SCORE));
         } else {

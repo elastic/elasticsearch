@@ -29,6 +29,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -71,7 +72,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
             collector.finish();
             try (T result = (T) collector.build()) {
                 for (int i = 0; i <= 2; i++) {
-                    assertEquals(getValueAt(result, i), valueForMatch());
+                    assertCollectedResultMatch(result, i, true);
                 }
             }
         }
@@ -86,7 +87,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
             collector.finish();
             try (T result = (T) collector.build()) {
                 for (int i = 0; i < 11; i++) {
-                    assertEquals(getValueAt(result, i), i == 2 || i == 5 ? valueForMatch() : valueForNoMatch());
+                    assertCollectedResultMatch(result, i, i == 2 || i == 5);
                 }
             }
         }
@@ -109,11 +110,21 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
             collector.finish();
             try (T result = (T) collector.build()) {
                 for (int i = 0; i < length; i++) {
-                    assertEquals(getValueAt(result, i), expected[i] ? valueForMatch() : valueForNoMatch());
+                    assertCollectedResultMatch(result, i, expected[i]);
                 }
             }
         }
     }
+
+    /**
+     * Create a dense collector for the given range.
+     */
+    protected abstract LuceneQueryEvaluator.DenseCollector<U> createDenseCollector(int min, int max);
+
+    /**
+     * Chceks that the collected results at the given position corresponds to a match or no match
+     */
+    protected abstract void assertCollectedResultMatch(T resultVector, int position, boolean isMatch);
 
     public void testTermQuery() throws IOException {
         Set<String> values = values();
@@ -162,7 +173,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
             for (int i = 0; i < page.getPositionCount(); i++) {
                 BytesRef termAtPosition = terms.getBytesRef(i, new BytesRef());
                 boolean isMatch = matching.contains(termAtPosition.utf8ToString());
-                assertResultMatch(resultVector, i, isMatch);
+                assertTermResultMatch(resultVector, i, isMatch);
                 if (isMatch) {
                     matchCount++;
                 }
@@ -171,7 +182,10 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
         assertThat(matchCount, equalTo(expectedMatchCount));
     }
 
-    protected abstract void assertResultMatch(T resultVector, int position, boolean isMatch);
+    /**
+     * Checks that the result at the given position corresponds to a term match or no match
+     */
+    protected abstract void assertTermResultMatch(T resultVector, int position, boolean isMatch);
 
     private List<Page> runQuery(Set<String> values, Query query, boolean shuffleDocs) throws IOException {
         DriverContext driverContext = driverContext();
@@ -279,29 +293,9 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
     protected abstract int resultsBlockIndex(Page page);
 
     /**
-     * Create a dense collector for the given range.
-     */
-    protected abstract LuceneQueryEvaluator.DenseCollector<U> createDenseCollector(int min, int max);
-
-    /**
      * Returns a test scorer to use for scoring docs. Can be null
      */
     protected abstract Scorable getScorer();
-
-    /**
-     * Retrieves the value at a given index from the vector. Need to do this as Vector does not export a generic get() method
-     */
-    protected abstract Object getValueAt(T vector, int i);
-
-    /**
-     * Value that should be returned for a matching doc from the resulting vector
-     */
-    protected abstract Object valueForMatch();
-
-    /**
-     * Value that should be returned for a non-matching doc from the resulting vector
-     */
-    protected abstract Object valueForNoMatch();
 
     /**
      * Create the operator to test

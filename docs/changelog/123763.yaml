@@ -1,5 +1,5 @@
 pr: 123763
-summary: Handle empty input inference
+summary: Skip semantic_text embedding generation when no content is provided.
 area: Relevance
 type: enhancement
 issues: []

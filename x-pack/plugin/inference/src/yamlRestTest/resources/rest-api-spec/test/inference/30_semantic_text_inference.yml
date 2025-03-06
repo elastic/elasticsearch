@@ -1010,7 +1010,7 @@ setup:
 "Empty semantic_text field skips embedding generation":
   - requires:
       cluster_features: "semantic_text.handle_empty_input"
-      reason: skips generating embeddings when semantic_text field is contains empty or whitespace only input
+      reason: Skips embedding generation when semantic_text is empty or contains only whitespace, effective from 8.19 and 9.1.0.
 
   - do:
       index:
@@ -1036,7 +1036,7 @@ setup:
 "Whitespace-Only semantic_text field skips embedding generation":
   - requires:
       cluster_features: "semantic_text.handle_empty_input"
-      reason: skips generating embeddings when semantic_text field is contains empty or whitespace only input
+      reason: Skips embedding generation when semantic_text is empty or contains only whitespace, effective from 8.19 and 9.1.0.
 
   - do:
       index:
@@ -1062,7 +1062,7 @@ setup:
 "Reindexing with empty or whitespace semantic_text skips embedding generation":
   - requires:
       cluster_features: "semantic_text.handle_empty_input"
-      reason: skips generating embeddings when semantic_text field is contains empty or whitespace only input
+      reason: Skips embedding generation when semantic_text is empty or contains only whitespace, effective from 8.19 and 9.1.0.
 
   - do:
       index:
@@ -1118,7 +1118,7 @@ setup:
 "Empty Multi-Field skips embedding generation":
   - requires:
       cluster_features: "semantic_text.handle_empty_input"
-      reason: skips generating embeddings when semantic_text field is contains empty or whitespace only input
+      reason: Skips embedding generation when semantic_text is empty or contains only whitespace, effective from 8.19 and 9.1.0.
 
   - do:
       indices.create:
@@ -1164,7 +1164,7 @@ setup:
 "Multi chunks skips empty input embedding generation":
   - requires:
       cluster_features: "semantic_text.handle_empty_input"
-      reason: skips generating embeddings when semantic_text field is contains empty or whitespace only input
+      reason: Skips embedding generation when semantic_text is empty or contains only whitespace, effective from 8.19 and 9.1.0.
 
   - do:
       index:

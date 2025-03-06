@@ -295,7 +295,7 @@ setup:
 "Highlighting and multi chunks with empty input":
   - requires:
       cluster_features: "semantic_text.handle_empty_input"
-      reason: skips generating embeddings when semantic_text field is contains empty or whitespace only input
+      reason: Skips embedding generation when semantic_text is empty or contains only whitespace, effective from 8.19 and 9.1.0.
 
   - do:
       indices.create:

@@ -130,18 +130,19 @@ public class ThreadPoolMergeExecutorService {
                         try {
                             // will block if there are backlogged merges until they're enqueued again
                             smallestMergeTask = queuedMergeTasks.take();
-                            // let the task's scheduler decide if it can actually run the merge task now
-                            if (smallestMergeTask.runNowOrBacklog()) {
-                                runMergeTask(smallestMergeTask);
-                                break;
-                            }
-                            smallestMergeTask = null;
-                            // the merge task is backlogged by the merge scheduler, try to get the next smallest one
-                            // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when it can be run
                         } catch (InterruptedException e) {
                             interrupted = true;
                             // this runnable must always run exactly a single merge task
+                            continue;
                         }
+                        // let the task's scheduler decide if it can actually run the merge task now
+                        if (smallestMergeTask.runNowOrBacklog()) {
+                            runMergeTask(smallestMergeTask);
+                            break;
+                        }
+                        smallestMergeTask = null;
+                        // the merge task is backlogged by the merge scheduler, try to get the next smallest one
+                        // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when it can be run
                     }
                 } finally {
                     if (smallestMergeTask != null && smallestMergeTask.supportsIOThrottling()) {

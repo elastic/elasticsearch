@@ -125,6 +125,24 @@ public record SemanticTextField(
         }
     }
 
+    static ChunkingSettings parseChunkingSettingsFromMap(Object node) {
+        if (node == null) {
+            return null;
+        }
+        try {
+            Map<String, Object> map = XContentMapValues.nodeMapValue(node, CHUNKING_SETTINGS_FIELD);
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.IGNORE_DEPRECATIONS,
+                map,
+                XContentType.JSON
+            );
+            return ChunkingSettingsBuilder.fromMap(map);
+        } catch (Exception exc) {
+            throw new ElasticsearchException(exc);
+        }
+    }
+
     @Override
     public List<String> originalValues() {
         return originalValues != null ? originalValues : Collections.emptyList();

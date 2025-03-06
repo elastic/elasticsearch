@@ -184,7 +184,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             CHUNKING_SETTINGS_FIELD,
             true,
             () -> null,
-            (n, c, o) -> ChunkingSettingsBuilder.fromMap((Map<String, Object>) o),
+            (n, c, o) -> SemanticTextField.parseChunkingSettingsFromMap(o),
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).chunkingSettings,
             XContentBuilder::field,
             Objects::toString

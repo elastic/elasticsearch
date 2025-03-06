@@ -53,6 +53,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
@@ -238,7 +239,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             useLegacyFormat,
             true
         );
-        model.putResult("I am a failure", new ChunkedInferenceError(new IllegalArgumentException("boom")));
+        model.putResult("I am a failure", new ChunkedInferenceError(new InferenceException("inference exception",
+            new IllegalArgumentException("boom"))));
         model.putResult("I am a success", randomChunkedInferenceEmbeddingSparse(List.of("I am a success")));
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
@@ -251,7 +253,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 assertNotNull(bulkShardRequest.items()[0].getPrimaryResponse());
                 assertTrue(bulkShardRequest.items()[0].getPrimaryResponse().isFailed());
                 BulkItemResponse.Failure failure = bulkShardRequest.items()[0].getPrimaryResponse().getFailure();
-                assertThat(failure.getCause().getCause().getMessage(), containsString("boom"));
+                assertThat(failure.getCause().getCause().getMessage(), containsString("inference exception"));
+                assertThat(failure.getCause().getCause().getCause().getMessage(), containsString("boom"));
+                assertThat(failure.getStatus(), is(RestStatus.BAD_REQUEST));
 
                 // item 1 is a success
                 assertNull(bulkShardRequest.items()[1].getPrimaryResponse());
@@ -270,7 +274,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 assertNotNull(bulkShardRequest.items()[2].getPrimaryResponse());
                 assertTrue(bulkShardRequest.items()[2].getPrimaryResponse().isFailed());
                 failure = bulkShardRequest.items()[2].getPrimaryResponse().getFailure();
-                assertThat(failure.getCause().getCause().getMessage(), containsString("boom"));
+                assertThat(failure.getCause().getCause().getMessage(), containsString("inference exception"));
+                assertThat(failure.getCause().getCause().getCause().getMessage(), containsString("boom"));
             } finally {
                 chainExecuted.countDown();
             }

@@ -96,7 +96,6 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Response.RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.NAME;
@@ -1160,7 +1159,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             null
         );
         var service = createService(client);
-        var chunkingSettings = generateRandomChunkingSettings();
 
         var gotResults = new AtomicBoolean();
         var resultsListener = ActionListener.<List<ChunkedInference>>wrap(chunkedResponse -> {
@@ -1182,7 +1180,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             null,
             List.of("foo", "bar", "baz"),
             Map.of(),
-            chunkingSettings,
+            null,
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener
@@ -1245,7 +1243,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform", null),
             new WordBoundaryChunkingSettings(wordsPerChunk, 0)
         );
-        var chunkingSettings = generateRandomChunkingSettings();
 
         var latch = new CountDownLatch(1);
         var latchedListener = new LatchedActionListener<>(resultsListener, latch);
@@ -1256,7 +1253,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             null,
             List.of(input),
             Map.of(),
-            chunkingSettings,
+            null,
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener

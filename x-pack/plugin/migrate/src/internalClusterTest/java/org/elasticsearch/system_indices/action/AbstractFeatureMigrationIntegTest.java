@@ -17,21 +17,17 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
-import org.elasticsearch.indices.ExecutorNames;
-import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -40,7 +36,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.system_indices.task.FeatureMigrationResults;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -56,18 +54,27 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
 public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase {
@@ -148,39 +155,20 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setAllowsTemplates()
         .build();
 
-    protected static final SystemDataStreamDescriptor SYSTEM_DATA_STREAM_DESCRIPTOR;
-
-    protected static final String TEST_DATA_STREAM_NAME = ".test-data-stream";
-
-    static {
-        try {
-            SYSTEM_DATA_STREAM_DESCRIPTOR = new SystemDataStreamDescriptor(
-                TEST_DATA_STREAM_NAME,
-                "system data stream test",
-                SystemDataStreamDescriptor.Type.EXTERNAL,
-                ComposableIndexTemplate.builder()
-                    .indexPatterns(List.of(TEST_DATA_STREAM_NAME))
-                    .template(
-                        new Template(
-                            Settings.EMPTY,
-                            new CompressedXContent("{\"properties\":{\"some_field\":{\"type\":\"keyword\"}}}"),
-                            null
-                        )
-                    )
-                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                    .build(),
-                Map.of(),
-                List.of("product"),
-                ORIGIN,
-                ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
-            );
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     protected String masterAndDataNode;
     protected String masterName;
+
+    protected static Metadata assertMetadataAfterMigration(String featureName) {
+        Metadata finalMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
+        // Check that the results metadata is what we expect.
+        FeatureMigrationResults currentResults = finalMetadata.custom(FeatureMigrationResults.TYPE);
+        assertThat(currentResults, notNullValue());
+        assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(1), hasKey(featureName)));
+        assertThat(currentResults.getFeatureStatuses().get(featureName).succeeded(), is(true));
+        assertThat(currentResults.getFeatureStatuses().get(featureName).getFailedResourceName(), nullValue());
+        assertThat(currentResults.getFeatureStatuses().get(featureName).getException(), nullValue());
+        return finalMetadata;
+    }
 
     @Before
     public void setup() {
@@ -198,7 +186,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         testPlugin.postMigrationHook.set((state, metadata) -> {});
     }
 
-    public <T extends Plugin> T getPlugin(Class<T> type) {
+    protected <T extends Plugin> T getPlugin(Class<T> type) {
         final PluginsService pluginsService = internalCluster().getCurrentMasterNodeInstance(PluginsService.class);
         return pluginsService.filterPlugins(type).findFirst().get();
     }
@@ -252,6 +240,8 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
 
     protected void indexDocs(String indexName) {
         indexDocs(indexName, false);
+        IndicesStatsResponse indexStats = ESIntegTestCase.indicesAdmin().prepareStats(indexName).setDocs(true).get();
+        Assert.assertThat(indexStats.getIndex(indexName).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
     }
 
     protected void indexDocs(String indexName, boolean dataStream) {
@@ -331,6 +321,48 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         assertThat(thisIndexStats.getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
     }
 
+    protected void executeMigration(String featureName) throws Exception {
+        startMigration(featureName);
+
+        GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT);
+        // The feature upgrade may take longer than ten seconds when tests are running
+        // in parallel, so we give assertBusy a thirty-second timeout.
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResponse = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest)
+                .get();
+            logger.info(Strings.toString(statusResponse));
+            assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    protected static void startMigration(String featureName) throws InterruptedException, ExecutionException {
+        PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT);
+        PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, migrationRequest).get();
+        assertThat(migrationResponse.getReason(), nullValue());
+        assertThat(migrationResponse.getElasticsearchException(), nullValue());
+        final Set<String> migratingFeatures = migrationResponse.getFeatures()
+            .stream()
+            .map(PostFeatureUpgradeResponse.Feature::getFeatureName)
+            .collect(Collectors.toSet());
+        assertThat(migratingFeatures, hasItem(featureName));
+    }
+
+    protected static TestPlugin.BlockingActionFilter blockAction(String actionTypeName) {
+        // Block the alias request to simulate a failure
+        InternalTestCluster internalTestCluster = internalCluster();
+        ActionFilters actionFilters = internalTestCluster.getInstance(ActionFilters.class, internalTestCluster.getMasterName());
+        TestPlugin.BlockingActionFilter blockingActionFilter = null;
+        for (ActionFilter filter : actionFilters.filters()) {
+            if (filter instanceof TestPlugin.BlockingActionFilter) {
+                blockingActionFilter = (TestPlugin.BlockingActionFilter) filter;
+                break;
+            }
+        }
+        assertNotNull("BlockingActionFilter should exist", blockingActionFilter);
+        blockingActionFilter.blockActions(actionTypeName);
+        return blockingActionFilter;
+    }
+
     public static class TestPlugin extends Plugin implements SystemIndexPlugin, ActionPlugin {
         public final AtomicReference<Function<ClusterState, Map<String, Object>>> preMigrationHook = new AtomicReference<>();
         public final AtomicReference<BiConsumer<ClusterState, Map<String, Object>>> postMigrationHook = new AtomicReference<>();
@@ -367,11 +399,6 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         }
 
         @Override
-        public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
-            return Collections.singletonList(SYSTEM_DATA_STREAM_DESCRIPTOR);
-        }
-
-        @Override
         public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
             listener.onResponse(preMigrationHook.get().apply(clusterService.state()));
         }
@@ -401,6 +428,10 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             @Override
             public int order() {
                 return 0;
+            }
+
+            public void unblockAllActions() {
+                blockedActions = emptySet();
             }
 
             public void blockActions(String... actions) {

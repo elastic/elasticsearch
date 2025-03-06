@@ -647,7 +647,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                     checkDataStreamMigrationStatus(migrationInfo, completionListener, false);
                 }, e -> {
                     if (e instanceof ResourceAlreadyExistsException) {
-                        // This might happen if the task has been migrated to another node,
+                        // This might happen if the task has been reassigned to another node,
                         // in this case we can just wait for the data stream migration task to finish.
                         // But, there is a possibility that previously started data stream migration task has failed,
                         // in this case we need to cancel it and restart migration of the data stream.

@@ -37,6 +37,8 @@ A `change_point` aggregation looks like this in isolation:
 }
 ```
 
+%  NOTCONSOLE
+
 1. The buckets containing the values to test against.
 
 
@@ -99,6 +101,8 @@ GET kibana_sample_data_logs/_search
 }
 ```
 
+%  NOTCONSOLE
+
 1. A date histogram aggregation that creates buckets with one day long interval.
 2. A sibling aggregation of the `date` aggregation that calculates the average value of the `bytes` field within every bucket.
 3. The change point detection aggregation configuration object.
@@ -124,6 +128,8 @@ The request returns a response that is similar to the following:
       }
     }
 ```
+
+%  NOTCONSOLE
 
 1. The bucket key that is the change point.
 2. The number of documents in that bucket.

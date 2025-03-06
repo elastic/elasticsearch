@@ -70,6 +70,42 @@ The filter produces the following tokens:
 [ the, fox, jump, quick ]
 ```
 
+% [source,console-result]
+% ----
+% {
+%   "tokens": [
+%     {
+%       "token": "the",
+%       "start_offset": 0,
+%       "end_offset": 3,
+%       "type": "<ALPHANUM>",
+%       "position": 0
+%     },
+%     {
+%       "token": "fox",
+%       "start_offset": 4,
+%       "end_offset": 9,
+%       "type": "<ALPHANUM>",
+%       "position": 1
+%     },
+%     {
+%       "token": "jump",
+%       "start_offset": 10,
+%       "end_offset": 17,
+%       "type": "<ALPHANUM>",
+%       "position": 2
+%     },
+%     {
+%       "token": "quick",
+%       "start_offset": 18,
+%       "end_offset": 25,
+%       "type": "<ALPHANUM>",
+%       "position": 3
+%     }
+%   ]
+% }
+% ----
+
 
 ## Configurable parameters [analysis-hunspell-tokenfilter-configure-parms]
 

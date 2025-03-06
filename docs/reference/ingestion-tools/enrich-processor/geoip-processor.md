@@ -94,6 +94,8 @@ Which returns:
 }
 ```
 
+%  TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term":1/"_primary_term" : $body._primary_term/]
+
 Here is an example that uses the default country database and adds the geographical information to the `geo` field based on the `ip` field. Note that this database is downloaded automatically. So this:
 
 ```console
@@ -138,6 +140,8 @@ returns this:
 }
 ```
 
+%  TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+
 Not all IP addresses find geo information from the database, When this occurs, no `target_field` is inserted into the document.
 
 Here is an example of what documents will be indexed as when information for "80.231.5.0" cannot be found:
@@ -179,6 +183,8 @@ Which returns:
 }
 ```
 
+%  TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+
 ### Recognizing Location as a Geopoint [ingest-geoip-mappings-note]
 
 Although this processor enriches your document with a `location` field containing the estimated latitude and longitude of the IP address, this field will not be indexed as a [`geo_point`](/reference/elasticsearch/mapping-reference/geo-point.md) type in Elasticsearch without explicitly defining it as such in the mapping.
@@ -199,6 +205,91 @@ PUT my_ip_locations
   }
 }
 ```
+
+% [source,console]
+% --------------------------------------------------
+% PUT _ingest/pipeline/geoip
+% {
+%   "description" : "Add ip geolocation info",
+%   "processors" : [
+%     {
+%       "geoip" : {
+%         "field" : "ip"
+%       }
+%     }
+%   ]
+% }
+% 
+% PUT my_ip_locations/_doc/1?refresh=true&pipeline=geoip
+% {
+%   "ip": "89.160.20.128"
+% }
+% 
+% GET /my_ip_locations/_search
+% {
+%   "query": {
+%     "bool": {
+%       "must": {
+%         "match_all": {}
+%       },
+%       "filter": {
+%         "geo_distance": {
+%           "distance": "1m",
+%           "geoip.location": {
+%             "lon": 15.6167,
+%             "lat": 58.4167
+%           }
+%         }
+%       }
+%     }
+%   }
+% }
+% --------------------------------------------------
+% // TEST[continued]
+% 
+% [source,console-result]
+% --------------------------------------------------
+% {
+%   "took" : 3,
+%   "timed_out" : false,
+%   "_shards" : {
+%     "total" : 1,
+%     "successful" : 1,
+%     "skipped" : 0,
+%     "failed" : 0
+%   },
+%   "hits" : {
+%     "total" : {
+%       "value": 1,
+%       "relation": "eq"
+%     },
+%     "max_score" : 1.0,
+%     "hits" : [
+%       {
+%         "_index" : "my_ip_locations",
+%         "_id" : "1",
+%         "_score" : 1.0,
+%         "_source" : {
+%           "geoip" : {
+%             "continent_name" : "Europe",
+%             "country_name" : "Sweden",
+%             "country_iso_code" : "SE",
+%             "city_name" : "Linköping",
+%             "region_iso_code" : "SE-E",
+%             "region_name" : "Östergötland County",
+%             "location" : {
+%               "lon" : 15.6167,
+%               "lat" : 58.4167
+%             }
+%           },
+%           "ip" : "89.160.20.128"
+%         }
+%       }
+%     ]
+%   }
+% }
+% --------------------------------------------------
+% // TESTRESPONSE[s/"took" : 3/"took" : $body.took/]
 
 
 

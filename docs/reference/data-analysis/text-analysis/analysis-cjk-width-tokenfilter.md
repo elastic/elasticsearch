@@ -36,6 +36,21 @@ The filter produces the following token:
 シーサイドライナー
 ```
 
+% [source,console-result]
+% --------------------------------------------------
+% {
+%   "tokens" : [
+%     {
+%       "token" : "シーサイドライナー",
+%       "start_offset" : 0,
+%       "end_offset" : 10,
+%       "type" : "<KATAKANA>",
+%       "position" : 0
+%     }
+%   ]
+% }
+% --------------------------------------------------
+
 
 ## Add to an analyzer [analysis-cjk-width-tokenfilter-analyzer-ex]
 

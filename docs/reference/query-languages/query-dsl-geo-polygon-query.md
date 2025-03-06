@@ -39,7 +39,6 @@ GET /_search
   }
 }
 ```
-
 %  TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
 
@@ -83,7 +82,6 @@ GET /_search
   }
 }
 ```
-
 %  TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
 
@@ -114,7 +112,6 @@ GET /_search
   }
 }
 ```
-
 %  TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
 
@@ -143,7 +140,6 @@ GET /_search
   }
 }
 ```
-
 %  TEST[warning:Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]]
 
 

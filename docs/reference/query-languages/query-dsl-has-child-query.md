@@ -38,7 +38,6 @@ PUT /my-index-000001
   }
 }
 ```
-
 %  TESTSETUP
 
 

@@ -43,7 +43,6 @@ Download the sample configuration file. You can either download it manually or r
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
-
 %  NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
@@ -221,7 +220,6 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
   }
 ]
 ```
-
 %  NOTCONSOLE
 
 
@@ -237,7 +235,6 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
   }
 ]
 ```
-
 %  NOTCONSOLE
 
 
@@ -252,7 +249,6 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
     "key_pattern": "test[123]"
   }
 ```
-
 %  NOTCONSOLE
 
 
@@ -268,7 +264,6 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
   }
 ]
 ```
-
 %  NOTCONSOLE
 
 
@@ -284,7 +279,6 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
   }
 ]
 ```
-
 %  NOTCONSOLE
 
 #### Example 6 [es-connectors-redis-connector-advanced-sync-rules-example-6]
@@ -300,7 +294,6 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
   }
 ]
 ```
-
 %  NOTCONSOLE
 
 
@@ -316,7 +309,6 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
   }
 ]
 ```
-
 %  NOTCONSOLE
 
 

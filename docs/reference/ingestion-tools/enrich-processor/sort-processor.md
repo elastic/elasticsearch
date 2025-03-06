@@ -30,6 +30,5 @@ $$$sort-options$$$
   }
 }
 ```
-
 %  NOTCONSOLE
 

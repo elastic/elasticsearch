@@ -87,11 +87,8 @@ The response contains buckets with document counts for each filter and combinati
   }
 }
 ```
-
 %  TESTRESPONSE[s/"took": 9/"took": $body.took/]
-
 %  TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
-
 %  TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 

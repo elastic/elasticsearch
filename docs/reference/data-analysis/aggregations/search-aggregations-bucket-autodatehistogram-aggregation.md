@@ -28,7 +28,6 @@ POST /sales/_search?size=0
   }
 }
 ```
-
 %  TEST[setup:sales]
 
 ## Keys [_keys]
@@ -56,7 +55,6 @@ POST /sales/_search?size=0
   }
 }
 ```
-
 %  TEST[setup:sales]
 
 1. Supports expressive date [format pattern](/reference/data-analysis/aggregations/search-aggregations-bucket-daterange-aggregation.md#date-format-pattern)
@@ -91,7 +89,6 @@ Response:
   }
 }
 ```
-
 %  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 
@@ -188,7 +185,6 @@ UTC is used if no time zone is specified, three 1-hour buckets are returned star
   }
 }
 ```
-
 %  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 If a `time_zone` of `-01:00` is specified, then midnight starts at one hour before midnight UTC:
@@ -207,7 +203,6 @@ GET my-index-000001/_search?size=0
   }
 }
 ```
-
 %  TEST[continued]
 
 Now three 1-hour buckets are still returned but the first bucket starts at 11:00pm on 30 September 2015 since that is the local time for the bucket in the specified time zone.
@@ -239,7 +234,6 @@ Now three 1-hour buckets are still returned but the first bucket starts at 11:00
   }
 }
 ```
-
 %  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 1. The `key_as_string` value represents midnight on each day in the specified time zone.
@@ -280,7 +274,6 @@ POST /sales/_search?size=0
   }
 }
 ```
-
 %  TEST[setup:sales]
 
 
@@ -304,7 +297,6 @@ POST /sales/_search?size=0
   }
 }
 ```
-
 %  TEST[setup:sales]
 
 1. Documents without a value in the `publish_date` field will fall into the same bucket as documents that have the value `2000-01-01`.

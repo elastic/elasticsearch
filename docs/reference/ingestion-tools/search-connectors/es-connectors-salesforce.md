@@ -366,7 +366,6 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-query-language$$$
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 **Example**: Fetch documents using SOSL query.
 
@@ -378,7 +377,6 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-query-language$$$
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-objects$$$
@@ -399,7 +397,6 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-objects$$$
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 **Example**: Fetch documents for custom objects via SOQL and SOSL query.
 
@@ -416,7 +413,6 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-objects$$$
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fields$$$
 **Fetch documents with standard and custom fields**
@@ -432,7 +428,6 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fie
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 **Example**: Fetch documents with all custom fields for Connector object.
 
@@ -445,7 +440,6 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fie
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 **Example**: Fetch documents with all standard fields for Account object.
 
@@ -457,7 +451,6 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fie
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 

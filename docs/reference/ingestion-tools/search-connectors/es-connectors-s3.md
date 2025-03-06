@@ -280,7 +280,6 @@ $$$es-connectors-s3-client-sync-rules-advanced-examples$$$
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 **Example**: Fetch files/folder starting with `folder1`.
 
@@ -292,7 +291,6 @@ $$$es-connectors-s3-client-sync-rules-advanced-examples$$$
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 **Fetching files and folders by specifying extensions**
@@ -308,7 +306,6 @@ $$$es-connectors-s3-client-sync-rules-advanced-examples$$$
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 

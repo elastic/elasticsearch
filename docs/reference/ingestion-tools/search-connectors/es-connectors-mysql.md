@@ -363,7 +363,6 @@ For example:
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 ::::{warning}
 When using advanced rules, a query can bypass the configuration field `tables`. This will happen if the query specifies a table that doesn’t appear in the configuration. This can also happen if the configuration specifies `*` to fetch all tables while the advanced sync rule requests for only a subset of tables.

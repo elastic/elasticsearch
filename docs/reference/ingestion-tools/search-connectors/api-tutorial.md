@@ -2,7 +2,7 @@
 navigation_title: "API tutorial"
 applies_to:
   stack: ga
-  serverless: 
+  serverless:
     elasticsearch: ga
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-tutorial-api.html
@@ -349,7 +349,6 @@ Use the [Get sync job API](https://www.elastic.co/docs/api/doc/elasticsearch/ope
 GET _connector/_sync_job?connector_id=my-connector-id&size=1
 ```
 %  TEST[skip:TODO]
-%  TEST[skip:TODO]
 
 The job document will be updated as the sync progresses, you can check it as often as you’d like to poll for updates.
 
@@ -377,6 +376,7 @@ Use the following command to inspect the latest sync job’s status:
 ```console
 GET _connector/_sync_job?connector_id=my-connector-id&size=1
 ```
+%  TEST[skip:TODO]
 
 If the connector encountered any errors during the sync, you’ll find these in the `error` field.
 

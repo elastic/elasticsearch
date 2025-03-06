@@ -523,6 +523,10 @@ public interface EntitlementChecker {
         javax.net.ssl.HttpsURLConnection that
     );
 
+    void check$sun_net_www_protocol_mailto_MailToURLConnection$connect(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_mailto_MailToURLConnection$getOutputStream(Class<?> callerClass, java.net.URLConnection that);
+
     // Network miscellanea
 
     // HttpClient#send and sendAsync are abstract, so we instrument their internal implementations

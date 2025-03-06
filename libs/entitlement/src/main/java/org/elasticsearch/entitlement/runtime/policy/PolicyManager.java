@@ -332,7 +332,9 @@ public class PolicyManager {
         if (isTriviallyAllowed(requestingClass)) {
             return;
         }
-
+        if (requestingClass.getName().equals("co.elastic.apm.agent.premain.ShadedClassLoader")) {
+            return;
+        }
         ModuleEntitlements entitlements = getEntitlements(requestingClass);
         if (entitlements.fileAccess().canRead(path) == false) {
             notEntitled(

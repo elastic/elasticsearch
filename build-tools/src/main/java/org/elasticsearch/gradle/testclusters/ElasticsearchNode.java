@@ -22,6 +22,7 @@ import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
+import org.elasticsearch.gradle.util.DebugUtils;
 import org.elasticsearch.gradle.util.Pair;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
@@ -1401,6 +1402,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 StandardOpenOption.CREATE
             );
 
+            DebugUtils.logDiskSpaceAndPrivileges(getDistroDir());
+            DebugUtils.logDiskSpaceAndPrivileges(getDistroDir().resolve("config"));
             final List<Path> configFiles;
             try (Stream<Path> stream = Files.list(getDistroDir().resolve("config"))) {
                 configFiles = stream.collect(Collectors.toList());

@@ -20,6 +20,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionResolver;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.ArchivePatcher;
+import org.elasticsearch.test.cluster.util.DebugUtils;
 import org.elasticsearch.test.cluster.util.IOUtils;
 import org.elasticsearch.test.cluster.util.OS;
 import org.elasticsearch.test.cluster.util.Pair;
@@ -920,6 +921,8 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private void runToolScript(String tool, String input, String... args) {
             try {
+                DebugUtils.logDiskSpaceAndPrivileges(distributionDir);
+                DebugUtils.logDiskSpaceAndPrivileges(distributionDir.resolve("bin"));
                 int exit = ProcessUtils.exec(
                     input,
                     distributionDir,

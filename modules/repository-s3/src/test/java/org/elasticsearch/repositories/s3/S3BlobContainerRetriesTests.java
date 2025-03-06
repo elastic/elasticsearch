@@ -21,6 +21,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
@@ -51,10 +52,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -65,6 +68,7 @@ import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
@@ -83,6 +87,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
@@ -1104,6 +1109,60 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             () -> blobContainer.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobs.iterator())
         );
         assertThat(exception.getCause().getSuppressed().length, lessThan(S3BlobStore.MAX_DELETE_EXCEPTIONS));
+    }
+
+    public void testTrimmedLogAndCappedSuppressedErrorOnMultiObjectDeletionException() {
+        final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
+        int maxBulkDeleteSize = randomIntBetween(10, 30);
+        final BlobContainer blobContainer = createBlobContainer(1, readTimeout, true, null, maxBulkDeleteSize);
+
+        final Pattern pattern = Pattern.compile("<Key>(.+?)</Key>");
+        httpServer.createContext("/", exchange -> {
+            if (exchange.getRequestMethod().equals("POST") && exchange.getRequestURI().toString().startsWith("/bucket/?delete")) {
+                final String requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8));
+                final var matcher = pattern.matcher(requestBody);
+                final StringBuilder deletes = new StringBuilder();
+                deletes.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+                deletes.append("<DeleteResult>");
+                while (matcher.find()) {
+                    final String key = matcher.group(1);
+                    deletes.append("<Error>");
+                    deletes.append("<Code>").append(randomAlphaOfLength(10)).append("</Code>");
+                    deletes.append("<Key>").append(key).append("</Key>");
+                    deletes.append("<Message>").append(randomAlphaOfLength(40)).append("</Message>");
+                    deletes.append("</Error>");
+                }
+                deletes.append("</DeleteResult>");
+
+                byte[] response = deletes.toString().getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                exchange.getResponseBody().write(response);
+                exchange.close();
+            } else {
+                fail("expected only deletions");
+            }
+        });
+        var blobs = randomList(maxBulkDeleteSize, maxBulkDeleteSize, ESTestCase::randomIdentifier);
+        try (var mockLog = MockLog.capture(S3BlobStore.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "deletion log",
+                    S3BlobStore.class.getCanonicalName(),
+                    Level.WARN,
+                    blobs.size() > S3BlobStore.MAX_DELETE_EXCEPTIONS
+                        ? "Failed to delete some blobs [*... (* in total, * omitted)"
+                        : "Failed to delete some blobs [*]"
+                )
+            );
+            var exception = expectThrows(
+                IOException.class,
+                "deletion should not succeed",
+                () -> blobContainer.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobs.iterator())
+            );
+            assertThat(exception.getCause().getSuppressed().length, lessThan(S3BlobStore.MAX_DELETE_EXCEPTIONS));
+            mockLog.awaitAllExpectationsMatched();
+        }
     }
 
     @Override

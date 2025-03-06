@@ -276,10 +276,6 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
     static class StatsMap extends HashMap<String, BlobStoreActionStats> {
         private final OperationPurpose purpose;
 
-        StatsMap() {
-            this(null);
-        }
-
         StatsMap(OperationPurpose purpose) {
             this.purpose = purpose;
             for (var p : OperationPurpose.values()) {
@@ -289,7 +285,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             }
         }
 
-        StatsMap add(OperationPurpose purpose, Operation operation, long ops, long reqs) {
+        StatsMap add(Operation operation, long ops, long reqs) {
             compute(purpose + "_" + operation, (k, v) -> {
                 BlobStoreActionStats stats;
                 if (v == null) {
@@ -302,9 +298,6 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             return this;
         }
 
-        StatsMap add(Operation operation, long ops, long reqs) {
-            return add(purpose, operation, ops, reqs);
-        }
     }
 
     private record ContainerAndBlobStore(GoogleCloudStorageBlobContainer blobContainer, GoogleCloudStorageBlobStore blobStore)

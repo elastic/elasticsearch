@@ -382,10 +382,6 @@ public class IndexingPressure {
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
             this.primaryRejections.getAndIncrement();
             this.primaryDocumentRejections.addAndGet(operations);
-            if (operationExpansionTracking) {
-                this.largeOpsRejections.getAndIncrement();
-                this.totalRejectedLargeOpsBytes.addAndGet(bytes);
-            }
             throw new EsRejectedExecutionException(
                 "rejected execution of primary operation ["
                     + "coordinating_and_primary_bytes="

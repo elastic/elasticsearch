@@ -259,8 +259,6 @@ public class IndexingPressureTests extends ESTestCase {
 
         assertEquals(1024 * 11, indexingPressure.stats().getTotalPrimaryBytes());
         assertEquals(2, indexingPressure.stats().getTotalPrimaryOps());
-        assertEquals(1, indexingPressure.stats().getLargeOpsRejections());
-        assertEquals(1024 * 8, indexingPressure.stats().getTotalLargeRejectedOpsBytes());
     }
 
     public void testReplicaOperationExpansionAccounting() {

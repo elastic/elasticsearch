@@ -345,6 +345,9 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/start_data_frame_analytics/Test start classification analysis when the dependent variable is missing}
   issue: https://github.com/elastic/elasticsearch/issues/124168
+- class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
+  method: testRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/124227
 
 # Examples:
 #

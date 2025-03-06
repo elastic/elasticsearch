@@ -148,7 +148,7 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
         }
 
         ScoreNormalizer[] scoreNormalizers = new ScoreNormalizer[fields.size()];
-        Arrays.fill(scoreNormalizers, MinMaxScoreNormalizer.INSTANCE);
+        Arrays.fill(scoreNormalizers, new MinMaxScoreNormalizer(0));
         return scoreNormalizers;
     }
 }

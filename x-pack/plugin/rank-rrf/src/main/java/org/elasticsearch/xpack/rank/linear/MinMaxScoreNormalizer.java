@@ -17,7 +17,15 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
 
     private static final float EPSILON = 1e-6f;
 
-    public MinMaxScoreNormalizer() {}
+    private final float initialMin;
+
+    public MinMaxScoreNormalizer() {
+        this(Float.MAX_VALUE);
+    }
+
+    public MinMaxScoreNormalizer(float initialMin) {
+        this.initialMin = initialMin;
+    }
 
     @Override
     public String getName() {
@@ -31,7 +39,7 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
         }
         // create a new array to avoid changing ScoreDocs in place
         ScoreDoc[] scoreDocs = new ScoreDoc[docs.length];
-        float min = Float.MAX_VALUE;
+        float min = initialMin;
         float max = Float.MIN_VALUE;
         boolean atLeastOneValidScore = false;
         for (ScoreDoc rd : docs) {

@@ -254,7 +254,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             inferenceFieldBuilder = c -> mergedInferenceField;
         }
 
-        @SuppressWarnings("unchecked")
         @Override
         public SemanticTextFieldMapper build(MapperBuilderContext context) {
             if (useLegacyFormat && copyTo.copyToFields().isEmpty() == false) {
@@ -315,7 +314,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
          * @param mapper The mapper
          * @return A mapper with the copied settings applied
          */
-        @SuppressWarnings("unchecked")
         private SemanticTextFieldMapper copySettings(SemanticTextFieldMapper mapper, MapperMergeContext mapperMergeContext) {
             SemanticTextFieldMapper returnedMapper = mapper;
             if (mapper.fieldType().getModelSettings() == null) {

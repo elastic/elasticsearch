@@ -281,8 +281,9 @@ public final class IngestDocument {
                     } else {
                         return false;
                     }
+                } else {
+                    context = list.get(index);
                 }
-                context = list.get(index);
             } else {
                 return false;
             }
@@ -348,8 +349,9 @@ public final class IngestDocument {
             }
             if (index < 0 || index >= list.size()) {
                 throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
+            } else {
+                list.remove(index);
             }
-            list.remove(index);
         } else {
             throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey, context));
         }
@@ -376,8 +378,9 @@ public final class IngestDocument {
             }
             if (index < 0 || index >= list.size()) {
                 return ResolveResult.error(Errors.outOfBounds(fullPath, index, list.size()));
+            } else {
+                return ResolveResult.success(list.get(index));
             }
-            return ResolveResult.success(list.get(index));
         } else {
             return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, context));
         }
@@ -535,8 +538,9 @@ public final class IngestDocument {
                 }
                 if (index < 0 || index >= list.size()) {
                     throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
+                } else {
+                    context = list.get(index);
                 }
-                context = list.get(index);
             } else {
                 throw new IllegalArgumentException(Errors.cannotResolve(path, pathElement, context));
             }
@@ -574,16 +578,17 @@ public final class IngestDocument {
             }
             if (index < 0 || index >= list.size()) {
                 throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
-            }
-            if (append) {
-                Object object = list.get(index);
-                Object newList = appendValues(object, value, allowDuplicates);
-                if (newList != object) {
-                    list.set(index, newList);
+            } else {
+                if (append) {
+                    Object object = list.get(index);
+                    Object newList = appendValues(object, value, allowDuplicates);
+                    if (newList != object) {
+                        list.set(index, newList);
+                    }
+                    return;
                 }
-                return;
+                list.set(index, value);
             }
-            list.set(index, value);
         } else {
             throw new IllegalArgumentException(Errors.cannotSet(path, leafKey, context));
         }

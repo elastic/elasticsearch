@@ -84,21 +84,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
     }
 
-    // used for tests
-    ThreadPoolMergeScheduler(
-        ShardId shardId,
-        MergeSchedulerConfig mergeSchedulerConfig,
-        Logger logger,
-        MergeTracking mergeTracking,
-        ThreadPoolMergeExecutorService threadPoolMergeExecutorService
-    ) {
-        this.shardId = shardId;
-        this.config = mergeSchedulerConfig;
-        this.logger = logger;
-        this.mergeTracking = mergeTracking;
-        this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
-    }
-
     @Override
     public Set<OnGoingMerge> onGoingMerges() {
         return mergeTracking.onGoingMerges();
@@ -468,6 +453,16 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // this closes an executor that may be used by ongoing merges, so better close it only after all running merges finished
             super.close();
         }
+    }
+
+    // exposed for tests
+    PriorityQueue<MergeTask> getBackloggedMergeTasks() {
+        return backloggedMergeTasks;
+    }
+
+    // exposed for tests
+    Map<MergePolicy.OneMerge, MergeTask> getCurrentlyRunningMergeTasks() {
+        return currentlyRunningMergeTasks;
     }
 
     private static double nsToSec(long ns) {

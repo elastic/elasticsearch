@@ -30,7 +30,9 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -167,6 +169,94 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     nextMergeSemaphore.acquire();
                     runMergeSemaphore.release();
                 } while (runMergeIdx.get() < followUpMergeCount);
+                assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
+            }
+        }
+    }
+
+    public void testMergesRunConcurrently() throws Exception {
+        // min 2 allowed concurrent merges, per scheduler
+        int mergeSchedulerMaxThreadCount = randomIntBetween(2, 4);
+        // the merge executor has at least 1 extra thread available
+        int mergeExecutorThreadCount = mergeSchedulerMaxThreadCount + randomIntBetween(1, 3);
+        Settings settings = Settings.builder()
+            .put(settingsWithMergeScheduler)
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), mergeSchedulerMaxThreadCount)
+            .build();
+        try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
+                .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
+            assertNotNull(threadPoolMergeExecutorService);
+            assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
+            ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
+            try (
+                ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
+                    new ShardId("index", "_na_", 1),
+                    IndexSettingsModule.newIndexSettings("index", settings),
+                    threadPoolMergeExecutorService
+                )
+            ) {
+                // at least 1 extra merge than there are concurrently allowed
+                int mergeCount = mergeExecutorThreadCount + randomIntBetween(1, 10);
+                Semaphore runMergeSemaphore = new Semaphore(0);
+                for (int i = 0; i < mergeCount; i++) {
+                    MergeSource mergeSource = mock(MergeSource.class);
+                    OneMerge oneMerge = mock(OneMerge.class);
+                    when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
+                    when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
+                    when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
+                    doAnswer(invocation -> {
+                        OneMerge merge = (OneMerge) invocation.getArguments()[0];
+                        assertFalse(merge.isAborted());
+                        // wait to be signalled before completing
+                        runMergeSemaphore.acquire();
+                        return null;
+                    }).when(mergeSource).merge(any(OneMerge.class));
+                    threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
+                }
+                for (int completedMergesCount = 0; completedMergesCount < mergeCount - mergeSchedulerMaxThreadCount; completedMergesCount++) {
+                    int finalCompletedMergesCount = completedMergesCount;
+                    assertBusy(() -> {
+                        // assert that there are merges running concurrently at the max allowed concurrency rate
+                        assertThat(threadPoolMergeScheduler.getCurrentlyRunningMergeTasks().size(), is(mergeSchedulerMaxThreadCount));
+                        // with the other merges backlogged
+                        assertThat(
+                            threadPoolMergeScheduler.getBackloggedMergeTasks().size(),
+                            is(mergeCount - mergeSchedulerMaxThreadCount - finalCompletedMergesCount)
+                        );
+                        // also check the same for the thread-pool executor
+                        assertThat(threadPoolMergeExecutorService.getCurrentlyRunningMergeTasks().size(), is(mergeSchedulerMaxThreadCount));
+                        // queued merge tasks do not include backlogged merges
+                        assertThat(threadPoolMergeExecutorService.getQueuedMergeTasks().size(), is(0));
+                        // also check thread-pool stats for the same
+                        // there are active thread-pool threads waiting for the backlogged merge tasks to be re-enqueued
+                        int activeMergeThreads = Math.min(mergeCount - finalCompletedMergesCount, mergeExecutorThreadCount);
+                        assertThat(threadPoolExecutor.getActiveCount(), is(activeMergeThreads));
+                        assertThat(threadPoolExecutor.getQueue().size(), is(mergeCount - finalCompletedMergesCount - activeMergeThreads));
+                    });
+                    // let one merge task finish running
+                    runMergeSemaphore.release();
+                }
+                // there are now fewer merges still running than available threads
+                for (int remainingMergesCount = mergeSchedulerMaxThreadCount; remainingMergesCount >= 0; remainingMergesCount--) {
+                    int finalRemainingMergesCount = remainingMergesCount;
+                    assertBusy(() -> {
+                        // there are fewer available merges than available threads
+                        assertThat(threadPoolMergeScheduler.getCurrentlyRunningMergeTasks().size(), is(finalRemainingMergesCount));
+                        // no more backlogged merges
+                        assertThat(threadPoolMergeScheduler.getBackloggedMergeTasks().size(), is(0));
+                        // also check thread-pool executor for the same
+                        assertThat(threadPoolMergeExecutorService.getCurrentlyRunningMergeTasks().size(), is(finalRemainingMergesCount));
+                        // no more backlogged merges
+                        assertThat(threadPoolMergeExecutorService.getQueuedMergeTasks().size(), is(0));
+                        // also check thread-pool stats for the same
+                        assertThat(threadPoolExecutor.getActiveCount(), is(finalRemainingMergesCount));
+                        assertThat(threadPoolExecutor.getQueue().size(), is(0));
+                    });
+                    // let one merge task finish running
+                    runMergeSemaphore.release();
+                }
                 assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
             }
         }

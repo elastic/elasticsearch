@@ -289,6 +289,9 @@ public final class IngestDocument {
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
+        if (context == null) {
+            return false;
+        }
         if (context instanceof Map<?, ?> map) {
             return map.containsKey(leafKey);
         }
@@ -329,6 +332,9 @@ public final class IngestDocument {
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
+        if (context == null) {
+            throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey, null));
+        }
         if (context instanceof Map<?, ?> map) {
             if (map.containsKey(leafKey)) {
                 map.remove(leafKey);

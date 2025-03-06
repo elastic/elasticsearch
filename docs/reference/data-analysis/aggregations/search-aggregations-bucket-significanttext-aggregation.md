@@ -52,6 +52,8 @@ GET news/_search
 }
 ```
 
+%  TEST[setup:news]
+
 Response:
 
 ```console-result
@@ -79,6 +81,8 @@ Response:
     }
 }
 ```
+
+%  TESTRESPONSE[skip:historically skipped]
 
 The results show that "h5n1" is one of several terms strongly associated with bird flu. It only occurs 5 times in our index as a whole (see the `bg_count`) and yet 4 of these were lucky enough to appear in our 100 document sample of "bird flu" results. That suggests a significant word and one which the user can potentially add to their search.
 
@@ -125,6 +129,8 @@ First let’s look at an unfiltered real-world example using the [Signal media d
 }
 ```
 
+%  NOTCONSOLE
+
 The uncleansed documents have thrown up some odd-looking terms that are, on the face of it, statistically correlated with appearances of our search term "elasticsearch" e.g. "pozmantier". We can drill down into examples of these documents to see why pozmantier is connected using this query:
 
 $$$significanttext-aggregation-pozmantier-example$$$
@@ -148,6 +154,8 @@ GET news/_search
   }
 }
 ```
+
+%  TEST[setup:news]
 
 The results show a series of very similar news articles about a judging panel for a number of tech projects:
 
@@ -185,6 +193,8 @@ The results show a series of very similar news articles about a judging panel fo
       ...
 ```
 
+%  NOTCONSOLE
+
 Mike Pozmantier was one of many judges on a panel and elasticsearch was used in one of many projects being judged.
 
 As is typical, this lengthy press release was cut-and-paste by a variety of news sites and consequently any rare names, numbers or typos they contain become statistically correlated with our matching query.
@@ -218,6 +228,8 @@ GET news/_search
   }
 }
 ```
+
+%  TEST[setup:news]
 
 The results from analysing our deduplicated text are obviously of higher quality to anyone familiar with the elastic stack:
 
@@ -254,6 +266,8 @@ The results from analysing our deduplicated text are obviously of higher quality
   }
 }
 ```
+
+%  NOTCONSOLE
 
 Mr Pozmantier and other one-off associations with elasticsearch no longer appear in the aggregation results as a consequence of copy-and-paste operations or other forms of mechanical repetition.
 
@@ -367,6 +381,8 @@ GET news/_search
 }
 ```
 
+%  TEST[setup:news]
+
 The above filter would help focus in on terms that were peculiar to the city of Madrid rather than revealing terms like "Spanish" that are unusual in the full index’s worldwide context but commonplace in the subset of documents containing the word "Spain".
 
 ::::{warning}
@@ -399,6 +415,8 @@ GET news/_search
   }
 }
 ```
+
+%  TEST[setup:news]
 
 
 ### Filtering Values [_filtering_values_3]

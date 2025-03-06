@@ -55,6 +55,37 @@ POST my-index-000001/_analyze
 }
 ```
 
+% 
+% [source,console-result]
+% ----------------------------
+% {
+%   "tokens" : [
+%     {
+%       "token" : "an",
+%       "start_offset" : 0,
+%       "end_offset" : 2,
+%       "type" : "word",
+%       "position" : 0
+%     },
+%     {
+%       "token" : "underscored",
+%       "start_offset" : 3,
+%       "end_offset" : 14,
+%       "type" : "word",
+%       "position" : 1
+%     },
+%     {
+%       "token" : "phrase",
+%       "start_offset" : 15,
+%       "end_offset" : 21,
+%       "type" : "word",
+%       "position" : 2
+%     }
+%   ]
+% }
+% ----------------------------
+% 
+
 The above example produces these terms:
 
 ```text

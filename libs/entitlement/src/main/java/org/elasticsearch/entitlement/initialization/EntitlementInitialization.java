@@ -34,6 +34,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEn
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
@@ -64,11 +65,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.entitlement.runtime.policy.Platform.LINUX;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.DATA;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Platform.LINUX;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -144,8 +145,7 @@ public class EntitlementInitialization {
             bootstrapArgs.dataDirs(),
             bootstrapArgs.sharedRepoDirs(),
             bootstrapArgs.tempDir(),
-            bootstrapArgs.settingResolver(),
-            bootstrapArgs.settingGlobResolver()
+            bootstrapArgs.settingResolver()
         );
 
         List<Scope> serverScopes = new ArrayList<>();
@@ -263,15 +263,17 @@ public class EntitlementInitialization {
         var serverPolicy = new Policy("server", serverScopes);
         // agents run without a module, so this is a special hack for the apm agent
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
+        // See also modules/apm/src/main/plugin-metadata/entitlement-policy.yaml
         List<Entitlement> agentEntitlements = List.of(
             new CreateClassLoaderEntitlement(),
             new ManageThreadsEntitlement(),
             new SetHttpsConnectionPropertiesEntitlement(),
             new OutboundNetworkEntitlement(),
+            new WriteSystemPropertiesEntitlement(Set.of("AsyncProfiler.safemode")),
+            new LoadNativeLibrariesEntitlement(),
             new FilesEntitlement(
                 List.of(
-                    FileData.ofPath(Path.of("/co/elastic/apm/agent/"), READ),
-                    FileData.ofPath(Path.of("/agent/co/elastic/apm/agent/"), READ),
+                    FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
                     FileData.ofPath(Path.of("/proc/meminfo"), READ),
                     FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ)
                 )

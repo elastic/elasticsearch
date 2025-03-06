@@ -48,11 +48,9 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.rest.RestStatus.REQUESTED_RANGE_NOT_SATISFIED;
 
 class S3BlobStore implements BlobStore {
@@ -64,6 +62,8 @@ class S3BlobStore implements BlobStore {
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html">S3 Documentation</a>.
      */
     static final int MAX_BULK_DELETES = 1000;
+
+    static final int MAX_DELETE_EXCEPTIONS = 10;
 
     private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
@@ -332,6 +332,18 @@ class S3BlobStore implements BlobStore {
         return new S3BlobContainer(path, this);
     }
 
+    private static class DeletionExceptions {
+        Exception exception = null;
+        private int count = 0;
+
+        void useOrMaybeSuppress(Exception e) {
+            if (count < MAX_DELETE_EXCEPTIONS) {
+                exception = ExceptionsHelper.useOrSuppress(exception, e);
+                count++;
+            }
+        }
+    }
+
     void deleteBlobs(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
@@ -340,19 +352,19 @@ class S3BlobStore implements BlobStore {
         final List<String> partition = new ArrayList<>();
         try (AmazonS3Reference clientReference = clientReference()) {
             // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
-            final AtomicReference<Exception> aex = new AtomicReference<>();
+            final var deletionExceptions = new DeletionExceptions();
             blobNames.forEachRemaining(key -> {
                 partition.add(key);
                 if (partition.size() == bulkDeletionBatchSize) {
-                    deletePartition(purpose, clientReference, partition, aex);
+                    deletePartition(purpose, clientReference, partition, deletionExceptions);
                     partition.clear();
                 }
             });
             if (partition.isEmpty() == false) {
-                deletePartition(purpose, clientReference, partition, aex);
+                deletePartition(purpose, clientReference, partition, deletionExceptions);
             }
-            if (aex.get() != null) {
-                throw aex.get();
+            if (deletionExceptions.exception != null) {
+                throw deletionExceptions.exception;
             }
         } catch (Exception e) {
             throw new IOException("Failed to delete blobs " + partition.stream().limit(10).toList(), e);
@@ -363,26 +375,40 @@ class S3BlobStore implements BlobStore {
         OperationPurpose purpose,
         AmazonS3Reference clientReference,
         List<String> partition,
-        AtomicReference<Exception> aex
+        DeletionExceptions deletionExceptions
     ) {
         try {
             SocketAccess.doPrivilegedVoid(() -> clientReference.client().deleteObjects(bulkDelete(purpose, this, partition)));
         } catch (MultiObjectDeleteException e) {
             // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
             // first remove all keys that were sent in the request and then add back those that ran into an exception.
-            logger.warn(
-                () -> format(
-                    "Failed to delete some blobs %s",
-                    e.getErrors().stream().map(err -> "[" + err.getKey() + "][" + err.getCode() + "][" + err.getMessage() + "]").toList()
-                ),
-                e
-            );
-            aex.set(ExceptionsHelper.useOrSuppress(aex.get(), e));
+            logger.warn(buildDeletionErrorMessage(e), e);
+            deletionExceptions.useOrMaybeSuppress(e);
         } catch (AmazonClientException e) {
             // The AWS client threw any unexpected exception and did not execute the request at all so we do not
             // remove any keys from the outstanding deletes set.
-            aex.set(ExceptionsHelper.useOrSuppress(aex.get(), e));
+            deletionExceptions.useOrMaybeSuppress(e);
         }
+    }
+
+    private String buildDeletionErrorMessage(MultiObjectDeleteException e) {
+        final var sb = new StringBuilder("Failed to delete some blobs ");
+        final var errors = e.getErrors();
+        for (int i = 0; i < errors.size() && i < MAX_DELETE_EXCEPTIONS; i++) {
+            final var err = errors.get(i);
+            sb.append("[").append(err.getKey()).append("][").append(err.getCode()).append("][").append(err.getMessage()).append("]");
+            if (i < errors.size() - 1) {
+                sb.append(",");
+            }
+        }
+        if (errors.size() > MAX_DELETE_EXCEPTIONS) {
+            sb.append("... (")
+                .append(errors.size())
+                .append(" in total, ")
+                .append(errors.size() - MAX_DELETE_EXCEPTIONS)
+                .append(" omitted)");
+        }
+        return sb.toString();
     }
 
     private static DeleteObjectsRequest bulkDelete(OperationPurpose purpose, S3BlobStore blobStore, List<String> blobs) {

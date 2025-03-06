@@ -59,6 +59,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1450,7 +1451,7 @@ public class CohereServiceTests extends ESTestCase {
             // 2 inputs
             service.chunkedInfer(
                 model,
-                List.of("foo", "bar"),
+                List.of("a", "bb"),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1463,7 +1464,7 @@ public class CohereServiceTests extends ESTestCase {
                 assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("foo", floatResult.chunks().get(0).matchedText());
+                assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
                 assertArrayEquals(
                     new float[] { 0.123f, -0.123f },
                     ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding(),
@@ -1474,7 +1475,7 @@ public class CohereServiceTests extends ESTestCase {
                 assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("bar", floatResult.chunks().get(0).matchedText());
+                assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
                 assertArrayEquals(
                     new float[] { 0.223f, -0.223f },
                     ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding(),
@@ -1493,7 +1494,7 @@ public class CohereServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("texts", List.of("foo", "bar"), "model", "model", "embedding_types", List.of("float")))
+                is(Map.of("texts", List.of("a", "bb"), "model", "model", "embedding_types", List.of("float")))
             );
         }
     }
@@ -1548,7 +1549,7 @@ public class CohereServiceTests extends ESTestCase {
             // 2 inputs
             service.chunkedInfer(
                 model,
-                List.of("foo", "bar"),
+                List.of("a", "bb"),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1561,7 +1562,7 @@ public class CohereServiceTests extends ESTestCase {
                 assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
                 var byteResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(byteResult.chunks(), hasSize(1));
-                assertEquals("foo", byteResult.chunks().get(0).matchedText());
+                assertEquals(new ChunkedInference.TextOffset(0, 1), byteResult.chunks().get(0).offset());
                 assertThat(byteResult.chunks().get(0), instanceOf(TextEmbeddingByteResults.Chunk.class));
                 assertArrayEquals(new byte[] { 23, -23 }, ((TextEmbeddingByteResults.Chunk) byteResult.chunks().get(0)).embedding());
             }
@@ -1569,7 +1570,7 @@ public class CohereServiceTests extends ESTestCase {
                 assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
                 var byteResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(byteResult.chunks(), hasSize(1));
-                assertEquals("bar", byteResult.chunks().get(0).matchedText());
+                assertEquals(new ChunkedInference.TextOffset(0, 2), byteResult.chunks().get(0).offset());
                 assertThat(byteResult.chunks().get(0), instanceOf(TextEmbeddingByteResults.Chunk.class));
                 assertArrayEquals(new byte[] { 24, -24 }, ((TextEmbeddingByteResults.Chunk) byteResult.chunks().get(0)).embedding());
             }
@@ -1585,7 +1586,7 @@ public class CohereServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("texts", List.of("foo", "bar"), "model", "model", "embedding_types", List.of("int8")))
+                is(Map.of("texts", List.of("a", "bb"), "model", "model", "embedding_types", List.of("int8")))
             );
         }
     }
@@ -1608,13 +1609,11 @@ public class CohereServiceTests extends ESTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+        streamChatCompletion().hasNoErrors().hasEvent("""
             {"completion":[{"delta":"hello"},{"delta":"there"}]}""");
     }
 
-    private InferenceServiceResults streamChatCompletion() throws IOException {
+    private InferenceEventsAssertion streamChatCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
             var model = CohereCompletionModelTests.createModel(getUrl(webServer), "secret", "model");
@@ -1630,7 +1629,7 @@ public class CohereServiceTests extends ESTestCase {
                 listener
             );
 
-            return listener.actionGet(TIMEOUT);
+            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
     }
 
@@ -1640,13 +1639,7 @@ public class CohereServiceTests extends ESTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result)
-            .hasFinishedStream()
-            .hasNoEvents()
-            .hasErrorWithStatusCode(500)
-            .hasErrorContaining("how dare you");
+        streamChatCompletion().hasNoEvents().hasErrorWithStatusCode(500).hasErrorContaining("how dare you");
     }
 
     @SuppressWarnings("checkstyle:LineLength")
@@ -1705,8 +1698,8 @@ public class CohereServiceTests extends ESTestCase {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new CohereService(mock(), createWithEmptySettings(mock()))) {
-            assertTrue(service.canStream(TaskType.COMPLETION));
-            assertTrue(service.canStream(TaskType.ANY));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertFalse(service.canStream(TaskType.ANY));
         }
     }
 

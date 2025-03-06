@@ -377,7 +377,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             exclude "**/platform/${excludePlatform}/**"
           }
         }
-        if (buildParams.isSnapshotBuild()) {
+        if (buildParams.getSnapshotBuild()) {
           from(buildExternalTestModulesTaskProvider)
         }
         if (project.path.startsWith(':distribution:packages')) {
@@ -518,9 +518,9 @@ subprojects {
 
     String licenseText
     if (isTestDistro) {
-      licenseText = rootProject.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
+      licenseText = layout.settingsDirectory.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile.getText('UTF-8')
     } else {
-      licenseText = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
+      licenseText = layout.settingsDirectory.file('licenses/ELASTIC-LICENSE-2.0.txt').asFile.getText('UTF-8')
     }
     // license text needs to be indented with a single space
     licenseText = ' ' + licenseText.replace('\n', '\n ')

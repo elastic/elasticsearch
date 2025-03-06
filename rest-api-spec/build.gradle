@@ -14,7 +14,7 @@ restResources {
 
 // REST API specifications are published under the Apache 2.0 License
 ext.projectLicenses.set(['The Apache Software License, Version 2.0': providers.provider(() -> 'http://www.apache.org/licenses/LICENSE-2.0')])
-licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
+licenseFile.set(layout.settingsDirectory.file('licenses/APACHE-LICENSE-2.0.txt').asFile)
 
 configurations {
   // configuration to make use by external yaml rest test plugin in our examples
@@ -280,4 +280,6 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("indices.create/21_synthetic_source_stored/index param - field ordering", "Synthetic source keep arrays now stores leaf arrays natively")
   task.skipTest("indices.create/21_synthetic_source_stored/field param - keep nested array", "Synthetic source keep arrays now stores leaf arrays natively")
   task.skipTest("indices.create/21_synthetic_source_stored/field param - keep root array", "Synthetic source keep arrays now stores leaf arrays natively")
+  task.skipTest("migration/10_get_feature_upgrade_status/Get feature upgrade status", "Moved to plugin")
+  task.skipTest("migration/20_post_feature_upgrade/Get feature upgrade status", "Moved to plugin")
 })

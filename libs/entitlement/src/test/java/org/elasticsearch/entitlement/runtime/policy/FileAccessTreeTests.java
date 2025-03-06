@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @ESTestCase.WithoutSecurityManager
@@ -50,8 +51,7 @@ public class FileAccessTreeTests extends ESTestCase {
         new Path[] { Path.of("/data1"), Path.of("/data2") },
         new Path[] { Path.of("/shared1"), Path.of("/shared2") },
         Path.of("/tmp"),
-        setting -> settings.get(setting),
-        glob -> settings.getGlobValues(glob)
+        pattern -> settings.getValues(pattern)
     );
 
     public void testEmpty() {
@@ -136,7 +136,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testReadWithRelativePath() {
-        for (var dir : List.of("config", "home")) {
+        for (var dir : List.of("home")) {
             var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read", "relative_to", dir)), List.of());
             assertThat(tree.canRead(path("foo")), is(false));
 
@@ -153,7 +153,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testWriteWithRelativePath() {
-        for (var dir : List.of("config", "home")) {
+        for (var dir : List.of("home")) {
             var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read_write", "relative_to", dir)), List.of());
             assertThat(tree.canWrite(path("/" + dir + "/foo")), is(true));
             assertThat(tree.canWrite(path("/" + dir + "/foo/subdir")), is(true));
@@ -194,6 +194,29 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canRead(path("")), is(false));
     }
 
+    public void testNormalizeDirectorySeparatorWindows() {
+        assumeTrue("normalization of windows paths", Platform.WINDOWS.isCurrent());
+
+        assertThat(FileAccessTree.normalizePath(Path.of("C:\\a\\b")), equalTo("C:\\a\\b"));
+        assertThat(FileAccessTree.normalizePath(Path.of("C:/a.xml")), equalTo("C:\\a.xml"));
+        assertThat(FileAccessTree.normalizePath(Path.of("C:/a/b.txt")), equalTo("C:\\a\\b.txt"));
+        assertThat(FileAccessTree.normalizePath(Path.of("C:/a/c\\foo.txt")), equalTo("C:\\a\\c\\foo.txt"));
+
+        var tree = accessTree(
+            entitlement("C:\\a\\b", "read", "C:/a.xml", "read", "C:/a/b.txt", "read", "C:/a/c\\foo.txt", "read"),
+            List.of()
+        );
+
+        assertThat(tree.canRead(Path.of("C:/a.xml")), is(true));
+        assertThat(tree.canRead(Path.of("C:\\a.xml")), is(true));
+        assertThat(tree.canRead(Path.of("C:/a/")), is(false));
+        assertThat(tree.canRead(Path.of("C:/a/b.txt")), is(true));
+        assertThat(tree.canRead(Path.of("C:/a/b/c.txt")), is(true));
+        assertThat(tree.canRead(Path.of("C:\\a\\b\\c.txt")), is(true));
+        assertThat(tree.canRead(Path.of("C:\\a\\c\\")), is(false));
+        assertThat(tree.canRead(Path.of("C:\\a\\c\\foo.txt")), is(true));
+    }
+
     public void testNormalizeTrailingSlashes() {
         var tree = accessTree(entitlement("/trailing/slash/", "read", "/no/trailing/slash", "read"), List.of());
         assertThat(tree.canRead(path("/trailing/slash")), is(true));
@@ -231,6 +254,8 @@ public class FileAccessTreeTests extends ESTestCase {
 
     @SuppressForbidden(reason = "don't care about the directory location in tests")
     public void testFollowLinks() throws IOException {
+        assumeFalse("Windows requires admin right to create symbolic links", Platform.WINDOWS.isCurrent());
+
         Path baseSourceDir = Files.createTempDirectory("fileaccess_source");
         Path source1Dir = baseSourceDir.resolve("source1");
         Files.createDirectory(source1Dir);
@@ -262,6 +287,12 @@ public class FileAccessTreeTests extends ESTestCase {
         var tree = FileAccessTree.of("test-component", "test-module", FilesEntitlement.EMPTY, TEST_PATH_LOOKUP, List.of());
         assertThat(tree.canRead(TEST_PATH_LOOKUP.tempDir()), is(true));
         assertThat(tree.canWrite(TEST_PATH_LOOKUP.tempDir()), is(true));
+    }
+
+    public void testConfigDirAccess() {
+        var tree = FileAccessTree.of("test-component", "test-module", FilesEntitlement.EMPTY, TEST_PATH_LOOKUP, List.of());
+        assertThat(tree.canRead(TEST_PATH_LOOKUP.configDir()), is(true));
+        assertThat(tree.canWrite(TEST_PATH_LOOKUP.configDir()), is(false));
     }
 
     public void testBasicExclusiveAccess() {
@@ -314,6 +345,31 @@ public class FileAccessTreeTests extends ESTestCase {
         tree = accessTree(entitlement("a", "read"), exclusivePaths("diff-component", "diff-module", "a"));
         assertThat(tree.canRead(path("a")), is(false));
         assertThat(tree.canWrite(path("a")), is(false));
+    }
+
+    public void testWindowsAbsolutPathAccess() {
+        assumeTrue("Specific to windows for paths with a root (DOS or UNC)", Platform.WINDOWS.isCurrent());
+
+        var fileAccessTree = FileAccessTree.of(
+            "test",
+            "test",
+            new FilesEntitlement(
+                List.of(
+                    FilesEntitlement.FileData.ofPath(Path.of("\\\\.\\pipe\\"), FilesEntitlement.Mode.READ),
+                    FilesEntitlement.FileData.ofPath(Path.of("D:\\.gradle"), FilesEntitlement.Mode.READ),
+                    FilesEntitlement.FileData.ofPath(Path.of("D:\\foo"), FilesEntitlement.Mode.READ),
+                    FilesEntitlement.FileData.ofPath(Path.of("C:\\foo"), FilesEntitlement.Mode.READ_WRITE)
+                )
+            ),
+            TEST_PATH_LOOKUP,
+            List.of()
+        );
+
+        assertThat(fileAccessTree.canRead(Path.of("\\\\.\\pipe\\bar")), is(true));
+        assertThat(fileAccessTree.canRead(Path.of("C:\\foo")), is(true));
+        assertThat(fileAccessTree.canWrite(Path.of("C:\\foo")), is(true));
+        assertThat(fileAccessTree.canRead(Path.of("D:\\foo")), is(true));
+        assertThat(fileAccessTree.canWrite(Path.of("D:\\foo")), is(false));
     }
 
     FileAccessTree accessTree(FilesEntitlement entitlement, List<ExclusivePath> exclusivePaths) {

@@ -21,9 +21,13 @@ import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteInd
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -34,7 +38,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -43,6 +49,18 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.StartILMRequest;
+import org.elasticsearch.xpack.core.ilm.StopILMRequest;
+import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
 import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
 import org.junit.Before;
@@ -53,6 +71,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static java.lang.Boolean.parseBoolean;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
@@ -88,8 +107,20 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             ReindexPlugin.class,
             MockTransportService.TestPlugin.class,
             DataStreamsPlugin.class,
-            IngestCommonPlugin.class
+            IngestCommonPlugin.class,
+            IndexLifecycle.class,
+            LocalStateCompositeXPackPlugin.class
         );
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s")
+            // This just generates less churn and makes it easier to read the log file if needed
+            .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
+            .build();
     }
 
     private static String DATA_STREAM_MAPPING = """
@@ -530,6 +561,133 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
         // verify doc was successfully added
         assertHitCount(prepareSearch(destIndex).setSize(0), 1);
+    }
+
+    public void testIndexLifecycleSettingNotCopied() throws Exception {
+        Map<String, Phase> phases = Map.of(
+            "hot",
+            new Phase(
+                "hot",
+                TimeValue.ZERO,
+                Map.of(
+                    "rollover",
+                    new org.elasticsearch.xpack.core.ilm.RolloverAction(null, null, null, 1L, null, null, null, null, null, null)
+                )
+            )
+        );
+
+        var policyName = "my-policy";
+        LifecyclePolicy policy = new LifecyclePolicy(policyName, phases);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policy);
+        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).actionGet());
+
+        // create data stream with a document and wait for ILM to roll it over
+        var dataStream = createDataStream(policyName);
+        createDocument(dataStream);
+
+        assertAcked(safeGet(client().execute(ILMActions.START, new StartILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))));
+        assertBusy(() -> {
+            var getIndexResponse = safeGet(indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(dataStream)));
+            assertTrue(getIndexResponse.indices().length >= 2);
+        });
+        stopILM();
+
+        var dataStreams = safeGet(
+            indicesAdmin().execute(
+                GetDataStreamAction.INSTANCE,
+                new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStream })
+            )
+        ).getDataStreams();
+
+        assertFalse(dataStreams.isEmpty());
+        String writeIndex = dataStreams.get(0).getDataStream().getWriteIndex().getName();
+        List<String> indices = dataStreams.get(0).getDataStream().getIndices().stream().map(Index::getName).toList();
+        assertTrue(indices.size() >= 2);
+
+        for (var backingIndex : indices) {
+            if (backingIndex.equals(writeIndex) == false) {
+                var destIndex = safeGet(
+                    client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(backingIndex))
+                ).getDestIndex();
+                var settingsResponse = safeGet(indicesAdmin().getSettings(new GetSettingsRequest().indices(backingIndex, destIndex)));
+                assertEquals(policyName, settingsResponse.getSetting(backingIndex, IndexMetadata.LIFECYCLE_NAME));
+                assertNull(settingsResponse.getSetting(destIndex, IndexMetadata.LIFECYCLE_NAME));
+            }
+        }
+    }
+
+    private void stopILM() throws Exception {
+        assertAcked(safeGet(client().execute(ILMActions.STOP, new StopILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))));
+        assertBusy(() -> {
+            var statusResponse = safeGet(
+                client().execute(GetStatusAction.INSTANCE, new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+            );
+            assertEquals(OperationMode.STOPPED, statusResponse.getMode());
+        });
+    }
+
+    private String createDataStream(String ilmPolicy) throws Exception {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
+
+        Settings settings = ilmPolicy != null ? Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, ilmPolicy).build() : null;
+
+        String mapping = """
+                {
+                    "properties": {
+                        "@timestamp": {
+                            "type":"date"
+                        },
+                        "data":{
+                            "type":"keyword"
+                        }
+                    }
+                }
+            """;
+        Template idxTemplate = new Template(settings, new CompressedXContent(mapping), null);
+
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .template(idxTemplate)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+            .build();
+
+        assertAcked(
+            client().execute(
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(template)
+            )
+        );
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
+            )
+        );
+        return dataStreamName;
+    }
+
+    private long createDocument(String dataStreamName) throws Exception {
+        // Get some randomized but reasonable timestamps on the data since not all of it is guaranteed to arrive in order.
+        long timeSeed = System.currentTimeMillis();
+        long timestamp = randomLongBetween(timeSeed - TimeUnit.HOURS.toMillis(5), timeSeed);
+        safeGet(
+            client().index(
+                new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
+                    .source(
+                        JsonXContent.contentBuilder()
+                            .startObject()
+                            .field("@timestamp", timestamp)
+                            .field("data", randomAlphaOfLength(25))
+                            .endObject()
+                    )
+            )
+        );
+        safeGet(
+            indicesAdmin().refresh(
+                new RefreshRequest(".ds-" + dataStreamName + "*").indicesOptions(IndicesOptions.lenientExpandOpenHidden())
+            )
+        );
+        return timestamp;
     }
 
     private static void cleanupMetadataBlocks(String index) {

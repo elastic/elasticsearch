@@ -164,7 +164,6 @@ public class EmbeddingRequestChunker<C extends EmbeddingResults.Chunk, E extends
             }
             for (int i = 0; i < embeddingResults.embeddings().size(); i++) {
                 E newEmbedding = embeddingResults.embeddings().get(i);
-                // TODO: merge results instead of overwriting them
                 resultEmbeddings.get(request.requests().get(i).inputIndex())
                     .updateAndGet(
                         request.requests().get(i).chunkIndex(),

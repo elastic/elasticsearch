@@ -126,11 +126,15 @@ public class EntitlementInitialization {
 
         Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(latestCheckerInterface, checkMethods);
         inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
-        try {
-            inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
-        } catch (VerifyError e) {
-            LOGGER.error("failed to retransform classes", e);
-            throw e;
+        Class<?>[] classesToRetransform = findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform);
+        for (int i = 0; i < classesToRetransform.length; i++) {
+            Class<?> currentClass = classesToRetransform[i];
+            try {
+                inst.retransformClasses(currentClass);
+            } catch (VerifyError e) {
+                LOGGER.error("Error transforming class {} of {} with FQN '{}'", i, classesToRetransform.length, currentClass.getName());
+                throw e;
+            }
         }
     }
 

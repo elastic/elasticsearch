@@ -1,4 +1,7 @@
 org.elasticsearch.telemetry.apm:
+  - files:
+      - path: "/usr/share/elasticsearch/modules/apm/elastic-apm-agent-1.52.3-SNAPSHOT.jar"
+        mode: "read"
   - create_class_loader
   - write_system_properties:
       properties:

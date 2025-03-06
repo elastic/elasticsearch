@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.common;
 
 import org.apache.http.conn.util.PublicSuffixMatcher;
 import org.apache.http.conn.util.PublicSuffixMatcherLoader;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -85,7 +86,7 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
     @Nullable
     // visible for testing
     static DomainInfo getRegisteredDomain(@Nullable String fqdn) {
-        if (fqdn == null) {
+        if (Strings.hasText(fqdn) == false) {
             return null;
         }
         String registeredDomain = SUFFIX_MATCHER.getDomainRoot(fqdn);

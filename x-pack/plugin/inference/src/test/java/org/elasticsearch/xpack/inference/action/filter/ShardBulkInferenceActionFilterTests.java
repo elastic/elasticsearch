@@ -333,7 +333,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 // item 3
                 assertNull(bulkShardRequest.items()[3].getPrimaryResponse());
                 actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[3].request());
-                assertInferenceResults(useLegacyFormat, actualRequest, "obj.field1", EXPLICIT_NULL, 0);
+                assertInferenceResults(useLegacyFormat, actualRequest, "obj.field1", EXPLICIT_NULL, useLegacyFormat ? null: 0);
 
                 // item 4
                 assertNull(bulkShardRequest.items()[4].getPrimaryResponse());
@@ -381,18 +381,23 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
                 BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
-                IndexRequest actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[0].request());
+                assertNull(bulkShardRequest.getInferenceFieldMap());
+                assertThat(bulkShardRequest.items().length, equalTo(3));
 
                 // Create with Empty string
-                assertInferenceResults(useLegacyFormat, actualRequest, "semantic_text_field", useLegacyFormat ? EXPLICIT_NULL : "", 0);
+                assertNull(bulkShardRequest.items()[0].getPrimaryResponse());
+                IndexRequest actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[0].request());
+                assertInferenceResults(useLegacyFormat, actualRequest, "semantic_text_field", "", 0);
 
                 // Create with whitespace only
+                assertNull(bulkShardRequest.items()[1].getPrimaryResponse());
                 actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[1].request());
-                assertInferenceResults(useLegacyFormat, actualRequest, "semantic_text_field", useLegacyFormat ? EXPLICIT_NULL : " ", 0);
+                assertInferenceResults(useLegacyFormat, actualRequest, "semantic_text_field", " ", 0);
 
                 // Update with multiple Whitespaces
+                assertNull(bulkShardRequest.items()[2].getPrimaryResponse());
                 actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[2].request());
-                assertInferenceResults(useLegacyFormat, actualRequest, "semantic_text_field", useLegacyFormat ? EXPLICIT_NULL : "  ", 0);
+                assertInferenceResults(useLegacyFormat, actualRequest, "semantic_text_field", "  ", 0);
             } finally {
                 chainExecuted.countDown();
             }
@@ -637,7 +642,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         IndexRequest request,
         String fieldName,
         Object expectedOriginalValue,
-        int expectedChunkCount
+        Integer expectedChunkCount
     ) {
         final Map<String, Object> requestMap = request.sourceAsMap();
         if (useLegacyFormat) {
@@ -647,12 +652,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             );
 
             List<Object> chunks = (List<Object>) XContentMapValues.extractValue(getChunksFieldName(fieldName), requestMap);
-            if (expectedChunkCount > 0) {
+            if (expectedChunkCount == null) {
+                assertNull(chunks);
+            } else {
                 assertNotNull(chunks);
                 assertThat(chunks.size(), equalTo(expectedChunkCount));
-            } else {
-                // If the expected chunk count is 0, we expect that no inference has been performed.
-                assertTrue(chunks == null || chunks.isEmpty());
             }
         } else {
             assertThat(XContentMapValues.extractValue(fieldName, requestMap, EXPLICIT_NULL), equalTo(expectedOriginalValue));

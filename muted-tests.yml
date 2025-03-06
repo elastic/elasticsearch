@@ -125,9 +125,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.rest.ShardChangesRestIT
   method: testShardChangesNoOperation
   issue: https://github.com/elastic/elasticsearch/issues/118800
-- class: org.elasticsearch.cluster.service.MasterServiceTests
-  method: testThreadContext
-  issue: https://github.com/elastic/elasticsearch/issues/118914
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT

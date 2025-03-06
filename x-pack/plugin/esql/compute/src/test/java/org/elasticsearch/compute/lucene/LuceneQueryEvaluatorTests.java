@@ -29,7 +29,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -192,10 +191,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
         BlockFactory blockFactory = driverContext.blockFactory();
         return withReader(values, reader -> {
             IndexSearcher searcher = new IndexSearcher(reader);
-            LuceneQueryEvaluator.ShardConfig shard = new LuceneQueryEvaluator.ShardConfig(
-                searcher.rewrite(query),
-                searcher
-            );
+            LuceneQueryEvaluator.ShardConfig shard = new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher);
             List<Operator> operators = new ArrayList<>();
             if (shuffleDocs) {
                 operators.add(new ShuffleDocsOperator(blockFactory));
@@ -216,16 +212,13 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
                     0
                 )
             );
-            LuceneQueryEvaluator.ShardConfig[] shards = new LuceneQueryEvaluator.ShardConfig[] { new LuceneQueryEvaluator.ShardConfig(
-                searcher.rewrite(query),
-                searcher
-            ) };
+            LuceneQueryEvaluator.ShardConfig[] shards = new LuceneQueryEvaluator.ShardConfig[] {
+                new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher) };
             operators.add(createOperator(blockFactory, shards));
             List<Page> results = new ArrayList<>();
             Driver driver = TestDriverFactory.create(
                 driverContext,
-                LuceneQueryEvaluatorTests.luceneOperatorFactory(reader, new MatchAllDocsQuery(), usesScoring())
-                    .get(driverContext),
+                LuceneQueryEvaluatorTests.luceneOperatorFactory(reader, new MatchAllDocsQuery(), usesScoring()).get(driverContext),
                 operators,
                 new TestResultPageSinkOperator(results::add)
             );

@@ -32,7 +32,8 @@ public class LuceneQueryScoreEvaluatorTests extends LuceneQueryEvaluatorTests<Do
             max,
             blockFactory().newDoubleVectorFixedBuilder(max - min + 1),
             b -> b.appendDouble(NO_MATCH_SCORE),
-            (b, s) -> b.appendDouble(s.score()));
+            (b, s) -> b.appendDouble(s.score())
+        );
     }
 
     @Override
@@ -64,14 +65,14 @@ public class LuceneQueryScoreEvaluatorTests extends LuceneQueryEvaluatorTests<Do
     @Override
     protected void assertCollectedResultMatch(DoubleVector resultVector, int position, boolean isMatch) {
         if (isMatch) {
-            assertThat(resultVector.getDouble(position), equalTo((double)TEST_SCORE));
+            assertThat(resultVector.getDouble(position), equalTo((double) TEST_SCORE));
         } else {
             // All docs have a default score coming from Lucene
             assertThat(resultVector.getDouble(position), equalTo(NO_MATCH_SCORE));
         }
     }
 
-        @Override
+    @Override
     protected void assertTermResultMatch(DoubleVector resultVector, int position, boolean isMatch) {
         if (isMatch) {
             assertThat(resultVector.getDouble(position), greaterThan(DEFAULT_SCORE));

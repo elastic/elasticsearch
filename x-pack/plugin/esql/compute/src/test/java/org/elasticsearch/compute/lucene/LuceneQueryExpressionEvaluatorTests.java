@@ -28,7 +28,8 @@ public class LuceneQueryExpressionEvaluatorTests extends LuceneQueryEvaluatorTes
             max,
             blockFactory().newBooleanVectorFixedBuilder(max - min + 1),
             b -> b.appendBoolean(false),
-            (b, s) -> b.appendBoolean(true));
+            (b, s) -> b.appendBoolean(true)
+        );
     }
 
     @Override
@@ -38,10 +39,7 @@ public class LuceneQueryExpressionEvaluatorTests extends LuceneQueryEvaluatorTes
 
     @Override
     protected Operator createOperator(BlockFactory blockFactory, LuceneQueryEvaluator.ShardConfig[] shards) {
-        return new EvalOperator(blockFactory,  new LuceneQueryExpressionEvaluator(
-            blockFactory,
-            shards
-        ));
+        return new EvalOperator(blockFactory, new LuceneQueryExpressionEvaluator(blockFactory, shards));
     }
 
     @Override

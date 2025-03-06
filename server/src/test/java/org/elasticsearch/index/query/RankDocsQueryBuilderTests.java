@@ -17,10 +17,10 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.search.rank.RankDoc;
@@ -279,7 +279,12 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
             iw.addDocument(new Document());
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
-                RankDocsQueryBuilder queryBuilder = new RankDocsQueryBuilder(new RankDoc[] { new RankDoc(0, -1.0f, 0) }, null, false, Float.MIN_VALUE);
+                RankDocsQueryBuilder queryBuilder = new RankDocsQueryBuilder(
+                    new RankDoc[] { new RankDoc(0, -1.0f, 0) },
+                    null,
+                    false,
+                    Float.MIN_VALUE
+                );
                 IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> queryBuilder.doToQuery(context));
                 assertEquals("RankDoc scores must be positive values. Missing a normalization step?", ex.getMessage());
             }

@@ -241,7 +241,14 @@ public class RankDocsQuery extends Query {
      * @param onlyRankDocs Whether the query should only match the provided rank docs
      * @param minScore     The minimum score threshold for documents to be included in total hits
      */
-    public RankDocsQuery(IndexReader reader, RankDoc[] rankDocs, Query[] sources, String[] queryNames, boolean onlyRankDocs, float minScore) {
+    public RankDocsQuery(
+        IndexReader reader,
+        RankDoc[] rankDocs,
+        Query[] sources,
+        String[] queryNames,
+        boolean onlyRankDocs,
+        float minScore
+    ) {
         assert sources.length == queryNames.length;
         // clone to avoid side-effect after sorting
         this.docs = rankDocs.clone();

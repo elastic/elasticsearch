@@ -859,7 +859,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
-        
+
         source.retriever(
             new LinearRetrieverBuilder(
                 Arrays.asList(
@@ -869,7 +869,10 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                 ),
                 rankWindowSize,
                 new float[] { 1.0f, 1.0f, 1.0f },
-                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE },
+                new ScoreNormalizer[] {
+                    IdentityScoreNormalizer.INSTANCE,
+                    IdentityScoreNormalizer.INSTANCE,
+                    IdentityScoreNormalizer.INSTANCE },
                 15.0f
             )
         );
@@ -893,7 +896,10 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                 ),
                 rankWindowSize,
                 new float[] { 1.0f, 1.0f, 1.0f },
-                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE },
+                new ScoreNormalizer[] {
+                    IdentityScoreNormalizer.INSTANCE,
+                    IdentityScoreNormalizer.INSTANCE,
+                    IdentityScoreNormalizer.INSTANCE },
                 10.0f
             )
         );
@@ -934,7 +940,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
-        
+
         source.retriever(
             new LinearRetrieverBuilder(
                 Arrays.asList(
@@ -964,7 +970,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         final int rankWindowSize = 100;
         SearchSourceBuilder source = new SearchSourceBuilder();
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
-        
+
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> new LinearRetrieverBuilder(

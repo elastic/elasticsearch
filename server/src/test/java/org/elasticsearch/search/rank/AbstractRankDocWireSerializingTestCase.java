@@ -50,7 +50,12 @@ public abstract class AbstractRankDocWireSerializingTestCase<T extends RankDoc> 
         for (int i = 0; i < totalDocs; i++) {
             docs.add(createTestRankDoc());
         }
-        RankDocsQueryBuilder rankDocsQueryBuilder = new RankDocsQueryBuilder(docs.toArray((T[]) new RankDoc[0]), null, randomBoolean(), Float.MIN_VALUE);
+        RankDocsQueryBuilder rankDocsQueryBuilder = new RankDocsQueryBuilder(
+            docs.toArray((T[]) new RankDoc[0]),
+            null,
+            randomBoolean(),
+            Float.MIN_VALUE
+        );
         RankDocsQueryBuilder copy = (RankDocsQueryBuilder) copyNamedWriteable(rankDocsQueryBuilder, writableRegistry(), QueryBuilder.class);
         assertThat(rankDocsQueryBuilder, equalTo(copy));
     }

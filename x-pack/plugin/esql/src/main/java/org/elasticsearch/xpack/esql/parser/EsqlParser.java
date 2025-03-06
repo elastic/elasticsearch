@@ -151,7 +151,7 @@ public class EsqlParser {
                 m = REPLACE_LEFT_BRACKET.matcher(message);
                 message = m.replaceAll(BEFORE_REPLACEMENT + "[" + AFTER_REPLACEMENT);
 
-                if(parser.isDevVersion() == false) {
+                if (parser.isDevVersion() == false) {
                     m = REPLACE_DEV.matcher(message);
                     message = m.replaceAll(StringUtils.EMPTY);
                 }

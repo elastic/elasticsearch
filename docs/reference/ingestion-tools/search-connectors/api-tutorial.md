@@ -1,5 +1,9 @@
 ---
 navigation_title: "API tutorial"
+applies_to:
+  stack: ga
+  serverless: 
+    elasticsearch: ga
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-tutorial-api.html
 ---

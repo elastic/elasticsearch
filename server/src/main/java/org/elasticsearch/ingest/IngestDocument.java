@@ -193,17 +193,14 @@ public final class IngestDocument {
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
         final FieldPath fieldPath = FieldPath.of(path);
         Object context = fieldPath.initialContext(this);
-        for (String pathElement : fieldPath.pathElements) {
-            ResolveResult result = resolve(pathElement, path, context);
-            if (result.wasSuccessful) {
-                context = result.resolvedObject;
-            } else if (ignoreMissing && hasField(path) == false) {
-                return null;
-            } else {
-                throw new IllegalArgumentException(result.errorMessage);
-            }
+        ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length, path, context);
+        if (result.wasSuccessful) {
+            return cast(path, result.resolvedObject, clazz);
+        } else if (ignoreMissing && hasField(path) == false) {
+            return null;
+        } else {
+            throw new IllegalArgumentException(result.errorMessage);
         }
-        return cast(path, context, clazz);
     }
 
     /**
@@ -322,13 +319,11 @@ public final class IngestDocument {
     public void removeField(String path) {
         final FieldPath fieldPath = FieldPath.of(path);
         Object context = fieldPath.initialContext(this);
-        for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
-            ResolveResult result = resolve(fieldPath.pathElements[i], path, context);
-            if (result.wasSuccessful) {
-                context = result.resolvedObject;
-            } else {
-                throw new IllegalArgumentException(result.errorMessage);
-            }
+        ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length - 1, path, context);
+        if (result.wasSuccessful) {
+            context = result.resolvedObject;
+        } else {
+            throw new IllegalArgumentException(result.errorMessage);
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
@@ -357,33 +352,41 @@ public final class IngestDocument {
         }
     }
 
-    private static ResolveResult resolve(String pathElement, String fullPath, Object context) {
-        if (context == null) {
-            return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, null));
-        } else if (context instanceof Map<?, ?>) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> map = (Map<String, Object>) context;
-            Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
-            if (object == NOT_FOUND) {
-                return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
+    /**
+     * Resolves the path elements (up to the limit) within the context. The result of such resolution can either be successful,
+     * or can indicate a failure.
+     */
+    private static ResolveResult resolve(final String[] pathElements, final int limit, final String fullPath, Object context) {
+        for (int i = 0; i < limit; i++) {
+            String pathElement = pathElements[i];
+            if (context == null) {
+                return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, null));
+            } else if (context instanceof Map<?, ?>) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) context;
+                Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (object == NOT_FOUND) {
+                    return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
+                } else {
+                    context = object;
+                }
+            } else if (context instanceof List<?> list) {
+                int index;
+                try {
+                    index = Integer.parseInt(pathElement);
+                } catch (NumberFormatException e) {
+                    return ResolveResult.error(Errors.notInteger(fullPath, pathElement));
+                }
+                if (index < 0 || index >= list.size()) {
+                    return ResolveResult.error(Errors.outOfBounds(fullPath, index, list.size()));
+                } else {
+                    context = list.get(index);
+                }
             } else {
-                return ResolveResult.success(object);
+                return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, context));
             }
-        } else if (context instanceof List<?> list) {
-            int index;
-            try {
-                index = Integer.parseInt(pathElement);
-            } catch (NumberFormatException e) {
-                return ResolveResult.error(Errors.notInteger(fullPath, pathElement));
-            }
-            if (index < 0 || index >= list.size()) {
-                return ResolveResult.error(Errors.outOfBounds(fullPath, index, list.size()));
-            } else {
-                return ResolveResult.success(list.get(index));
-            }
-        } else {
-            return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, context));
         }
+        return ResolveResult.success(context);
     }
 
     /**

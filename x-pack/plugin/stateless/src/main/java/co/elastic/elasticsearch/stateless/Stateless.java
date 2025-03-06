@@ -188,6 +188,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.logging.LogManager;
@@ -328,9 +329,10 @@ public class Stateless extends Plugin
     private final SetOnce<Predicate<ShardId>> skipMerges = new SetOnce<>();
     private final SetOnce<ProjectResolver> projectResolver = new SetOnce<>();
     private final SetOnce<MetadataReshardIndexService> metadataReshardIndexService = new SetOnce<>();
-    private final boolean sharedCachedSettingExplicitlySet;
 
+    private final boolean sharedCachedSettingExplicitlySet;
     private final boolean sharedCacheMmapExplicitlySet;
+    private final boolean useRealMemoryCircuitBreakerExplicitlySet;
 
     private final boolean hasSearchRole;
     private final boolean hasIndexRole;
@@ -356,6 +358,7 @@ public class Stateless extends Plugin
         // to the call to #additionalSettings. We only parse out the components that has already been set.
         sharedCachedSettingExplicitlySet = SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(settings);
         sharedCacheMmapExplicitlySet = SharedBlobCacheService.SHARED_CACHE_MMAP.exists(settings);
+        useRealMemoryCircuitBreakerExplicitlySet = HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.exists(settings);
         hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         hasIndexRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
         hasMasterRole = DiscoveryNode.isMasterNode(settings);
@@ -437,6 +440,11 @@ public class Stateless extends Plugin
         }
         if (sharedCacheMmapExplicitlySet == false) {
             settings.put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true);
+        }
+        if (useRealMemoryCircuitBreakerExplicitlySet == false) {
+            if (hasIndexRole) {
+                settings.put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false);
+            }
         }
         // always override counting reads, stateless does not expose this number so the overhead for tracking it is wasted in any case
         settings.put(SharedBlobCacheService.SHARED_CACHE_COUNT_READS.getKey(), false);

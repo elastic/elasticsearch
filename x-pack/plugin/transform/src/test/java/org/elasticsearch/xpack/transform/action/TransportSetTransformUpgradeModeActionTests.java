@@ -196,7 +196,7 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
             ActionListener<Boolean> listener = ans.getArgument(2);
             listener.onResponse(true);
             return null;
-        }).when(persistentTasksService).waitForPersistentTasksCondition(any(), any(), any());
+        }).when(persistentTasksService).waitForPersistentTasksCondition(any(), any(), any(), any());
         upgradeModeSuccessfullyChanged(new SetUpgradeModeActionRequest(false), stateWithTransformTask(), assertNoFailureListener(r -> {
             assertThat(r, is(AcknowledgedResponse.TRUE));
             verify(clusterService, never()).submitUnbatchedStateUpdateTask(eq("unassign persistent task from any node"), any());

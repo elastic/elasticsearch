@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -208,11 +209,14 @@ public class PersistentTasksService {
     /**
      * Waits for persistent tasks to comply with a given predicate, then call back the listener accordingly.
      *
-     * @param predicate the predicate to evaluate
+     * @param projectId the project that the persistent tasks are associated with
+     * @param predicate the predicate to evaluate, must be able to handle {@code null} input which means either the project
+     *                  does not exist or persistent tasks for the project do not exist
      * @param timeout a timeout for waiting
      * @param listener the callback listener
      */
     public void waitForPersistentTasksCondition(
+        final ProjectId projectId,
         final Predicate<PersistentTasksCustomMetadata> predicate,
         final @Nullable TimeValue timeout,
         final ActionListener<Boolean> listener
@@ -232,7 +236,15 @@ public class PersistentTasksService {
             public void onTimeout(TimeValue timeout) {
                 listener.onFailure(new IllegalStateException("Timed out when waiting for persistent tasks after " + timeout));
             }
-        }, clusterState -> predicate.test(PersistentTasksCustomMetadata.get(clusterState.metadata().getDefaultProject())), timeout, logger);
+        }, clusterState -> {
+            final var project = clusterState.metadata().projects().get(projectId);
+            if (project == null) {
+                logger.debug("project [{}] not found while waiting for persistent tasks condition", projectId);
+                return predicate.test(null);
+            } else {
+                return predicate.test(PersistentTasksCustomMetadata.get(project));
+            }
+        }, timeout, logger);
     }
 
     public interface WaitForPersistentTaskListener<P extends PersistentTaskParams> extends ActionListener<PersistentTask<P>> {

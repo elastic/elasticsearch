@@ -160,9 +160,9 @@ import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.search.SearchService.SearchOperationType.QUERY;
-import static org.elasticsearch.search.SearchService.SearchOperationType.FETCH;
 import static org.elasticsearch.search.SearchService.SearchOperationType.DFS;
+import static org.elasticsearch.search.SearchService.SearchOperationType.FETCH;
+import static org.elasticsearch.search.SearchService.SearchOperationType.QUERY;
 import static org.elasticsearch.search.rank.feature.RankFeatureShardPhase.EMPTY_RESULT;
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
@@ -1979,7 +1979,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     enum SearchOperationType {
-        QUERY, FETCH, DFS
+        QUERY,
+        FETCH,
+        DFS
     }
 
     /**

@@ -160,7 +160,6 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(0, freeScrollContext.get());
             assertEquals(0, validateSearchContext.get());
 
-
             compositeListener.onQueryPhase(ctx, timeInNanos.get());
             assertEquals(0, preFetch.get());
             assertEquals(0, preQuery.get());
@@ -300,7 +299,6 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(2, freeContext.get());
             assertEquals(2, freeScrollContext.get());
             assertEquals(0, validateSearchContext.get());
-
 
             if (throwingListeners == 0) {
                 compositeListener.validateReaderContext(mock(ReaderContext.class), new EmptyRequest());

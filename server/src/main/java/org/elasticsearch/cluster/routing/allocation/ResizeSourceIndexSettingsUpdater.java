@@ -51,6 +51,7 @@ public class ResizeSourceIndexSettingsUpdater implements RoutingChangesObserver 
 
                     Settings.Builder builder = Settings.builder().put(indexMetadata.getSettings());
                     builder.remove(IndexMetadata.INDEX_SHRINK_INITIAL_RECOVERY_KEY);
+                    builder.remove(IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP);
                     builder.remove(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY);
                     if (Strings.isNullOrEmpty(indexMetadata.getLifecyclePolicyName())) {
                         // Required by ILM after an index has been shrunk

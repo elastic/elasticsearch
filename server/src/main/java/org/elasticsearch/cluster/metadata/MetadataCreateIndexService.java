@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.NodeGroup;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -110,6 +111,8 @@ import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_SHRINK_GROUP;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_SHRINK_INITIAL_RECOVERY_KEY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
@@ -1574,6 +1577,42 @@ public class MetadataCreateIndexService {
         return validationErrors;
     }
 
+    static void validateShrinkGroup(
+        ProjectMetadata projectMetadata,
+        ClusterBlocks clusterBlocks,
+        RoutingTable routingTable,
+        String sourceIndex,
+        String targetIndexName,
+        Settings targetIndexSettings,
+        NodeGroup shrinkNodeGroup
+    ) {
+        IndexMetadata sourceMetadata = validateResize(projectMetadata, clusterBlocks, sourceIndex, targetIndexName, targetIndexSettings);
+        if (sourceMetadata.isSearchableSnapshot()) {
+            throw new IllegalArgumentException("can't shrink searchable snapshot index [" + sourceIndex + ']');
+        }
+        assert INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings);
+        IndexMetadata.selectShrinkShards(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
+
+        if (sourceMetadata.getNumberOfShards() == 1) {
+            throw new IllegalArgumentException("can't shrink an index with only one shard");
+        }
+
+        final IndexRoutingTable table = routingTable.index(sourceIndex);
+        for (int i = 0; i < sourceMetadata.getNumberOfShards(); i++) {
+            String groupNode = shrinkNodeGroup.nodeForShard(i);
+            if (!table.shard(i).activeShards().stream().anyMatch((routing) -> (routing.currentNodeId().equals(groupNode)))){
+                throw new IllegalArgumentException("source shard [" + i + "] is not allocated and active on node [" + groupNode + "]");
+            }
+        }
+
+        // check that all source shards are allocated correctly in the node group.
+        Map<String, AtomicInteger> nodesToNumRouting = new HashMap<>();
+        int numShards = sourceMetadata.getNumberOfShards();
+        for (ShardRouting routing : table.shardsWithState(ShardRoutingState.STARTED)) {
+            nodesToNumRouting.computeIfAbsent(routing.currentNodeId(), (s) -> new AtomicInteger(0)).incrementAndGet();
+        }
+    }
+
     /**
      * Validates the settings and mappings for shrinking an index.
      *
@@ -1725,21 +1764,38 @@ public class MetadataCreateIndexService {
     ) {
         final IndexMetadata sourceMetadata = projectMetadata.index(resizeSourceIndex.getName());
         if (type == ResizeType.SHRINK) {
-            final List<String> nodesToAllocateOn = validateShrinkIndex(
-                projectMetadata,
-                clusterBlocks,
-                routingTable,
-                resizeSourceIndex.getName(),
-                resizeIntoName,
-                indexSettingsBuilder.build()
-            );
-            indexSettingsBuilder.put(INDEX_SHRINK_INITIAL_RECOVERY_KEY, Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()));
+            if (sourceMetadata.getShrinkGroup() != null) {
+                validateShrinkGroup(
+                    projectMetadata,
+                    clusterBlocks,
+                    routingTable,
+                    resizeSourceIndex.getName(),
+                    resizeIntoName,
+                    indexSettingsBuilder.build(),
+                    sourceMetadata.getShrinkGroup()
+                );
+                indexSettingsBuilder.putNull(INDEX_SHRINK_INITIAL_RECOVERY_KEY);
+                indexSettingsBuilder.putList(INDEX_ROUTING_INITIAL_RECOVERY_GROUP, sourceMetadata.getShrinkGroup().toList());
+            } else {
+                final List<String> nodesToAllocateOn = validateShrinkIndex(
+                    projectMetadata,
+                    clusterBlocks,
+                    routingTable,
+                    resizeSourceIndex.getName(),
+                    resizeIntoName,
+                    indexSettingsBuilder.build()
+                );
+                indexSettingsBuilder.put(INDEX_SHRINK_INITIAL_RECOVERY_KEY, Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()));
+                indexSettingsBuilder.putNull(INDEX_ROUTING_INITIAL_RECOVERY_GROUP);
+            }
         } else if (type == ResizeType.SPLIT) {
             validateSplitIndex(projectMetadata, clusterBlocks, resizeSourceIndex.getName(), resizeIntoName, indexSettingsBuilder.build());
             indexSettingsBuilder.putNull(INDEX_SHRINK_INITIAL_RECOVERY_KEY);
+            indexSettingsBuilder.putNull(INDEX_ROUTING_INITIAL_RECOVERY_GROUP);
         } else if (type == ResizeType.CLONE) {
             validateCloneIndex(projectMetadata, clusterBlocks, resizeSourceIndex.getName(), resizeIntoName, indexSettingsBuilder.build());
             indexSettingsBuilder.putNull(INDEX_SHRINK_INITIAL_RECOVERY_KEY);
+            indexSettingsBuilder.putNull(INDEX_ROUTING_INITIAL_RECOVERY_GROUP);
         } else {
             throw new IllegalStateException("unknown resize type is " + type);
         }

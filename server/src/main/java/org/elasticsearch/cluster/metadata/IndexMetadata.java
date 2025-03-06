@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
+import org.elasticsearch.cluster.node.NodeGroup;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
@@ -449,6 +450,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String INDEX_ROUTING_REQUIRE_GROUP_PREFIX = "index.routing.allocation.require";
     public static final String INDEX_ROUTING_INCLUDE_GROUP_PREFIX = "index.routing.allocation.include";
     public static final String INDEX_ROUTING_EXCLUDE_GROUP_PREFIX = "index.routing.allocation.exclude";
+    public static final String INDEX_ROUTING_INITIAL_RECOVERY_GROUP = "index.routing.allocation.initial_recovery_group";
+    public static final String INDEX_ROUTING_SHRINK_GROUP = "index.routing.allocation.shink_group";
 
     public static final Setting.AffixSetting<List<String>> INDEX_ROUTING_REQUIRE_GROUP_SETTING = Setting.prefixKeySetting(
         INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".",
@@ -464,8 +467,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
     public static final Setting.AffixSetting<List<String>> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING = Setting.prefixKeySetting(
         "index.routing.allocation.initial_recovery.",
-        Setting::stringListSetting
+        key -> Setting.stringListSetting(key, Property.IndexScope, Property.DeprecatedWarning)
     );
+    public static final Setting<List<String>> INDEX_ROUTING_INITIAL_RECOVERY_NODE_GROUP_SETTING = Setting.stringListSetting(INDEX_ROUTING_INITIAL_RECOVERY_GROUP, Property.IndexScope);
+    public static final Setting<List<String>> INDEX_ROUTING_SHRINK_GROUP_SETTING = Setting.stringListSetting(INDEX_ROUTING_SHRINK_GROUP, Property.Dynamic, Property.IndexScope);
 
     /**
      * The number of active shard copies to check for before proceeding with a write operation.
@@ -605,6 +610,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final DiscoveryNodeFilters includeFilters;
     private final DiscoveryNodeFilters excludeFilters;
     private final DiscoveryNodeFilters initialRecoveryFilters;
+    private final NodeGroup initialRecoveryNodeGroup;
+    private final NodeGroup shrinkGroup;
 
     private final IndexVersion indexCreatedVersion;
     private final IndexVersion mappingsUpdatedVersion;
@@ -673,8 +680,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final Map<Integer, Set<String>> inSyncAllocationIds,
         final DiscoveryNodeFilters requireFilters,
         final DiscoveryNodeFilters initialRecoveryFilters,
+        final NodeGroup initialRecoveryNodeGroup,
         final DiscoveryNodeFilters includeFilters,
         final DiscoveryNodeFilters excludeFilters,
+        final NodeGroup shrinkGroup,
         final IndexVersion indexCreatedVersion,
         final IndexVersion mappingsUpdatedVersion,
         final int routingNumShards,
@@ -729,6 +738,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.includeFilters = includeFilters;
         this.excludeFilters = excludeFilters;
         this.initialRecoveryFilters = initialRecoveryFilters;
+        this.initialRecoveryNodeGroup = initialRecoveryNodeGroup;
+        this.shrinkGroup = shrinkGroup;
         this.indexCreatedVersion = indexCreatedVersion;
         this.routingNumShards = routingNumShards;
         this.routingFactor = routingNumShards / numberOfShards;
@@ -785,8 +796,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.inSyncAllocationIds,
             this.requireFilters,
             this.initialRecoveryFilters,
+            this.initialRecoveryNodeGroup,
             this.includeFilters,
             this.excludeFilters,
+            this.shrinkGroup,
             this.indexCreatedVersion,
             this.mappingsUpdatedVersion,
             this.routingNumShards,
@@ -846,8 +859,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             Maps.copyMapWithAddedOrReplacedEntry(this.inSyncAllocationIds, shardId, Set.copyOf(inSyncSet)),
             this.requireFilters,
             this.initialRecoveryFilters,
+            this.initialRecoveryNodeGroup,
             this.includeFilters,
             this.excludeFilters,
+            this.shrinkGroup,
             this.indexCreatedVersion,
             this.mappingsUpdatedVersion,
             this.routingNumShards,
@@ -905,8 +920,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.inSyncAllocationIds,
             this.requireFilters,
             this.initialRecoveryFilters,
+            this.initialRecoveryNodeGroup,
             this.includeFilters,
             this.excludeFilters,
+            this.shrinkGroup, 
             this.indexCreatedVersion,
             this.mappingsUpdatedVersion,
             this.routingNumShards,
@@ -965,8 +982,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.inSyncAllocationIds,
             this.requireFilters,
             this.initialRecoveryFilters,
+            this.initialRecoveryNodeGroup,
             this.includeFilters,
             this.excludeFilters,
+            this.shrinkGroup,
             this.indexCreatedVersion,
             this.mappingsUpdatedVersion,
             this.routingNumShards,
@@ -1020,8 +1039,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.inSyncAllocationIds,
             this.requireFilters,
             this.initialRecoveryFilters,
+            this.initialRecoveryNodeGroup,
             this.includeFilters,
             this.excludeFilters,
+            this.shrinkGroup,
             this.indexCreatedVersion,
             this.mappingsUpdatedVersion,
             this.routingNumShards,
@@ -1278,6 +1299,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             : null;
     }
 
+    public NodeGroup getShrinkGroup() {
+        return shrinkGroup;
+    }
+
     public static final String INDEX_DOWNSAMPLE_SOURCE_UUID_KEY = "index.downsample.source.uuid";
     public static final String INDEX_DOWNSAMPLE_SOURCE_NAME_KEY = "index.downsample.source.name";
     public static final String INDEX_DOWNSAMPLE_ORIGIN_NAME_KEY = "index.downsample.origin.name";
@@ -1369,6 +1394,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     @Nullable
+    public NodeGroup getInitialRecoveryNodeGroup() {
+        return initialRecoveryNodeGroup;
+    }
+
+
+    @Nullable
     public DiscoveryNodeFilters includeFilters() {
         return includeFilters;
     }
@@ -1376,6 +1407,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     @Nullable
     public DiscoveryNodeFilters excludeFilters() {
         return excludeFilters;
+    }
+    @Nullable
+    public NodeGroup shrinkGroup() {
+        return shrinkGroup;
     }
 
     public IndexLongFieldRange getTimestampRange() {
@@ -2253,6 +2288,20 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 excludeFilters = DiscoveryNodeFilters.buildFromKeyValues(OR, excludeMap);
             }
+            var shrinkGroupNodes = INDEX_ROUTING_SHRINK_GROUP_SETTING.get(settings);
+            final NodeGroup shrinkGroup;
+            if (shrinkGroupNodes.isEmpty()) {
+                shrinkGroup = null;
+            } else {
+                shrinkGroup = NodeGroup.buildFromNodeIDs(shrinkGroupNodes);
+            }
+            var initialRecoveryGroupNodes = INDEX_ROUTING_INITIAL_RECOVERY_NODE_GROUP_SETTING.get(settings);
+            final NodeGroup initialRecoveryGroup;
+            if (initialRecoveryGroupNodes.isEmpty()) {
+                initialRecoveryGroup = null;
+            } else {
+                initialRecoveryGroup = NodeGroup.buildFromNodeIDs(initialRecoveryGroupNodes);
+            }
             var initialRecoveryMap = INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters initialRecoveryFilters;
             if (initialRecoveryMap.isEmpty()) {
@@ -2260,6 +2309,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 initialRecoveryFilters = DiscoveryNodeFilters.buildFromKeyValues(OR, initialRecoveryMap);
             }
+            if (initialRecoveryGroup != null && initialRecoveryFilters != null) {
+                throw new IllegalStateException(
+                    "cannot create an index with both ["
+                    + INDEX_ROUTING_INITIAL_RECOVERY_NODE_GROUP_SETTING.getKey()
+                    + "] and ["
+                    + INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey()
+                    + "] set"
+                );
+            } 
             IndexVersion indexCreatedVersion = indexCreatedVersion(settings);
 
             if (primaryTerms == null) {
@@ -2361,8 +2419,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 Map.ofEntries(denseInSyncAllocationIds),
                 requireFilters,
                 initialRecoveryFilters,
+                initialRecoveryGroup,
                 includeFilters,
                 excludeFilters,
+                shrinkGroup,
                 indexCreatedVersion,
                 mappingsUpdatedVersion,
                 getRoutingNumShards(),
@@ -2991,18 +3051,19 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 "the number of target shards (" + numTargetShards + ") must be greater than the shard id: " + shardId
             );
         }
-        if (sourceIndexMetadata.getNumberOfShards() < numTargetShards) {
+        int numSourceShards = sourceIndexMetadata.getNumberOfShards();
+        if (numSourceShards < numTargetShards) {
             throw new IllegalArgumentException(
                 "the number of target shards ["
                     + numTargetShards
                     + "] must be less that the number of source shards ["
-                    + sourceIndexMetadata.getNumberOfShards()
+                    + numSourceShards
                     + "]"
             );
         }
-        int routingFactor = getRoutingFactor(sourceIndexMetadata.getNumberOfShards(), numTargetShards);
+        int routingFactor = getRoutingFactor(numSourceShards, numTargetShards);
         Set<ShardId> shards = Sets.newHashSetWithExpectedSize(routingFactor);
-        for (int i = shardId * routingFactor; i < routingFactor * shardId + routingFactor; i++) {
+        for (int i = shardId; i < numSourceShards; i += numTargetShards) {
             shards.add(new ShardId(sourceIndexMetadata.getIndex(), i));
         }
         return shards;

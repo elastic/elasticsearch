@@ -68,6 +68,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING,
                 IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
                 IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+                IndexMetadata.INDEX_ROUTING_SHRINK_GROUP_SETTING,
                 IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING,
                 IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING,
                 IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
@@ -278,6 +279,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             case "index.shrink.source.name":
             case IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY:
             case IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY:
+            case IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP:
                 return true;
             default:
                 return IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);

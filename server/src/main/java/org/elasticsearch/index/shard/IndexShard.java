@@ -3396,6 +3396,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 + startedShards.size()
                                 + " can't recover shard "
                                 + shardId()
+                                + " required: "
+                                + requiredShards
+                                + " started: "
+                                + startedShards
+
                         );
                     }
                     throw e;

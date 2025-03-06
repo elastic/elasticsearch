@@ -1078,7 +1078,12 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         }
 
         DataStream parentDataStream = indexAbstraction.getParentDataStream();
-        if (parentDataStream != null && parentDataStream.getDataLifecycle() != null && parentDataStream.getDataLifecycle().isEnabled()) {
+        // Only data streams can be managed by data stream lifecycle
+        if (parentDataStream == null) {
+            return true;
+        }
+        DataStreamLifecycle lifecycle = parentDataStream.getDataLifecycleForIndex(indexMetadata.getIndex());
+        if (lifecycle != null && lifecycle.isEnabled()) {
             // index has both ILM and data stream lifecycle configured so let's check which is preferred
             return PREFER_ILM_SETTING.get(indexMetadata.getSettings());
         }

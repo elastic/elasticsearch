@@ -354,9 +354,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             // the following indices should not be considered for the remainder of this service run, for various reasons.
             Set<Index> indicesToExcludeForRemainingRun = new HashSet<>();
 
-            // This is the pre-rollover write index. It may or may not be the write index after maybeExecuteRollover has executed,
-            // depending on rollover criteria, for this reason we exclude it for the remaining run.
-            indicesToExcludeForRemainingRun.addAll(maybeExecuteRollover(state, dataStream));
+            // These are the pre-rollover write indices. They may or may not be the write index after maybeExecuteRollover has executed,
+            // depending on rollover criteria, for this reason we exclude them for the remaining run.
+            indicesToExcludeForRemainingRun.add(maybeExecuteRollover(state, dataStream, false));
+            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+                Index failureStoreWriteIndex = maybeExecuteRollover(state, dataStream, true);
+                if (failureStoreWriteIndex != null) {
+                    indicesToExcludeForRemainingRun.add(failureStoreWriteIndex);
+                }
+            }
 
             // tsds indices that are still within their time bounds (i.e. now < time_series.end_time) - we don't want these indices to be
             // deleted, forcemerged, or downsampled as they're still expected to receive large amounts of writes
@@ -799,23 +805,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
     }
 
-    /**
-     * This method will attempt to roll over the write index of a data stream. The rollover will occur only if the conditions
-     * apply. In any case, we return the write backing index back to the caller, so it can be excluded from the next steps.
-     * @return the write index of this data stream before rollover was requested.
-     */
-    private Set<Index> maybeExecuteRollover(ClusterState state, DataStream dataStream) {
-        Set<Index> currentRunWriteIndices = new HashSet<>();
-        currentRunWriteIndices.add(maybeExecuteRollover(state, dataStream, false));
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            Index failureStoreWriteIndex = maybeExecuteRollover(state, dataStream, true);
-            if (failureStoreWriteIndex != null) {
-                currentRunWriteIndices.add(failureStoreWriteIndex);
-            }
-        }
-        return currentRunWriteIndices;
-    }
-
     @Nullable
     private Index maybeExecuteRollover(ClusterState state, DataStream dataStream, boolean rolloverFailureStore) {
         Index currentRunWriteIndex = rolloverFailureStore ? dataStream.getWriteFailureIndex() : dataStream.getWriteIndex();
@@ -827,7 +816,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                     rolloverConfiguration,
                     dataStream.getName(),
-                    dataStream.getDataLifecycle().getEffectiveDataRetention(globalRetentionSettings.get(), dataStream.isInternal()),
+                    dataStream.getDataLifecycleForIndex(currentRunWriteIndex)
+                        .getEffectiveDataRetention(globalRetentionSettings.get(), dataStream.isInternal()),
                     rolloverFailureStore
                 );
                 transportActionsDeduplicator.executeOnce(
@@ -889,8 +879,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             return Set.of();
         }
         Set<Index> indicesToBeRemoved = new HashSet<>();
-        TimeValue effectiveDataRetention = dataStream.getDataLifecycle()
-            .getEffectiveDataRetention(globalRetention, dataStream.isInternal());
         for (Index index : backingIndicesOlderThanRetention) {
             if (indicesToExcludeForRemainingRun.contains(index) == false) {
                 IndexMetadata backingIndex = metadata.getProject().index(index);
@@ -906,7 +894,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             + "because there's a downsampling operation currently in progress for this index. Current downsampling "
                             + "status is [{}]. When downsampling completes, DSL will delete this index.",
                         index.getName(),
-                        effectiveDataRetention,
+                        dataStream.getDataLifecycleForIndex(index).getEffectiveDataRetention(globalRetention, dataStream.isInternal()),
                         downsampleStatus
                     );
                 } else {
@@ -917,7 +905,12 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
                     // let's start simple and reevaluate
                     String indexName = backingIndex.getIndex().getName();
-                    deleteIndexOnce(indexName, "the lapsed [" + effectiveDataRetention + "] retention period");
+                    deleteIndexOnce(
+                        indexName,
+                        "the lapsed ["
+                            + dataStream.getDataLifecycleForIndex(index).getEffectiveDataRetention(globalRetention, dataStream.isInternal())
+                            + "] retention period"
+                    );
                 }
             }
         }

@@ -958,8 +958,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Iterate over the backing indices and return the ones that are managed by the data stream lifecycle and past the configured
-     * retention in their lifecycle.
+     * Iterate over the backing and failure indices and return the ones that are managed by the data stream lifecycle and past the
+     * configured retention in their lifecycle.
      * NOTE that this specifically does not return the write index of the data stream as usually retention
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
@@ -968,18 +968,32 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         LongSupplier nowSupplier,
         DataStreamGlobalRetention globalRetention
     ) {
-        if (lifecycle == null
-            || lifecycle.isEnabled() == false
-            || lifecycle.getEffectiveDataRetention(globalRetention, isInternal()) == null) {
+        var effectiveDataRetention = getDataLifecycle() == null
+            ? null
+            : getDataLifecycle().getEffectiveDataRetention(globalRetention, isInternal());
+        if (effectiveDataRetention == null) {
             return List.of();
         }
 
-        List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            lifecycle.getEffectiveDataRetention(globalRetention, isInternal()),
+        List<Index> indicesPastRetention = new ArrayList<>();
+        addNonWriteIndicesOlderThan(
+            getIndices(),
+            effectiveDataRetention,
             indexMetadataSupplier,
             this::isIndexManagedByDataStreamLifecycle,
-            nowSupplier
+            nowSupplier,
+            indicesPastRetention
         );
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            addNonWriteIndicesOlderThan(
+                getFailureIndices(),
+                effectiveDataRetention,
+                indexMetadataSupplier,
+                this::isIndexManagedByDataStreamLifecycle,
+                nowSupplier,
+                indicesPastRetention
+            );
+        }
         return indicesPastRetention;
     }
 
@@ -1021,38 +1035,28 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Returns the non-write backing indices and failure store indices that are older than the provided age,
+     * Filters the given <code>indices</code> that are older than the provided age and populates <code>olderIndices</code>,
      * excluding the write indices. The index age is calculated from the rollover or index creation date (or
      * the origination date if present). If an indices predicate is provided the returned list of indices will
      * be filtered according to the predicate definition. This is useful for things like "return only
-     * the backing indices that are managed by the data stream lifecycle".
+     * the indices that are managed by the data stream lifecycle".
      */
-    public List<Index> getNonWriteIndicesOlderThan(
+    private void addNonWriteIndicesOlderThan(
+        List<Index> indices,
         TimeValue retentionPeriod,
         Function<String, IndexMetadata> indexMetadataSupplier,
         @Nullable Predicate<IndexMetadata> indicesPredicate,
-        LongSupplier nowSupplier
+        LongSupplier nowSupplier,
+        List<Index> olderIndices
     ) {
-        List<Index> olderIndices = new ArrayList<>();
-        for (Index index : backingIndices.getIndices()) {
+        if (indices.isEmpty()) {
+            return;
+        }
+        for (Index index : indices) {
             if (isIndexOlderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
                 olderIndices.add(index);
             }
         }
-        if (DataStream.isFailureStoreFeatureFlagEnabled() && failureIndices.getIndices().isEmpty() == false) {
-            for (Index index : failureIndices.getIndices()) {
-                if (isIndexOlderThan(
-                    index,
-                    retentionPeriod.getMillis(),
-                    nowSupplier.getAsLong(),
-                    indicesPredicate,
-                    indexMetadataSupplier
-                )) {
-                    olderIndices.add(index);
-                }
-            }
-        }
-        return olderIndices;
     }
 
     private boolean isIndexOlderThan(

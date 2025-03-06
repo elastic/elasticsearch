@@ -49,7 +49,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
@@ -1336,33 +1336,30 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         );
 
         Metadata.Builder builder = Metadata.builder();
+        AtomicReference<TimeValue> retention = new AtomicReference<>();
         DataStream dataStream = createDataStream(
             builder,
             dataStreamName,
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
-            new DataStreamLifecycle()
+            new DataStreamLifecycle() {
+                public TimeValue dataRetention() {
+                    return retention.get();
+                }
+            }
         );
         Metadata metadata = builder.build();
         {
-            List<Index> backingIndices = dataStream.getNonWriteIndicesOlderThan(
-                TimeValue.timeValueMillis(2500),
-                metadata.getProject()::index,
-                null,
-                () -> now
-            );
+            retention.set(TimeValue.timeValueMillis(2500));
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, null);
             assertThat(backingIndices.size(), is(2));
             assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
             assertThat(backingIndices.get(1).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
         }
 
         {
-            List<Index> backingIndices = dataStream.getNonWriteIndicesOlderThan(
-                TimeValue.timeValueMillis(0),
-                metadata.getProject()::index,
-                null,
-                () -> now
-            );
+            retention.set(TimeValue.timeValueMillis(0));
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, null);
             assertThat(backingIndices.size(), is(4));
             assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
             assertThat(backingIndices.get(1).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
@@ -1371,25 +1368,23 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
 
         {
-            List<Index> backingIndices = dataStream.getNonWriteIndicesOlderThan(
-                TimeValue.timeValueMillis(6000),
-                metadata.getProject()::index,
-                null,
-                () -> now
-            );
+            retention.set(TimeValue.timeValueMillis(6000));
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, null);
             assertThat(backingIndices.isEmpty(), is(true));
         }
 
         {
-            Predicate<IndexMetadata> genThreeAndFivePredicate = indexMetadata -> indexMetadata.getIndex().getName().endsWith("00003")
-                || indexMetadata.getIndex().getName().endsWith("00005");
-
-            List<Index> backingIndices = dataStream.getNonWriteIndicesOlderThan(
-                TimeValue.timeValueMillis(0),
-                metadata.getProject()::index,
-                genThreeAndFivePredicate,
-                () -> now
-            );
+            Function<String, IndexMetadata> indexMetadataWithSomeLifecycleSupplier = indexName -> {
+                IndexMetadata indexMetadata = metadata.getProject().index(indexName);
+                if (indexName.endsWith("00003") || indexName.endsWith("00005")) {
+                    return indexMetadata;
+                }
+                return IndexMetadata.builder(indexMetadata)
+                    .settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_NAME, "some-policy").build())
+                    .build();
+            };
+            retention.set(TimeValue.timeValueMillis(0));
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(indexMetadataWithSomeLifecycleSupplier, () -> now, null);
             assertThat(backingIndices.size(), is(1));
             assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 3)));
         }
@@ -1905,16 +1900,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
-            new DataStreamLifecycle()
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueMillis(2500)).build()
         );
         Metadata metadata = builder.build();
 
-        List<Index> backingIndices = dataStream.getNonWriteIndicesOlderThan(
-            TimeValue.timeValueMillis(2500),
-            metadata.getProject()::index,
-            null,
-            () -> now
-        );
+        List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, null);
         // We expect to see the index with the really old origination date, but not the one with the more recent origination date (and
         // not the write index)
         assertThat(backingIndices.size(), is(3));

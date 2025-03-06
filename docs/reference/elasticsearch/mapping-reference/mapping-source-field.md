@@ -48,7 +48,7 @@ For all other field types, the original value of the field is stored as is, in t
 
 Some field types have additional restrictions. These restrictions are documented in the **synthetic `_source`** section of the field type’s [documentation](/reference/elasticsearch/mapping-reference/field-data-types.md).
 
-Synthetic source is not compatible with [source-only](docs-content://deploy-manage/tools/snapshot-and-restore/source-only-repository.md) snapshot repositories. A different repository type needs to be selected to store indexes configured with synthetic source.
+Synthetic source is not supported in [source-only](docs-content://deploy-manage/tools/snapshot-and-restore/source-only-repository.md) snapshot repositories. To store indexes that use synthetic `_source`, choose a different repository type.
 
 ### Synthetic `_source` modifications [synthetic-source-modifications]
 

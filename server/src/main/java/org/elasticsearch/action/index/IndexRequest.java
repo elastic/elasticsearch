@@ -203,7 +203,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             requireDataStream = false;
         }
 
-        if (in.getTransportVersion().before(TransportVersions.INDEX_REQUEST_REMOVE_METERING)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_17_0)) {
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 in.readZLong(); // obsolete normalisedBytesParsed
             }
@@ -803,7 +803,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeBoolean(requireDataStream);
         }
 
-        if (out.getTransportVersion().before(TransportVersions.INDEX_REQUEST_REMOVE_METERING)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_17_0)) {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeZLong(-1);  // obsolete normalisedBytesParsed
             }

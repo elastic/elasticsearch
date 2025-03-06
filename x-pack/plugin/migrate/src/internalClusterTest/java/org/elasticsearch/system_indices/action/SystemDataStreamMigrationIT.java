@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
-public class DataStreamMigrationIT extends AbstractFeatureMigrationIntegTest {
+public class SystemDataStreamMigrationIT extends AbstractFeatureMigrationIntegTest {
     private static final String TEST_DATA_STREAM_NAME = ".test-data-stream";
     private static final String DATA_STREAM_FEATURE = "ds-feature";
     private static volatile SystemDataStreamDescriptor systemDataStreamDescriptor = createSystemDataStreamDescriptor(

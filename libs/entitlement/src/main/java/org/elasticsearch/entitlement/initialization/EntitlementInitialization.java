@@ -35,6 +35,8 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetwork
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
@@ -80,6 +82,7 @@ import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEnt
  */
 public class EntitlementInitialization {
 
+    private static final Logger LOGGER = LogManager.getLogger(EntitlementInitialization.class);
     private static final String AGENTS_PACKAGE_NAME = "co.elastic.apm.agent";
     private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
@@ -123,7 +126,12 @@ public class EntitlementInitialization {
 
         Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(latestCheckerInterface, checkMethods);
         inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
-        inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
+        try {
+            inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
+        } catch (VerifyError e) {
+            LOGGER.error("failed to retransform classes", e);
+            throw e;
+        }
     }
 
     private static Class<?>[] findClassesToRetransform(Class<?>[] loadedClasses, Set<String> classesToTransform) {

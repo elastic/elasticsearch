@@ -1634,7 +1634,12 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             Map<String, Processor.Factory> processors = new HashMap<>();
             processors.put(
                 "fail",
-                (processorFactories, tag, description, config) -> new TestProcessor(tag, "fail", description, new RuntimeException())
+                (processorFactories, tag, description, config, projectId) -> new TestProcessor(
+                    tag,
+                    "fail",
+                    description,
+                    new RuntimeException()
+                )
             );
             return processors;
         }

@@ -239,8 +239,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             useLegacyFormat,
             true
         );
-        model.putResult("I am a failure", new ChunkedInferenceError(new InferenceException("inference exception",
-            new IllegalArgumentException("boom"))));
+        model.putResult(
+            "I am a failure",
+            new ChunkedInferenceError(new InferenceException("inference exception", new IllegalArgumentException("boom")))
+        );
         model.putResult("I am a success", randomChunkedInferenceEmbeddingSparse(List.of("I am a success")));
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {

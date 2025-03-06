@@ -99,7 +99,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var isSystem = instance.isSystem();
         var allowsCustomRouting = instance.isAllowCustomRouting();
         var indexMode = instance.getIndexMode();
-        var lifecycle = instance.getLifecycle();
+        var lifecycle = instance.getDataLifecycle();
         var dataStreamOptions = instance.getDataStreamOptions();
         var failureIndices = instance.getFailureIndices();
         var rolloverOnWrite = instance.rolloverOnWrite();

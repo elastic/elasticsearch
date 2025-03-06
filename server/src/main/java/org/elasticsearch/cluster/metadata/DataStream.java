@@ -518,7 +518,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     @Nullable
-    public DataStreamLifecycle getLifecycle() {
+    public DataStreamLifecycle getDataLifecycle() {
         return lifecycle;
     }
 

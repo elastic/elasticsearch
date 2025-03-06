@@ -241,7 +241,7 @@ def generateUpgradeCompatibilityFile = tasks.register("generateUpgradeCompatibil
 }
 
 def upgradeCompatibilityZip = tasks.register("upgradeCompatibilityZip", Zip) {
-  archiveFile.set(project.layout.buildDirectory.file("rolling-upgrade-compatible-${VersionProperties.elasticsearch}.zip"))
+  archiveFile.set(project.layout.buildDirectory.file("distributions/rolling-upgrade-compatible-${VersionProperties.elasticsearch}.zip"))
   from(generateUpgradeCompatibilityFile)
 }
 

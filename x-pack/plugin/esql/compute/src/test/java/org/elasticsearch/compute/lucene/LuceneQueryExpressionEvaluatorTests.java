@@ -78,20 +78,7 @@ public class LuceneQueryExpressionEvaluatorTests extends LuceneQueryEvaluatorTes
     }
 
     @Override
-    protected void assertTermsQuery(List<Page> results, Set<String> matching, int expectedMatchCount) {
-        int matchCount = 0;
-        for (Page page : results) {
-            int initialBlockIndex = termsBlockIndex(page);
-            BytesRefVector terms = page.<BytesRefBlock>getBlock(initialBlockIndex).asVector();
-            BooleanVector matches = page.<BooleanBlock>getBlock(initialBlockIndex + 1).asVector();
-            for (int i = 0; i < page.getPositionCount(); i++) {
-                BytesRef termAtPosition = terms.getBytesRef(i, new BytesRef());
-                assertThat(matches.getBoolean(i), equalTo(matching.contains(termAtPosition.utf8ToString())));
-                if (matches.getBoolean(i)) {
-                    matchCount++;
-                }
-            }
-        }
-        assertThat(matchCount, equalTo(expectedMatchCount));
+    protected void assertResultMatch(BooleanVector resultVector, int position, boolean isMatch) {
+        assertThat(resultVector.getBoolean(position), equalTo(isMatch));
     }
 }

@@ -8,18 +8,13 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.search.Scorable;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ScoreOperator;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator.NO_MATCH_SCORE;
 import static org.hamcrest.Matchers.equalTo;
@@ -82,23 +77,12 @@ public class LuceneQueryScoreEvaluatorTests extends LuceneQueryEvaluatorTests<Do
     }
 
     @Override
-    protected void assertTermsQuery(List<Page> results, Set<String> matching, int expectedMatchCount) {
-        int matchCount = 0;
-        for (Page page : results) {
-            int initialBlockIndex = termsBlockIndex(page);
-            BytesRefVector terms = page.<BytesRefBlock>getBlock(initialBlockIndex).asVector();
-            DoubleVector matches = (DoubleVector) page.getBlock(resultsBlockIndex(page)).asVector();
-            for (int i = 0; i < page.getPositionCount(); i++) {
-                BytesRef termAtPosition = terms.getBytesRef(i, new BytesRef());
-                if (matching.contains(termAtPosition.utf8ToString())) {
-                    assertThat(matches.getDouble(i), greaterThan((double) TEST_SCORE));
-                    matchCount++;
-                } else {
-                    // Default score, as Lucene docs gets retrieved with a implicit score
-                    assertThat(matches.getDouble(i), equalTo(DEFAULT_SCORE));
-                }
-            }
+    protected void assertResultMatch(DoubleVector resultVector, int position, boolean isMatch) {
+        if (isMatch) {
+            assertThat(resultVector.getDouble(position), greaterThan(DEFAULT_SCORE));
+        } else {
+            // All docs have a default score coming from Lucene
+            assertThat(resultVector.getDouble(position), equalTo(DEFAULT_SCORE));
         }
-        assertThat(matchCount, equalTo(expectedMatchCount));
     }
 }

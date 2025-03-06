@@ -25,6 +25,8 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.OperatorTests;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -50,6 +52,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static org.elasticsearch.compute.test.OperatorTestCase.randomPageSize;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Base class for testing Lucene query evaluators.
@@ -149,7 +152,26 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
         assertTermsQuery(results, matching, expectedMatchCount);
     }
 
-    protected abstract void assertTermsQuery(List<Page> results, Set<String> matching, int expectedMatchCount);
+    protected void assertTermsQuery(List<Page> results, Set<String> matching, int expectedMatchCount) {
+        int matchCount = 0;
+        for (Page page : results) {
+            int initialBlockIndex = termsBlockIndex(page);
+            BytesRefVector terms = page.<BytesRefBlock>getBlock(initialBlockIndex).asVector();
+            @SuppressWarnings("unchecked")
+            T resultVector = (T) page.getBlock(resultsBlockIndex(page)).asVector();
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                BytesRef termAtPosition = terms.getBytesRef(i, new BytesRef());
+                boolean isMatch = matching.contains(termAtPosition.utf8ToString());
+                assertResultMatch(resultVector, i, isMatch);
+                if (isMatch) {
+                    matchCount++;
+                }
+            }
+        }
+        assertThat(matchCount, equalTo(expectedMatchCount));
+    }
+
+    protected abstract void assertResultMatch(T resultVector, int position, boolean isMatch);
 
     private List<Page> runQuery(Set<String> values, Query query, boolean shuffleDocs) throws IOException {
         DriverContext driverContext = driverContext();

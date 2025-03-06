@@ -257,7 +257,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
      * the new index. For this reason, lifecycle is not set until after the new index has been added to the data stream.
      */
     private void copySettings(String oldIndex, String newIndex, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
-        var getSettingsRequest = new GetSettingsRequest(TimeValue.MAX_VALUE).indices(oldIndex);
+        var getSettingsRequest = new GetSettingsRequest().indices(oldIndex);
         getSettingsRequest.setParentTask(parentTaskId);
         client.execute(GetSettingsAction.INSTANCE, getSettingsRequest, listener.delegateFailure((delegate, response) -> {
             String lifecycleName = response.getSetting(oldIndex, IndexMetadata.LIFECYCLE_NAME);

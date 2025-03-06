@@ -224,7 +224,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }"""), manageFailureStoreRole);
 
         createTemplates();
-        List<String> docIds = populateDataStreamWithBulkRequest();
+        List<String> docIds = populateDataStream();
         assertThat(docIds.size(), equalTo(2));
         assertThat(docIds, hasItem("1"));
         String successDocId = "1";
@@ -352,6 +352,8 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrows(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS_USER, failureIndexName), 400);
         expectThrows403(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS_USER, dataIndexName));
 
+        expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS_USER, "test1"), 403);
+        expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS_USER, "test1::failures"), 403);
         // manage user can delete data stream
         deleteDataStream(MANAGE_ACCESS_USER, "test1");
 
@@ -438,6 +440,34 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
             """);
         assertOK(adminClient().performRequest(indexTemplateRequest));
+    }
+
+    private List<String> populateDataStream() throws IOException {
+        return randomBoolean() ? populateDataStreamWithBulkRequest() : populateDataStreamWithDocRequests();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> populateDataStreamWithDocRequests() throws IOException {
+        var bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity("""
+            { "create" : { "_index" : "test1", "_id" : "1" } }
+            { "@timestamp": 1, "age" : 1, "name" : "jack", "email" : "jack@example.com" }
+            { "create" : { "_index" : "test1", "_id" : "2" } }
+            { "@timestamp": 2, "age" : "this should be an int", "name" : "jack", "email" : "jack@example.com" }
+            """);
+        Response response = performRequest(WRITE_ACCESS_USER, bulkRequest);
+        assertOK(response);
+        // we need this dance because the ID for the failed document is random, **not** 2
+        Map<String, Object> stringObjectMap = responseAsMap(response);
+        List<Object> items = (List<Object>) stringObjectMap.get("items");
+        List<String> ids = new ArrayList<>();
+        for (Object item : items) {
+            Map<String, Object> itemMap = (Map<String, Object>) item;
+            Map<String, Object> create = (Map<String, Object>) itemMap.get("create");
+            assertThat(create.get("status"), equalTo(201));
+            ids.add((String) create.get("_id"));
+        }
+        return ids;
     }
 
     @SuppressWarnings("unchecked")

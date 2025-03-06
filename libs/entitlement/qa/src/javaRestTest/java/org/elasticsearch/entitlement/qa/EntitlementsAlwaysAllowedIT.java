@@ -15,18 +15,18 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction;
 import org.junit.ClassRule;
 
-public class EntitlementsDeniedIT extends AbstractEntitlementsIT {
+public class EntitlementsAlwaysAllowedIT extends AbstractEntitlementsIT {
 
     @ClassRule
     public static EntitlementsTestRule testRule = new EntitlementsTestRule(true, null);
 
-    public EntitlementsDeniedIT(@Name("actionName") String actionName) {
-        super(actionName, false);
+    public EntitlementsAlwaysAllowedIT(@Name("actionName") String actionName) {
+        super(actionName, true);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> data() {
-        return RestEntitlementsCheckAction.getDeniableCheckActions().stream().map(action -> new Object[] { action }).toList();
+        return RestEntitlementsCheckAction.getAlwaysAllowedCheckActions().stream().map(action -> new Object[] { action }).toList();
     }
 
     @Override

@@ -48,7 +48,7 @@ class APMJvmOptions {
 
         // ES does not use auto-instrumentation.
         "instrument", "false",
-        "recording", "false",
+        "warmup_byte_buddy", "false",
         "enable_experimental_instrumentations", "true"
         );
 

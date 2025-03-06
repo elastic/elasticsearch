@@ -175,7 +175,11 @@ public record UnassignedInfo(
         /**
          * Replica is unpromotable and the primary failed.
          */
-        UNPROMOTABLE_REPLICA
+        UNPROMOTABLE_REPLICA,
+        /**
+         * New shard added as part of index re-sharding operation
+         */
+        RESHARD_ADDED
     }
 
     /**
@@ -335,9 +339,14 @@ public record UnassignedInfo(
             out.writeByte((byte) Reason.NODE_LEFT.ordinal());
         } else if (reason.equals(Reason.UNPROMOTABLE_REPLICA) && out.getTransportVersion().before(VERSION_UNPROMOTABLE_REPLICA_ADDED)) {
             out.writeByte((byte) Reason.PRIMARY_FAILED.ordinal());
-        } else {
-            out.writeByte((byte) reason.ordinal());
-        }
+        } else if (reason.equals(Reason.RESHARD_ADDED)
+            && out.getTransportVersion().before(TransportVersions.UNASSIGENEDINFO_RESHARD_ADDED)) {
+                // We should have protection to ensure we do not reshard in mixed clusters
+                assert false;
+                out.writeByte((byte) Reason.FORCED_EMPTY_PRIMARY.ordinal());
+            } else {
+                out.writeByte((byte) reason.ordinal());
+            }
         out.writeLong(unassignedTimeMillis);
         // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
         out.writeBoolean(delayed);

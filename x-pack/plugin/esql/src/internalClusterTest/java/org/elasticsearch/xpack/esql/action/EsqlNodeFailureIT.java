@@ -17,6 +17,7 @@ import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -24,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -120,6 +122,48 @@ public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
                     assertTrue(actualIds.add(id));
                 }
             }
+        }
+    }
+
+    public void testDefaultPartialResults() throws Exception {
+        Set<String> okIds = populateIndices();
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+                .setPersistentSettings(Settings.builder().put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), true))
+        );
+        try {
+            // allow_partial_results = default
+            {
+                EsqlQueryRequest request = new EsqlQueryRequest();
+                request.query("FROM fail,ok | LIMIT 100");
+                request.pragmas(randomPragmas());
+                if (randomBoolean()) {
+                    request.allowPartialResults(true);
+                }
+                try (EsqlQueryResponse resp = run(request)) {
+                    assertTrue(resp.isPartial());
+                    List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+                    assertThat(rows.size(), lessThanOrEqualTo(okIds.size()));
+                }
+            }
+            // allow_partial_results = false
+            {
+                EsqlQueryRequest request = new EsqlQueryRequest();
+                request.query("FROM fail,ok | LIMIT 100");
+                request.pragmas(randomPragmas());
+                request.allowPartialResults(false);
+                IllegalStateException e = expectThrows(IllegalStateException.class, () -> run(request).close());
+                assertThat(e.getMessage(), equalTo("Accessing failing field"));
+            }
+        } finally {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+                    .setPersistentSettings(Settings.builder().putNull(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey()))
+            );
         }
     }
 }

@@ -566,7 +566,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                     List.of(
                         new SparseEmbeddingResults.Chunk(
                             List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
-                            "input text",
                             new ChunkedInference.TextOffset(0, "input text".length())
                         )
                     )
@@ -1012,18 +1011,18 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
-    public void testUnifiedCompletionError() throws Exception {
-        testUnifiedStreamError(404, """
+    public void testUnifiedCompletionError() {
+        var e = assertThrows(UnifiedChatCompletionException.class, () -> testUnifiedStream(404, """
             {
                 "error": "The model `rainbow-sprinkles` does not exist or you do not have access to it."
-            }""", """
-            {\
-            "error":{\
-            "code":"not_found",\
-            "message":"Received an unsuccessful status code for request from inference entity id [id] status \
-            [404]. Error message: [The model `rainbow-sprinkles` does not exist or you do not have access to it.]",\
-            "type":"error"\
-            }}""");
+            }"""));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Received an unsuccessful status code for request from inference entity id [id] status "
+                    + "[404]. Error message: [The model `rainbow-sprinkles` does not exist or you do not have access to it.]"
+            )
+        );
     }
 
     public void testUnifiedCompletionErrorMidStream() throws Exception {
@@ -1054,6 +1053,25 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     private void testUnifiedStreamError(int responseCode, String responseJson, String expectedJson) throws Exception {
+        testUnifiedStream(responseCode, responseJson).hasNoEvents().hasErrorMatching(e -> {
+            e = unwrapCause(e);
+            assertThat(e, isA(UnifiedChatCompletionException.class));
+            try (var builder = XContentFactory.jsonBuilder()) {
+                ((UnifiedChatCompletionException) e).toXContentChunked(EMPTY_PARAMS).forEachRemaining(xContent -> {
+                    try {
+                        xContent.toXContent(builder, EMPTY_PARAMS);
+                    } catch (IOException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                });
+                var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
+
+                assertThat(json, is(expectedJson));
+            }
+        });
+    }
+
+    private InferenceEventsAssertion testUnifiedStream(int responseCode, String responseJson) throws Exception {
         var eisGatewayUrl = getUrl(webServer);
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createService(senderFactory, eisGatewayUrl)) {
@@ -1077,24 +1095,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT);
-
-            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoEvents().hasErrorMatching(e -> {
-                e = unwrapCause(e);
-                assertThat(e, isA(UnifiedChatCompletionException.class));
-                try (var builder = XContentFactory.jsonBuilder()) {
-                    ((UnifiedChatCompletionException) e).toXContentChunked(EMPTY_PARAMS).forEachRemaining(xContent -> {
-                        try {
-                            xContent.toXContent(builder, EMPTY_PARAMS);
-                        } catch (IOException ex) {
-                            throw new RuntimeException(ex);
-                        }
-                    });
-                    var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
-
-                    assertThat(json, is(expectedJson));
-                }
-            });
+            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
     }
 

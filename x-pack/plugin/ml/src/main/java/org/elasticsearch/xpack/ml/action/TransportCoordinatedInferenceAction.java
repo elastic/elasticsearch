@@ -48,9 +48,9 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
 
     private static final Map<TrainedModelPrefixStrings.PrefixType, InputType> PREFIX_TYPE_INPUT_TYPE_MAP = Map.of(
         TrainedModelPrefixStrings.PrefixType.INGEST,
-        InputType.INGEST,
+        InputType.INTERNAL_INGEST,
         TrainedModelPrefixStrings.PrefixType.SEARCH,
-        InputType.SEARCH
+        InputType.INTERNAL_SEARCH
     );
 
     private final Client client;
@@ -138,7 +138,7 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
         var inputType = PREFIX_TYPE_INPUT_TYPE_MAP.get(prefixType);
 
         if (inputType == null) {
-            return InputType.INGEST;
+            return InputType.INTERNAL_INGEST;
         }
 
         return inputType;

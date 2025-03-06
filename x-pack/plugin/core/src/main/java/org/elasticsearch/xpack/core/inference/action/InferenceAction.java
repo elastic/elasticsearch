@@ -199,7 +199,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 }
             }
 
-            if (taskType.equals(TaskType.TEXT_EMBEDDING) == false && inputType != null) {
+            if (taskType.equals(TaskType.TEXT_EMBEDDING) == false && (inputType != null && InputType.isInternalType(inputType) == false)) {
                 var e = new ActionRequestValidationException();
                 e.addValidationError(format("Field [input_type] cannot be specified for task type [%s]", taskType));
                 return e;

@@ -100,7 +100,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                         inferenceText,
                         docFeatures,
                         Map.of("inferenceResultCount", inferenceResultCount),
-                        InputType.SEARCH,
+                        InputType.INTERNAL_SEARCH,
                         InferenceAction.Request.DEFAULT_TIMEOUT,
                         false
                     );

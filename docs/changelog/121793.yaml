@@ -1,5 +1,5 @@
 pr: 121793
-summary: "[PoC 3] ES|QL - Add scoring for full text functions disjunctions via a `ScoreMapper`"
+summary: "ES|QL - Add scoring for full text functions disjunctions"
 area: ES|QL
 type: enhancement
 issues: []

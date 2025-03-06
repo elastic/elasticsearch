@@ -13,6 +13,8 @@ import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpResponseInterceptor;
 
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.regex.Pattern;
 
@@ -20,6 +22,9 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsSta
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.StatsTracker;
 
 final class GoogleCloudStorageHttpStatsCollector implements HttpResponseInterceptor {
+
+    private static final Logger logger = LogManager.getLogger("GcpHttpStats");
+
     private final StatsTracker stats;
     private final OperationPurpose purpose;
     private final Pattern getObjPattern;
@@ -78,6 +83,14 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
             }
             default -> ignored = true;
         }
-        assert ignored == false : "must handle response: " + request.getRequestMethod() + " " + path;
+        if (ignored) {
+            logger.debug(
+                "not handling request:{} {} response:{} {}",
+                request.getRequestMethod(),
+                path,
+                response.getStatusCode(),
+                response.getStatusMessage()
+            );
+        }
     }
 }

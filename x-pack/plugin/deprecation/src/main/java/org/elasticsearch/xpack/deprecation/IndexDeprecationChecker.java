@@ -253,6 +253,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         Boolean isIndexFrozen = FrozenEngine.INDEX_FROZEN.get(indexMetadata.getSettings());
         if (Boolean.TRUE.equals(isIndexFrozen)) {
             String indexName = indexMetadata.getIndex().getName();
+            boolean isInDataStream = clusterState.metadata().findDataStreams(indexName).get(indexName) != null;
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Index [" + indexName + "] is a frozen index. The frozen indices feature is deprecated and will be removed in version 9.0.",
@@ -261,7 +262,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                     + " (The legacy frozen indices feature no longer offers any advantages."
                     + " You may consider cold or frozen tiers in place of frozen indices.)",
                 false,
-                null
+                Map.of("is_in_data_stream", isInDataStream)
             );
         }
         return null;

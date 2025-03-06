@@ -40,6 +40,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -587,7 +588,38 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                         + " (The legacy frozen indices feature no longer offers any advantages."
                         + " You may consider cold or frozen tiers in place of frozen indices.)",
                     false,
-                    null
+                    Map.of("is_in_data_stream", false)
+                )
+            )
+        );
+    }
+
+    public void testFrozenDataStreamIndex() {
+        Settings.Builder settings = settings(IndexVersion.current());
+        settings.put(FrozenEngine.INDEX_FROZEN.getKey(), true);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        DataStream dataStream = newInstance(randomAlphaOfLength(10), List.of(indexMetadata.getIndex()));
+        Metadata metadata = Metadata.builder().dataStreams(Map.of(dataStream.getName(), dataStream), Map.of()).build();
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true).dataStreams(Map.of(dataStream.getName(), dataStream), Map.of()))
+            .build();
+        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
+            state,
+            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
+            emptyPrecomputedData
+        );
+        assertThat(
+            issuesByIndex.get("test"),
+            contains(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "Index [test] is a frozen index. The frozen indices feature is deprecated and will be removed in version 9.0.",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
+                    "Frozen indices must be unfrozen before upgrading to version 9.0."
+                        + " (The legacy frozen indices feature no longer offers any advantages."
+                        + " You may consider cold or frozen tiers in place of frozen indices.)",
+                    false,
+                    Map.of("is_in_data_stream", true)
                 )
             )
         );

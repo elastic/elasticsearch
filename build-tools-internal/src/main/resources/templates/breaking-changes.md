@@ -14,17 +14,23 @@ To learn how to upgrade, check out <uprade docs>.
 
 ## ${unqualifiedVersion} [elasticsearch-${versionWithoutSeparator}-breaking-changes]
 **Release date:** April 01, 2025
-<% for (team in changelogsByTypeByArea['breaking'].keySet()) {
-    print "\n${team}:\n";
+<%
+    if (!changelogsByTypeByArea['breaking']) {
+        print "\nNo breaking changes in this version.\n"
+    } else {
+        for (team in (changelogsByTypeByArea['breaking'] ?: [:]).keySet()) {
+            print "\n${team}:\n";
 
-    for (change in changelogsByTypeByArea['breaking'][team]) {
-        print "* ${change.summary} [#${change.pr}](https://github.com/elastic/elasticsearch/pull/${change.pr})"
-        if (change.issues != null && change.issues.empty == false) {
-            print change.issues.size() == 1 ? " (issue: " : " (issues: "
-            print change.issues.collect { "{es-issue}${it}[#${it}]" }.join(", ")
-            print ")"
+            for (change in changelogsByTypeByArea['breaking'][team]) {
+                print "* ${change.summary} [#${change.pr}](https://github.com/elastic/elasticsearch/pull/${change.pr})"
+                if (change.issues != null && change.issues.empty == false) {
+                    print change.issues.size() == 1 ? " (issue: " : " (issues: "
+                    print change.issues.collect { "{es-issue}${it}[#${it}]" }.join(", ")
+                    print ")"
+                }
+                print "\n"
+            }
         }
-        print "\n"
+
+        print "\n\n"
     }
-}
-print "\n\n"

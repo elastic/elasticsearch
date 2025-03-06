@@ -57,12 +57,14 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     private final RegularFileProperty releaseNotesTemplate;
     private final RegularFileProperty releaseHighlightsTemplate;
     private final RegularFileProperty breakingChangesTemplate;
+    private final RegularFileProperty deprecationsTemplate;
     private final RegularFileProperty migrationIndexTemplate;
 
     private final RegularFileProperty releaseNotesIndexFile;
     private final RegularFileProperty releaseNotesFile;
     private final RegularFileProperty releaseHighlightsFile;
     private final RegularFileProperty breakingChangesMigrationFile;
+    private final RegularFileProperty deprecationsFile;
     private final RegularFileProperty migrationIndexFile;
 
     private final GitWrapper gitWrapper;
@@ -75,12 +77,14 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         releaseNotesTemplate = objectFactory.fileProperty();
         releaseHighlightsTemplate = objectFactory.fileProperty();
         breakingChangesTemplate = objectFactory.fileProperty();
+        deprecationsTemplate = objectFactory.fileProperty();
         migrationIndexTemplate = objectFactory.fileProperty();
 
         releaseNotesIndexFile = objectFactory.fileProperty();
         releaseNotesFile = objectFactory.fileProperty();
         releaseHighlightsFile = objectFactory.fileProperty();
         breakingChangesMigrationFile = objectFactory.fileProperty();
+        deprecationsFile = objectFactory.fileProperty();
         migrationIndexFile = objectFactory.fileProperty();
 
         gitWrapper = new GitWrapper(execOperations);
@@ -142,6 +146,13 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             ReleaseNotesGenerator.update(
                 this.breakingChangesTemplate.get().getAsFile(),
                 this.breakingChangesMigrationFile.get().getAsFile(),
+                qualifiedVersion,
+                changelogsByVersion.getOrDefault(qualifiedVersion, Set.of())
+            );
+
+            ReleaseNotesGenerator.update(
+                this.deprecationsTemplate.get().getAsFile(),
+                this.deprecationsFile.get().getAsFile(),
                 qualifiedVersion,
                 changelogsByVersion.getOrDefault(qualifiedVersion, Set.of())
             );
@@ -355,6 +366,15 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     }
 
     @InputFile
+    public RegularFileProperty getDeprecationsTemplate() {
+        return deprecationsTemplate;
+    }
+
+    public void setDeprecationsTemplate(RegularFile file) {
+        this.deprecationsTemplate.set(file);
+    }
+
+    @InputFile
     public RegularFileProperty getMigrationIndexTemplate() {
         return migrationIndexTemplate;
     }
@@ -397,6 +417,15 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
     public void setBreakingChangesMigrationFile(RegularFile file) {
         this.breakingChangesMigrationFile.set(file);
+    }
+
+    @OutputFile
+    public RegularFileProperty getDeprecationsFile() {
+        return deprecationsFile;
+    }
+
+    public void setDeprecationsFile(RegularFile file) {
+        this.deprecationsFile.set(file);
     }
 
     @OutputFile

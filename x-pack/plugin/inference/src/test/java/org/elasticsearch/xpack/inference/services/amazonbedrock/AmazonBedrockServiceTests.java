@@ -1446,6 +1446,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     null,
                     List.of("abc", "xyz"),
                     new HashMap<>(),
+                    null,
                     InputType.INGEST,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
                     listener

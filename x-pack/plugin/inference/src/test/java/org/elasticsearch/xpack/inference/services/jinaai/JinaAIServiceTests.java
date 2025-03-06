@@ -1821,6 +1821,7 @@ public class JinaAIServiceTests extends ESTestCase {
                 null,
                 List.of("foo", "bar"),
                 new HashMap<>(),
+                null,
                 InputType.UNSPECIFIED,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener

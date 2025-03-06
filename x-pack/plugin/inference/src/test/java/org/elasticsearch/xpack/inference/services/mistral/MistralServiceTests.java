@@ -672,6 +672,7 @@ public class MistralServiceTests extends ESTestCase {
                 null,
                 List.of("abc", "def"),
                 new HashMap<>(),
+                null,
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener

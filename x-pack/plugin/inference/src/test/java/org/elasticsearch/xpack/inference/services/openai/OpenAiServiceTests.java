@@ -1859,6 +1859,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 null,
                 List.of("foo", "bar"),
                 new HashMap<>(),
+                null,
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener

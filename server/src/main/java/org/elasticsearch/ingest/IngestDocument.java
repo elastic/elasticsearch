@@ -991,24 +991,13 @@ public final class IngestDocument {
         }
     }
 
-    private static class ResolveResult {
-        boolean wasSuccessful;
-        String errorMessage;
-        Object resolvedObject;
-
+    private record ResolveResult(boolean wasSuccessful, Object resolvedObject, String errorMessage) {
         static ResolveResult success(Object resolvedObject) {
-            ResolveResult result = new ResolveResult();
-            result.wasSuccessful = true;
-            result.resolvedObject = resolvedObject;
-            return result;
+            return new ResolveResult(true, resolvedObject, null);
         }
 
         static ResolveResult error(String errorMessage) {
-            ResolveResult result = new ResolveResult();
-            result.wasSuccessful = false;
-            result.errorMessage = errorMessage;
-            return result;
-
+            return new ResolveResult(false, null, errorMessage);
         }
     }
 

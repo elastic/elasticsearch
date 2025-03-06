@@ -64,7 +64,6 @@ Response:
   }
 }
 ```
-
 %  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ::::{warning}
@@ -102,7 +101,6 @@ POST /sales/_search?size=0
    }
 }
 ```
-
 %  TEST[setup:sales]
 
 1. Documents without a value in the `date` field will be added to the "Older" bucket, as if they had a date value of "1976-11-30".
@@ -227,7 +225,6 @@ POST /sales/_search?size=0
    }
 }
 ```
-
 %  TEST[setup:sales]
 
 1. This date will be converted to `2016-02-01T00:00:00.000+01:00`.
@@ -259,7 +256,6 @@ POST /sales/_search?size=0
   }
 }
 ```
-
 %  TEST[setup:sales s/now-10M\/M/10-2015/]
 
 Response:
@@ -285,7 +281,6 @@ Response:
   }
 }
 ```
-
 %  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 It is also possible to customize the key for each range:
@@ -310,7 +305,6 @@ POST /sales/_search?size=0
   }
 }
 ```
-
 %  TEST[setup:sales]
 
 Response:
@@ -340,7 +334,6 @@ Response:
   }
 }
 ```
-
 %  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 

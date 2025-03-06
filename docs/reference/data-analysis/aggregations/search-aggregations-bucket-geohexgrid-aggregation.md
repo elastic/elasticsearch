@@ -84,7 +84,6 @@ Response:
   }
 }
 ```
-
 %  TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 
@@ -119,7 +118,6 @@ POST /museums/_search?size=0
   }
 }
 ```
-
 %  TEST[continued]
 
 Response:
@@ -150,7 +148,6 @@ Response:
   }
 }
 ```
-
 %  TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 
@@ -177,7 +174,6 @@ POST /museums/_search?size=0
   }
 }
 ```
-
 %  TEST[continued]
 
 Response:
@@ -205,7 +201,6 @@ Response:
   }
 }
 ```
-
 %  TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
 

@@ -48,7 +48,7 @@ class APMJvmOptions {
 
         // ES does not use auto-instrumentation.
         "instrument", "false",
-        "elastic.apm.recording", "false",
+        "recording", "false",
         "enable_experimental_instrumentations", "true"
         );
 

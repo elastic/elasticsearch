@@ -38,7 +38,7 @@ import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.SERVER_COMPONENT_NAME;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -458,7 +458,8 @@ public class PolicyManagerTests extends ESTestCase {
                 Set.of()
             )
         );
-        assertThat(iae.getMessage(), containsString("Path [/base/test] is exclusive to plugin2/test.module2 and plugin1/[test.module1]"));
+        assertThat(iae.getMessage(), equalTo("Path [/base/test] is already exclusive to [plugin1][test.module1]," +
+            " cannot add exclusive access for [plugin2][test.module2]"));
 
         iae = expectThrows(
             IllegalArgumentException.class,

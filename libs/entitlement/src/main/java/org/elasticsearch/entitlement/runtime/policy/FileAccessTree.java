@@ -69,14 +69,15 @@ public final class FileAccessTree {
                             throw new IllegalArgumentException(
                                 "Path ["
                                     + normalizedPath
-                                    + "] is exclusive to "
-                                    + efe.componentName()
-                                    + "/"
-                                    + efe.moduleName()
-                                    + " and "
+                                    + "] is already exclusive to ["
                                     + exclusivePath.componentName()
-                                    + "/"
+                                    + "]"
                                     + exclusivePath.moduleNames
+                                    + ", cannot add exclusive access for ["
+                                    + efe.componentName()
+                                    + "]["
+                                    + efe.moduleName
+                                    + "]"
                             );
                         }
                         exclusivePath.moduleNames.add(efe.moduleName());

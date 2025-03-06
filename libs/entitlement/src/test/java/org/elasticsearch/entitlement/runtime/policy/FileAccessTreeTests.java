@@ -411,24 +411,12 @@ public class FileAccessTreeTests extends ESTestCase {
             new ExclusivePath(original.componentName(), Set.of("module2"), originalExclusivePath.path()),
             new ExclusivePath(original.componentName(), Set.of(original.moduleName()), normalizePath(path("/c/d")))
         );
-        assertEquals(
-            "Distinct elements should not be combined",
-            distinctPaths,
+        var iae = expectThrows(IllegalArgumentException.class,
+            () ->
             buildExclusivePathList(distinctEntitlements, TEST_PATH_LOOKUP)
         );
-
-        // Do merge things we should
-
-        List<ExclusiveFileEntitlement> interleavedEntitlements = new ArrayList<>();
-        distinctEntitlements.forEach(e -> {
-            interleavedEntitlements.add(e);
-            interleavedEntitlements.add(original);
-        });
-        assertEquals(
-            "Identical elements should be combined wherever they are in the list",
-            distinctPaths,
-            buildExclusivePathList(interleavedEntitlements, TEST_PATH_LOOKUP)
-        );
+        assertThat(iae.getMessage(),
+            equalTo("Path [/a/b] is already exclusive to [component1][module1], cannot add exclusive access for [component2][module1]"));
 
         var equivalentEntitlements = List.of(original, differentMode, differentPlatform);
         var equivalentPaths = List.of(originalExclusivePath);

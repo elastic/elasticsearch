@@ -123,16 +123,16 @@ public class ProfileParser {
      */
     @SuppressWarnings("unchecked")
     private static void parseDriverProfile(Map<String, Object> driver, int pid, int tid, XContentBuilder builder) throws IOException {
-        String taskDescription = (String) driver.get("task_description");
-        String name = taskDescription + " " + pid + ":" + tid;
+        String driverDescription = (String) driver.get("description");
+        String name = driverDescription + " " + pid + ":" + tid;
 
-        emitMetadataForDriver(taskDescription, pid, tid, builder);
+        emitMetadataForDriver(driverDescription, pid, tid, builder);
 
         builder.startObject();
         // Represent a driver as a "complete" event, so that the cpu time can be represented visually.
         builder.field("ph", "X");
         builder.field("name", name);
-        builder.field("cat", taskDescription);
+        builder.field("cat", driverDescription);
         builder.field("pid", pid);
         builder.field("tid", tid);
         long startMicros = readIntOrLong(driver, "start_millis") * 1000;

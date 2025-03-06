@@ -77,7 +77,6 @@ These documents define the access control policy for the data indexed into Elast
 }
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 In this example, the identity object specifies the identity of the user that this document pertains to. The `query` object then uses a template to list the parameters that form the access control policy for this identity. It also contains the query `source`, which will specify a query to fetch all content documents the identity has access to. The `_id` could be, for example, the email address or the username of a user. The exact content and structure of `identity` depends on the corresponding implementation.
 
@@ -148,6 +147,7 @@ One access control document:
     }
 }
 ```
+%  NOTCONSOLE
 
 Let’s see which of the following example documents these permissions can access, and why.
 

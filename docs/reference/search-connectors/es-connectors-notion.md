@@ -306,7 +306,6 @@ Indexing every page where the title contains `Demo Page`:
   }
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 **Example 2**
 
@@ -324,7 +323,6 @@ Indexing every database where the title contains `Demo Database`:
   ]
 }
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 **Example 3**
@@ -350,7 +348,6 @@ Indexing every database where the title contains `Demo Database` and every page 
 }
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 **Example 4**
 
@@ -369,7 +366,6 @@ Indexing all pages in the workspace:
 }
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 **Example 5**
 
@@ -384,7 +380,6 @@ Indexing all the pages and databases connected to the workspace:
   ]
 }
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 **Example 6**
@@ -407,7 +402,6 @@ Indexing all the rows of a database where the record is `true` for the column `T
 }
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 **Example 7**
 
@@ -422,7 +416,6 @@ Indexing all rows of a specific database:
   ]
 }
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 **Example 8**
@@ -458,7 +451,6 @@ Indexing all blocks defined in `searches` and `database_query_filters`:
   ]
 }
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 ::::{note}

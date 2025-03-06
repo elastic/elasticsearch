@@ -314,7 +314,6 @@ This rule skips indexing for files with `.xlsx` and `.docx` extensions. All othe
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 $$$es-connectors-onedrive-client-sync-rules-advanced-examples-2$$$
 **Example 2**
@@ -329,7 +328,6 @@ This rule focuses on indexing files and folders owned by `user1-domain@onmicroso
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 $$$es-connectors-onedrive-client-sync-rules-advanced-examples-3$$$
@@ -346,7 +344,6 @@ This rule indexes only the files and folders directly inside the root folder, ex
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 $$$es-connectors-onedrive-client-sync-rules-advanced-examples-4$$$
 **Example 4**
@@ -362,7 +359,6 @@ This rule indexes files and folders owned by `user1-domain@onmicrosoft.com` and 
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 $$$es-connectors-onedrive-client-sync-rules-advanced-examples-5$$$
@@ -381,7 +377,6 @@ This example contains two rules. The first rule indexes all files and folders ow
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 $$$es-connectors-onedrive-client-sync-rules-advanced-examples-6$$$
 **Example 6**
@@ -399,7 +394,6 @@ This example contains two rules. The first rule indexes all files owned by `user
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 

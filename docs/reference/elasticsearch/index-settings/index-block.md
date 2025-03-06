@@ -131,6 +131,7 @@ The following example shows how to add an index block:
 ```console
 PUT /my-index-000001/_block/write
 ```
+%  TEST[setup:my_index]
 
 The API returns following response:
 

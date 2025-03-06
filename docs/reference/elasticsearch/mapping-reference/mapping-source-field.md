@@ -246,7 +246,6 @@ PUT idx_keep/_doc/1
   "ids": [ 200, 100, 300, 100 ]
 }
 ```
-%  TEST[s/^/{"_source":/ s/\n$/}/]
 %  TEST[s/$/\nGET idx_keep/_doc/1?filter_path=_source\n/]
 
 returns the original source, with no array deduplication and sorting:
@@ -263,6 +262,7 @@ returns the original source, with no array deduplication and sorting:
   "ids": [ 200, 100, 300, 100 ]
 }
 ```
+%  TEST[s/^/{"_source":/ s/\n$/}/]
 
 The option for capturing the source of arrays can be applied at index level, by setting `index.mapping.synthetic_source_keep` to `arrays`. This applies to all objects and fields in the index, except for the ones with explicit overrides of `synthetic_source_keep` set to `none`. In this case, the storage overhead grows with the number and sizes of arrays present in source of each document, naturally.
 

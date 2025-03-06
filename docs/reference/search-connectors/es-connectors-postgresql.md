@@ -350,7 +350,6 @@ $$$es-connectors-postgresql-client-sync-rules-advanced-examples-1$$$
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 $$$es-connectors-postgresql-client-sync-rules-advanced-examples-1-id-columns$$$
 **Multiple table queries with `id_columns`**
@@ -376,7 +375,6 @@ In 8.15.0, we added a new optional `id_columns` field in our advanced sync rules
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 This example uses the `id_columns` field to specify the unique fields `emp_id` and `c_id` for the `employee` and `customer` tables, respectively.
 
@@ -392,7 +390,6 @@ $$$es-connectors-postgresql-client-sync-rules-advanced-examples-2$$$
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 $$$es-connectors-postgresql-client-sync-rules-advanced-examples-3$$$
 **`JOIN` operations**
@@ -405,7 +402,6 @@ $$$es-connectors-postgresql-client-sync-rules-advanced-examples-3$$$
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 ::::{warning}

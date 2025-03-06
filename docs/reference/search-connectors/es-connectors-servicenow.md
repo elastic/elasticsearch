@@ -318,7 +318,6 @@ $$$es-connectors-servicenow-client-sync-rules-number-incident-service$$$
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 $$$es-connectors-servicenow-client-sync-rules-active-false-user-service$$$
 **Indexing document based on user activity state for User service**
@@ -331,7 +330,6 @@ $$$es-connectors-servicenow-client-sync-rules-active-false-user-service$$$
   }
 ]
 ```
-%  NOTCONSOLE
 %  NOTCONSOLE
 
 $$$es-connectors-servicenow-client-sync-rules-author-administrator-knowledge-service$$$

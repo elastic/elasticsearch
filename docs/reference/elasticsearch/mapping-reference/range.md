@@ -121,7 +121,6 @@ The result produced by the above query.
 }
 ```
 %  TESTRESPONSE[s/"took": 13/"took" : $body.took/]
-%  TESTRESPONSE[s/"took": 13/"took" : $body.took/]
 
 The following is an example of a `date_range` query over the `date_range` field named "time_frame".
 
@@ -180,6 +179,7 @@ This query produces a similar result:
   }
 }
 ```
+%  TESTRESPONSE[s/"took": 13/"took" : $body.took/]
 
 ## IP Range [ip-range]
 

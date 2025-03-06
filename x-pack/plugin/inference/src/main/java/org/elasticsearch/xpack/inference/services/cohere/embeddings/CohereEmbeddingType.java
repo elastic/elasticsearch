@@ -127,8 +127,15 @@ public enum CohereEmbeddingType {
             return INT8;
         }
 
-        if (version.before(TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED) && embeddingType == BIT) {
-            return INT8;
+        if (embeddingType == BIT) {
+            if (version.onOrAfter(TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED)
+                || version.isPatchFrom(TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X)) {
+                // BIT embedding type is supported in these versions
+                return embeddingType;
+            } else {
+                // BIT embedding type is not supported in these versions
+                return INT8;
+            }
         }
 
         return embeddingType;

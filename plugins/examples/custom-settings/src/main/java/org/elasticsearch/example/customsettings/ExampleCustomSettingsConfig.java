@@ -70,7 +70,7 @@ public class ExampleCustomSettingsConfig {
 
     public ExampleCustomSettingsConfig(final Environment environment) {
         // Elasticsearch config directory
-        final Path configDir = environment.configFile();
+        final Path configDir = environment.configDir();
 
         // Resolve the plugin's custom settings file
         final Path customSettingsYamlFile = configDir.resolve("custom-settings/custom.yml");

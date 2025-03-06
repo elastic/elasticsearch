@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -573,7 +574,15 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 long[] mergeMap = new long[Math.toIntExact(oldOrds.size())];
                 bucketOrds = new LongKeyedBucketOrds.FromMany(bigArrays());
                 success = true;
-                for (long owningBucketOrd = 0; owningBucketOrd <= oldOrds.maxOwningBucketOrd(); owningBucketOrd++) {
+                long maxOwning = oldOrds.maxOwningBucketOrd();
+                for (long owningBucketOrd = 0; owningBucketOrd <= maxOwning; owningBucketOrd++) {
+                    /*
+                     * Check for cancelation during this tight loop as it can take a while and the standard
+                     * cancelation checks don't run during the loop. Becuase it's a tight loop.
+                     */
+                    if (context.isCancelled()) {
+                        throw new TaskCancelledException("cancelled");
+                    }
                     LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = oldOrds.ordsEnum(owningBucketOrd);
                     Rounding.Prepared preparedRounding = preparedRoundings[roundingIndexFor(owningBucketOrd)];
                     while (ordsEnum.next()) {

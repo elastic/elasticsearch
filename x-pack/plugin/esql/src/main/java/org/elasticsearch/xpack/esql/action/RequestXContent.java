@@ -171,8 +171,7 @@ final class RequestXContent {
                         String paramName = entry.getKey();
                         checkParamNameValidity(paramName, errors, loc);
 
-                        if (EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-                            && entry.getValue() instanceof Map<?, ?> value) {// parameter specified as a key:value pair
+                        if (entry.getValue() instanceof Map<?, ?> value) {// parameter specified as a key:value pair
                             checkParamValueSize(paramName, value, loc, errors);
                             for (Object keyName : value.keySet()) {
                                 classification = getParamClassification(keyName.toString(), errors, loc);

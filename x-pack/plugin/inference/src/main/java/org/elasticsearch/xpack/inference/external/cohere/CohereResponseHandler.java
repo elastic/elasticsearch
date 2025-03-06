@@ -34,16 +34,9 @@ import java.util.concurrent.Flow;
 public class CohereResponseHandler extends BaseResponseHandler {
     static final String TEXTS_ARRAY_TOO_LARGE_MESSAGE_MATCHER = "invalid request: total number of texts must be at most";
     static final String TEXTS_ARRAY_ERROR_MESSAGE = "Received a texts array too large response";
-    private final boolean canHandleStreamingResponse;
 
     public CohereResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponse) {
-        super(requestType, parseFunction, CohereErrorResponseEntity::fromResponse);
-        this.canHandleStreamingResponse = canHandleStreamingResponse;
-    }
-
-    @Override
-    public boolean canHandleStreamingResponses() {
-        return canHandleStreamingResponse;
+        super(requestType, parseFunction, CohereErrorResponseEntity::fromResponse, canHandleStreamingResponse);
     }
 
     @Override

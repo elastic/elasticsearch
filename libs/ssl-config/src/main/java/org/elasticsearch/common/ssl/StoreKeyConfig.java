@@ -11,6 +11,7 @@ package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -168,6 +169,8 @@ public class StoreKeyConfig implements SslKeyConfig {
             return KeyStoreUtil.readKeyStore(path, type, storePassword);
         } catch (AccessControlException e) {
             throw SslFileUtil.accessControlFailure("[" + type + "] keystore", List.of(path), e, configBasePath);
+        } catch (NotEntitledException e) {
+            throw SslFileUtil.notEntitledFailure("[" + type + "] keystore", List.of(path), e, configBasePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException("[" + type + "] keystore", List.of(path), e);
         } catch (GeneralSecurityException e) {

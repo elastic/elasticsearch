@@ -12,7 +12,9 @@ package org.elasticsearch.lucene;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
@@ -27,6 +29,7 @@ import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -161,8 +164,21 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
     }
 
     protected static Version indexVersion(String indexName) throws Exception {
-        var response = assertOK(client().performRequest(new Request("GET", "/" + indexName + "/_settings")));
-        int id = Integer.parseInt(createFromResponse(response).evaluate(indexName + ".settings.index.version.created"));
+        return indexVersion(indexName, false);
+    }
+
+    protected static Version indexVersion(String indexName, boolean ignoreWarnings) throws Exception {
+        Request request = new Request("GET", "/" + indexName + "/_settings");
+        request.addParameter("flat_settings", "true");
+        if (ignoreWarnings) {
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            request.setOptions(options);
+        }
+        var response = assertOK(client().performRequest(request));
+        ObjectPath fromResponse = createFromResponse(response);
+        Map<String, Object> settings = fromResponse.evaluateExact(indexName, "settings");
+        int id = Integer.parseInt((String) settings.get("index.version.created"));
         return new Version((byte) ((id / 1000000) % 100), (byte) ((id / 10000) % 100), (byte) ((id / 100) % 100));
     }
 

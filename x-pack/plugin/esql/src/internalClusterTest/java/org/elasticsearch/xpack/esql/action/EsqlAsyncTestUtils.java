@@ -98,7 +98,7 @@ public final class EsqlAsyncTestUtils {
                 }
                 assertThat(clusterInfo.getStatus(), not(equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING)));
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public static EsqlQueryResponse runAsyncQuery(Client client, EsqlQueryRequest request) {

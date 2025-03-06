@@ -87,7 +87,6 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         this.algorithm = algorithm;
     }
 
-    @Override
     public long maxOrd() {
         return hll.maxOrd();
     }
@@ -322,8 +321,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             return size;
         }
 
-        @Override
-        protected HashesIterator values(long bucketOrd) {
+        private HashesIterator values(long bucketOrd) {
             // Make a fresh BytesRef for reading scratch work because this method can be called on many threads
             return new LinearCountingIterator(this, new BytesRef(), bucketOrd);
         }

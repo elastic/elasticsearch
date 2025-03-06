@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LogsdbRestIT extends ESRestTestCase {
@@ -66,9 +67,15 @@ public class LogsdbRestIT extends ESRestTestCase {
             List<Map<?, ?>> features = (List<Map<?, ?>>) response.get("features");
             logger.info("response's features: {}", features);
             assertThat(features, Matchers.not(Matchers.empty()));
-            Map<?, ?> feature = features.stream().filter(map -> "mappings".equals(map.get("family"))).findFirst().get();
-            assertThat(feature.get("name"), equalTo("synthetic-source"));
-            assertThat(feature.get("license_level"), equalTo("enterprise"));
+            boolean found = false;
+            for (var feature : features) {
+                if (feature.get("family") != null) {
+                    assertThat(feature.get("name"), anyOf(equalTo("synthetic-source"), equalTo("logsdb-routing-on-sort-fields")));
+                    assertThat(feature.get("license_level"), equalTo("enterprise"));
+                    found = true;
+                }
+            }
+            assertTrue(found);
 
             var indexResponse = (Map<?, ?>) getIndexSettings("test-index", true).get("test-index");
             logger.info("indexResponse: {}", indexResponse);

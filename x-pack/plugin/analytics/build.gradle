@@ -7,6 +7,7 @@
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   name = 'x-pack-analytics'
@@ -18,6 +19,10 @@ base {
   archivesName = 'x-pack-analytics'
 }
 
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+}
+
 dependencies {
   api 'org.apache.commons:commons-math3:3.6.1'
   compileOnly project(path: xpackModule('core'))
@@ -26,7 +31,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-if (buildParams.isSnapshotBuild() == false) {
+if (buildParams.snapshotBuild == false) {
   tasks.named("test").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }

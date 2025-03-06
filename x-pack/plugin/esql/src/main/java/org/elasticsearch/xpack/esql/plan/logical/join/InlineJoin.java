@@ -13,19 +13,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
 /**
  * Specialized type of join where the source of the left and right plans are the same. The plans themselves can contain different nodes
@@ -71,10 +74,9 @@ public class InlineJoin extends Join {
             List<Alias> aliases = new ArrayList<>(schema.size());
             for (int i = 0; i < schema.size(); i++) {
                 Attribute attr = schema.get(i);
-                aliases.add(new Alias(attr.source(), attr.name(), Literal.of(attr, BlockUtils.toJavaObject(blocks[i], 0))));
+                aliases.add(new Alias(attr.source(), attr.name(), Literal.of(attr, BlockUtils.toJavaObject(blocks[i], 0)), attr.id()));
             }
-            LogicalPlan left = target.left();
-            return new Project(target.source(), left, CollectionUtils.combine(left.output(), aliases));
+            return new Eval(target.source(), target.left(), aliases);
         } else {
             return target.replaceRight(data);
         }
@@ -130,5 +132,30 @@ public class InlineJoin extends Join {
     @Override
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
         return new InlineJoin(source(), left, right, config());
+    }
+
+    @Override
+    public List<Attribute> computeOutput(List<Attribute> left, List<Attribute> right) {
+        JoinType joinType = config().type();
+        List<Attribute> output;
+        if (LEFT.equals(joinType)) {
+            AttributeSet rightFields = new AttributeSet(config().rightFields());
+            List<Attribute> leftOutputWithoutMatchFields = new ArrayList<>();
+            // at this point "left" part of the join contains all the attributes that represent the input of the join
+            // including any aliasing (evals) of expressions used as grouping attributes (or join "match fields") in the join itself
+            for (Attribute attr : left().output()) {
+                if (rightFields.contains(attr) == false) {
+                    // the aforementioned groupings expressions or aliasing are removed from the left set of attributes
+                    leftOutputWithoutMatchFields.add(attr);
+                }
+            }
+            // the actual output of the join will place the left hand side attributes (excluding any aliasing of the groupings)
+            // as first columns in the output followed by whatever the right hand side of join adds in this order: aggregates first,
+            // followed by groupings (this order should be preserved inside the rightFields() output)
+            output = mergeOutputAttributes(right, leftOutputWithoutMatchFields);
+        } else {
+            throw new IllegalArgumentException(joinType.joinName() + " unsupported");
+        }
+        return output;
     }
 }

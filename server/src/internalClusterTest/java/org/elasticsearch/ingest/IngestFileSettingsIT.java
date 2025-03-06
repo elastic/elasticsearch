@@ -57,9 +57,9 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
         return Arrays.asList(CustomIngestTestPlugin.class);
     }
 
-    private static AtomicLong versionCounter = new AtomicLong(1);
+    private static final AtomicLong versionCounter = new AtomicLong(1);
 
-    private static String testJSON = """
+    private static final String testJSON = """
         {
              "metadata": {
                  "version": "%s",
@@ -93,7 +93,7 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
              }
         }""";
 
-    private static String testErrorJSON = """
+    private static final String testErrorJSON = """
         {
              "metadata": {
                  "version": "%s",
@@ -262,7 +262,7 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             Map<String, Processor.Factory> processors = new HashMap<>();
-            processors.put("test", (factories, tag, description, config) -> {
+            processors.put("test", (factories, tag, description, config, projectId) -> {
                 String field = (String) config.remove("field");
                 String value = (String) config.remove("value");
                 return new FakeProcessor("test", tag, description, (ingestDocument) -> ingestDocument.setFieldValue(field, value));

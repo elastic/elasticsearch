@@ -56,6 +56,18 @@ restResources {
   }
 }
 
+configurations {
+  basicRestSpecs {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
+artifacts {
+  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           // Commons logging
@@ -166,4 +178,8 @@ if (OS.current() == OS.WINDOWS) {
         nonInputProperties.systemProperty "es${version}.port", fixture.map(f->f.addressAndPort)
     }
   }
+}
+
+tasks.named("yamlRestCompatTestTransform").configure { task ->
+  task.skipTest("reindex/20_validation/specifying size fails", "size is rejected in 9.0")
 }

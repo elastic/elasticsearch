@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAct
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
@@ -29,6 +30,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
@@ -207,11 +209,13 @@ public class InternalUsers {
                         TransportDeleteIndexAction.TYPE.name(),
                         "indices:admin/data_stream/index/reindex",
                         "indices:admin/index/create_from_source",
+                        "indices:admin/index/copy_lifecycle_index_metadata",
                         TransportAddIndexBlockAction.TYPE.name(),
                         OpenIndexAction.NAME,
                         TransportCloseIndexAction.NAME,
                         TransportCreateIndexAction.TYPE.name(),
                         TransportClusterSearchShardsAction.TYPE.name(),
+                        GetSettingsAction.NAME,
                         TransportUpdateSettingsAction.TYPE.name(),
                         RefreshAction.NAME,
                         ReindexAction.NAME,
@@ -219,12 +223,14 @@ public class InternalUsers {
                         TransportBulkAction.NAME,
                         TransportIndexAction.NAME,
                         TransportSearchScrollAction.TYPE.name(),
-                        ModifyDataStreamsAction.NAME
+                        ModifyDataStreamsAction.NAME,
+                        ILMActions.RETRY.name()
                     )
                     .allowRestrictedIndices(false)
                     .build() },
             null,
             null,
+
             new String[] {},
             MetadataUtils.DEFAULT_RESERVED_METADATA,
             Map.of()

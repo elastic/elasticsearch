@@ -66,9 +66,9 @@ public @interface FunctionInfo {
     String appendix() default "";
 
     /**
-     * Is this an aggregation (true) or a scalar function (false).
+     * The position the function can appear in the language.
      */
-    boolean isAggregation() default false;
+    FunctionType type() default FunctionType.SCALAR;
 
     /**
      * Examples of using this function that are rendered in the docs.

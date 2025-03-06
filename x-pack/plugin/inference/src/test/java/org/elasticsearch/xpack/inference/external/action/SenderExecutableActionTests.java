@@ -34,6 +34,7 @@ import static org.mockito.Mockito.mock;
 
 public class SenderExecutableActionTests extends ESTestCase {
     private static final String failedToSendRequestErrorMessage = "test failed";
+    private static final String failureExceptionMessage = failedToSendRequestErrorMessage + ". Cause: test";
     private Sender sender;
     private RequestManager requestManager;
     private SenderExecutableAction executableAction;
@@ -96,7 +97,7 @@ public class SenderExecutableActionTests extends ESTestCase {
         execute(actualException);
 
         assertThat(actualException.get(), notNullValue());
-        assertThat(actualException.get().getMessage(), is(failedToSendRequestErrorMessage));
+        assertThat(actualException.get().getMessage(), is(failureExceptionMessage));
         assertThat(actualException.get(), instanceOf(ElasticsearchStatusException.class));
         assertThat(actualException.get().getCause(), sameInstance(expectedException));
     }
@@ -110,7 +111,7 @@ public class SenderExecutableActionTests extends ESTestCase {
         execute(actualException);
 
         assertThat(actualException.get(), notNullValue());
-        assertThat(actualException.get().getMessage(), is(failedToSendRequestErrorMessage));
+        assertThat(actualException.get().getMessage(), is(failureExceptionMessage));
         assertThat(actualException.get(), instanceOf(ElasticsearchStatusException.class));
         assertThat(actualException.get().getCause(), sameInstance(expectedException));
     }

@@ -28,10 +28,12 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
@@ -136,11 +138,12 @@ public class AuthorizationService {
     private final XPackLicenseState licenseState;
     private final OperatorPrivilegesService operatorPrivilegesService;
     private final RestrictedIndices restrictedIndices;
-    private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
+    private final AuthorizationDenialMessages authorizationDenialMessages;
+    private final ProjectResolver projectResolver;
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
-    private final AuthorizationDenialMessages authorizationDenialMessages;
+    private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
 
     public AuthorizationService(
         Settings settings,
@@ -157,7 +160,8 @@ public class AuthorizationService {
         IndexNameExpressionResolver resolver,
         OperatorPrivilegesService operatorPrivilegesService,
         RestrictedIndices restrictedIndices,
-        AuthorizationDenialMessages authorizationDenialMessages
+        AuthorizationDenialMessages authorizationDenialMessages,
+        ProjectResolver projectResolver
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -182,6 +186,7 @@ public class AuthorizationService {
         this.operatorPrivilegesService = operatorPrivilegesService;
         this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
         this.authorizationDenialMessages = authorizationDenialMessages;
+        this.projectResolver = projectResolver;
     }
 
     public void checkPrivileges(
@@ -476,24 +481,25 @@ public class AuthorizationService {
                 l.onResponse(result);
             }));
         } else if (isIndexAction(action)) {
-            final Metadata metadata = clusterService.state().metadata();
-            final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
+            final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+            assert projectMetadata != null;
+            final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(() -> {
                 if (request instanceof SearchRequest searchRequest && searchRequest.pointInTimeBuilder() != null) {
                     var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
-                    resolvedIndicesListener.onResponse(resolvedIndices);
-                    return;
+                    return SubscribableListener.newSucceeded(resolvedIndices);
                 }
                 final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
                 if (resolvedIndices != null) {
-                    resolvedIndicesListener.onResponse(resolvedIndices);
+                    return SubscribableListener.newSucceeded(resolvedIndices);
                 } else {
+                    final SubscribableListener<ResolvedIndices> resolvedIndicesListener = new SubscribableListener<>();
                     authzEngine.loadAuthorizedIndices(
                         requestInfo,
                         authzInfo,
-                        metadata.getIndicesLookup(),
+                        projectMetadata.getIndicesLookup(),
                         ActionListener.wrap(
                             authorizedIndices -> resolvedIndicesListener.onResponse(
-                                indicesAndAliasesResolver.resolve(action, request, metadata, authorizedIndices)
+                                indicesAndAliasesResolver.resolve(action, request, projectMetadata, authorizedIndices)
                             ),
                             e -> {
                                 auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
@@ -505,33 +511,31 @@ public class AuthorizationService {
                             }
                         )
                     );
+                    return resolvedIndicesListener;
                 }
             });
-            authzEngine.authorizeIndexAction(
-                requestInfo,
-                authzInfo,
-                resolvedIndicesAsyncSupplier,
-                metadata,
-                wrapPreservingContext(
-                    new AuthorizationResultListener<>(
-                        result -> handleIndexActionAuthorizationResult(
-                            result,
+            authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier, projectMetadata)
+                .addListener(
+                    wrapPreservingContext(
+                        new AuthorizationResultListener<>(
+                            result -> handleIndexActionAuthorizationResult(
+                                result,
+                                requestInfo,
+                                requestId,
+                                authzInfo,
+                                authzEngine,
+                                resolvedIndicesAsyncSupplier,
+                                projectMetadata,
+                                listener
+                            ),
+                            listener::onFailure,
                             requestInfo,
                             requestId,
-                            authzInfo,
-                            authzEngine,
-                            resolvedIndicesAsyncSupplier,
-                            metadata,
-                            listener
+                            authzInfo
                         ),
-                        listener::onFailure,
-                        requestInfo,
-                        requestId,
-                        authzInfo
-                    ),
-                    threadContext
-                )
-            );
+                        threadContext
+                    )
+                );
         } else {
             logger.warn("denying access for [{}] as action [{}] is not an index or cluster action", authentication, action);
             auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
@@ -546,7 +550,7 @@ public class AuthorizationService {
         final AuthorizationInfo authzInfo,
         final AuthorizationEngine authzEngine,
         final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
-        final Metadata metadata,
+        final ProjectMetadata projectMetadata,
         final ActionListener<Void> listener
     ) {
         final IndicesAccessControl indicesAccessControl = indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
@@ -575,29 +579,30 @@ public class AuthorizationService {
                     TransportIndicesAliasesAction.NAME,
                     authzContext
                 );
-                authzEngine.authorizeIndexAction(
-                    aliasesRequestInfo,
-                    authzInfo,
-                    ril -> resolvedIndicesAsyncSupplier.getAsync(ril.delegateFailureAndWrap((l, resolvedIndices) -> {
+                authzEngine.authorizeIndexAction(aliasesRequestInfo, authzInfo, () -> {
+                    SubscribableListener<ResolvedIndices> ril = new SubscribableListener<>();
+                    resolvedIndicesAsyncSupplier.getAsync().addListener(ril.delegateFailureAndWrap((l, resolvedIndices) -> {
                         List<String> aliasesAndIndices = new ArrayList<>(resolvedIndices.getLocal());
                         for (Alias alias : aliases) {
                             aliasesAndIndices.add(alias.name());
                         }
                         ResolvedIndices withAliases = new ResolvedIndices(aliasesAndIndices, Collections.emptyList());
                         l.onResponse(withAliases);
-                    })),
-                    metadata,
-                    wrapPreservingContext(
-                        new AuthorizationResultListener<>(
-                            authorizationResult -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
-                            listener::onFailure,
-                            aliasesRequestInfo,
-                            requestId,
-                            authzInfo
-                        ),
-                        threadContext
-                    )
-                );
+                    }));
+                    return ril;
+                }, projectMetadata)
+                    .addListener(
+                        wrapPreservingContext(
+                            new AuthorizationResultListener<>(
+                                authorizationResult -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
+                                listener::onFailure,
+                                aliasesRequestInfo,
+                                requestId,
+                                authzInfo
+                            ),
+                            threadContext
+                        )
+                    );
             }
         } else if (action.equals(TransportShardBulkAction.ACTION_NAME)) {
             // if this is performing multiple actions on the index, then check each of those actions.
@@ -608,7 +613,7 @@ public class AuthorizationService {
                 authzContext,
                 authzEngine,
                 resolvedIndicesAsyncSupplier,
-                metadata,
+                projectMetadata,
                 requestId,
                 wrapPreservingContext(
                     listener.delegateFailureAndWrap((l, ignore) -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, l)),
@@ -626,22 +631,26 @@ public class AuthorizationService {
         AuthorizationEngine authorizationEngine,
         ActionListener<Void> listener
     ) {
-        if (requestInterceptors.isEmpty()) {
-            listener.onResponse(null);
-        } else {
-            final Iterator<RequestInterceptor> requestInterceptorIterator = requestInterceptors.iterator();
-            requestInterceptorIterator.next()
-                .intercept(requestInfo, authorizationEngine, authorizationInfo, new DelegatingActionListener<>(listener) {
+        final Iterator<RequestInterceptor> requestInterceptorIterator = requestInterceptors.iterator();
+        while (requestInterceptorIterator.hasNext()) {
+            var res = requestInterceptorIterator.next().intercept(requestInfo, authorizationEngine, authorizationInfo);
+            if (res.isSuccess() == false) {
+                res.addListener(new DelegatingActionListener<>(listener) {
                     @Override
                     public void onResponse(Void unused) {
                         if (requestInterceptorIterator.hasNext()) {
-                            requestInterceptorIterator.next().intercept(requestInfo, authorizationEngine, authorizationInfo, this);
+                            requestInterceptorIterator.next()
+                                .intercept(requestInfo, authorizationEngine, authorizationInfo)
+                                .addListener(this);
                         } else {
-                            listener.onResponse(null);
+                            delegate.onResponse(null);
                         }
                     }
                 });
+                return;
+            }
         }
+        listener.onResponse(null);
     }
 
     // pkg-private for testing
@@ -758,7 +767,7 @@ public class AuthorizationService {
         AuthorizationContext bulkAuthzContext,
         AuthorizationEngine authzEngine,
         AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         String requestId,
         ActionListener<Void> listener
     ) {
@@ -771,7 +780,7 @@ public class AuthorizationService {
         final Map<String, Set<String>> actionToIndicesMap = new HashMap<>(4);
         final AuditTrail auditTrail = auditTrailService.get();
 
-        resolvedIndicesAsyncSupplier.getAsync(ActionListener.wrap(overallResolvedIndices -> {
+        resolvedIndicesAsyncSupplier.getAsync().addListener(ActionListener.wrap(overallResolvedIndices -> {
             final Set<String> localIndices = new HashSet<>(overallResolvedIndices.getLocal());
             for (BulkItemRequest item : request.items()) {
                 final String itemAction = getAction(item);
@@ -866,12 +875,14 @@ public class AuthorizationService {
                 authzEngine.authorizeIndexAction(
                     bulkItemInfo,
                     authzInfo,
-                    ril -> ril.onResponse(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
-                    metadata,
-                    groupedActionListener.delegateFailureAndWrap(
-                        (l, indexAuthorizationResult) -> l.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult))
-                    )
-                );
+                    () -> SubscribableListener.newSucceeded(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
+                    projectMetadata
+                )
+                    .addListener(
+                        groupedActionListener.delegateFailureAndWrap(
+                            (l, indexAuthorizationResult) -> l.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult))
+                        )
+                    );
             });
         }, listener::onFailure));
     }
@@ -1063,7 +1074,7 @@ public class AuthorizationService {
         }
 
         @Override
-        public void getAsync(ActionListener<V> listener) {
+        public SubscribableListener<V> getAsync() {
             if (valueFuture == null) {
                 boolean firstInvocation = false;
                 synchronized (this) {
@@ -1073,10 +1084,10 @@ public class AuthorizationService {
                     }
                 }
                 if (firstInvocation) {
-                    asyncSupplier.getAsync(valueFuture);
+                    asyncSupplier.getAsync().addListener(valueFuture);
                 }
             }
-            valueFuture.addListener(listener);
+            return valueFuture;
         }
     }
 

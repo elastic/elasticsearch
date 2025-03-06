@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -71,6 +72,8 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
@@ -161,7 +164,7 @@ public class EsqlSession {
             parse(request.query(), request.params()),
             executionInfo,
             request.filter(),
-            new EsqlSessionCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
+            new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
                 @Override
                 public void onResponse(LogicalPlan analyzedPlan) {
                     preMapper.preMapper(
@@ -188,7 +191,7 @@ public class EsqlSession {
     ) {
         PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
         // TODO: this could be snuck into the underlying listener
-        EsqlSessionCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
+        EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
         // execute any potential subplans
         executeSubPlans(physicalPlan, planRunner, executionInfo, request, listener);
     }
@@ -215,6 +218,22 @@ public class EsqlSession {
                 PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
                 subplans.add(new PlanTuple(subqueryPlan, ij.right()));
             });
+        });
+
+        // Currently fork is limited and supported as streaming operators, similar to inlinestats
+        physicalPlan = physicalPlan.transformUp(MergeExec.class, m -> {
+            List<PhysicalPlan> newSubPlans = new ArrayList<>();
+            for (var plan : m.children()) {
+                if (plan instanceof FragmentExec fragmentExec) {
+                    LogicalPlan subplan = fragmentExec.fragment();
+                    subplan = optimizedPlan(subplan);
+                    PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
+                    subplans.add(new PlanTuple(subqueryPlan, subplan));
+                    plan = new FragmentExec(subplan);
+                }
+                newSubPlans.add(plan);
+            }
+            return new MergeExec(m.source(), newSubPlans, m.output());
         });
 
         Iterator<PlanTuple> iterator = subplans.iterator();
@@ -245,7 +264,7 @@ public class EsqlSession {
                 LocalRelation resultWrapper = resultToPlan(tuple.logical, result);
 
                 // replace the original logical plan with the backing result
-                final PhysicalPlan newPlan = plan.transformUp(FragmentExec.class, f -> {
+                PhysicalPlan newPlan = plan.transformUp(FragmentExec.class, f -> {
                     LogicalPlan frag = f.fragment();
                     return f.withFragment(
                         frag.transformUp(
@@ -254,6 +273,27 @@ public class EsqlSession {
                         )
                     );
                 });
+
+                // replace the original logical plan with the backing result, in MergeExec
+                newPlan = newPlan.transformUp(MergeExec.class, m -> {
+                    boolean changed = m.children()
+                        .stream()
+                        .filter(sp -> FragmentExec.class.isAssignableFrom(sp.getClass()))
+                        .map(FragmentExec.class::cast)
+                        .anyMatch(fragmentExec -> fragmentExec.fragment() == tuple.logical);
+                    if (changed) {
+                        List<PhysicalPlan> newSubPlans = m.children().stream().map(subPlan -> {
+                            if (subPlan instanceof FragmentExec fe && fe.fragment() == tuple.logical) {
+                                return new LocalSourceExec(resultWrapper.source(), resultWrapper.output(), resultWrapper.supplier());
+                            } else {
+                                return subPlan;
+                            }
+                        }).toList();
+                        return new MergeExec(m.source(), newSubPlans, m.output());
+                    }
+                    return m;
+                });
+
                 if (subPlanIterator.hasNext() == false) {
                     runner.run(newPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
                         profileAccumulator.addAll(finalResult.profiles());
@@ -315,7 +355,7 @@ public class EsqlSession {
             .collect(Collectors.toSet());
         final List<TableInfo> indices = preAnalysis.indices;
 
-        EsqlSessionCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, verifier.licenseState());
+        EsqlCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, verifier.licenseState());
 
         final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
             indices.stream()
@@ -430,7 +470,7 @@ public class EsqlSession {
             }
             // if the preceding call to the enrich policy API found unavailable clusters, recreate the index expression to search
             // based only on available clusters (which could now be an empty list)
-            String indexExpressionToResolve = EsqlSessionCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
+            String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
             if (indexExpressionToResolve.isEmpty()) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
                 listener.onResponse(
@@ -464,8 +504,8 @@ public class EsqlSession {
         ActionListener<PreAnalysisResult> l
     ) {
         IndexResolution indexResolution = result.indices;
-        EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
-        EsqlSessionCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.unavailableClusters());
+        EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.unavailableClusters());
         if (executionInfo.isCrossClusterSearch()
             && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
             // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
@@ -551,6 +591,9 @@ public class EsqlSession {
     static PreAnalysisResult fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields, PreAnalysisResult result) {
         if (false == parsed.anyMatch(plan -> plan instanceof Aggregate || plan instanceof Project)) {
             // no explicit columns selection, for example "from employees"
+            return result.withFieldNames(IndexResolver.ALL_FIELDS);
+        }
+        if (parsed.anyMatch(plan -> plan instanceof Fork)) {
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 

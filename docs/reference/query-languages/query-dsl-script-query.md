@@ -41,6 +41,39 @@ GET /_search
   }
 }
 ```
+%  TEST[setup:ledger]
+%  TEST[s/_search/_search?filter_path=hits.hits&sort=amount/]
+
+% [source,console-result]
+% ----
+% {
+%   "hits": {
+%     "hits": [
+%       {
+%         "_id": $body.hits.hits.0._id,
+%         "_index": $body.hits.hits.0._index,
+%         "_score": null,
+%         "_source": $body.hits.hits.0._source,
+%         "sort": [10.0]
+%       },
+%       {
+%         "_id": $body.hits.hits.1._id,
+%         "_index": $body.hits.hits.1._index,
+%         "_score": null,
+%         "_source": $body.hits.hits.1._source,
+%         "sort": [50.0]
+%       },
+%       {
+%         "_id": $body.hits.hits.2._id,
+%         "_index": $body.hits.hits.2._index,
+%         "_score": null,
+%         "_source": $body.hits.hits.2._source,
+%         "sort": [50.0]
+%       }
+%     ]
+%   }
+% }
+% ----
 
 You can achieve the same results in a search query by using runtime fields. Use the [`fields`](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md) parameter on the `_search` API to fetch values as part of the same query:
 
@@ -71,6 +104,27 @@ GET /_search
   "fields": [{"field": "amount.signed"}]
 }
 ```
+%  TEST[setup:ledger]
+%  TEST[s/_search/_search?filter_path=hits.hits.fields&sort=amount.signed:desc/]
+
+% [source,console-result]
+% ----
+% {
+%   "hits": {
+%     "hits": [
+%       {
+%         "fields": {"amount.signed": [-10.0]}
+%       },
+%       {
+%         "fields": {"amount.signed": [-50.0]}
+%       },
+%       {
+%         "fields": {"amount.signed": [-50.0]}
+%       }
+%     ]
+%   }
+% }
+% ----
 
 
 ## Top-level parameters for `script` [script-top-level-params]

@@ -20,6 +20,23 @@ POST _analyze
 }
 ```
 
+% 
+% [source,console-result]
+% ----------------------------
+% {
+%   "tokens": [
+%     {
+%       "token": "New York",
+%       "start_offset": 0,
+%       "end_offset": 8,
+%       "type": "word",
+%       "position": 0
+%     }
+%   ]
+% }
+% ----------------------------
+% 
+
 The above sentence would produce the following term:
 
 ```text
@@ -41,6 +58,23 @@ POST _analyze
   "text": "john.SMITH@example.COM"
 }
 ```
+
+% 
+% [source,console-result]
+% ----------------------------
+% {
+%   "tokens": [
+%     {
+%       "token": "[john.smith@example.com](mailto:john.smith@example.com)",
+%       "start_offset": 0,
+%       "end_offset": 22,
+%       "type": "word",
+%       "position": 0
+%     }
+%   ]
+% }
+% ----------------------------
+% 
 
 The request produces the following token:
 

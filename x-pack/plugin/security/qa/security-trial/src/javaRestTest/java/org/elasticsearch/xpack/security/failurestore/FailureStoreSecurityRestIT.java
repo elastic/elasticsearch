@@ -260,22 +260,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             """);
         assertOK(adminClient().performRequest(aliasRequest));
 
-        // `*` with read access user _can_ read concrete failure index with only read
-        expectDocIds(performRequest(STAR_READ_ONLY_USER, new Request("GET", "/" + failureIndexName + "/_search")), failuresDocId);
-
-        // user with access to failures index
-        expectDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test-alias::failures/_search")), failuresDocId);
-        expectDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::failures/_search")), failuresDocId);
-        expectDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test*::failures/_search")), failuresDocId);
-        expectDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::failures/_search")), failuresDocId);
-        expectDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*::failures/_search")), failuresDocId);
-        expectDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.fs*/_search")), failuresDocId);
-        expectDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search")), failuresDocId);
-        expectDocIds(
-            performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search?ignore_unavailable=true")),
-            failuresDocId
-        );
-
         // todo also add superuser
         List<String> users = List.of(DATA_ACCESS_USER, FAILURE_STORE_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER);
 
@@ -599,8 +583,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             for (var user : users) {
                 switch (user) {
                     case DATA_ACCESS_USER:
-                        // TODO fix
-                        // expectEmpty(performRequest(user, request));
+                        expectEmpty(performRequest(user, request));
                         break;
                     case FAILURE_STORE_ACCESS_USER, STAR_READ_ONLY_USER, BOTH_ACCESS_USER:
                         expectDocIds(performRequest(user, request), failuresDocId);
@@ -638,72 +621,57 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
         }
 
-        expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test12::failures/_search")));
+        // mixed access
+        {
+            Request request = searchRequest("test1,test1::failures");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, FAILURE_STORE_ACCESS_USER, STAR_READ_ONLY_USER:
+                        expectThrows403(() -> performRequest(user, request));
+                        break;
+                    case BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test1,test1::failures", "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER:
+                        expectDocIds(performRequest(user, request), dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), failuresDocId);
+                        break;
+                    case BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test1,*::failures");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, FAILURE_STORE_ACCESS_USER, STAR_READ_ONLY_USER:
+                        expectThrows403(() -> performRequest(user, request));
+                        break;
+                    case BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
 
-        expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
-
-        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::data/_search")));
-        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2/_search")));
-        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search")));
-        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1,test1::failures/_search")));
-
-        expectEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::data/_search?ignore_unavailable=true")));
-        expectEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1/_search?ignore_unavailable=true")));
-        expectEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::data/_search?ignore_unavailable=true")));
-        expectEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2/_search?ignore_unavailable=true")));
-        expectEmpty(
-            performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search?ignore_unavailable=true"))
-        );
-        expectEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.ds*/_search")));
-        expectEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::data/_search")));
-        expectEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1/_search")));
-
-        expectThrows404(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test12/_search")));
-        expectThrows404(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test2/_search")));
-
-        expectEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/test1::failures/_search?ignore_unavailable=true")));
-        expectEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/test2::failures/_search?ignore_unavailable=true")));
-
-        expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test1::failures/_search")));
-        expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
-        expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search")));
-        expectEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/.fs*/_search")));
-        expectEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/*1::failures/_search")));
-
-        // user with access to everything
-        expectDocIds(adminClient().performRequest(new Request("GET", "/test1::failures/_search")), failuresDocId);
-        expectDocIds(adminClient().performRequest(new Request("GET", "/test*::failures/_search")), failuresDocId);
-        expectDocIds(adminClient().performRequest(new Request("GET", "/*1::failures/_search")), failuresDocId);
-        expectDocIds(adminClient().performRequest(new Request("GET", "/*::failures/_search")), failuresDocId);
-        expectDocIds(adminClient().performRequest(new Request("GET", "/.fs*/_search")), failuresDocId);
-
-        expectThrows404(() -> adminClient().performRequest(new Request("GET", "/test12::failures/_search")));
-        expectThrows404(() -> adminClient().performRequest(new Request("GET", "/test2::failures/_search")));
-
-        expectEmpty(adminClient().performRequest(new Request("GET", "/test12::failures/_search?ignore_unavailable=true")));
-        expectEmpty(adminClient().performRequest(new Request("GET", "/test2::failures/_search?ignore_unavailable=true")));
-
-        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test1::failures/_search")), failuresDocId);
-        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test*::failures/_search")), failuresDocId);
-        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*1::failures/_search")), failuresDocId);
-        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*::failures/_search")), failuresDocId);
-        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/.fs*/_search")), failuresDocId);
-
-        expectThrows404(() -> performRequest(BOTH_ACCESS_USER, new Request("GET", "/test12::failures/_search")));
-        expectThrows404(() -> performRequest(BOTH_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
-
-        expectEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test12::failures/_search?ignore_unavailable=true")));
-        expectEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test2::failures/_search?ignore_unavailable=true")));
-
-        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test1/_search")), dataDocId);
-        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test*/_search")), dataDocId);
-        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*1/_search")), dataDocId);
-        expectDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*/_search")), dataDocId);
-
-        expectEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test12/_search?ignore_unavailable=true")));
-        expectEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test2/_search?ignore_unavailable=true")));
-
-        // destructive operations below
+        // write operations below
 
         // user with manage access to data stream does NOT get direct access to failure index
         expectThrows403(() -> deleteIndex(MANAGE_ACCESS_USER, failureIndexName));

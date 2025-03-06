@@ -189,6 +189,7 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.storage.v2.StorageSettings$Builder',
     'com.google.storage.v2.stub.GrpcStorageStub',
     'com.google.storage.v2.stub.StorageStubSettings',
+    // opentelemetry implementation stuff
     'io.grpc.opentelemetry.GrpcOpenTelemetry',
     'io.grpc.opentelemetry.GrpcOpenTelemetry$Builder',
     'io.grpc.protobuf.ProtoUtils',

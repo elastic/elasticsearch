@@ -770,7 +770,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
             var nullValueBytes = nullValue != null ? new BytesRef(nullValue) : null;
-            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<>(nullValueBytes) {
+            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<BytesRef>(nullValueBytes) {
                 @Override
                 public void convertValue(Object value, List<BytesRef> accumulator) {
                     String stringValue = ((BytesRef) value).utf8ToString();

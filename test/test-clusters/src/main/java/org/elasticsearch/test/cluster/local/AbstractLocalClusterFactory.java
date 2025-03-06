@@ -339,9 +339,16 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     IOUtils.deleteWithRetry(workingDir);
                 }
 
+                LOGGER.warn("Logging disk space and file permissions for working dir: {}", workingDir);
+                DebugUtils.logDiskSpaceAndPrivileges(workingDir);
+                LOGGER.warn("Logging disk space and file permissions for distribution dir: {}",
+                    distributionDescriptor.getDistributionDir());
+                DebugUtils.logDiskSpaceAndPrivileges(distributionDescriptor.getDistributionDir());
                 if (canUseSharedDistribution()) {
+                    LOGGER.warn("Using shared distribution");
                     distributionDir = distributionDescriptor.getDistributionDir();
                 } else {
+                    LOGGER.warn("Using non-shared distribution");
                     distributionDir = OS.conditional(
                         // Use per-version distribution directories on Windows to avoid cleanup failures
                         c -> c.onWindows(() -> workingDir.resolve("distro").resolve(distributionDescriptor.getVersion().toString()))
@@ -352,6 +359,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                         IOUtils.deleteWithRetry(distributionDir);
                     }
 
+
                     IOUtils.syncMaybeWithLinks(distributionDescriptor.getDistributionDir(), distributionDir);
                 }
                 Files.createDirectories(repoDir);
@@ -359,6 +367,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 Files.createDirectories(logsDir);
                 Files.createDirectories(tempDir);
             } catch (IOException e) {
+                LOGGER.error("Failed to initialize working directory for node: {}", this, e);
                 throw new UncheckedIOException("Failed to create working directory for node '" + name + "'", e);
             }
         }

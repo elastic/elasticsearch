@@ -343,8 +343,7 @@ public class ClusterStateChanges {
             clusterService,
             threadPool,
             allocationService,
-            actionFilters,
-            indexNameExpressionResolver
+            actionFilters
         );
         transportCreateIndexAction = new TransportCreateIndexAction(
             transportService,
@@ -352,7 +351,6 @@ public class ClusterStateChanges {
             threadPool,
             createIndexService,
             actionFilters,
-            indexNameExpressionResolver,
             EmptySystemIndices.INSTANCE
         );
 

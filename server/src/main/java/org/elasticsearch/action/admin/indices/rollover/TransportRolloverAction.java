@@ -47,7 +47,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -483,7 +482,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         @Override
         public ClusterState execute(BatchExecutionContext<RolloverTask> batchExecutionContext) {
             final var listener = new AllocationActionMultiListener<RolloverResponse>(threadPool.getThreadContext());
-            final var results = new ArrayList<MetadataRolloverService.RolloverResult>(batchExecutionContext.taskContexts().size());
+            final var results = new ArrayList<String>(batchExecutionContext.taskContexts().size());
             var state = batchExecutionContext.initialState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 try (var ignored = taskContext.captureResponseHeaders()) {
@@ -495,14 +494,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
             if (state != batchExecutionContext.initialState()) {
                 var reason = new StringBuilder();
-                Strings.collectionToDelimitedStringWithLimit(
-                    (Iterable<String>) () -> Iterators.map(results.iterator(), t -> t.sourceIndexName() + "->" + t.rolloverIndexName()),
-                    ",",
-                    "bulk rollover [",
-                    "]",
-                    1024,
-                    reason
-                );
+                Strings.collectionToDelimitedStringWithLimit(results, ",", "bulk rollover [", "]", 1024, reason);
                 try (var ignored = batchExecutionContext.dropHeadersContext()) {
                     state = allocationService.reroute(state, reason.toString(), listener.reroute());
                 }
@@ -514,7 +506,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
         public ClusterState executeTask(
             ClusterState currentState,
-            List<MetadataRolloverService.RolloverResult> results,
+            ArrayList<String> results,
             TaskContext<RolloverTask> rolloverTaskContext,
             AllocationActionMultiListener<RolloverResponse> allocationActionMultiListener
         ) throws Exception {
@@ -586,7 +578,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     rolloverTask.autoShardingResult(),
                     targetFailureStore
                 );
-                results.add(rolloverResult);
+                results.add(rolloverResult.sourceIndexName() + "->" + rolloverResult.rolloverIndexName());
                 logger.trace("rollover result [{}]", rolloverResult);
 
                 final var rolloverIndexName = rolloverResult.rolloverIndexName();

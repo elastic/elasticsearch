@@ -3468,7 +3468,9 @@ public class InternalEngine extends Engine {
     <T> T performActionWithDirectoryReader(SearcherScope scope, CheckedFunction<DirectoryReader, T, IOException> action)
         throws EngineException {
         assert scope == SearcherScope.INTERNAL : "performActionWithDirectoryReader(...) isn't prepared for external usage";
-        assert store.hasReferences();
+        if (store.tryIncRef() == false) {
+            throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
+        }
         try {
             ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             ElasticsearchDirectoryReader acquire = referenceManager.acquire();
@@ -3484,6 +3486,8 @@ public class InternalEngine extends Engine {
             ensureOpen(ex); // throw EngineCloseException here if we are already closed
             logger.error("failed to perform action with directory reader", ex);
             throw new EngineException(shardId, "failed to perform action with directory reader", ex);
+        } finally {
+            store.decRef();
         }
     }
 }

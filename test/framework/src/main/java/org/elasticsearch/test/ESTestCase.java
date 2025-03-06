@@ -119,6 +119,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.jdk.RuntimeVersionFeature;
+import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
@@ -229,7 +230,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
-@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class, NettyGlobalThreadsFilter.class })
+@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class, NettyGlobalThreadsFilter.class, JnaCleanerThreadsFilter.class })
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting
 // assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.
@@ -570,6 +571,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         if (this.headerWarningAppender != null) {
             Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
             this.headerWarningAppender = null;
+        }
+    }
+
+    private static org.elasticsearch.logging.Level capturedLogLevel = null;
+
+    // just capture the expected level once before the suite starts
+    @BeforeClass
+    public static void captureLoggingLevel() {
+        capturedLogLevel = LoggerFactory.provider().getRootLevel();
+    }
+
+    @AfterClass
+    public static void restoreLoggingLevel() {
+        if (capturedLogLevel != null) {
+            // log level might not have been captured if suite was skipped
+            LoggerFactory.provider().setRootLevel(capturedLogLevel);
+            capturedLogLevel = null;
         }
     }
 

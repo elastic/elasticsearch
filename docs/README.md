@@ -49,7 +49,7 @@ To re-run CI checks, an Elastic employee can select the `Re-run this job` option
 
 > [!TIP]
 As of 9.0.0, we are currently only publishing from the `main` branch.
-We will continue to backport changes as usual, in case we need to revist this approach in the future.
+We will continue to backport changes as usual, in case we need to revisit this approach in the future.
 
 If you need to update the `8.x` docs, you'll have to use the old `asciidoc` system. Refer to the [`8.x` README](https://github.com/elastic/elasticsearch/blob/8.x/docs/README.asciidoc) for more information.
 

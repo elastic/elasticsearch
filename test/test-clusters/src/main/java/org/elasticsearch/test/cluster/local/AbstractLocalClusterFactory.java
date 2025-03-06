@@ -341,8 +341,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
                 LOGGER.warn("Logging disk space and file permissions for working dir: {}", workingDir);
                 DebugUtils.logDiskSpaceAndPrivileges(workingDir);
-                LOGGER.warn("Logging disk space and file permissions for distribution dir: {}",
-                    distributionDescriptor.getDistributionDir());
+                LOGGER.warn(
+                    "Logging disk space and file permissions for distribution dir: {}",
+                    distributionDescriptor.getDistributionDir()
+                );
                 DebugUtils.logDiskSpaceAndPrivileges(distributionDescriptor.getDistributionDir());
                 if (canUseSharedDistribution()) {
                     LOGGER.warn("Using shared distribution");
@@ -358,7 +360,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     if (Files.exists(distributionDir)) {
                         IOUtils.deleteWithRetry(distributionDir);
                     }
-
 
                     IOUtils.syncMaybeWithLinks(distributionDescriptor.getDistributionDir(), distributionDir);
                 }

@@ -13,6 +13,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
+import java.util.Objects;
+
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 
 public abstract class ElasticInferenceServiceRequest implements Request {
@@ -31,8 +33,18 @@ public abstract class ElasticInferenceServiceRequest implements Request {
     public final HttpRequest createHttpRequest() {
         HttpRequestBase request = createHttpRequestBase();
         // TODO: consider moving tracing here, too
-        request.setHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, metadata.productOrigin());
-        request.setHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, metadata.productUseCase());
+
+        var productOrigin = metadata.productOrigin();
+        var productUseCase = metadata.productUseCase();
+
+        if(Objects.nonNull(productOrigin) && productOrigin.isEmpty() == false){
+            request.setHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, metadata.productOrigin());
+        }
+
+        if(Objects.nonNull(productUseCase) && productUseCase.isEmpty() == false){
+            request.setHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, metadata.productUseCase());
+        }
+
         return new HttpRequest(request, getInferenceEntityId());
     }
 

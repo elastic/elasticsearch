@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENCE_ID;
@@ -70,11 +71,17 @@ abstract class BaseInferenceAction extends BaseRestHandler {
     private String extractProductUseCase(RestRequest restRequest) {
         var headers = restRequest.getHeaders();
 
-        if (headers.isEmpty()) {
+        if (Objects.isNull(headers) || headers.isEmpty()) {
+            return "";
+        }
+
+        var productUseCaseHeaders = headers.get(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+
+        if(Objects.isNull(productUseCaseHeaders) || productUseCaseHeaders.isEmpty()){
             return "";
         }
 
         // We always get the first value as the header doesn't allow multiple values
-        return headers.get(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER).getFirst();
+        return productUseCaseHeaders.getFirst();
     }
 }

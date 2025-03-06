@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
@@ -28,6 +29,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             "inference_id",
             TaskType.COMPLETION,
             UnifiedCompletionRequest.of(null),
+            InferenceContext.empty(),
             TimeValue.timeValueSeconds(10)
         );
         var exception = request.validate();
@@ -39,6 +41,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             "inference_id",
             TaskType.COMPLETION,
             UnifiedCompletionRequest.of(List.of()),
+            InferenceContext.empty(),
             TimeValue.timeValueSeconds(10)
         );
         var exception = request.validate();
@@ -50,6 +53,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             "inference_id",
             TaskType.SPARSE_EMBEDDING,
             UnifiedCompletionRequest.of(List.of(UnifiedCompletionRequestTests.randomMessage())),
+            InferenceContext.empty(),
             TimeValue.timeValueSeconds(10)
         );
         var exception = request.validate();
@@ -61,6 +65,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             "inference_id",
             TaskType.ANY,
             UnifiedCompletionRequest.of(List.of(UnifiedCompletionRequestTests.randomMessage())),
+            InferenceContext.empty(),
             TimeValue.timeValueSeconds(10)
         );
         assertNull(request.validate());
@@ -71,6 +76,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             "model",
             TaskType.ANY,
             UnifiedCompletionRequest.of(List.of(UnifiedCompletionRequestTests.randomMessage())),
+            InferenceContext.empty(),
             TimeValue.timeValueSeconds(10)
         );
 
@@ -101,6 +107,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             randomAlphaOfLength(10),
             randomFrom(TaskType.values()),
             UnifiedCompletionRequestTests.randomUnifiedCompletionRequest(),
+            InferenceContext.empty(),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
     }

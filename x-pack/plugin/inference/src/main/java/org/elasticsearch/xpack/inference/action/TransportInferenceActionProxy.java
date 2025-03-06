@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.TaskType;
@@ -35,14 +35,14 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 // TODO: test
 public class TransportInferenceActionProxy extends HandledTransportAction<InferenceActionProxy.Request, InferenceAction.Response> {
     private final ModelRegistry modelRegistry;
-    private final OriginSettingClient client;
+    private final Client client;
 
     @Inject
     public TransportInferenceActionProxy(
         TransportService transportService,
         ActionFilters actionFilters,
         ModelRegistry modelRegistry,
-        OriginSettingClient client
+        Client client
     ) {
         super(
             InferenceActionProxy.NAME,

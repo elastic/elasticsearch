@@ -49,7 +49,7 @@ public final class ShardSearchPerIndexTimeTrackingMetrics implements SearchOpera
             );
             t.v1().add(tookInNanos);
             t.v2().addValue(tookInNanos);
-            logger.info("Listener : Task execution time for index [{}] is [{}] [{}]", indexName, tookInNanos, Thread.currentThread().getName());
+            //logger.info("Listener : Task execution time for index [{}] is [{}] [{}]", indexName, tookInNanos, Thread.currentThread().getName());
         }
     }
 

@@ -293,7 +293,6 @@ public final class IngestDocument {
                 } catch (NumberFormatException e) {
                     return false;
                 }
-
             } else {
                 return false;
             }
@@ -515,7 +514,6 @@ public final class IngestDocument {
                 return;
             }
         }
-
         setFieldValue(path, value);
     }
 
@@ -540,7 +538,6 @@ public final class IngestDocument {
                 }
             }
         }
-
         setFieldValue(path, value);
     }
 
@@ -824,15 +821,12 @@ public final class IngestDocument {
     @SuppressWarnings("unchecked")
     private static Set<String> getAllFields(Map<String, Object> input, String prefix) {
         Set<String> allFields = Sets.newHashSet();
-
         input.forEach((k, v) -> {
             allFields.add(prefix + k);
-
             if (v instanceof Map<?, ?> mapValue) {
                 allFields.addAll(getAllFields((Map<String, Object>) mapValue, prefix + k + "."));
             }
         });
-
         return allFields;
     }
 

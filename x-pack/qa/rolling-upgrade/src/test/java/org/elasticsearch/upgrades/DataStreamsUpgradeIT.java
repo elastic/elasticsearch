@@ -340,8 +340,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 "settings":{
                     "index": {
                         $ILM_SETTING
-                        "number_of_replicas": 0,
-                        "mode": "standard"
+                        "number_of_replicas": 0
                     }
                 },
                 $DSL_TEMPLATE

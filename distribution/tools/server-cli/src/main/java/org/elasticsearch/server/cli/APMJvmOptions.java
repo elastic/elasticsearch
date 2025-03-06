@@ -48,7 +48,8 @@ class APMJvmOptions {
 
         // ES does not use auto-instrumentation.
         "instrument", "false",
-        "enable_experimental_instrumentations", "false"
+        "enable_experimental_instrumentations", "true",
+        "classes_excluded_from_instrumentation", "org.elasticsearch.entitlements.*"
         );
 
     /**

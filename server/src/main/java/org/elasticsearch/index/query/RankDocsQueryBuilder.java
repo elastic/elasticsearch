@@ -32,11 +32,13 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     private final RankDoc[] rankDocs;
     private final QueryBuilder[] queryBuilders;
     private final boolean onlyRankDocs;
+    private final float minScore;
 
-    public RankDocsQueryBuilder(RankDoc[] rankDocs, QueryBuilder[] queryBuilders, boolean onlyRankDocs) {
+    public RankDocsQueryBuilder(RankDoc[] rankDocs, QueryBuilder[] queryBuilders, boolean onlyRankDocs, float minScore) {
         this.rankDocs = rankDocs;
         this.queryBuilders = queryBuilders;
         this.onlyRankDocs = onlyRankDocs;
+        this.minScore = minScore;
     }
 
     public RankDocsQueryBuilder(StreamInput in) throws IOException {
@@ -45,9 +47,11 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.queryBuilders = in.readOptionalArray(c -> c.readNamedWriteable(QueryBuilder.class), QueryBuilder[]::new);
             this.onlyRankDocs = in.readBoolean();
+            this.minScore = in.readFloat();
         } else {
             this.queryBuilders = null;
             this.onlyRankDocs = false;
+            this.minScore = Float.MIN_VALUE;
         }
     }
 
@@ -70,7 +74,7 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
                 changed |= newQueryBuilders[i] != queryBuilders[i];
             }
             if (changed) {
-                RankDocsQueryBuilder clone = new RankDocsQueryBuilder(rankDocs, newQueryBuilders, onlyRankDocs);
+                RankDocsQueryBuilder clone = new RankDocsQueryBuilder(rankDocs, newQueryBuilders, onlyRankDocs, minScore);
                 clone.queryName(queryName());
                 return clone;
             }
@@ -88,6 +92,7 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalArray(StreamOutput::writeNamedWriteable, queryBuilders);
             out.writeBoolean(onlyRankDocs);
+            out.writeFloat(minScore);
         }
     }
 
@@ -115,7 +120,7 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
             queries = new Query[0];
             queryNames = Strings.EMPTY_ARRAY;
         }
-        return new RankDocsQuery(reader, shardRankDocs, queries, queryNames, onlyRankDocs);
+        return new RankDocsQuery(reader, shardRankDocs, queries, queryNames, onlyRankDocs, minScore);
     }
 
     @Override
@@ -135,12 +140,13 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     protected boolean doEquals(RankDocsQueryBuilder other) {
         return Arrays.equals(rankDocs, other.rankDocs)
             && Arrays.equals(queryBuilders, other.queryBuilders)
-            && onlyRankDocs == other.onlyRankDocs;
+            && onlyRankDocs == other.onlyRankDocs
+            && minScore == other.minScore;
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(Arrays.hashCode(rankDocs), Arrays.hashCode(queryBuilders), onlyRankDocs);
+        return Objects.hash(Arrays.hashCode(rankDocs), Arrays.hashCode(queryBuilders), onlyRankDocs, minScore);
     }
 
     @Override

@@ -164,11 +164,7 @@ public class RankDocsQuery extends Query {
                         }
 
                         @Override
-                        public float score() {
-                            // We could still end up with a valid 0 score for a RankDoc
-                            // so here we want to differentiate between this and all the tailQuery matches
-                            // that would also produce a 0 score due to filtering, by setting the score to `Float.MIN_VALUE` instead for
-                            // RankDoc matches.
+                        public float score() throws IOException {
                             return Math.max(docs[upTo].score, Float.MIN_VALUE);
                         }
 
@@ -234,6 +230,7 @@ public class RankDocsQuery extends Query {
     // RankDocs provided. This query does not contribute to scoring, as it is set as filter when creating the weight
     private final Query tailQuery;
     private final boolean onlyRankDocs;
+    private final float minScore;
 
     /**
      * Creates a {@code RankDocsQuery} based on the provided docs.
@@ -242,8 +239,9 @@ public class RankDocsQuery extends Query {
      * @param sources      The original queries that were used to compute the top documents
      * @param queryNames   The names (if present) of the original retrievers
      * @param onlyRankDocs Whether the query should only match the provided rank docs
+     * @param minScore     The minimum score threshold for documents to be included in total hits
      */
-    public RankDocsQuery(IndexReader reader, RankDoc[] rankDocs, Query[] sources, String[] queryNames, boolean onlyRankDocs) {
+    public RankDocsQuery(IndexReader reader, RankDoc[] rankDocs, Query[] sources, String[] queryNames, boolean onlyRankDocs, float minScore) {
         assert sources.length == queryNames.length;
         // clone to avoid side-effect after sorting
         this.docs = rankDocs.clone();
@@ -260,6 +258,7 @@ public class RankDocsQuery extends Query {
             this.tailQuery = null;
         }
         this.onlyRankDocs = onlyRankDocs;
+        this.minScore = minScore;
     }
 
     private RankDocsQuery(RankDoc[] docs, Query topQuery, Query tailQuery, boolean onlyRankDocs) {
@@ -267,6 +266,7 @@ public class RankDocsQuery extends Query {
         this.topQuery = topQuery;
         this.tailQuery = tailQuery;
         this.onlyRankDocs = onlyRankDocs;
+        this.minScore = Float.MIN_VALUE;
     }
 
     private static int binarySearch(RankDoc[] docs, int fromIndex, int toIndex, int key) {
@@ -346,7 +346,41 @@ public class RankDocsQuery extends Query {
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                return combinedWeight.scorerSupplier(context);
+                return new ScorerSupplier() {
+                    private final ScorerSupplier supplier = combinedWeight.scorerSupplier(context);
+
+                    @Override
+                    public Scorer get(long leadCost) throws IOException {
+                        Scorer scorer = supplier.get(leadCost);
+                        return new Scorer() {
+                            @Override
+                            public DocIdSetIterator iterator() {
+                                return scorer.iterator();
+                            }
+
+                            @Override
+                            public float getMaxScore(int docId) throws IOException {
+                                return scorer.getMaxScore(docId);
+                            }
+
+                            @Override
+                            public float score() throws IOException {
+                                float score = scorer.score();
+                                return score >= minScore ? score : 0f;
+                            }
+
+                            @Override
+                            public int docID() {
+                                return scorer.docID();
+                            }
+                        };
+                    }
+
+                    @Override
+                    public long cost() {
+                        return supplier.cost();
+                    }
+                };
             }
         };
     }

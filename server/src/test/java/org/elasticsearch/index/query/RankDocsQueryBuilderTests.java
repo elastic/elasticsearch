@@ -20,6 +20,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.search.rank.RankDoc;
@@ -31,6 +32,7 @@ import java.util.Arrays;
 import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQueryBuilder> {
@@ -50,14 +52,30 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
     @Override
     protected RankDocsQueryBuilder doCreateTestQueryBuilder() {
         RankDoc[] rankDocs = generateRandomRankDocs();
-        return new RankDocsQueryBuilder(rankDocs, null, false);
+        return new RankDocsQueryBuilder(rankDocs, null, false, Float.MIN_VALUE);
     }
 
     @Override
     protected void doAssertLuceneQuery(RankDocsQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        assertTrue(query instanceof RankDocsQuery);
+        assertThat(query, instanceOf(RankDocsQuery.class));
         RankDocsQuery rankDocsQuery = (RankDocsQuery) query;
-        assertArrayEquals(queryBuilder.rankDocs(), rankDocsQuery.rankDocs());
+        assertThat(rankDocsQuery.rankDocs(), equalTo(queryBuilder.rankDocs()));
+    }
+
+    protected Query createTestQuery() throws IOException {
+        return createRandomQuery().toQuery(createSearchExecutionContext());
+    }
+
+    private RankDocsQueryBuilder createQueryBuilder() {
+        return createRandomQuery();
+    }
+
+    private RankDocsQueryBuilder createRandomQuery() {
+        RankDoc[] rankDocs = new RankDoc[randomIntBetween(1, 5)];
+        for (int i = 0; i < rankDocs.length; i++) {
+            rankDocs[i] = new RankDoc(randomInt(), randomFloat(), randomIntBetween(0, 2));
+        }
+        return new RankDocsQueryBuilder(rankDocs, null, randomBoolean(), Float.MIN_VALUE);
     }
 
     /**
@@ -151,7 +169,8 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                         rankDocs,
                         new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
                         new String[1],
-                        false
+                        false,
+                        Float.MIN_VALUE
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, totalHitsThreshold);
                     var col = searcher.search(q, topDocsManager);
@@ -172,7 +191,8 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                         rankDocs,
                         new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
                         new String[1],
-                        false
+                        false,
+                        Float.MIN_VALUE
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, Integer.MAX_VALUE);
                     var col = searcher.search(q, topDocsManager);
@@ -187,7 +207,8 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                         rankDocs,
                         new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
                         new String[1],
-                        true
+                        true,
+                        Float.MIN_VALUE
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, Integer.MAX_VALUE);
                     var col = searcher.search(q, topDocsManager);
@@ -204,7 +225,8 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                         singleRankDoc,
                         new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
                         new String[1],
-                        false
+                        false,
+                        Float.MIN_VALUE
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(1, null, 0);
                     var col = searcher.search(q, topDocsManager);
@@ -257,9 +279,28 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
             iw.addDocument(new Document());
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
-                RankDocsQueryBuilder queryBuilder = new RankDocsQueryBuilder(new RankDoc[] { new RankDoc(0, -1.0f, 0) }, null, false);
+                RankDocsQueryBuilder queryBuilder = new RankDocsQueryBuilder(new RankDoc[] { new RankDoc(0, -1.0f, 0) }, null, false, Float.MIN_VALUE);
                 IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> queryBuilder.doToQuery(context));
                 assertEquals("RankDoc scores must be positive values. Missing a normalization step?", ex.getMessage());
+            }
+        }
+    }
+
+    public void testCreateQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(new Document());
+            try (IndexReader reader = iw.getReader()) {
+                RankDoc[] rankDocs = new RankDoc[] { new RankDoc(0, randomFloat(), 0) };
+                RankDocsQuery q = new RankDocsQuery(
+                    reader,
+                    rankDocs,
+                    new Query[] { new MatchAllDocsQuery() },
+                    new String[] { "test" },
+                    false,
+                    Float.MIN_VALUE
+                );
+                assertNotNull(q);
+                assertArrayEquals(rankDocs, q.rankDocs());
             }
         }
     }

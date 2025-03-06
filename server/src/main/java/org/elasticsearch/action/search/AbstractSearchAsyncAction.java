@@ -170,16 +170,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchRequest searchRequest,
         List<SearchShardIterator> allIterators
     ) {
-        final List<SearchShardIterator> skipped = new ArrayList<>();
+        final List<SearchShard> skipped = new ArrayList<>(allIterators.size() - shardsIts.size());
         for (SearchShardIterator iter : allIterators) {
             if (iter.skip()) {
-                skipped.add(iter);
+                skipped.add(new SearchShard(iter.getClusterAlias(), iter.shardId()));
             }
         }
         var sourceBuilder = searchRequest.source();
         progressListener.notifyListShards(
             SearchProgressListener.buildSearchShardsFromIter(this.shardsIts),
-            SearchProgressListener.buildSearchShardsFromIter(skipped),
+            skipped,
             clusters,
             sourceBuilder == null || sourceBuilder.size() > 0,
             timeProvider

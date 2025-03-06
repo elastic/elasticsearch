@@ -31,13 +31,13 @@ public class InfrastructureFeatures implements FeatureSpecification {
      * PREVIOUS |  8  |  9  |  10
      *
      * v9 knows about REST API 9 and 8. v10 knows about REST API 10 and 9.
-     * A v10 node can join a v9 cluster, as the ES_V_9 feature known by v9 is assumed.
+     * A v10 node can join a v9 cluster, as the ES_V_8 feature known by v9 is assumed.
      * But the v9 nodes don't know about ES_V_10, so that feature isn't active
      * on the v10 nodes until the cluster is fully upgraded,
      * at which point the ES_V_8 feature also disappears from the cluster.
      *
      * One thing you must not do is check the PREVIOUS_VERSION feature existence on the cluster,
-     * as the answer will be wrong (v9 nodes will assume that v19 nodes have the v8 feature) - hence why it is private.
+     * as the answer will be wrong (v9 nodes will assume that v10 nodes have the v8 feature) - hence why it is private.
      * That feature only exists here so that upgrades work to remove the feature from the cluster.
      */
     public static final NodeFeature CURRENT_VERSION = new NodeFeature("ES_" + RestApiVersion.current());

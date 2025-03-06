@@ -66,7 +66,7 @@ The following parameters are accepted by `text` fields:
 [`index_options`](/reference/elasticsearch/mapping-reference/index-options.md)
 :   What information should be stored in the index, for search and highlighting purposes. Defaults to `positions`.
 
-[`index_prefixes`](index-prefixes.md)
+[`index_prefixes`](/reference/elasticsearch/mapping-reference/index-prefixes.md)
 :   If enabled, term prefixes of between 2 and 5 characters are indexed into a separate field. This allows prefix searches to run more efficiently, at the expense of a larger index.
 
 [`index_phrases`](/reference/elasticsearch/mapping-reference/index-phrases.md)

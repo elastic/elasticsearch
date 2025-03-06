@@ -29,7 +29,6 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -44,15 +43,6 @@ import static org.elasticsearch.upgrades.IndexingIT.assertCount;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
-
-    @Before
-    public void setupILMSettings() throws IOException {
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity("""
-            { "persistent": {"indices.lifecycle.poll_interval": "1s"} }
-            """);
-        assertOK(client().performRequest(request));
-    }
 
     public void testDataStreams() throws IOException {
         if (CLUSTER_TYPE == ClusterType.OLD) {
@@ -206,13 +196,16 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         boolean hasILMPolicy = randomBoolean();
         boolean ilmEnabled = hasILMPolicy && randomBoolean();
 
+        if (ilmEnabled) {
+            startILM();
+        } else {
+            stopILM();
+        }
+
         if (CLUSTER_TYPE == ClusterType.OLD) {
             createAndRolloverDataStream(dataStreamName, numRollovers, hasILMPolicy, ilmEnabled);
             createDataStreamFromNonDataStreamIndices(dataStreamFromNonDataStreamIndices);
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            if (ilmEnabled) {
-                enableILM();
-            }
             Map<String, Map<String, Object>> oldIndicesMetadata = getIndicesMetadata(dataStreamName);
             upgradeDataStream(dataStreamName, numRollovers, numRollovers + 1, 0, ilmEnabled);
             upgradeDataStream(dataStreamFromNonDataStreamIndices, 0, 1, 0, ilmEnabled);
@@ -283,8 +276,22 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             .get();
     }
 
-    private void enableILM() throws IOException {
+    private void startILM() throws IOException {
+        setILMInterval();
         var request = new Request("POST", "/_ilm/start");
+        assertOK(client().performRequest(request));
+    }
+
+    private void stopILM() throws IOException {
+        var request = new Request("POST", "/_ilm/stop");
+        assertOK(client().performRequest(request));
+    }
+
+    private void setILMInterval() throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            { "persistent": {"indices.lifecycle.poll_interval": "1s"} }
+            """);
         assertOK(client().performRequest(request));
     }
 

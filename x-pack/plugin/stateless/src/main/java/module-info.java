@@ -39,6 +39,7 @@ module org.elasticsearch.stateless {
     exports co.elastic.elasticsearch.stateless.objectstore to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.cache.action to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.metering.action to org.elasticsearch.server;
+    exports co.elastic.elasticsearch.stateless.reshard to org.elasticsearch.server;
 
     exports co.elastic.elasticsearch.stateless.autoscaling;
     exports co.elastic.elasticsearch.stateless.autoscaling.indexing;

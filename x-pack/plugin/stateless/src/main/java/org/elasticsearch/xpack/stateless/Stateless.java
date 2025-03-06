@@ -101,6 +101,8 @@ import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRec
 import co.elastic.elasticsearch.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
+import co.elastic.elasticsearch.stateless.reshard.MetadataReshardIndexService;
+import co.elastic.elasticsearch.stateless.reshard.TransportReshardAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyILMInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyILMUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyMonitoringInfoTransportAction;
@@ -148,6 +150,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -324,6 +327,7 @@ public class Stateless extends Plugin
     private final SetOnce<IndicesService> indicesService = new SetOnce<>();
     private final SetOnce<Predicate<ShardId>> skipMerges = new SetOnce<>();
     private final SetOnce<ProjectResolver> projectResolver = new SetOnce<>();
+    private final SetOnce<MetadataReshardIndexService> metadataReshardIndexService = new SetOnce<>();
     private final boolean sharedCachedSettingExplicitlySet;
 
     private final boolean sharedCacheMmapExplicitlySet;
@@ -396,7 +400,8 @@ public class Stateless extends Plugin
             new ActionHandler<>(TransportRegisterCommitForRecoveryAction.TYPE, TransportRegisterCommitForRecoveryAction.class),
             new ActionHandler<>(TransportSendRecoveryCommitRegistrationAction.TYPE, TransportSendRecoveryCommitRegistrationAction.class),
             new ActionHandler<>(TransportConsistentClusterStateReadAction.TYPE, TransportConsistentClusterStateReadAction.class),
-            new ActionHandler<>(TransportUpdateReplicasAction.TYPE, TransportUpdateReplicasAction.class)
+            new ActionHandler<>(TransportUpdateReplicasAction.TYPE, TransportUpdateReplicasAction.class),
+            new ActionHandler<>(TransportReshardAction.TYPE, TransportReshardAction.class)
         );
     }
 
@@ -454,6 +459,7 @@ public class Stateless extends Plugin
         this.projectResolver.set(services.projectResolver());
         Client client = services.client();
         ClusterService clusterService = services.clusterService();
+        AllocationService allocationService = services.allocationService();
         ThreadPool threadPool = setAndGet(this.threadPool, services.threadPool());
         Environment environment = services.environment();
         NodeEnvironment nodeEnvironment = services.nodeEnvironment();
@@ -659,6 +665,13 @@ public class Stateless extends Plugin
         if (hasMasterRole && USE_INDEX_REFRESH_BLOCK_SETTING.get(settings)) {
             components.add(new RemoveRefreshClusterBlockService(settings, clusterService, threadPool));
         }
+
+        // Resharding
+        var metadataReshardIndexService = setAndGet(
+            this.metadataReshardIndexService,
+            createMetadataReshardIndexService(settings, clusterService, indicesService, allocationService, threadPool)
+        );
+        components.add(metadataReshardIndexService);
         return components;
     }
 
@@ -700,6 +713,16 @@ public class Stateless extends Plugin
         Settings settings
     ) {
         return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, settings);
+    }
+
+    protected MetadataReshardIndexService createMetadataReshardIndexService(
+        Settings settings,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        AllocationService allocationService,
+        ThreadPool threadPool
+    ) {
+        return new MetadataReshardIndexService(settings, clusterService, indicesService, allocationService, threadPool);
     }
 
     @Override

@@ -20,6 +20,23 @@ POST _analyze
 }
 ```
 
+% 
+% [source,console-result]
+% ----------------------------
+% {
+%   "tokens": [
+%     {
+%       "token": "The 2 QUICK Brown-Foxes jumped over the lazy dog’s bone.",
+%       "start_offset": 0,
+%       "end_offset": 56,
+%       "type": "word",
+%       "position": 0
+%     }
+%   ]
+% }
+% ----------------------------
+% 
+
 The above sentence would produce the following single term:
 
 ```text
@@ -58,6 +75,8 @@ PUT /keyword_example
   }
 }
 ```
+
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: keyword_example, first: keyword, second: rebuilt_keyword}\nendyaml\n/]
 
 1. You’d add any token filters here.
 

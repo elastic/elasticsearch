@@ -185,6 +185,7 @@ public class TransportVersions {
     public static final TransportVersion RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(9_021_0_00);
     public static final TransportVersion UNASSIGENEDINFO_RESHARD_ADDED = def(9_022_0_00);
     public static final TransportVersion INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM = def(9_023_0_00);
+    public static final TransportVersion INFERENCE_API_WILDCARD_ALLOWED = def(9_024_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

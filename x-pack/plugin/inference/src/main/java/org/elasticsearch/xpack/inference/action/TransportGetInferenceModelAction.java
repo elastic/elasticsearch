@@ -76,7 +76,11 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         } else if (inferenceEntityIdIsWildCard) {
             getModelsByTaskType(request.getTaskType(), listener);
         } else {
-            getSingleModel(request.getInferenceEntityId(), request.getTaskType(), listener);
+            if (request.getInferenceEntityId().contains(",") || request.getInferenceEntityId().contains("*")) {
+                getModelsByTaskTypeAndIds(request.getTaskType(), request.getInferenceEntityId(), listener);
+            } else {
+                getSingleModel(request.getInferenceEntityId(), request.getTaskType(), listener);
+            }
         }
     }
 
@@ -124,6 +128,18 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
     private void getModelsByTaskType(TaskType taskType, ActionListener<GetInferenceModelAction.Response> listener) {
         modelRegistry.getModelsByTaskType(
             taskType,
+            listener.delegateFailureAndWrap((l, models) -> executor.execute(() -> parseModels(models, listener)))
+        );
+    }
+
+    private void getModelsByTaskTypeAndIds(
+        TaskType taskType,
+        String inferenceEntityIdExpression,
+        ActionListener<GetInferenceModelAction.Response> listener
+    ) {
+        modelRegistry.getModelsByTaskTypeAndInferenceEntityExpression(
+            taskType,
+            inferenceEntityIdExpression,
             listener.delegateFailureAndWrap((l, models) -> executor.execute(() -> parseModels(models, listener)))
         );
     }

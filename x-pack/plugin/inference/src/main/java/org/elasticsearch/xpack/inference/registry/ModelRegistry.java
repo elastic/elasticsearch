@@ -32,6 +32,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -258,6 +259,42 @@ public class ModelRegistry {
         });
 
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString()));
+
+        SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
+            .setQuery(queryBuilder)
+            .setSize(10_000)
+            .setTrackTotalHits(false)
+            .addSort(MODEL_ID_FIELD, SortOrder.ASC)
+            .request();
+
+        client.search(modelSearch, searchListener);
+    }
+
+    public void getModelsByTaskTypeAndInferenceEntityExpression(
+        TaskType taskType,
+        String inferenceEntityExpression,
+        ActionListener<List<UnparsedModel>> listener
+    ) {
+        ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
+            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistry::unparsedModelFromMap).toList();
+            var defaultConfigsForTaskType = taskTypeMatchedDefaults(taskType, defaultConfigIds.values());
+            addAllDefaultConfigsIfMissing(true, modelConfigs, defaultConfigsForTaskType, delegate);
+        });
+
+        BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery();
+        if (taskType != TaskType.ANY) {
+            queryBuilder.filter(QueryBuilders.termQuery(TASK_TYPE_FIELD, taskType.toString()));
+        }
+        if (inferenceEntityExpression != null) {
+            queryBuilder.minimumShouldMatch(1);
+            for (String inferenceEntity : inferenceEntityExpression.split(",")) {
+                if (inferenceEntity.contains("*")) {
+                    queryBuilder.should(QueryBuilders.wildcardQuery(MODEL_ID_FIELD, inferenceEntity));
+                } else {
+                    queryBuilder.should(QueryBuilders.termQuery(MODEL_ID_FIELD, inferenceEntity));
+                }
+            }
+        }
 
         SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN)
             .setQuery(queryBuilder)

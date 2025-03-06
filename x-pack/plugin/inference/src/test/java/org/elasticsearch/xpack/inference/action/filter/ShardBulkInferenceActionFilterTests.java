@@ -462,7 +462,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         Answer<?> chunkedInferAnswer = invocationOnMock -> {
             StaticModel model = (StaticModel) invocationOnMock.getArguments()[0];
             List<String> inputs = (List<String>) invocationOnMock.getArguments()[2];
-            ActionListener<List<ChunkedInference>> listener = (ActionListener<List<ChunkedInference>>) invocationOnMock.getArguments()[6];
+            ActionListener<List<ChunkedInference>> listener = (ActionListener<List<ChunkedInference>>) invocationOnMock.getArguments()[7];
             Runnable runnable = () -> {
                 List<ChunkedInference> results = new ArrayList<>();
                 for (String input : inputs) {

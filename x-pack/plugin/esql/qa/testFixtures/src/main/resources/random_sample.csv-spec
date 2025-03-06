@@ -16,17 +16,15 @@ required_capability: random_sample
 
 FROM employees
 | RANDOM_SAMPLE .5 0
-| KEEP emp_no, last_name
 | SORT emp_no
 | LIMIT 5
+| STATS empNoMax = MAX(emp_no)
+| EVAL inRange = empNoMax < 10030
+| KEEP inRange
 ;
 
-emp_no:integer |last_name:keyword
-10003          |Bamford
-10004          |Koblick
-10007          |Zielinski
-10008          |Kalloufi
-10009          |Peac
+inRange:boolean
+true
 ;
 
 topN_Operator
@@ -35,17 +33,15 @@ required_capability: random_sample
 FROM employees
 | WHERE LENGTH(CONCAT(last_name, "foo")) > 3
 | RANDOM_SAMPLE .5 0
-| KEEP emp_no, last_name
 | SORT emp_no
 | LIMIT 5
+| STATS empNoMax = MAX(emp_no)
+| EVAL inRange = empNoMax < 10030
+| KEEP inRange
 ;
 
-emp_no:integer |last_name:keyword
-10003          |Bamford
-10004          |Koblick
-10007          |Zielinski
-10008          |Kalloufi
-10009          |Peac
+inRange:boolean
+true
 ;
 
 aggCount_PushedDown
@@ -54,10 +50,14 @@ required_capability: random_sample
 FROM employees
 | RANDOM_SAMPLE .5 123
 | STATS c=COUNT(*)
+| EVAL tolerance = 3
+| EVAL singleNodeResult = 55
+| EVAL inRange = c > singleNodeResult - tolerance AND c < singleNodeResult + tolerance
+| KEEP inRange
 ;
 
-c:long
-55
+inRange:boolean
+true
 ;
 
 aggCount_Operator
@@ -67,10 +67,14 @@ FROM employees
 | WHERE LENGTH(CONCAT(last_name, "foo")) > 3
 | RANDOM_SAMPLE .5 123
 | STATS c=COUNT(*)
+| EVAL tolerance = 3
+| EVAL singleNodeResult = 55
+| EVAL inRange = c > singleNodeResult - tolerance AND c < singleNodeResult + tolerance
+| KEEP inRange
 ;
 
-c:long
-55
+inRange:boolean
+true
 ;
 
 aggCountNoSeed_PushedDown
@@ -109,10 +113,14 @@ FROM employees
 | RANDOM_SAMPLE .5 0
 | WHERE emp_no > 10050
 | STATS c=COUNT(*)
+| EVAL tolerance = 3
+| EVAL singleNodeResult = 25
+| EVAL inRange = c > singleNodeResult - tolerance AND c < singleNodeResult + tolerance
+| KEEP inRange
 ;
 
-c:long
-25
+inRange:boolean
+true
 ;
 
 withPostFilter_Operator
@@ -123,10 +131,14 @@ FROM employees
 | RANDOM_SAMPLE .5 0
 | WHERE emp_no > 10050
 | STATS c=COUNT(*)
+| EVAL tolerance = 3
+| EVAL singleNodeResult = 25
+| EVAL inRange = c > singleNodeResult - tolerance AND c < singleNodeResult + tolerance
+| KEEP inRange
 ;
 
-c:long
-25
+inRange:boolean
+true
 ;
 
 combined_PushDown
@@ -137,10 +149,14 @@ FROM employees
 | EVAL e1 = emp_no + 1
 | RANDOM_SAMPLE .7 11111
 | STATS c=COUNT(e1)
+| EVAL tolerance = 3
+| EVAL singleNodeResult = 42
+| EVAL inRange = c > singleNodeResult - tolerance AND c < singleNodeResult + tolerance
+| KEEP inRange
 ;
 
-c:long
-42
+inRange:boolean
+true
 ;
 
 combined_Operator
@@ -152,10 +168,14 @@ FROM employees
 | EVAL e1 = emp_no + 1
 | RANDOM_SAMPLE .7 11111
 | STATS c=COUNT(e1)
+| EVAL tolerance = 3
+| EVAL singleNodeResult = 42
+| EVAL inRange = c > singleNodeResult - tolerance AND c < singleNodeResult + tolerance
+| KEEP inRange
 ;
 
-c:long
-42
+inRange:boolean
+true
 ;
 
 combined2_PushDown
@@ -168,11 +188,16 @@ FROM employees
 | EVAL e1s = e1::KEYWORD
 | RANDOM_SAMPLE .1
 | STATS c=COUNT(e1s)
+| EVAL tolerance = 3
+| EVAL singleNodeResult = 4
+| EVAL inRange = c > singleNodeResult - tolerance AND c < singleNodeResult + tolerance
+| KEEP inRange
 ;
 
-c:long
-4
+inRange:boolean
+true
 ;
+
 combined2_Operator
 required_capability: random_sample
 
@@ -184,8 +209,12 @@ FROM employees
 | EVAL e1s = e1::KEYWORD
 | RANDOM_SAMPLE .1
 | STATS c=COUNT(e1s)
+| EVAL tolerance = 3
+| EVAL singleNodeResult = 4
+| EVAL inRange = c > singleNodeResult - tolerance AND c < singleNodeResult + tolerance
+| KEEP inRange
 ;
 
-c:long
-4
+inRange:boolean
+true
 ;

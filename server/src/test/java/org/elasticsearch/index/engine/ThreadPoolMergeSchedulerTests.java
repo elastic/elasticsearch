@@ -30,11 +30,13 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -42,6 +44,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class ThreadPoolMergeSchedulerTests extends ESTestCase {
@@ -259,6 +262,72 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 }
                 assertBusy(() -> assertTrue(threadPoolMergeExecutorService.allDone()));
             }
+        }
+    }
+
+    public void testSchedulerCloseWaitsForRunningMerge() throws Exception {
+        int mergeSchedulerMaxThreadCount = randomIntBetween(1, 3);
+        int mergeExecutorThreadCount = randomIntBetween(1, 3);
+        Settings settings = Settings.builder()
+            .put(settingsWithMergeScheduler)
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), mergeSchedulerMaxThreadCount)
+            .build();
+        try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
+                .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
+            assertNotNull(threadPoolMergeExecutorService);
+            assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
+            ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
+                new ShardId("index", "_na_", 1),
+                IndexSettingsModule.newIndexSettings("index", settings),
+                threadPoolMergeExecutorService
+            );
+            CountDownLatch mergeDoneLatch = new CountDownLatch(1);
+            MergeSource mergeSource = mock(MergeSource.class);
+            OneMerge oneMerge = mock(OneMerge.class);
+            when(oneMerge.getStoreMergeInfo()).thenReturn(getNewMergeInfo(randomLongBetween(1L, 10L)));
+            when(oneMerge.getMergeProgress()).thenReturn(new MergePolicy.OneMergeProgress());
+            when(mergeSource.getNextMerge()).thenReturn(oneMerge, (OneMerge) null);
+            doAnswer(invocation -> {
+                OneMerge merge = (OneMerge) invocation.getArguments()[0];
+                assertFalse(merge.isAborted());
+                // wait to be signalled before completing the merge
+                mergeDoneLatch.await();
+                return null;
+            }).when(mergeSource).merge(any(OneMerge.class));
+            threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
+            Thread t = new Thread(() -> {
+                try {
+                    threadPoolMergeScheduler.close();
+                } catch (IOException e) {
+                    fail(e);
+                }
+            });
+            t.start();
+            try {
+                assertTrue(t.isAlive());
+                // ensure the merge scheduler is effectively "closed"
+                assertBusy(() -> {
+                    MergeSource mergeSource2 = mock(MergeSource.class);
+                    threadPoolMergeScheduler.merge(mergeSource2, randomFrom(MergeTrigger.values()));
+                    // when the merge scheduler is closed it won't pull in any new merges from the merge source
+                    verifyNoInteractions(mergeSource2);
+                });
+                // assert the merge still shows up as "running"
+                assertThat(threadPoolMergeScheduler.getCurrentlyRunningMergeTasks().keySet(), contains(oneMerge));
+                assertThat(threadPoolMergeScheduler.getBackloggedMergeTasks().size(), is(0));
+                assertTrue(t.isAlive());
+                // signal the merge to finish
+                mergeDoneLatch.countDown();
+            } finally {
+                t.join();
+            }
+            assertBusy(() -> {
+                assertThat(threadPoolMergeScheduler.getCurrentlyRunningMergeTasks().size(), is(0));
+                assertThat(threadPoolMergeScheduler.getBackloggedMergeTasks().size(), is(0));
+                assertTrue(threadPoolMergeExecutorService.allDone());
+            });
         }
     }
 

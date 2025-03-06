@@ -22,7 +22,7 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
     private final GoogleCloudStorageOperationsStats stats;
     private final OperationPurpose purpose;
     private final Pattern getObjPattern;
-    private final Pattern insertObPattern;
+    private final Pattern insertObjPattern;
     private final Pattern listObjPattern;
 
     GoogleCloudStorageHttpStatsCollector(final GoogleCloudStorageOperationsStats stats, OperationPurpose purpose) {
@@ -33,7 +33,7 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
         // The specification for the current API (v1) endpoints can be found at:
         // https://cloud.google.com/storage/docs/json_api/v1
         this.getObjPattern = Pattern.compile("(/download)?/storage/v1/b/" + bucket + "/o/.+");
-        this.insertObPattern = Pattern.compile("(/upload)?/storage/v1/b/" + bucket + "/o");
+        this.insertObjPattern = Pattern.compile("(/upload)?/storage/v1/b/" + bucket + "/o");
         this.listObjPattern = Pattern.compile("/storage/v1/b/" + bucket + "/o");
     }
 
@@ -49,24 +49,26 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
     public void interceptResponse(final HttpResponse response) {
         var request = response.getRequest();
         var path = request.getUrl().getRawPath();
+        var ignored = false;
         switch (request.getRequestMethod()) {
             case "GET" -> {
                 // https://cloud.google.com/storage/docs/json_api/v1/objects/get
                 if (getObjPattern.matcher(path).matches()) {
                     // Retrieves object metadata. When alt=media is included as a query parameter, retrieves object data.
-                    if (request.getUrl().getFirst("alt").equals("media")) {
+                    if ("media".equals(request.getUrl().getFirst("alt"))) {
                         trackRequestAndOperation(Operation.GET_OBJECT);
                     } else {
                         trackRequestAndOperation(Operation.GET_METADATA);
                     }
                 } else if (listObjPattern.matcher(path).matches()) {
                     trackRequestAndOperation(Operation.LIST_OBJECTS);
+                } else {
+                    ignored = true;
                 }
-                // ignore other get requests
             }
             case "POST", "PUT" -> {
                 // https://cloud.google.com/storage/docs/json_api/v1/objects/insert
-                if (insertObPattern.matcher(path).matches()) {
+                if (insertObjPattern.matcher(path).matches()) {
                     var obj = request.getUrl().getFirst("uploadType");
                     if (obj instanceof String uploadType) {
                         switch (uploadType) {
@@ -74,17 +76,17 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
                             // Any insert, including multipart or resumable parts, are counted as one operation.
                             case "multipart" -> trackRequest(Operation.MULTIPART_UPLOAD);
                             case "resumable" -> trackRequest(Operation.RESUMABLE_UPLOAD);
-                            default -> {
-                                // ignore "media" - Data-only upload. Upload the object data only, without any metadata.
-                            }
+                            default -> ignored = true;
                         }
+                    } else {
+                        ignored = true;
                     }
+                } else {
+                    ignored = true;
                 }
-                // ignore other post requests
             }
-            default -> {
-                // ignore other http methods
-            }
+            default -> ignored = true;
         }
+        assert ignored == false : "must handle response: " + request.getRequestMethod() + " " + path;
     }
 }

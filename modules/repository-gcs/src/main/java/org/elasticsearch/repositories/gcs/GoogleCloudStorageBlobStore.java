@@ -384,8 +384,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                             public void write(byte[] b, int off, int len) throws IOException {
                                 int written = 0;
                                 while (written < len) {
-                                    // at most write the default chunk size in one go to prevent allocating huge buffers in the SDK
-                                    // see com.google.cloud.BaseWriteChannel#DEFAULT_CHUNK_SIZE
                                     final int toWrite = Math.min(len - written, SDK_DEFAULT_CHUNK_SIZE);
                                     out.write(b, off + written, toWrite);
                                     written += toWrite;

@@ -77,7 +77,7 @@ abstract class BaseInferenceAction extends BaseRestHandler {
 
         var productUseCaseHeaders = headers.get(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
 
-        if(Objects.isNull(productUseCaseHeaders) || productUseCaseHeaders.isEmpty()){
+        if (Objects.isNull(productUseCaseHeaders) || productUseCaseHeaders.isEmpty()) {
             return "";
         }
 

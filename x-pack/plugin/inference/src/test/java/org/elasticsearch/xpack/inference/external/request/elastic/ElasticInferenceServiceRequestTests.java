@@ -79,8 +79,8 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
 
     public static ElasticInferenceServiceRequestMetadata randomElasticInferenceServiceRequestMetadata() {
         return new ElasticInferenceServiceRequestMetadata(
-            randomFrom(new String[]{null, randomAlphaOfLength(10)}),
-            randomFrom(new String[]{null, randomAlphaOfLength(10)})
+            randomFrom(new String[] { null, randomAlphaOfLength(10) }),
+            randomFrom(new String[] { null, randomAlphaOfLength(10) })
         );
     }
 }

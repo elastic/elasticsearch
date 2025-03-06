@@ -339,7 +339,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 "settings":{
                     "index": {
                         $ILM_SETTING
-                        "mode": "time_series"
+                        "mode": "standard"
                     }
                 },
                 $DSL_TEMPLATE
@@ -360,8 +360,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                             "type": "date"
                         },
                         "metricset": {
-                            "type": "keyword",
-                            "time_series_dimension": true
+                            "type": "keyword"
                         },
                         "k8s": {
                             "properties": {

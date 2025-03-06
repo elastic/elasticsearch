@@ -551,7 +551,7 @@ public final class IngestDocument {
         if (context == null) {
             throw new IllegalArgumentException(Errors.cannotSet(path, leafKey, null));
         }
-        if (context instanceof Map) {
+        if (context instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;
             if (append) {
@@ -569,7 +569,7 @@ public final class IngestDocument {
                 return;
             }
             map.put(leafKey, value);
-        } else if (context instanceof List) {
+        } else if (context instanceof List<?>) {
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) context;
             int index;

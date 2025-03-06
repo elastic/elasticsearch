@@ -36,7 +36,7 @@ Switching between different representations of datetimes is often necessary to a
 
 Datetime parsing is a switch from a string datetime to a complex datetime, and datetime formatting is a switch from a complex datetime to a string datetime.
 
-A [DateTimeFormatter](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared-java-time-format.html#painless-api-reference-shared-DateTimeFormatter) is a complex type ([object](/reference/scripting-languages/painless/painless-types.md#reference-types)) that defines the allowed sequence of characters for a string datetime. Datetime parsing and formatting often require a DateTimeFormatter. For more information about how to use a DateTimeFormatter see the [Java documentation](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/time/format/DateTimeFormatter.md).
+A [DateTimeFormatter](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference-shared-java-time-format.html#painless-api-reference-shared-DateTimeFormatter) is a complex type ([object](/reference/scripting-languages/painless/painless-types.md#reference-types)) that defines the allowed sequence of characters for a string datetime. Datetime parsing and formatting often require a DateTimeFormatter. For more information about how to use a DateTimeFormatter see the [Java documentation](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/time/format/DateTimeFormatter.html).
 
 ### Datetime Parsing Examples [_datetime_parsing_examples]
 

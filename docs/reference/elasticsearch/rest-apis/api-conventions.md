@@ -65,7 +65,7 @@ A cron expression is a string of the following form:
     <seconds> <minutes> <hours> <day_of_month> <month> <day_of_week> [year]
 ```
 
-{{es}} uses the cron parser from the [Quartz Job Scheduler](https://quartz-scheduler.org). For more information about writing Quartz cron expressions, see the [Quartz CronTrigger Tutorial](http://www.quartz-scheduler.org/documentation/quartz-2.3.0/tutorials/crontrigger.md).
+{{es}} uses the cron parser from the [Quartz Job Scheduler](https://quartz-scheduler.org). For more information about writing Quartz cron expressions, see the [Quartz CronTrigger Tutorial](http://www.quartz-scheduler.org/documentation/quartz-2.3.0/tutorials/crontrigger.html).
 
 All schedule times are in coordinated universal time (UTC); other timezones are not supported.
 

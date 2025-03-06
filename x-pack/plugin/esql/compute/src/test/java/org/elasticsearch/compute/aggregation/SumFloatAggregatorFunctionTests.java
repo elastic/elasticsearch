@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SequenceFloatBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.test.ESTestCase;
 
@@ -52,13 +53,11 @@ public class SumFloatAggregatorFunctionTests extends AggregatorFunctionTestCase 
         DriverContext driverContext = driverContext();
         List<Page> results = new ArrayList<>();
         try (
-            Driver d = new Driver(
-                "test",
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new SequenceFloatBlockSourceOperator(driverContext.blockFactory(), Stream.of(Float.MAX_VALUE - 1, 2f)),
                 List.of(simple().get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
             runDriver(d);
@@ -71,16 +70,14 @@ public class SumFloatAggregatorFunctionTests extends AggregatorFunctionTestCase 
         DriverContext driverContext = driverContext();
         List<Page> results = new ArrayList<>();
         try (
-            Driver d = new Driver(
-                "test",
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new SequenceFloatBlockSourceOperator(
                     driverContext.blockFactory(),
                     Stream.of(0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f, 1.3f, 1.4f, 1.5f, 1.6f, 1.7f)
                 ),
                 List.of(simple().get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
             runDriver(d);
@@ -101,13 +98,11 @@ public class SumFloatAggregatorFunctionTests extends AggregatorFunctionTestCase 
         }
         driverContext = driverContext();
         try (
-            Driver d = new Driver(
-                "test",
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new SequenceFloatBlockSourceOperator(driverContext.blockFactory(), Stream.of(values)),
                 List.of(simple().get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
             runDriver(d);
@@ -124,13 +119,11 @@ public class SumFloatAggregatorFunctionTests extends AggregatorFunctionTestCase 
         }
         driverContext = driverContext();
         try (
-            Driver d = new Driver(
-                "test",
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new SequenceFloatBlockSourceOperator(driverContext.blockFactory(), Stream.of(largeValues)),
                 List.of(simple().get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
             runDriver(d);
@@ -144,13 +137,11 @@ public class SumFloatAggregatorFunctionTests extends AggregatorFunctionTestCase 
         }
         driverContext = driverContext();
         try (
-            Driver d = new Driver(
-                "test",
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new SequenceFloatBlockSourceOperator(driverContext.blockFactory(), Stream.of(largeValues)),
                 List.of(simple().get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
             runDriver(d);

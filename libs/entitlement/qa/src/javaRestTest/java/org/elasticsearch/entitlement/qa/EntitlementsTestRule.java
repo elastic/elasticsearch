@@ -40,6 +40,7 @@ class EntitlementsTestRule implements TestRule {
                 "files",
                 List.of(
                     Map.of("path", tempDir.resolve("read_dir"), "mode", "read_write"),
+                    Map.of("path", tempDir.resolve("read_dir").resolve("k8s").resolve("..data"), "mode", "read", "exclusive", true),
                     Map.of("path", tempDir.resolve("read_write_dir"), "mode", "read_write"),
                     Map.of("path", tempDir.resolve("read_file"), "mode", "read"),
                     Map.of("path", tempDir.resolve("read_write_file"), "mode", "read_write")

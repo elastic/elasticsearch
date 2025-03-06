@@ -444,7 +444,7 @@ public final class IndicesPermission {
                     }
                 }
             }
-            return group.checkIndex(name) && group.checkSelector(selector);
+            return group.checkSelector(selector) && group.checkIndex(name);
         }
 
         /**

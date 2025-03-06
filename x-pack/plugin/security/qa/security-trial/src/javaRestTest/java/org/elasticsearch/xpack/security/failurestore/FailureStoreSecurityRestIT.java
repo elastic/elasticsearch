@@ -68,6 +68,8 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     private static final String FAILURE_STORE_ACCESS_USER = "failure_store_access_user";
     private static final String BOTH_ACCESS_USER = "both_access_user";
     private static final String WRITE_ACCESS_USER = "write_access_user";
+    private static final String MANAGE_ACCESS_USER = "manage_access_user";
+    private static final String MANAGE_FAILURE_STORE_ACCESS_USER = "manage_failure_store_access_user";
     private static final SecureString PASSWORD = new SecureString("elastic-password");
 
     public void testGetUserPrivileges() throws IOException {
@@ -167,12 +169,16 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         String failureStoreAccessRole = "failure_store_access";
         String bothAccessRole = "both_access";
         String writeAccessRole = "write_access";
+        String manageAccessRole = "manage_access";
+        String manageFailureStoreRole = "manage_failure_store_access";
 
         createUser(DATA_ACCESS_USER, PASSWORD, List.of(dataAccessRole));
         createUser(STAR_READ_ONLY_USER, PASSWORD, List.of(starReadOnlyRole));
         createUser(FAILURE_STORE_ACCESS_USER, PASSWORD, List.of(failureStoreAccessRole));
         createUser(BOTH_ACCESS_USER, PASSWORD, randomBoolean() ? List.of(bothAccessRole) : List.of(dataAccessRole, failureStoreAccessRole));
         createUser(WRITE_ACCESS_USER, PASSWORD, List.of(writeAccessRole));
+        createUser(MANAGE_ACCESS_USER, PASSWORD, List.of(manageAccessRole));
+        createUser(MANAGE_FAILURE_STORE_ACCESS_USER, PASSWORD, List.of(manageFailureStoreRole));
 
         upsertRole(Strings.format("""
             {
@@ -204,6 +210,18 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
               "cluster": ["all"],
               "indices": [{"names": ["test*"], "privileges": ["write", "auto_configure"]}]
             }"""), writeAccessRole);
+        upsertRole(Strings.format("""
+            {
+              "description": "Role with regular manage access without failure store access",
+              "cluster": ["all"],
+              "indices": [{"names": ["test*"], "privileges": ["manage"]}]
+            }"""), manageAccessRole);
+        upsertRole(Strings.format("""
+            {
+              "description": "Role with failure store manage access",
+              "cluster": ["all"],
+              "indices": [{"names": ["test*"], "privileges": ["manage_failure_store"]}]
+            }"""), manageFailureStoreRole);
 
         createTemplates();
         List<String> docIds = populateDataStreamWithBulkRequest();
@@ -240,7 +258,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search")),
             failedDocId
         );
-        // TODO fix me
         assertContainsDocIds(
             performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search?ignore_unavailable=true")),
             failedDocId
@@ -263,9 +280,9 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         assertEmpty(
             performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search?ignore_unavailable=true"))
         );
+        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.ds*/_search")));
         assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::data/_search")));
         assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1/_search")));
-        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.ds*/_search")));
 
         // user with access to data index
         assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/test1/_search")), successDocId);
@@ -324,16 +341,35 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
         assertEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test12/_search?ignore_unavailable=true")));
         assertEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test2/_search?ignore_unavailable=true")));
+
+        // TODO extra make sure manage_failure_store CANNOT delete the whole data stream
+
+        // user with manage access to data stream does NOT get direct access to failure index
+        expectThrows403(() -> deleteIndex(MANAGE_ACCESS_USER, failureIndexName));
+        expectThrows(() -> deleteIndex(MANAGE_ACCESS_USER, dataIndexName), 400);
+        // manage_failure_store user COULD delete failure index (not valid because it's a write index, but allow security-wise)
+        expectThrows403(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS_USER, dataIndexName));
+        expectThrows(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS_USER, failureIndexName), 400);
+        expectThrows403(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS_USER, dataIndexName));
+
+        // manage user can delete data stream
+        deleteDataStream(MANAGE_ACCESS_USER, "test1");
+
+        expectThrows404(() -> performRequest(BOTH_ACCESS_USER, new Request("GET", "/test1/_search")));
+        expectThrows404(() -> performRequest(BOTH_ACCESS_USER, new Request("GET", "/test1::failures/_search")));
     }
 
     private static void expectThrows404(ThrowingRunnable get) {
-        var ex = expectThrows(ResponseException.class, get);
-        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        expectThrows(get, 404);
     }
 
     private static void expectThrows403(ThrowingRunnable get) {
+        expectThrows(get, 403);
+    }
+
+    private static void expectThrows(ThrowingRunnable get, int statusCode) {
         var ex = expectThrows(ResponseException.class, get);
-        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(statusCode));
     }
 
     @SuppressWarnings("unchecked")
@@ -426,6 +462,14 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             ids.add((String) create.get("_id"));
         }
         return ids;
+    }
+
+    private void deleteDataStream(String user, String dataStreamName) throws IOException {
+        assertOK(performRequest(user, new Request("DELETE", "/_data_stream/" + dataStreamName)));
+    }
+
+    private void deleteIndex(String user, String indexName) throws IOException {
+        assertOK(performRequest(user, new Request("DELETE", "/" + indexName)));
     }
 
     private Response performRequest(String user, Request request) throws IOException {

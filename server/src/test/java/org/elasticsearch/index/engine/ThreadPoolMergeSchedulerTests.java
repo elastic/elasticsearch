@@ -30,7 +30,6 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -215,7 +214,8 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     }).when(mergeSource).merge(any(OneMerge.class));
                     threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
                 }
-                for (int completedMergesCount = 0; completedMergesCount < mergeCount - mergeSchedulerMaxThreadCount; completedMergesCount++) {
+                for (int completedMergesCount = 0; completedMergesCount < mergeCount
+                    - mergeSchedulerMaxThreadCount; completedMergesCount++) {
                     int finalCompletedMergesCount = completedMergesCount;
                     assertBusy(() -> {
                         // assert that there are merges running concurrently at the max allowed concurrency rate

@@ -261,7 +261,7 @@ public class AzureOpenAiService extends SenderService {
         AzureOpenAiModel azureOpenAiModel = (AzureOpenAiModel) model;
         var actionCreator = new AzureOpenAiActionCreator(getSender(), getServiceComponents());
 
-        var action = azureOpenAiModel.accept(actionCreator, taskSettings);
+        var action = azureOpenAiModel.accept(actionCreator, taskSettings, inputType);
         action.execute(inputs, timeout, listener);
     }
 
@@ -288,7 +288,7 @@ public class AzureOpenAiService extends SenderService {
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
-            var action = azureOpenAiModel.accept(actionCreator, taskSettings);
+            var action = azureOpenAiModel.accept(actionCreator, taskSettings, inputType);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
         }
     }

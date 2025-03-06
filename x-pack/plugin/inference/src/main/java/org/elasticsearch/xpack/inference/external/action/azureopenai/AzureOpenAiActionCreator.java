@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.action.azureopenai;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
@@ -36,8 +37,8 @@ public class AzureOpenAiActionCreator implements AzureOpenAiActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(AzureOpenAiEmbeddingsModel model, Map<String, Object> taskSettings) {
-        var overriddenModel = AzureOpenAiEmbeddingsModel.of(model, taskSettings);
+    public ExecutableAction create(AzureOpenAiEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
+        var overriddenModel = AzureOpenAiEmbeddingsModel.of(model, taskSettings, inputType);
         var requestCreator = new AzureOpenAiEmbeddingsRequestManager(
             overriddenModel,
             serviceComponents.truncator(),

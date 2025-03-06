@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -816,7 +817,16 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = AzureOpenAiEmbeddingsModelTests.createModel("resource", "deployment", "apiversion", "user", "apikey", null, "id");
+            var model = AzureOpenAiEmbeddingsModelTests.createModel(
+                "resource",
+                "deployment",
+                "apiversion",
+                "user",
+                "apikey",
+                null,
+                "id",
+                null
+            );
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -839,9 +849,10 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo("apikey"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(2));
+            assertThat(requestMap.size(), Matchers.is(3));
             assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
             assertThat(requestMap.get("user"), Matchers.is("user"));
+            assertThat(requestMap.get("input_type"), Matchers.is("ingest"));
         }
     }
 
@@ -883,7 +894,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "user",
                 "apikey",
                 null,
-                "id"
+                "id",
+                null
             );
             model.setUri(new URI(getUrl(webServer)));
 
@@ -905,7 +917,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                         "user",
                         "apikey",
                         null,
-                        "id"
+                        "id",
+                        null
                     )
                 )
             );
@@ -913,7 +926,11 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(webServer.requests(), hasSize(1));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "user", "user")));
+            // service.checkModelConfig validates by performing inference with InputType.INTERNAL_INGEST
+            MatcherAssert.assertThat(
+                requestMap,
+                Matchers.is(Map.of("input", List.of("how big"), "user", "user", "input_type", "internal_ingest"))
+            );
         }
     }
 
@@ -955,7 +972,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "user",
                 "apikey",
                 null,
-                "id"
+                "id",
+                null
             );
             model.setUri(new URI(getUrl(webServer)));
 
@@ -977,7 +995,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                         "user",
                         "apikey",
                         null,
-                        "id"
+                        "id",
+                        null
                     )
                 )
             );
@@ -985,7 +1004,11 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(webServer.requests(), hasSize(1));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "user", "user")));
+            // service.checkModelConfig validates by performing inference with InputType.INTERNAL_INGEST
+            MatcherAssert.assertThat(
+                requestMap,
+                Matchers.is(Map.of("input", List.of("how big"), "user", "user", "input_type", "internal_ingest"))
+            );
         }
     }
 
@@ -1027,7 +1050,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "user",
                 "apikey",
                 null,
-                "id"
+                "id",
+                null
             );
             model.setUri(new URI(getUrl(webServer)));
 
@@ -1049,7 +1073,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                         "user",
                         "apikey",
                         null,
-                        "id"
+                        "id",
+                        null
                     )
                 )
             );
@@ -1057,7 +1082,11 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(webServer.requests(), hasSize(1));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "user", "user")));
+            // service.checkModelConfig validates by performing inference with InputType.INTERNAL_INGEST
+            MatcherAssert.assertThat(
+                requestMap,
+                Matchers.is(Map.of("input", List.of("how big"), "user", "user", "input_type", "internal_ingest"))
+            );
         }
     }
 
@@ -1099,7 +1128,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "user",
                 "apikey",
                 null,
-                "id"
+                "id",
+                null
             );
             model.setUri(new URI(getUrl(webServer)));
 
@@ -1118,7 +1148,11 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(webServer.requests(), hasSize(1));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "user", "user", "dimensions", 3)));
+            // service.checkModelConfig validates by performing inference with InputType.INTERNAL_INGEST
+            MatcherAssert.assertThat(
+                requestMap,
+                Matchers.is(Map.of("input", List.of("how big"), "user", "user", "dimensions", 3, "input_type", "internal_ingest"))
+            );
         }
     }
 
@@ -1161,7 +1195,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "user",
                 "apikey",
                 null,
-                "id"
+                "id",
+                null
             );
             model.setUri(new URI(getUrl(webServer)));
 
@@ -1183,7 +1218,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                         "user",
                         "apikey",
                         null,
-                        "id"
+                        "id",
+                        null
                     )
                 )
             );
@@ -1191,7 +1227,11 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(webServer.requests(), hasSize(1));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "user", "user")));
+            // service.checkModelConfig validates by performing inference with InputType.INTERNAL_INGEST
+            MatcherAssert.assertThat(
+                requestMap,
+                Matchers.is(Map.of("input", List.of("how big"), "user", "user", "input_type", "internal_ingest"))
+            );
         }
     }
 
@@ -1231,7 +1271,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
-                randomAlphaOfLength(10)
+                randomAlphaOfLength(10),
+                InputTypeTests.randomWithoutUnspecified()
             );
 
             Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
@@ -1259,7 +1300,16 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
-            var model = AzureOpenAiEmbeddingsModelTests.createModel("resource", "deployment", "apiversion", "user", "apikey", null, "id");
+            var model = AzureOpenAiEmbeddingsModelTests.createModel(
+                "resource",
+                "deployment",
+                "apiversion",
+                "user",
+                "apikey",
+                null,
+                "id",
+                null
+            );
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -1381,9 +1431,10 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo("apikey"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(2));
+            assertThat(requestMap.size(), Matchers.is(3));
             assertThat(requestMap.get("input"), Matchers.is(List.of("foo", "bar")));
             assertThat(requestMap.get("user"), Matchers.is("user"));
+            assertThat(requestMap.get("input_type"), Matchers.is("ingest"));
         }
     }
 

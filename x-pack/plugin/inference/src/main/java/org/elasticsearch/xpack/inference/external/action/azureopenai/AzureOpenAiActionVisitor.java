@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.action.azureopenai;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
@@ -14,7 +15,7 @@ import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOp
 import java.util.Map;
 
 public interface AzureOpenAiActionVisitor {
-    ExecutableAction create(AzureOpenAiEmbeddingsModel model, Map<String, Object> taskSettings);
+    ExecutableAction create(AzureOpenAiEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType);
 
     ExecutableAction create(AzureOpenAiCompletionModel model, Map<String, Object> taskSettings);
 }

@@ -209,7 +209,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
     ) {
         AzureOpenAiEmbeddingsModel model = null;
         try {
-            model = createModel(resourceName, deploymentId, apiVersion, user, apiKey, null, inferenceEntityId);
+            model = createModel(resourceName, deploymentId, apiVersion, user, apiKey, null, inferenceEntityId, null);
             model.setUri(new URI(getUrl(webServer)));
             var requestCreator = new AzureOpenAiEmbeddingsRequestManager(model, TruncatorTests.createTruncator(), threadPool);
             var errorMessage = constructFailedToSendRequestMessage("Azure OpenAI embeddings");

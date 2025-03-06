@@ -41,7 +41,8 @@ public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
                 truncationResult.input(),
                 model.getTaskSettings().user(),
                 model.getServiceSettings().dimensions(),
-                model.getServiceSettings().dimensionsSetByUser()
+                model.getServiceSettings().dimensionsSetByUser(),
+                model.inputType()
             )
         );
 

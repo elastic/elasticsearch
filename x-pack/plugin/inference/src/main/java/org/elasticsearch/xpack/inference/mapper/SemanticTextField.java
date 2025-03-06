@@ -159,7 +159,9 @@ public record SemanticTextField(
         builder.field(INFERENCE_ID_FIELD, inference.inferenceId);
         builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings);
         if (chunkingSettings != null) {
-            builder.field(CHUNKING_SETTINGS_FIELD, chunkingSettings);
+            builder.startObject(CHUNKING_SETTINGS_FIELD);
+            builder.mapContents(chunkingSettings.asMap());
+            builder.endObject();
         }
 
         if (useLegacyFormat) {
@@ -206,8 +208,7 @@ public record SemanticTextField(
         new ConstructingObjectParser<>(SemanticTextFieldMapper.CONTENT_TYPE, true, (args, context) -> {
             List<String> originalValues = (List<String>) args[0];
             InferenceResult inferenceResult = (InferenceResult) args[1];
-            Map<String, Object> chunkingSettingsMap = (Map<String, Object>) args[2];
-            ChunkingSettings chunkingSettings = chunkingSettingsMap != null ? ChunkingSettingsBuilder.fromMap(chunkingSettingsMap) : null;
+            ChunkingSettings chunkingSettings = (ChunkingSettings) args[2];
             if (context.useLegacyFormat() == false) {
                 if (originalValues != null && originalValues.isEmpty() == false) {
                     throw new IllegalArgumentException("Unknown field [" + TEXT_FIELD + "]");
@@ -243,13 +244,13 @@ public record SemanticTextField(
         }
     );
 
-    private static final ConstructingObjectParser<Map<String, Object>, Void> CHUNKING_SETTINGS_PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<ChunkingSettings, Void> CHUNKING_SETTINGS_PARSER = new ConstructingObjectParser<>(
         CHUNKING_SETTINGS_FIELD,
         true,
         args -> {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) args[0];
-            return map;
+            return map != null && map.isEmpty() == false ? ChunkingSettingsBuilder.fromMap(map) : null;
         }
     );
 
@@ -258,7 +259,7 @@ public record SemanticTextField(
         SEMANTIC_TEXT_FIELD_PARSER.declareObject(constructorArg(), INFERENCE_RESULT_PARSER, new ParseField(INFERENCE_FIELD));
         SEMANTIC_TEXT_FIELD_PARSER.declareObjectOrNull(
             optionalConstructorArg(),
-            (p, c) -> CHUNKING_SETTINGS_PARSER.parse(p, null),
+            (p, c) -> p.map(),
             null,
             new ParseField(CHUNKING_SETTINGS_FIELD)
         );

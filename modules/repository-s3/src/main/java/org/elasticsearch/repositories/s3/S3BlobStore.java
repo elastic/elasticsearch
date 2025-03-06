@@ -51,7 +51,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.rest.RestStatus.REQUESTED_RANGE_NOT_SATISFIED;
 
 class S3BlobStore implements BlobStore {
@@ -383,6 +382,7 @@ class S3BlobStore implements BlobStore {
         } catch (MultiObjectDeleteException e) {
             // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
             // first remove all keys that were sent in the request and then add back those that ran into an exception.
+            logger.warn(buildDeletionErrorMessage(e), e);
             logger.warn(
                 () -> format(
                     "Failed to delete some blobs %s",
@@ -396,6 +396,26 @@ class S3BlobStore implements BlobStore {
             // remove any keys from the outstanding deletes set.
             deletionExceptions.useOrMaybeSuppress(e);
         }
+    }
+
+    private String buildDeletionErrorMessage(MultiObjectDeleteException e) {
+        final var sb = new StringBuilder("Failed to delete some blobs ");
+        final var errors = e.getErrors();
+        for (int i = 0; i < errors.size() && i < MAX_DELETE_EXCEPTIONS; i++) {
+            final var err = errors.get(i);
+            sb.append("[").append(err.getKey()).append("][").append(err.getCode()).append("][").append(err.getMessage()).append("]");
+            if (i < errors.size() - 1) {
+                sb.append(",");
+            }
+        }
+        if (errors.size() > MAX_DELETE_EXCEPTIONS) {
+            sb.append("... (")
+                .append(errors.size())
+                .append(" in total, ")
+                .append(errors.size() - MAX_DELETE_EXCEPTIONS)
+                .append(" omitted)");
+        }
+        return sb.toString();
     }
 
     private static DeleteObjectsRequest bulkDelete(OperationPurpose purpose, S3BlobStore blobStore, List<String> blobs) {

@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.instrumentation;
 
 import java.lang.instrument.ClassFileTransformer;
 import java.security.ProtectionDomain;
+import java.util.Base64;
 import java.util.Set;
 
 /**
@@ -36,7 +37,11 @@ public class Transformer implements ClassFileTransformer {
     ) {
         if (classesToTransform.contains(className)) {
             // System.out.println("Transforming " + className);
-            return instrumenter.instrumentClass(className, classfileBuffer);
+            byte[] bytes = instrumenter.instrumentClass(className, classfileBuffer);
+            if (className.equals("sun/net/www/protocol/https/AbstractDelegateHttpsURLConnection")) {
+                System.out.println("Transformed AbstractDelegateHttpsURLConnection:" + Base64.getEncoder().encodeToString(bytes));
+            }
+            return bytes;
         } else {
             // System.out.println("Not transforming " + className);
             return classfileBuffer;

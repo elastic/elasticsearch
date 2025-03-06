@@ -33,7 +33,7 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
      * A record of a time the driver slept.
      *
      * @param reason     The reason the driver slept
-     * @param threadName
+     * @param threadName The name of the thread this driver was running on when it went to sleep
      * @param sleep      Millis since epoch when the driver slept
      * @param wake       Millis since epoch when the driver woke, or 0 if it is currently sleeping
      */

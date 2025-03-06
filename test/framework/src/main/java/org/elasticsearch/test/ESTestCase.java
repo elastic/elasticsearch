@@ -232,7 +232,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
-@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class, NettyGlobalThreadsFilter.class })
+@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class, NettyGlobalThreadsFilter.class, JnaCleanerThreadsFilter.class })
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting
 // assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.
@@ -1284,14 +1284,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Returns a project id. This may be {@link Metadata#DEFAULT_PROJECT_ID}, or it may be a randomly-generated id.
      */
     public static ProjectId randomProjectIdOrDefault() {
-        return randomBoolean() ? Metadata.DEFAULT_PROJECT_ID : new ProjectId(randomUUID());
+        return randomBoolean() ? Metadata.DEFAULT_PROJECT_ID : randomUniqueProjectId();
     }
 
     /**
      * Returns a new randomly-generated project id
      */
     public static ProjectId randomUniqueProjectId() {
-        return new ProjectId(randomUUID());
+        return ProjectId.fromId(randomUUID());
     }
 
     public static String randomUUID() {

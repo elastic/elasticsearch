@@ -40,9 +40,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
-        indicesAliasesRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-        indicesAliasesRequest.ackTimeout(getAckTimeout(request));
+        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest(getMasterNodeTimeout(request), getAckTimeout(request));
         try (XContentParser parser = request.contentParser()) {
             IndicesAliasesRequest.PARSER.parse(parser, indicesAliasesRequest, null);
         }

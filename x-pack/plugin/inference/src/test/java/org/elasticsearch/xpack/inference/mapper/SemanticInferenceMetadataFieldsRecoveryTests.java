@@ -72,9 +72,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
 
     @Override
     protected Settings indexSettings() {
-        var builder = Settings.builder()
-            .put(super.indexSettings())
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false);
+        var builder = Settings.builder().put(super.indexSettings());
         if (useSynthetic) {
             builder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name());
             builder.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true);

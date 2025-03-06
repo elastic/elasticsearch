@@ -139,9 +139,19 @@ public class InlineJoin extends Join {
         JoinType joinType = config().type();
         List<Attribute> output;
         if (LEFT.equals(joinType)) {
-            List<Attribute> leftOutput = new ArrayList<>(left().output());
-            AttributeSet rightKeys = new AttributeSet(config().rightFields());
-            List<Attribute> leftOutputWithoutMatchFields = leftOutput.stream().filter(attr -> rightKeys.contains(attr) == false).toList();
+            AttributeSet rightFields = new AttributeSet(config().rightFields());
+            List<Attribute> leftOutputWithoutMatchFields = new ArrayList<>();
+            // at this point "left" part of the join contains all the attributes that represent the input of the join
+            // including any aliasing (evals) of expressions used as grouping attributes (or join "match fields") in the join itself
+            for (Attribute attr : left().output()) {
+                if (rightFields.contains(attr) == false) {
+                    // the aforementioned groupings expressions or aliasing are removed from the left set of attributes
+                    leftOutputWithoutMatchFields.add(attr);
+                }
+            }
+            // the actual output of the join will place the left hand side attributes (excluding any aliasing of the groupings)
+            // as first columns in the output followed by whatever the right hand side of join adds in this order: aggregates first,
+            // followed by groupings (this order should be preserved inside the rightFields() output)
             output = mergeOutputAttributes(right, leftOutputWithoutMatchFields);
         } else {
             throw new IllegalArgumentException(joinType.joinName() + " unsupported");

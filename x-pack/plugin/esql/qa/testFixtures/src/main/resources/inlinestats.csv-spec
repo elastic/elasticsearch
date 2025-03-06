@@ -660,6 +660,24 @@ emp_no:integer | salary:integer | avg_salary:double |  hire_date:datetime
          10005 |          63528 | 53487.07692307692 | 1989-01-01T00:00:00Z
 ;
 
+groupByExpression_And_ExistentField
+required_capability: inlinestats_v4
+FROM employees
+| KEEP emp_no, languages, gender
+| EVAL x = "ABC"
+| INLINESTATS max_lang = MAX(languages) BY y = to_lower(x), gender
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+emp_no:integer | languages:integer | x:keyword | max_lang:integer | y:keyword | gender:keyword
+10001          |2                  |ABC        |5                 |abc        |M              
+10002          |5                  |ABC        |5                 |abc        |F              
+10003          |4                  |ABC        |5                 |abc        |M              
+10004          |5                  |ABC        |5                 |abc        |M              
+10005          |1                  |ABC        |5                 |abc        |M
+;
+
 groupByRenamedColumn-Ignore
 required_capability: inlinestats_v4
 FROM employees

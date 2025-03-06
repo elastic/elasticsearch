@@ -71,6 +71,8 @@ POST /sales/_search?size=0
 }
 ```
 
+%  TEST[setup:sales]
+
 If you attempt to use multiples of calendar units, the aggregation will fail because only singular calendar units are supported:
 
 $$$datehistogram-aggregation-calendar-interval-multiples-example$$$
@@ -89,6 +91,10 @@ POST /sales/_search?size=0
 }
 ```
 
+%  TEST[setup:sales]
+
+%  TEST[catch:bad_request]
+
 ```js
 {
   "error" : {
@@ -103,6 +109,8 @@ POST /sales/_search?size=0
   }
 }
 ```
+
+%  NOTCONSOLE
 
 
 
@@ -151,6 +159,8 @@ POST /sales/_search?size=0
 }
 ```
 
+%  TEST[setup:sales]
+
 But if we try to use a calendar unit that is not supported, such as weeks, we’ll get an exception:
 
 $$$datehistogram-aggregation-fixed-interval-unsupported-example$$$
@@ -169,6 +179,10 @@ POST /sales/_search?size=0
 }
 ```
 
+%  TEST[setup:sales]
+
+%  TEST[catch:bad_request]
+
 ```js
 {
   "error" : {
@@ -183,6 +197,8 @@ POST /sales/_search?size=0
   }
 }
 ```
+
+%  NOTCONSOLE
 
 
 
@@ -236,6 +252,8 @@ POST /sales/_search?size=0
 }
 ```
 
+%  TEST[setup:sales]
+
 1. Supports expressive date [format pattern](/reference/data-analysis/aggregations/search-aggregations-bucket-daterange-aggregation.md#date-format-pattern)
 
 
@@ -267,6 +285,8 @@ Response:
   }
 }
 ```
+
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 
 ## Time zone [datehistogram-aggregation-time-zone]
@@ -336,6 +356,8 @@ If you don’t specify a time zone, UTC is used. This would result in both of th
 }
 ```
 
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
 If you specify a `time_zone` of `-01:00`, midnight in that time zone is one hour before midnight UTC:
 
 ```console
@@ -352,6 +374,8 @@ GET my-index-000001/_search?size=0
   }
 }
 ```
+
+%  TEST[continued]
 
 Now the first document falls into the bucket for 30 September 2015, while the second document falls into the bucket for 1 October 2015:
 
@@ -376,6 +400,8 @@ Now the first document falls into the bucket for 30 September 2015, while the se
   }
 }
 ```
+
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 1. The `key_as_string` value represents midnight on each day in the specified time zone.
 
@@ -443,6 +469,8 @@ Instead of a single bucket starting at midnight, the above request groups the do
 }
 ```
 
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
 ::::{note}
 The start `offset` of each bucket is calculated after `time_zone` adjustments have been made.
 ::::
@@ -471,6 +499,8 @@ $$$datehistogram-aggregation-offset-example-19d$$$
 ]
 ```
 
+%  TESTRESPONSE[skip:no setup made for this example yet]
+
 Increasing the offset to `+20d`, each document will appear in a bucket for the previous month, with all bucket keys ending with the same day of the month, as normal. However, further increasing to `+28d`, what used to be a February bucket has now become `"2022-03-01"`.
 
 $$$datehistogram-aggregation-offset-example-28d$$$
@@ -488,6 +518,8 @@ $$$datehistogram-aggregation-offset-example-28d$$$
 ]
 ```
 
+%  TESTRESPONSE[skip:no setup made for this example yet]
+
 If we continue to increase the offset, the 30-day months will also shift into the next month, so that 3 of the 8 buckets have different days than the other five. In fact if we keep going, we will find cases where two documents appear in the same month. Documents that were originally 30 days apart can be shifted into the same 31-day month bucket.
 
 For example, for `+50d` we see:
@@ -503,6 +535,8 @@ $$$datehistogram-aggregation-offset-example-50d$$$
   { "key_as_string": "2022-08-20", "key": 1660953600000, "doc_count": 1 }
 ]
 ```
+
+%  TESTRESPONSE[skip:no setup made for this example yet]
 
 It is therefore always important when using `offset` with `calendar_interval` bucket sizes to understand the consequences of using offsets larger than the interval size.
 
@@ -535,6 +569,8 @@ POST /sales/_search?size=0
 }
 ```
 
+%  TEST[setup:sales]
+
 Response:
 
 ```console-result
@@ -563,6 +599,8 @@ Response:
   }
 }
 ```
+
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 
 ## Scripts [date-histogram-scripts]
@@ -597,6 +635,39 @@ POST /sales/_search?size=0
 }
 ```
 
+%  TEST[setup:sales]
+
+% 
+% [source,console-result]
+% ----
+% {
+%   …​
+%   "aggregations": {
+%     "sales_over_time": {
+%       "buckets": [
+%         {
+%           "key_as_string": "2015-01-01T00:00:00.000Z",
+%           "key": 1420070400000,
+%           "doc_count": 3
+%         },
+%         {
+%           "key_as_string": "2015-02-01T00:00:00.000Z",
+%           "key": 1422748800000,
+%           "doc_count": 2
+%         },
+%         {
+%           "key_as_string": "2015-03-01T00:00:00.000Z",
+%           "key": 1425168000000,
+%           "doc_count": 2
+%         }
+%       ]
+%     }
+%   }
+% }
+% ----
+% // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% 
+
 
 ## Parameters [date-histogram-params]
 
@@ -622,6 +693,8 @@ POST /sales/_search?size=0
   }
 }
 ```
+
+%  TEST[setup:sales]
 
 1. Documents without a value in the `date` field will fall into the same bucket as documents that have the value `2000-01-01`.
 
@@ -655,6 +728,8 @@ POST /sales/_search?size=0
 }
 ```
 
+%  TEST[setup:sales]
+
 Response:
 
 ```console-result
@@ -678,6 +753,8 @@ Response:
   }
 }
 ```
+
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 The response will contain all the buckets having the relative day of the week as key : 1 for Monday, 2 for Tuesday…​ 7 for Sunday.
 

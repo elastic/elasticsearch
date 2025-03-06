@@ -22,6 +22,8 @@ A `normalize` aggregation looks like this in isolation:
 }
 ```
 
+%  NOTCONSOLE
+
 $$$normalize_pipeline-params$$$
 
 | Parameter Name | Description | Required | Default Value |
@@ -136,6 +138,8 @@ POST /sales/_search
 }
 ```
 
+%  TEST[setup:sales]
+
 1. `buckets_path` instructs this normalize aggregation to use the output of the `sales` aggregation for rescaling
 2. `method` sets which rescaling to apply. In this case, `percent_of_sum` will calculate the sales value as a percent of all sales in the parent bucket
 3. `format` influences how to format the metric as a string using Java’s `DecimalFormat` pattern. In this case, multiplying by 100 and adding a *%*
@@ -193,5 +197,11 @@ And the following may be the response:
    }
 }
 ```
+
+%  TESTRESPONSE[s/"took": 11/"took": $body.took/]
+
+%  TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+
+%  TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 

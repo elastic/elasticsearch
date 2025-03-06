@@ -45,6 +45,8 @@ POST /network-traffic/_bulk?refresh
 {"ipv4":"192.168.3.107","ipv6":"2001:db8:a4f8:114f:6001:0:12:7307"}
 ```
 
+%  TESTSETUP
+
 The following aggregation groups documents into buckets. Each bucket identifies a different sub-network. The sub-network is calculated by applying a netmask with prefix length of `24` to each IP address in the `ipv4` field:
 
 $$$ip-prefix-ipv4-example$$$
@@ -63,6 +65,8 @@ GET /network-traffic/_search
   }
 }
 ```
+
+%  TEST
 
 Response:
 
@@ -100,6 +104,8 @@ Response:
 }
 ```
 
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
 To aggregate IPv6 addresses, set `is_ipv6` to `true`.
 
 $$$ip-prefix-ipv6-example$$$
@@ -119,6 +125,8 @@ GET /network-traffic/_search
   }
 }
 ```
+
+%  TEST
 
 If `is_ipv6` is `true`, the response doesn’t include a `netmask` for each bucket.
 
@@ -152,6 +160,8 @@ If `is_ipv6` is `true`, the response doesn’t include a `netmask` for each buck
   }
 }
 ```
+
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 
 ## Parameters [ip-prefix-agg-params]
@@ -217,6 +227,8 @@ GET /network-traffic/_search
 }
 ```
 
+%  TEST
+
 Response:
 
 ```console-result
@@ -250,6 +262,8 @@ Response:
 }
 ```
 
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
 
 ## Append the prefix length to the IP address key [ipprefix-agg-append-prefix-length]
 
@@ -274,6 +288,8 @@ GET /network-traffic/_search
   }
 }
 ```
+
+%  TEST
 
 Response:
 
@@ -311,6 +327,8 @@ Response:
 }
 ```
 
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
 
 ## Minimum document count [ipprefix-agg-min-doc-count]
 
@@ -333,6 +351,8 @@ GET /network-traffic/_search
   }
 }
 ```
+
+%  TEST
 
 Response:
 
@@ -362,5 +382,7 @@ Response:
   }
 }
 ```
+
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 

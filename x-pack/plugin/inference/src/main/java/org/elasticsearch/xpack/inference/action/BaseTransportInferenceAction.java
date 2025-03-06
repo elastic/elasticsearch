@@ -146,6 +146,10 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 return;
             }
 
+            // TODO: test
+            threadPool.getThreadContext()
+                .putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, request.getContext().productUseCase());
+
             var service = serviceRegistry.getService(serviceName).get();
             var localNodeId = nodeClient.getLocalNodeId();
             var routingDecision = determineRouting(serviceName, request, unparsedModel, localNodeId);

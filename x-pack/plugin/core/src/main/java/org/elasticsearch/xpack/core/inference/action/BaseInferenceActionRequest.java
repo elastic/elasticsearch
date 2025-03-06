@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 
 import java.io.IOException;
 
@@ -19,12 +20,16 @@ import java.io.IOException;
  * Base class for inference action requests. Tracks request routing state to prevent potential routing loops
  * and supports both streaming and non-streaming inference operations.
  */
+// TODO: BWC tests?
 public abstract class BaseInferenceActionRequest extends ActionRequest {
 
     private boolean hasBeenRerouted;
 
-    public BaseInferenceActionRequest() {
+    private final InferenceContext context;
+
+    public BaseInferenceActionRequest(InferenceContext context) {
         super();
+        this.context = context;
     }
 
     public BaseInferenceActionRequest(StreamInput in) throws IOException {
@@ -35,6 +40,12 @@ public abstract class BaseInferenceActionRequest extends ActionRequest {
             // For backwards compatibility, we treat all inference requests coming from ES nodes having
             // a version pre-node-local-rate-limiting as already rerouted to maintain pre-node-local-rate-limiting behavior.
             this.hasBeenRerouted = true;
+        }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)) {
+            this.context = new InferenceContext(in);
+        } else {
+            this.context = InferenceContext.empty();
         }
     }
 
@@ -52,11 +63,21 @@ public abstract class BaseInferenceActionRequest extends ActionRequest {
         return hasBeenRerouted;
     }
 
+    public InferenceContext getContext() {
+        return context;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)) {
             out.writeBoolean(hasBeenRerouted);
         }
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)) {
+            context.writeTo(out);
+        }
     }
+
+    // TODO: equals/hashcode?
 }

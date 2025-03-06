@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
@@ -74,12 +75,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             InputType.UNSPECIFIED
         );
 
-        public static Builder parseRequest(String inferenceEntityId, TaskType taskType, XContentParser parser) throws IOException {
+        public static Builder parseRequest(String inferenceEntityId, TaskType taskType, InferenceContext context, XContentParser parser)
+            throws IOException {
             Request.Builder builder = PARSER.apply(parser, null);
             builder.setInferenceEntityId(inferenceEntityId);
             builder.setTaskType(taskType);
             // For rest requests we won't know what the input type is
             builder.setInputType(InputType.UNSPECIFIED);
+            builder.setContext(context);
             return builder;
         }
 
@@ -91,6 +94,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         private final InputType inputType;
         private final TimeValue inferenceTimeout;
         private final boolean stream;
+        private final InferenceContext context;
 
         public Request(
             TaskType taskType,
@@ -102,6 +106,21 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             TimeValue inferenceTimeout,
             boolean stream
         ) {
+            this(taskType, inferenceEntityId, query, input, taskSettings, inputType, inferenceTimeout, stream, InferenceContext.empty());
+        }
+
+        public Request(
+            TaskType taskType,
+            String inferenceEntityId,
+            String query,
+            List<String> input,
+            Map<String, Object> taskSettings,
+            InputType inputType,
+            TimeValue inferenceTimeout,
+            boolean stream,
+            InferenceContext context
+        ) {
+            super(context);
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
             this.query = query;
@@ -110,6 +129,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.inputType = inputType;
             this.inferenceTimeout = inferenceTimeout;
             this.stream = stream;
+            this.context = context;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -138,6 +158,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
             // streaming is not supported yet for transport traffic
             this.stream = false;
+
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)) {
+                this.context = new InferenceContext(in);
+            } else {
+                this.context = InferenceContext.empty();
+            }
         }
 
         public TaskType getTaskType() {
@@ -170,6 +196,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public boolean isStreaming() {
             return stream;
+        }
+
+        public InferenceContext getContext() {
+            return context;
         }
 
         @Override
@@ -222,6 +252,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeOptionalString(query);
                 out.writeTimeValue(inferenceTimeout);
             }
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)) {
+                context.writeTo(out);
+            }
         }
 
         // default for easier testing
@@ -248,12 +282,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 && Objects.equals(taskSettings, request.taskSettings)
                 && Objects.equals(inputType, request.inputType)
                 && Objects.equals(query, request.query)
-                && Objects.equals(inferenceTimeout, request.inferenceTimeout);
+                && Objects.equals(inferenceTimeout, request.inferenceTimeout)
+                && Objects.equals(context, request.context);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskType, inferenceEntityId, input, taskSettings, inputType, query, inferenceTimeout);
+            return Objects.hash(taskType, inferenceEntityId, input, taskSettings, inputType, query, inferenceTimeout, context);
         }
 
         public static class Builder {
@@ -266,6 +301,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private String query;
             private TimeValue timeout = DEFAULT_TIMEOUT;
             private boolean stream = false;
+            private InferenceContext context;
 
             private Builder() {}
 
@@ -313,8 +349,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return this;
             }
 
+            public Builder setContext(InferenceContext context) {
+                this.context = context;
+                return this;
+            }
+
             public Request build() {
-                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType, timeout, stream);
+                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType, timeout, stream, context);
             }
         }
 
@@ -333,6 +374,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 + this.getInputType()
                 + ", timeout="
                 + this.getInferenceTimeout()
+                + ", context="
+                + this.getContext()
                 + ")";
         }
     }

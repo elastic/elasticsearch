@@ -32,6 +32,7 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
+// TODO: test
 public class TransportInferenceActionProxy extends HandledTransportAction<InferenceActionProxy.Request, InferenceAction.Response> {
     private final ModelRegistry modelRegistry;
     private final OriginSettingClient client;
@@ -98,6 +99,7 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
                     request.getInferenceEntityId(),
                     request.getTaskType(),
                     request.getTimeout(),
+                    request.getContext(),
                     parser
                 );
             }
@@ -115,6 +117,7 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
             inferenceActionRequestBuilder = InferenceAction.Request.parseRequest(
                 request.getInferenceEntityId(),
                 request.getTaskType(),
+                request.getContext(),
                 parser
             );
             inferenceActionRequestBuilder.setInferenceTimeout(request.getTimeout()).setStream(request.isStreaming());

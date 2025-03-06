@@ -92,9 +92,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             task.setMigrationIndexFile(projectDirectory.file("docs/reference/migration/index.asciidoc"));
 
             task.setDeprecationsTemplate(projectDirectory.file(RESOURCES + "templates/deprecations.md"));
-            task.setDeprecationsFile(
-                projectDirectory.file("docs/release-notes/deprecations.md")
-            );
+            task.setDeprecationsFile(projectDirectory.file("docs/release-notes/deprecations.md"));
 
             task.dependsOn(validateChangelogsTask);
         };

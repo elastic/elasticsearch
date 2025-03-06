@@ -83,7 +83,7 @@ public final class IngestDocument {
      * of the pipeline was that the _index value did not change and so only 'foo' would appear
      * in the index history.
      */
-    private Set<String> indexHistory = new LinkedHashSet<>();
+    private final Set<String> indexHistory = new LinkedHashSet<>();
 
     private boolean doNoSelfReferencesCheck = false;
     private boolean reroute = false;

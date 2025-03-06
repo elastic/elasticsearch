@@ -383,6 +383,6 @@ public class EnsembleInferenceModel implements InferenceModel, BoundedInferenceM
             }
         }
 
-        return new double[] {outputAggregator.aggregate(modelsMinBoundaries), outputAggregator.aggregate(modelsMaxBoundaries)};
+        return new double[] { outputAggregator.aggregate(modelsMinBoundaries), outputAggregator.aggregate(modelsMaxBoundaries) };
     }
 }

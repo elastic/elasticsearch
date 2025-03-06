@@ -9,5 +9,6 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 public interface BoundedInferenceModel extends InferenceModel {
     double getMinPredictedValue();
+
     double getMaxPredictedValue();
 }

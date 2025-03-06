@@ -88,21 +88,27 @@ public class ScaledInferenceModel implements BoundedInferenceModel {
         if (inferenceResult instanceof RegressionInferenceResults regressionInferenceResults) {
             double predictedValue = ((Number) regressionInferenceResults.predictedValue()).doubleValue();
             // First we scale the data to [0 ,1]
-            predictedValue = (predictedValue - model.getMinPredictedValue()) / (model.getMaxPredictedValue() - model.getMinPredictedValue());
+            predictedValue = (predictedValue - model.getMinPredictedValue()) / (model.getMaxPredictedValue() - model
+                .getMinPredictedValue());
 
             // Then we scale the data to the desired interval
             predictedValue = predictedValue * (getMaxPredictedValue() - getMinPredictedValue()) + getMinPredictedValue();
 
-            return new RegressionInferenceResults(predictedValue, inferenceResult.getResultsField(), ((RegressionInferenceResults) inferenceResult).getFeatureImportance());
+            return new RegressionInferenceResults(
+                predictedValue,
+                inferenceResult.getResultsField(),
+                ((RegressionInferenceResults) inferenceResult).getFeatureImportance()
+            );
         }
 
         throw new IllegalStateException(
             LoggerMessageFormat.format(
-            "Model used within a {} should return a {} but got {} instead",
-            ScaledInferenceModel.class.getSimpleName(),
-            RegressionInferenceResults.class.getSimpleName(),
-            inferenceResult.getClass().getSimpleName()
-        ));
+                "Model used within a {} should return a {} but got {} instead",
+                ScaledInferenceModel.class.getSimpleName(),
+                RegressionInferenceResults.class.getSimpleName(),
+                inferenceResult.getClass().getSimpleName()
+            )
+        );
     }
 
     @Override

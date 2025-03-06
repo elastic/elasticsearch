@@ -381,12 +381,12 @@ public class TreeInferenceModel implements InferenceModel, BoundedInferenceModel
     }
 
     private double[] leafBoundaries() {
-        double[] bounds = new double[] {Double.MAX_VALUE, Double.MIN_VALUE};
+        double[] bounds = new double[] { Double.MAX_VALUE, Double.MIN_VALUE };
 
         for (Node node : this.nodes) {
             if (node instanceof LeafNode leafNode) {
                 if (leafNode.leafValue.length > 1) {
-                    return new double[] {0, leafNode.leafValue.length};
+                    return new double[] { 0, leafNode.leafValue.length };
                 } else {
                     bounds[0] = Math.min(leafNode.leafValue[0], bounds[0]);
                     bounds[1] = Math.max(leafNode.leafValue[0], bounds[1]);

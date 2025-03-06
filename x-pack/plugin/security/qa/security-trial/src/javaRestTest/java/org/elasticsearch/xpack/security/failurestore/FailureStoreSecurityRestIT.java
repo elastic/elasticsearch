@@ -305,7 +305,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test1::failures/_search")));
         expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
         expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search")));
-        // TODO is this correct?
         assertEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/.fs*/_search")));
         assertEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/*1::failures/_search")));
 
@@ -342,8 +341,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         assertEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test12/_search?ignore_unavailable=true")));
         assertEmpty(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test2/_search?ignore_unavailable=true")));
 
-        // TODO extra make sure manage_failure_store CANNOT delete the whole data stream
-
         // user with manage access to data stream does NOT get direct access to failure index
         expectThrows403(() -> deleteIndex(MANAGE_ACCESS_USER, failureIndexName));
         expectThrows(() -> deleteIndex(MANAGE_ACCESS_USER, dataIndexName), 400);
@@ -358,7 +355,9 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         deleteDataStream(MANAGE_ACCESS_USER, "test1");
 
         expectThrows404(() -> performRequest(BOTH_ACCESS_USER, new Request("GET", "/test1/_search")));
+        expectThrows404(() -> adminClient().performRequest(new Request("GET", "/" + dataIndexName + "/_search")));
         expectThrows404(() -> performRequest(BOTH_ACCESS_USER, new Request("GET", "/test1::failures/_search")));
+        expectThrows404(() -> adminClient().performRequest(new Request("GET", "/" + failureIndexName + "/_search")));
     }
 
     private static void expectThrows404(ThrowingRunnable get) {

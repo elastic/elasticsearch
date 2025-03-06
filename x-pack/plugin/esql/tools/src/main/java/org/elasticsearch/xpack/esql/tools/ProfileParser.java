@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql;
+package org.elasticsearch.xpack.esql.tools;
 
 import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.common.logging.LogConfigurator;

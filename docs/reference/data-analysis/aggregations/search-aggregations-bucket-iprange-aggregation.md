@@ -31,6 +31,8 @@ GET /ip_addresses/_search
 }
 ```
 
+%  TEST[setup:iprange]
+
 Response:
 
 ```console-result
@@ -56,6 +58,8 @@ Response:
 }
 ```
 
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
 IP ranges can also be defined as CIDR masks:
 
 $$$ip-range-cidr-example$$$
@@ -77,6 +81,8 @@ GET /ip_addresses/_search
   }
 }
 ```
+
+%  TEST[setup:iprange]
 
 Response:
 
@@ -105,6 +111,8 @@ Response:
 }
 ```
 
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
 ## Keyed Response [_keyed_response_3]
 
 Setting the `keyed` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
@@ -130,6 +138,8 @@ GET /ip_addresses/_search
 }
 ```
 
+%  TEST[setup:iprange]
+
 Response:
 
 ```console-result
@@ -152,6 +162,8 @@ Response:
   }
 }
 ```
+
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 It is also possible to customize the key for each range:
 
@@ -176,6 +188,8 @@ GET /ip_addresses/_search
 }
 ```
 
+%  TEST[setup:iprange]
+
 Response:
 
 ```console-result
@@ -198,5 +212,7 @@ Response:
   }
 }
 ```
+
+%  TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 

@@ -66,7 +66,7 @@ The following parameters are accepted by `text` fields:
 [`index_options`](/reference/elasticsearch/mapping-reference/index-options.md)
 :   What information should be stored in the index, for search and highlighting purposes. Defaults to `positions`.
 
-[`index_prefixes`](/reference/elasticsearch/mapping-reference/index-prefixes.md)
+[`index_prefixes`](index-prefixes.md)
 :   If enabled, term prefixes of between 2 and 5 characters are indexed into a separate field. This allows prefix searches to run more efficiently, at the expense of a larger index.
 
 [`index_phrases`](/reference/elasticsearch/mapping-reference/index-phrases.md)
@@ -145,6 +145,8 @@ PUT idx/_doc/1
 }
 ```
 
+%  TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
 Will become:
 
 ```console-result
@@ -155,6 +157,8 @@ Will become:
   ]
 }
 ```
+
+%  TEST[s/^/{"_source":/ s/\n$/}/]
 
 ::::{note}
 Reordering text fields can have an effect on [phrase](/reference/query-languages/query-dsl-match-query-phrase.md) and [span](/reference/query-languages/span-queries.md) queries. See the discussion about [`position_increment_gap`](/reference/elasticsearch/mapping-reference/position-increment-gap.md) for more detail. You can avoid this by making sure the `slop` parameter on the phrase queries is lower than the `position_increment_gap`. This is the default.
@@ -193,6 +197,8 @@ PUT idx/_doc/1
 }
 ```
 
+%  TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
 Will become:
 
 ```console-result
@@ -204,6 +210,8 @@ Will become:
   ]
 }
 ```
+
+%  TEST[s/^/{"_source":/ s/\n$/}/]
 
 
 ## `fielddata` mapping parameter [fielddata-mapping-param]
@@ -262,6 +270,8 @@ PUT my-index-000001/_mapping
   }
 }
 ```
+
+%  TEST[continued]
 
 1. The mapping that you specify for `my_field` should consist of the existing mapping for that field, plus the `fielddata` parameter.
 

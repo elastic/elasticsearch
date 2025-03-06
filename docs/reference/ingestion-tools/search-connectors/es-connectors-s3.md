@@ -45,6 +45,8 @@ PUT _connector/my-s3-connector
 }
 ```
 
+%  TEST[skip:can’t test in isolation]
+
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
 The user needs the cluster privileges `manage_api_key`, `manage_connector` and `write_connector_secrets` to generate API keys programmatically.
@@ -169,6 +171,8 @@ Download the sample configuration file. You can either download it manually or r
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
 
+%  NOTCONSOLE
+
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
 ::::
@@ -278,6 +282,8 @@ $$$es-connectors-s3-client-sync-rules-advanced-examples$$$
 ]
 ```
 
+%  NOTCONSOLE
+
 **Example**: Fetch files/folder starting with `folder1`.
 
 ```js
@@ -288,6 +294,8 @@ $$$es-connectors-s3-client-sync-rules-advanced-examples$$$
   }
 ]
 ```
+
+%  NOTCONSOLE
 
 **Fetching files and folders by specifying extensions**
 
@@ -302,6 +310,8 @@ $$$es-connectors-s3-client-sync-rules-advanced-examples$$$
   }
 ]
 ```
+
+%  NOTCONSOLE
 
 
 ### Content extraction [es-connectors-s3-client-content-extraction]

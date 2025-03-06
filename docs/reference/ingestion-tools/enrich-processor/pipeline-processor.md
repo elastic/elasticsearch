@@ -29,6 +29,8 @@ $$$pipeline-options$$$
 }
 ```
 
+%  NOTCONSOLE
+
 The name of the current pipeline can be accessed from the `_ingest.pipeline` ingest metadata key.
 
 An example of using this processor for nesting pipelines would be:
@@ -72,6 +74,8 @@ PUT _ingest/pipeline/pipelineB
 }
 ```
 
+%  TEST[continued]
+
 Now indexing a document while applying the outer pipeline will see the inner pipeline executed from the outer pipeline:
 
 ```console
@@ -80,6 +84,8 @@ PUT /my-index-000001/_doc/1?pipeline=pipelineB
   "field": "value"
 }
 ```
+
+%  TEST[continued]
 
 Response from the index request:
 
@@ -99,6 +105,8 @@ Response from the index request:
 }
 ```
 
+%  TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+
 Indexed document:
 
 ```js
@@ -108,4 +116,6 @@ Indexed document:
   "outer_pipeline_set": "outer"
 }
 ```
+
+%  NOTCONSOLE
 

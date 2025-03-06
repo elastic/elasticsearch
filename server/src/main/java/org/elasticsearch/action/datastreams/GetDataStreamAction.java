@@ -397,9 +397,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (indexTemplate != null) {
                     builder.field(INDEX_TEMPLATE_FIELD.getPreferredName(), indexTemplate);
                 }
-                if (dataStream.getLifecycle() != null) {
+                if (dataStream.getDataLifecycle() != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
-                    dataStream.getLifecycle().toXContent(builder, params, rolloverConfiguration, globalRetention, dataStream.isInternal());
+                    dataStream.getDataLifecycle()
+                        .toXContent(builder, params, rolloverConfiguration, globalRetention, dataStream.isInternal());
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
@@ -488,7 +489,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
              */
             public ManagedBy getNextGenerationManagedBy() {
                 // both ILM and DSL are configured so let's check the prefer_ilm setting to see which system takes precedence
-                if (ilmPolicyName != null && dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
+                if (ilmPolicyName != null && dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().isEnabled()) {
                     return templatePreferIlmValue ? ManagedBy.ILM : ManagedBy.LIFECYCLE;
                 }
 
@@ -496,7 +497,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     return ManagedBy.ILM;
                 }
 
-                if (dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
+                if (dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().isEnabled()) {
                     return ManagedBy.LIFECYCLE;
                 }
 

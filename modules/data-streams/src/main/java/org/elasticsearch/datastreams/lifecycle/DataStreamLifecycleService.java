@@ -347,7 +347,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         int affectedDataStreams = 0;
         for (DataStream dataStream : state.metadata().getProject().dataStreams().values()) {
             clearErrorStoreForUnmanagedIndices(dataStream);
-            if (dataStream.getLifecycle() == null) {
+            if (dataStream.getDataLifecycle() == null) {
                 continue;
             }
 
@@ -827,7 +827,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                     rolloverConfiguration,
                     dataStream.getName(),
-                    dataStream.getLifecycle().getEffectiveDataRetention(globalRetentionSettings.get(), dataStream.isInternal()),
+                    dataStream.getDataLifecycle().getEffectiveDataRetention(globalRetentionSettings.get(), dataStream.isInternal()),
                     rolloverFailureStore
                 );
                 transportActionsDeduplicator.executeOnce(
@@ -889,9 +889,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             return Set.of();
         }
         Set<Index> indicesToBeRemoved = new HashSet<>();
-        // We know that there is lifecycle and retention because there are indices to be deleted
-        assert dataStream.getLifecycle() != null;
-        TimeValue effectiveDataRetention = dataStream.getLifecycle().getEffectiveDataRetention(globalRetention, dataStream.isInternal());
+        TimeValue effectiveDataRetention = dataStream.getDataLifecycle()
+            .getEffectiveDataRetention(globalRetention, dataStream.isInternal());
         for (Index index : backingIndicesOlderThanRetention) {
             if (indicesToExcludeForRemainingRun.contains(index) == false) {
                 IndexMetadata backingIndex = metadata.getProject().index(index);

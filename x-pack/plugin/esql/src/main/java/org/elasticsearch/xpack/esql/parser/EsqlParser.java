@@ -29,6 +29,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.nameOrPosition;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 
 public class EsqlParser {
@@ -181,16 +182,9 @@ public class EsqlParser {
                 param++;
             }
 
-            if (token.getType() == EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM) {
-                if (isInteger(token.getText().substring(1))) {
-                    checkPositionalParam(token);
-                } else {
-                    checkNamedParam(token);
-                }
-            }
-
-            if (token.getType() == EsqlBaseLexer.NAMED_OR_POSITIONAL_DOUBLE_PARAMS) {
-                if (isInteger(token.getText().substring(2))) {
+            String nameOrPosition = nameOrPosition(token);
+            if (nameOrPosition.isBlank() == false) {
+                if (isInteger(nameOrPosition)) {
                     checkPositionalParam(token);
                 } else {
                     checkNamedParam(token);

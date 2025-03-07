@@ -87,6 +87,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.nameOrPosition;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
@@ -940,12 +941,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         // The token could be a single parameter marker or double parameter markers
         Token token = node.getSymbol();
-        String nameOrPosition;
-        if (token.getType() == EsqlBaseParser.NAMED_OR_POSITIONAL_DOUBLE_PARAMS) {
-            nameOrPosition = token.getText().substring(2);
-        } else {
-            nameOrPosition = token.getText().substring(1);
-        }
+        String nameOrPosition = nameOrPosition(token);
         if (isInteger(nameOrPosition)) {
             int index = Integer.parseInt(nameOrPosition);
             if (context.params().get(index) == null) {

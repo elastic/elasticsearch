@@ -3750,6 +3750,55 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(up.pattern(), "f.2*");
         ur = as(keep.child(), UnresolvedRelation.class);
         assertEquals(ur, relation("test"));
+
+        // test random single and double params
+        // commands in group1 take both constants(?) and identifiers(??)
+        List<String> commandWithRandomSingleOrDoubleParamsGroup1 = List.of(
+            "eval x = {}f1, y = {}f2, z = {}f3",
+            "eval x = fn({}f1), y = {}f2 + {}f3",
+            "where {}f1 == \"a\" and {}f2 > 1 and {}f3 in (1, 2)",
+            "stats x = fn({}f1) by {}f2, {}f3",
+            "sort {}f1, {}f2, {}f3",
+            "dissect {}f1 \"%{bar}\"",
+            "grok {}f1 \"%{WORD:foo}\""
+        );
+        for (String command : commandWithRandomSingleOrDoubleParamsGroup1) {
+            String param1 = randomBoolean() ? "?" : "??";
+            String param2 = randomBoolean() ? "?" : "??";
+            String param3 = randomBoolean() ? "?" : "??";
+            plan = statement(
+                LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
+                new QueryParams(List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")))
+            );
+            assertNotNull(plan);
+        }
+        // commands in group2 only take identifiers(??)
+        List<String> commandWithRandomSingleOrDoubleParamsGroup2 = List.of(
+            "eval x = {}f1(), y = {}f2(), z = {}f3()",
+            "where {}f1 : \"b\" and {}f2() > 0 and {}f3()",
+            "stats x = {}f1(), {}f2(), {}f3()",
+            "rename {}f1 as {}f2, {}f3 as x",
+            "enrich idx2 ON {}f1 WITH {}f2 = {}f3",
+            "keep {}f1, {}f2, {}f3",
+            "drop {}f1, {}f2, {}f3",
+            "mv_expand {}f1 | mv_expand {}f2 | mv_expand {}f3",
+            "lookup join idx1 on {}f1 | lookup join idx2 on {}f2 | lookup join idx3 on {}f3"
+        );
+
+        for (String command : commandWithRandomSingleOrDoubleParamsGroup2) {
+            String param1 = randomBoolean() ? "?" : "??";
+            String param2 = randomBoolean() ? "?" : "??";
+            String param3 = randomBoolean() ? "?" : "??";
+            if (param1.equals("?") || param2.equals("?") || param3.equals("?")) {
+                expectError(
+                    LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
+                    List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
+                    command.contains("join")
+                        ? "JOIN ON clause only supports fields at the moment"
+                        : "declared as a constant, cannot be used as an identifier"
+                );
+            }
+        }
     }
 
     public void testInvalidDoubleParamsNames() {

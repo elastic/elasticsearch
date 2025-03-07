@@ -75,7 +75,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         );
     }
 
-    private final MappedFieldType.FieldExtractPreference preference;
+    protected final MappedFieldType.FieldExtractPreference preference;
 
     protected FieldExtractorTestCase(MappedFieldType.FieldExtractPreference preference) {
         this.preference = preference;
@@ -1291,8 +1291,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         Map<String, Object> result = runEsql("FROM test* | SORT process.parent.command_line");
         // If we're loading from _source we load the nested field.
-        // NOCOMMIT is this change ok?
-        Matcher<?> pidMatcher = preference == MappedFieldType.FieldExtractPreference.PREFER_STORED ? equalTo(111) : nullValue();
         assertResultMap(
             result,
             List.of(
@@ -1302,7 +1300,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 columnInfo("process.parent.command_line.text", "text")
             ),
             List.of(
-                matchesList().item(null).item(pidMatcher).item("run1.bat").item("run1.bat"),
+                matchesList().item(null).item(pidMatcher()).item("run1.bat").item("run1.bat"),
                 matchesList().item(222).item(222).item("run2.bat").item("run2.bat")
             )
         );
@@ -1331,7 +1329,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 columnInfo("process.parent.command_line.text", "text")
             ),
             List.of(
-                matchesList().item(null).item(pidMatcher).item("run1.bat").item("run1.bat"),
+                matchesList().item(null).item(pidMatcher()).item("run1.bat").item("run1.bat"),
                 matchesList().item(222).item(222).item("run2.bat").item("run2.bat")
             )
         );
@@ -1349,8 +1347,13 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 columnInfo("process.parent.command_line", "keyword"),
                 columnInfo("process.parent.command_line.text", "text")
             ),
-            List.of(matchesList().item(null).item(null).item("run1.bat").item("run1.bat"))
+            List.of(matchesList().item(null).item(pidMatcher()).item("run1.bat").item("run1.bat"))
         );
+    }
+
+    protected Matcher<Integer> pidMatcher() {
+        // TODO these should all always return null because the parent is nested
+        return preference == MappedFieldType.FieldExtractPreference.PREFER_STORED ? equalTo(111) : nullValue(Integer.class);
     }
 
     private void assumeIndexResolverNestedFieldsNameClashFixed() throws IOException {

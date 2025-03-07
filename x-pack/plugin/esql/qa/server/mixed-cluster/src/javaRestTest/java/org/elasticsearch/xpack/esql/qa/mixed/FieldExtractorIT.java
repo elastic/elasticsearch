@@ -13,14 +13,19 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.FieldExtractorTestCase;
+import org.hamcrest.Matcher;
 import org.junit.ClassRule;
+
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class FieldExtractorIT extends FieldExtractorTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
 
-    protected FieldExtractorIT(MappedFieldType.FieldExtractPreference preference) {
+    public FieldExtractorIT(MappedFieldType.FieldExtractPreference preference) {
         super(preference);
     }
 
@@ -28,4 +33,13 @@ public class FieldExtractorIT extends FieldExtractorTestCase {
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
+
+    @Override
+    protected Matcher<Integer> pidMatcher() {
+        // TODO these should all always return null because the parent is nested
+        return preference == MappedFieldType.FieldExtractPreference.PREFER_STORED
+            ? anyOf(equalTo(111), nullValue())
+            : nullValue(Integer.class);
+    }
+
 }

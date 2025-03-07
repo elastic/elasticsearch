@@ -17,6 +17,7 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -42,7 +44,9 @@ import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -80,6 +84,21 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         return enrichResolver;
     }
 
+    EsqlSlowLog mockSlowLog() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(
+                Arrays.asList(
+                    EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
+                    EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
+                    EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
+                    EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING
+                )
+            )
+        );
+        return new EsqlSlowLog(clusterSettings);
+    }
+
     public void testFailedMetric() {
         String[] indices = new String[] { "test" };
 
@@ -107,12 +126,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             return null;
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
-        var planExecutor = new PlanExecutor(
-            indexResolver,
-            MeterRegistry.NOOP,
-            new XPackLicenseState(() -> 0L),
-            new EsqlSlowLog(ClusterSettings.createBuiltInClusterSettings())
-        );
+        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP, new XPackLicenseState(() -> 0L), mockSlowLog());
         var enrichResolver = mockEnrichResolver();
 
         var request = new EsqlQueryRequest();

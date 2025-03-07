@@ -643,7 +643,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final Executor executor = getExecutor(shard);
         try {
             if (waitForCheckpoint <= UNASSIGNED_SEQ_NO) {
-                runAsync(executor, executable, listener, shard);
+                runAsync(executor, executable, listener);
                 return;
             }
             if (shard.indexSettings().getRefreshInterval().getMillis() <= 0) {
@@ -719,7 +719,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         if (timeoutTask != null) {
                             timeoutTask.cancel();
                         }
-                        runAsync(executor, executable, listener, shard);
+                        runAsync(executor, executable, listener);
                     }
                 }
             });
@@ -742,14 +742,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private static <T extends RefCounted> void runAsync(
         Executor executor,
         CheckedSupplier<T, Exception> executable,
-        ActionListener<T> listener,
-        IndexShard shard
+        ActionListener<T> listener
     ) {
-        Runnable r = ActionRunnable.supplyAndDecRef(listener, executable);
-       //if (executor instanceof TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor perIndexExecutor) {
-       //     perIndexExecutor.registerIndexNameForRunnable(shard.shardId().getIndexName(), r);
-       // }
-        executor.execute(r);
+        executor.execute(ActionRunnable.supplyAndDecRef(listener, executable));
     }
 
     /**
@@ -826,7 +821,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, wrapFailureListener(listener, readerContext, markAsUsed), readerContext.indexShard());
+        }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
     private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime) {
@@ -878,7 +873,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, wrapFailureListener(listener, readerContext, markAsUsed), readerContext.indexShard());
+        }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
     /**
@@ -927,7 +922,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // we handle the failure in the failure listener below
                     throw e;
                 }
-            }, wrapFailureListener(l, readerContext, markAsUsed), readerContext.indexShard());
+            }, wrapFailureListener(l, readerContext, markAsUsed));
         }));
     }
 
@@ -982,7 +977,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        }, wrapFailureListener(listener, readerContext, markAsUsed), readerContext.indexShard());
+        }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
     public void executeFetchPhase(ShardFetchRequest request, CancellableTask task, ActionListener<FetchSearchResult> listener) {
@@ -1019,7 +1014,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // we handle the failure in the failure listener below
                     throw e;
                 }
-            }, wrapFailureListener(l, readerContext, markAsUsed), readerContext.indexShard());
+            }, wrapFailureListener(l, readerContext, markAsUsed));
         }));
     }
 

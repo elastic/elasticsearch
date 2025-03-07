@@ -33,7 +33,6 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolE
     private final boolean trackOngoingTasks;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
-    final TaskTrackingConfig trackingConfig;
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
@@ -50,7 +49,6 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolE
     ) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
         this.runnableWrapper = runnableWrapper;
-        this.trackingConfig = trackingConfig;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getEwmaAlpha(), 0);
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
     }
@@ -117,23 +115,15 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolE
                     + failedOrRejected;
             if (taskExecutionNanos != -1) {
                 // taskExecutionNanos may be -1 if the task threw an exception
-                trackExecutionTime(timedRunnable.unwrap(), taskExecutionNanos);
+                executionEWMA.addValue(taskExecutionNanos);
+                totalExecutionTime.add(taskExecutionNanos);
             }
         } finally {
-            removeTrackedTask(r);
-        }
-    }
-
-    protected void trackExecutionTime(Runnable r, long taskTime) {
-        executionEWMA.addValue(taskTime);
-        totalExecutionTime.add(taskTime);
-    }
-
-    protected void removeTrackedTask(Runnable r) {
-        // if trackOngoingTasks is false -> ongoingTasks must be empty
-        assert trackOngoingTasks || ongoingTasks.isEmpty();
-        if (trackOngoingTasks) {
-            ongoingTasks.remove(r);
+            // if trackOngoingTasks is false -> ongoingTasks must be empty
+            assert trackOngoingTasks || ongoingTasks.isEmpty();
+            if (trackOngoingTasks) {
+                ongoingTasks.remove(r);
+            }
         }
     }
 

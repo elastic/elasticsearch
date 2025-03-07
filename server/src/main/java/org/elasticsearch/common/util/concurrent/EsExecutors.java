@@ -181,7 +181,7 @@ public class EsExecutors {
             rejectedExecutionHandler = new EsAbortPolicy();
         }
         if (config.trackExecutionTime()) {
-            return new TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor(
+            return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
                 size,
                 size,

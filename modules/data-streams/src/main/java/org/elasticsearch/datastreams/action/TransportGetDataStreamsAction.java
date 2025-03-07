@@ -139,6 +139,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
             client.execute(DataStreamsStatsAction.INSTANCE, req, new ActionListener<>() {
                 @Override
                 public void onResponse(DataStreamsStatsAction.Response response) {
+                    ((CancellableTask) task).ensureNotCancelled();
                     final Map<String, Long> maxTimestamps = Arrays.stream(response.getDataStreams())
                         .collect(
                             Collectors.toMap(

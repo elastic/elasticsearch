@@ -94,14 +94,6 @@ public final class DateProcessor extends AbstractProcessor {
         formatter = DateFormatter.forPattern(this.outputFormat);
     }
 
-    private static ZoneId newDateTimeZone(String timezone) {
-        return timezone == null ? ZoneOffset.UTC : ZoneId.of(timezone);
-    }
-
-    private static Locale newLocale(String locale) {
-        return locale == null ? Locale.ENGLISH : LocaleUtils.parse(locale);
-    }
-
     @Override
     public IngestDocument execute(IngestDocument document) {
         Object obj = document.getFieldValue(field, Object.class);
@@ -149,12 +141,22 @@ public final class DateProcessor extends AbstractProcessor {
 
     // visible for testing
     ZoneId getTimezone(IngestDocument document) {
-        return newDateTimeZone(timezone == null ? null : document.renderTemplate(timezone));
+        String value = timezone == null ? null : document.renderTemplate(timezone);
+        if (value == null) {
+            return ZoneOffset.UTC;
+        } else {
+            return ZoneId.of(value);
+        }
     }
 
     // visible for testing
     Locale getLocale(IngestDocument document) {
-        return newLocale(locale == null ? null : document.renderTemplate(locale));
+        String value = locale == null ? null : document.renderTemplate(locale);
+        if (value == null) {
+            return Locale.ENGLISH;
+        } else {
+            return LocaleUtils.parse(value);
+        }
     }
 
     String getField() {

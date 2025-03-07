@@ -264,8 +264,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             int nextItemOffset = itemIndex;
             Runnable onInferenceCompletion = () -> {
                 try {
-                    int limit = Math.min(nextItemOffset, items.length);
-                    for (int i = itemOffset; i < limit; i++) {
+                    for (int i = itemOffset; i < nextItemOffset; i++) {
                         var result = inferenceResults.get(i);
                         if (result == null) {
                             continue;

@@ -25,7 +25,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -83,6 +82,11 @@ import java.util.stream.Stream;
  * </pre>
  */
 public class Setting<T> implements ToXContentObject {
+    private static final String DEPRECATED_MESSAGE_TEMPLATE =
+        "[{}] setting was deprecated in Elasticsearch and will be removed in a future release. "
+            + "See the %s documentation for the next major version.";
+    private static final String DEPRECATED_WARN_MESSAGE = Strings.format(DEPRECATED_MESSAGE_TEMPLATE, "deprecation");
+    private static final String DEPRECATED_CRITICAL_MESSAGE = Strings.format(DEPRECATED_MESSAGE_TEMPLATE, "breaking changes");
 
     public enum Property {
         /**
@@ -651,10 +655,8 @@ public class Setting<T> implements ToXContentObject {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
-            @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // https://github.com/elastic/elasticsearch/issues/79666
-            String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
             if (this.isDeprecatedWarningOnly()) {
-                Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
+                Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, DEPRECATED_WARN_MESSAGE, key);
             } else if (this.isDeprecatedAndRemoved()) {
                 Settings.DeprecationLoggerHolder.deprecationLogger.critical(
                     DeprecationCategory.SETTINGS,
@@ -663,7 +665,12 @@ public class Setting<T> implements ToXContentObject {
                     key
                 );
             } else {
-                Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, message, key);
+                Settings.DeprecationLoggerHolder.deprecationLogger.critical(
+                    DeprecationCategory.SETTINGS,
+                    key,
+                    DEPRECATED_CRITICAL_MESSAGE,
+                    key
+                );
             }
         }
     }

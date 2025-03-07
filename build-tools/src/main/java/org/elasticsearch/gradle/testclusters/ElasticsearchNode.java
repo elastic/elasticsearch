@@ -1297,38 +1297,42 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         assert Files.exists(destinationRoot) == false;
         try (Stream<Path> stream = Files.walk(sourceRoot)) {
             stream.forEach(source -> {
-                Path relativeDestination = sourceRoot.relativize(source);
-                if (relativeDestination.getNameCount() <= 1) {
-                    return;
-                }
-                // Throw away the first name as the archives have everything in a single top level folder we are not interested in
-                relativeDestination = relativeDestination.subpath(1, relativeDestination.getNameCount());
+                try {
+                    Path relativeDestination = sourceRoot.relativize(source);
+                    if (relativeDestination.getNameCount() <= 1) {
+                        return;
+                    }
+                    // Throw away the first name as the archives have everything in a single top level folder we are not interested in
+                    relativeDestination = relativeDestination.subpath(1, relativeDestination.getNameCount());
 
-                Path destination = destinationRoot.resolve(relativeDestination);
-                if (Files.isDirectory(source)) {
-                    try {
-                        Files.createDirectories(destination);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
+                    Path destination = destinationRoot.resolve(relativeDestination);
+                    if (Files.isDirectory(source)) {
+                        try {
+                            Files.createDirectories(destination);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
+                        }
+                    } else {
+                        try {
+                            Files.createDirectories(destination.getParent());
+                        } catch (IOException e) {
+                            throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
+                        }
+                        syncMethod.accept(destination, source);
                     }
-                } else {
-                    try {
-                        Files.createDirectories(destination.getParent());
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
+                } catch (UncheckedIOException e) {
+                    if (e.getCause() instanceof NoSuchFileException cause) {
+                        // Ignore these files that are sometimes left behind by the JVM
+                        if (cause.getFile() != null && cause.getFile().contains(".attach_pid")) {
+                            LOGGER.info("Ignoring file left behind by JVM: {}", cause.getFile());
+                        } else {
+                            throw new UncheckedIOException(cause);
+                        }
+                    } else {
+                        throw e;
                     }
-                    syncMethod.accept(destination, source);
                 }
             });
-        } catch (UncheckedIOException e) {
-            if (e.getCause() instanceof NoSuchFileException cause) {
-                // Ignore these files that are sometimes left behind by the JVM
-                if (cause.getFile() == null || cause.getFile().contains(".attach_pid") == false) {
-                    throw new UncheckedIOException(cause);
-                }
-            } else {
-                throw e;
-            }
         } catch (IOException e) {
             throw new UncheckedIOException("Can't walk source " + sourceRoot, e);
         }

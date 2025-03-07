@@ -214,7 +214,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         assert mergeTask.isRunning() == false;
         if (closed) {
             // Do not backlog or execute tasks when closing the merge scheduler, instead abort them.
-            mergeTask.abortOnGoingMerge();
+            mergeTask.abort();
             throw new ElasticsearchException("merge task aborted because scheduler is shutting down");
         }
         if (currentlyRunningMergeTasks.size() < config.getMaxThreadCount()) {
@@ -341,6 +341,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             return mergeStartTimeNS.get() > 0L;
         }
 
+        /**
+         * Executes the merge associated to this task. MUST be invoked after {@link #runNowOrBacklog()} returned {@code true},
+         * to confirm that the associated {@link MergeScheduler} assents to running the merge right now.
+         */
         @Override
         public void run() {
             assert isRunning() == false;
@@ -380,9 +384,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                         mergeTracking.mergeFinished(onGoingMerge.getMerge(), onGoingMerge, tookMS);
                     }
                 } finally {
-                    if (verbose()) {
-                        message(String.format(Locale.ROOT, "merge task %s end", this));
-                    }
                     afterMerge(onGoingMerge);
                 }
             } finally {
@@ -399,14 +400,36 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             }
         }
 
-        void abortOnGoingMerge() {
+        /**
+         * Aborts the merge task, for e.g. when the {@link MergeScheduler}, or the
+         * {@link ThreadPoolMergeExecutorService} are closing. Either one of {@link #run()} or {@link #abort()}
+         * MUST be invoked exactly once for evey {@link MergeTask}.
+         * An aborted merge means the segments considered by the current merge will be made available for
+         * subsequent merges.
+         */
+        void abort() {
+            assert isRunning() == false;
+            assert ThreadPoolMergeScheduler.this.currentlyRunningMergeTasks.containsKey(onGoingMerge.getMerge()) == false
+                : "cannot abort a merge task that's already running";
+            if (verbose()) {
+                message(String.format(Locale.ROOT, "merge task %s aborted", this));
+            }
             // {@code IndexWriter} checks the abort flag internally, while running the merge.
             // The segments of an aborted merge become available to subsequent merges.
             onGoingMerge.getMerge().setAborted();
-            // This ensures {@code OneMerge#close} gets invoked.
-            // {@code IndexWriter} considers a merge as "running" once it has been pulled from the {@code MergeSource#getNextMerge},
-            // so in theory it's not enough to just call {@code MergeSource#onMergeFinished} on it (as for "pending" ones).
-            doMerge(mergeSource, onGoingMerge.getMerge());
+            try {
+                // mark the merge task as running, even though the merge itself is aborted and the task will run for a brief time only
+                if (mergeStartTimeNS.compareAndSet(0L, System.nanoTime()) == false) {
+                    throw new IllegalStateException("The merge task is already started");
+                }
+                // This ensures {@code OneMerge#close} gets invoked.
+                // {@code IndexWriter} considers a merge as "running" once it has been pulled from the {@code MergeSource#getNextMerge},
+                // so in theory it's not enough to just call {@code MergeSource#onMergeFinished} on it (as for "pending" ones).
+                doMerge(mergeSource, onGoingMerge.getMerge());
+            } finally {
+                doneMergeTaskCount.incrementAndGet();
+                checkMergeTaskThrottling();
+            }
         }
 
         long estimatedMergeSize() {

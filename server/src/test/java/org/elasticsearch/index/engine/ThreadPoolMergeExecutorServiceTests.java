@@ -64,7 +64,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         MergeTask mergeTask = mock(MergeTask.class);
         when(mergeTask.supportsIOThrottling()).thenReturn(randomBoolean());
         assertFalse(threadPoolMergeExecutorService.submitMergeTask(mergeTask));
-        verify(mergeTask).abortOnGoingMerge();
+        verify(mergeTask).abort();
         verify(mergeTask, times(0)).runNowOrBacklog();
         verify(mergeTask, times(0)).run();
         assertTrue(threadPoolMergeExecutorService.allDone());

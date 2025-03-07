@@ -91,7 +91,7 @@ public class ThreadPoolMergeExecutorService {
         // first enqueue the runnable that runs exactly one merge task (the smallest it can find)
         if (enqueueMergeTaskExecution() == false) {
             // if the thread pool cannot run the merge, just abort it
-            mergeTask.abortOnGoingMerge();
+            mergeTask.abort();
             return false;
         } else {
             if (mergeTask.supportsIOThrottling()) {

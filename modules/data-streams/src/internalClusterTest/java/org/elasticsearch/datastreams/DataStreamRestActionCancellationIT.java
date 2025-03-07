@@ -61,6 +61,7 @@ public class DataStreamRestActionCancellationIT extends ESIntegTestCase {
 
     public void testGetDataStreamCancellation() {
         runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_data_stream"), GetDataStreamAction.NAME);
+        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_data_stream?verbose"), GetDataStreamAction.NAME);
     }
 
     private void runRestActionCancellationTest(Request request, String actionName) {

@@ -106,16 +106,16 @@ public class InstrumenterImpl implements Instrumenter {
         reader.accept(visitor, 0);
 
         var outBytes = writer.toByteArray();
-//        var copy = Arrays.copyOf(outBytes, outBytes.length);
-//
-//        try {
-//            var out2 = verify(new ClassReader(copy));
-//            if (out2.isEmpty() == false) {
-//                logger.error("After: Verify: {}", out2);
-//            }
-//        } catch (Error e) {
-//            logger.error("After: Verify", e);
-//        }
+        // var copy = Arrays.copyOf(outBytes, outBytes.length);
+        //
+        // try {
+        // var out2 = verify(new ClassReader(copy));
+        // if (out2.isEmpty() == false) {
+        // logger.error("After: Verify: {}", out2);
+        // }
+        // } catch (Error e) {
+        // logger.error("After: Verify", e);
+        // }
 
         return outBytes;
     }

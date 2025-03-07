@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -299,6 +300,9 @@ public class ComputeService {
                         cancelQueryOnFailure,
                         execInfo,
                         computeListener.acquireCompute()
+                            .delegateResponse(
+                                (l, ex) -> l.onFailure(new ElasticsearchException(cluster.clusterAlias() + " encountered an error", ex))
+                            )
                     );
                 }
             }

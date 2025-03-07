@@ -116,8 +116,8 @@ public final class DateProcessor extends AbstractProcessor {
         final ZoneId documentTimezone;
         final Locale documentLocale;
         try {
-            documentTimezone = newDateTimeZone(timezone == null ? null : document.renderTemplate(timezone));
-            documentLocale = newLocale(locale == null ? null : document.renderTemplate(locale));
+            documentTimezone = getTimezone(document);
+            documentLocale = getLocale(document);
         } catch (Exception e) {
             throw new IllegalArgumentException("unable to parse date [" + value + "]", e);
         }
@@ -147,12 +147,14 @@ public final class DateProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    TemplateScript.Factory getTimezone() {
-        return timezone;
+    // visible for testing
+    ZoneId getTimezone(IngestDocument document) {
+        return newDateTimeZone(timezone == null ? null : document.renderTemplate(timezone));
     }
 
-    TemplateScript.Factory getLocale() {
-        return locale;
+    // visible for testing
+    Locale getLocale(IngestDocument document) {
+        return newLocale(locale == null ? null : document.renderTemplate(locale));
     }
 
     String getField() {

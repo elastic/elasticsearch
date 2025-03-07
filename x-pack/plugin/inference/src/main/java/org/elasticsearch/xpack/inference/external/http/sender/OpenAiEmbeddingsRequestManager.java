@@ -15,9 +15,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.util.List;

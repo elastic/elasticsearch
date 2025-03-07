@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.response.openai;
+package org.elasticsearch.xpack.inference.external.openai;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;

@@ -233,7 +233,6 @@ public record ClusterBalanceStats(
             for (ShardRouting shardRouting : routingNode) {
                 var indexMetadata = metadata.indexMetadata(shardRouting.index());
                 var shardSize = clusterInfo.getShardSize(shardRouting, 0L);
-                assert indexMetadata != null;
                 forecastWriteLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
                 forecastShardSize += indexMetadata.getForecastedShardSizeInBytes().orElse(shardSize);
                 actualShardSize += shardSize;

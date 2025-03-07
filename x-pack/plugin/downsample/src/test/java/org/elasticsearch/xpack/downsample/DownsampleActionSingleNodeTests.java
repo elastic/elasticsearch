@@ -270,7 +270,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDownsampleIndex() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
+        Integer forceMergeMaxNumSegments = randomBoolean() ? null : randomIntBetween(-1, 128);
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), forceMergeMaxNumSegments);
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
@@ -329,7 +330,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDownsampleIndexWithFlattenedAndMultiFieldDimensions() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
+        Integer forceMergeMaxNumSegments = randomBoolean() ? null : randomIntBetween(-1, 128);
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), forceMergeMaxNumSegments);
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
@@ -366,7 +368,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testDownsampleOfDownsample() throws Exception {
         int intervalMinutes = randomIntBetween(10, 120);
-        DownsampleConfig config = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes), null);
+        Integer forceMergeMaxNumSegments = randomBoolean() ? null : randomIntBetween(-1, 128);
+        DownsampleConfig config = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes), forceMergeMaxNumSegments);
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);

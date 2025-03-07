@@ -148,7 +148,8 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
         final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         long startTime = LocalDateTime.parse("1993-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
         setup(sourceIndex, 1, 0, startTime);
-        final DownsampleConfig config = new DownsampleConfig(randomInterval());
+        Integer forceMergeMaxNumSegments = randomBoolean() ? null : randomIntBetween(-1, 128);
+        final DownsampleConfig config = new DownsampleConfig(randomInterval(), forceMergeMaxNumSegments);
         final SourceSupplier sourceSupplier = () -> {
             final String ts = randomDateForInterval(config.getInterval(), startTime);
             double counterValue = DATE_FORMATTER.parseMillis(ts);

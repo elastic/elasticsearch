@@ -221,7 +221,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
     private static Model randomModel(TaskType taskType) {
         var dimensions = taskType == TaskType.TEXT_EMBEDDING ? randomIntBetween(2, 64) : null;
         var similarity = taskType == TaskType.TEXT_EMBEDDING
-            ? randomValueOtherThan(SimilarityMeasure.COSINE, () -> randomFrom(SimilarityMeasure.values()))
+            ? randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values()))
             : null;
         var elementType = taskType == TaskType.TEXT_EMBEDDING ? DenseVectorFieldMapper.ElementType.BYTE : null;
         return new TestModel(

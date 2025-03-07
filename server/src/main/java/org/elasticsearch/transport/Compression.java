@@ -13,8 +13,6 @@ import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.lz4.ESLZ4Compressor;
@@ -29,7 +27,6 @@ public class Compression {
         LZ4,
         DEFLATE;
 
-        static final TransportVersion LZ4_VERSION = TransportVersions.V_7_14_0;
         static final int HEADER_LENGTH = 4;
         private static final byte[] DEFLATE_HEADER = new byte[] { 'D', 'F', 'L', '\0' };
         private static final byte[] LZ4_HEADER = new byte[] { 'L', 'Z', '4', '\0' };

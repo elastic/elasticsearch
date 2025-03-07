@@ -2,6 +2,9 @@
 
 **Parameters**
 
-`number`
-:   Expression that outputs values to calculate the median of.
+`field`
+:   Field that the query will target.
+
+`query`
+:   Term you wish to find in the provided field.
 

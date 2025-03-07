@@ -2,5 +2,5 @@
 
 **Description**
 
-Converts an input value to a boolean value. A string value of **true** will be case-insensitive converted to the Boolean **true**. For anything else, including the empty string, the function will return **false**. The numerical value of **0** will be converted to **false**, anything else will be converted to **true**.
+Converts an input value to a boolean value. A string value of `true` will be case-insensitive converted to the Boolean `true`. For anything else, including the empty string, the function will return `false`. The numerical value of `0` will be converted to `false`, anything else will be converted to `true`.
 

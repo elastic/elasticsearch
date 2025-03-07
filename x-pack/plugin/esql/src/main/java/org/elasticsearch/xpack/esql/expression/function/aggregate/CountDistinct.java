@@ -84,7 +84,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             ==== Counts are approximate
 
             Computing exact counts requires loading values into a set and returning its
-            size. This doesn't scale when working on high-cardinality sets and/or large
+            size. This doesn’t scale when working on high-cardinality sets and/or large
             values as the required memory usage and the need to communicate those
             per-shard sets between nodes would utilize too many resources of the cluster.
 

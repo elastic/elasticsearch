@@ -45,7 +45,7 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
             + "or may not be normally distributed. For such data it can be more descriptive "
             + "than standard deviation."
             + "\n\n"
-            + "It is calculated as the median of each data point's deviation from the median of "
+            + "It is calculated as the median of each data point’s deviation from the median of "
             + "the entire sample. That is, for a random variable `X`, the median absolute "
             + "deviation is `median(|median(X) - X|)`.",
         note = "Like <<esql-percentile>>, `MEDIAN_ABSOLUTE_DEVIATION` is <<esql-percentile-approximate,usually approximate>>.",

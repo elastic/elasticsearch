@@ -76,7 +76,7 @@ public class DateTrunc extends EsqlScalarFunction {
     )
     public DateTrunc(
         Source source,
-        // Need to replace the commas in the description here with semi-colon as there's a bug in the CSV parser
+        // Need to replace the commas in the description here with semi-colon as there’s a bug in the CSV parser
         // used in the CSVTests and fixing it is not trivial
         @Param(
             name = "interval",
@@ -138,7 +138,7 @@ public class DateTrunc extends EsqlScalarFunction {
 
     @Evaluator(extraName = "DateNanos")
     static long processDateNanos(long fieldVal, @Fixed Rounding.Prepared rounding) {
-        // Currently, ES|QL doesn't support rounding to sub-millisecond values, so it's safe to cast before rounding.
+        // Currently, ES|QL doesn’t support rounding to sub-millisecond values, so it’s safe to cast before rounding.
         return DateUtils.toNanoSeconds(rounding.round(DateUtils.toMilliSeconds(fieldVal)));
     }
 

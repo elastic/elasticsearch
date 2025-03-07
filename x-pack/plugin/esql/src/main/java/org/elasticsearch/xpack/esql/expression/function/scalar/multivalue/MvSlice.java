@@ -75,7 +75,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             in a known order like <<esql-split>> or <<esql-mv_sort>>.""",
         detailedDescription = """
             The order that <<esql-multivalued-fields, multivalued fields>> are read from
-            underlying storage is not guaranteed. It is *frequently* ascending, but don't
+            underlying storage is not guaranteed. It is **frequently** ascending, but don’t
             rely on that.""",
         examples = { @Example(file = "ints", tag = "mv_slice_positive"), @Example(file = "ints", tag = "mv_slice_negative") }
     )

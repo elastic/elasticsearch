@@ -57,7 +57,7 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
         Source source,
         @Param(name = "datePattern", type = { "keyword", "text" }, description = """
             The date format. Refer to the
-            {javadoc}/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter`documentation] for the syntax.
+            {javadoc14}/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter` documentation] for the syntax.
             If `null`, the function returns `null`.""", optional = true) Expression first,
         @Param(
             name = "dateString",

@@ -5,18 +5,18 @@
 | first | rest | result |
 | --- | --- | --- |
 | boolean | boolean | boolean |
-| boolean |  | boolean |
+| boolean | | boolean |
 | date | date | date |
 | date_nanos | date_nanos | date_nanos |
 | double | double | double |
 | integer | integer | integer |
-| integer |  | integer |
+| integer | | integer |
 | ip | ip | ip |
 | keyword | keyword | keyword |
-| keyword |  | keyword |
+| keyword | | keyword |
 | long | long | long |
-| long |  | long |
+| long | | long |
 | text | text | keyword |
-| text |  | keyword |
+| text | | keyword |
 | version | version | version |
 

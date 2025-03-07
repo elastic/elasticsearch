@@ -60,7 +60,7 @@ public class DateExtract extends EsqlConfigurationFunction {
     )
     public DateExtract(
         Source source,
-        // Need to replace the commas in the description here with semi-colon as there's a bug in the CSV parser
+        // Need to replace the commas in the description here with semi-colon as there’s a bug in the CSV parser
         // used in the CSVTests and fixing it is not trivial
         @Param(name = "datePart", type = { "keyword", "text" }, description = """
             Part of the date to extract.\n
@@ -120,7 +120,7 @@ public class DateExtract extends EsqlConfigurationFunction {
                 "Unsupported field type ["
                     + field().dataType().name()
                     + "]. "
-                    + "If you're seeing this, there's a bug in DateExtract.resolveType"
+                    + "If you're seeing this, there’s a bug in DateExtract.resolveType"
             );
         };
 
@@ -152,7 +152,7 @@ public class DateExtract extends EsqlConfigurationFunction {
     }
 
     private ChronoField chronoField(FoldContext ctx) {
-        // chronoField's never checked (the return is). The foldability test is done twice and type is checked in resolveType() already.
+        // chronoField’s never checked (the return is). The foldability test is done twice and type is checked in resolveType() already.
         // TODO: move the slimmed down code here to toEvaluator?
         if (chronoField == null) {
             Expression field = children().get(0);

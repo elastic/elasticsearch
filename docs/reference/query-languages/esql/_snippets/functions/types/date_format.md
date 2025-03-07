@@ -4,8 +4,8 @@
 
 | dateFormat | date | result |
 | --- | --- | --- |
-| date |  | keyword |
-| date_nanos |  | keyword |
+| date | | keyword |
+| date_nanos | | keyword |
 | keyword | date | keyword |
 | keyword | date_nanos | keyword |
 | text | date | keyword |

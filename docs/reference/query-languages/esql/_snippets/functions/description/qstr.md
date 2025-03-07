@@ -2,5 +2,5 @@
 
 **Description**
 
-Performs a [query string query](/reference/query-languages/query-dsl-query-string-query.md). Returns true if the provided query string matches the row.
+Performs a [query string query](/reference/query-languages/query-dsl-match-query.md#query-dsl-query-string-query). Returns true if the provided query string matches the row.
 

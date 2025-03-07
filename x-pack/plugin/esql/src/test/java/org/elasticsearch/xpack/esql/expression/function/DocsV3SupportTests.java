@@ -18,14 +18,14 @@ public class DocsV3SupportTests extends ESTestCase {
         String text = "The value that is greater than half of all values and less than half of all values, "
             + "also known as the 50% <<esql-percentile>>.";
         String expected = "The value that is greater than half of all values and less than half of all values, "
-            + "also known as the 50% [`PERCENTILE`](../../../esql-functions-operators.md#esql-percentile).";
+            + "also known as the 50% [`PERCENTILE`](/reference/query-languages/esql/esql-functions-operators.md#esql-percentile).";
         assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
     }
 
     public void testFunctionAndHeaderLinks() {
         String text = "Like <<esql-percentile>>, `MEDIAN` is <<esql-percentile-approximate,usually approximate>>.";
-        String expected = "Like [`PERCENTILE`](../../../esql-functions-operators.md#esql-percentile), "
-            + "`MEDIAN` is [usually approximate](../../../esql-functions-operators.md#esql-percentile-approximate).";
+        String expected = "Like [`PERCENTILE`](/reference/query-languages/esql/esql-functions-operators.md#esql-percentile), "
+            + "`MEDIAN` is [usually approximate](/reference/query-languages/esql/esql-functions-operators.md#esql-percentile-approximate).";
         assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
     }
 
@@ -81,6 +81,26 @@ public class DocsV3SupportTests extends ESTestCase {
             Refer to [java.time.temporal.ChronoField](https://docs.oracle.com/javase/8/docs/api/java/time/temporal/ChronoField.html)
             for a description of these values.\n
             If `null`, the function returns `null`.""";
+        assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
+    }
+
+    public void testKnownRootEsqlFiles() {
+        String text = """
+            The order that <<esql-multivalued-fields, multivalued fields>>
+            are read from underlying storage is not guaranteed""";
+        String expected = """
+            The order that [multivalued fields](/reference/query-languages/esql/esql-multivalued-fields.md)
+            are read from underlying storage is not guaranteed""";
+        assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
+    }
+
+    public void testKnownRootWithTag() {
+        String text = """
+            Match can use <<esql-function-named-params,function named parameters>>
+            to specify additional options for the match query.""";
+        String expected = """
+            Match can use [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
+            to specify additional options for the match query.""";
         assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
     }
 }

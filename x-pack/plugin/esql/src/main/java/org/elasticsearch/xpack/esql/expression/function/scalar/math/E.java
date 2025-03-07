@@ -21,14 +21,14 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Function that emits Euler's number.
+ * Function that emits Euler’s number.
  */
 public class E extends DoubleConstantFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "E", E::new);
 
     @FunctionInfo(
         returnType = "double",
-        description = "Returns {wikipedia}/E_(mathematical_constant)[Euler's number].",
+        description = "Returns {wikipedia}/E_(mathematical_constant)[Euler’s number].",
         examples = @Example(file = "math", tag = "e")
     )
     public E(Source source) {

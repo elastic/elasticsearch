@@ -516,11 +516,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         break;
                     }
 
-                    inputLength += values.stream().mapToLong(String::length).sum();
-
                     List<FieldInferenceRequest> requests = requestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
                     int offsetAdjustment = 0;
                     for (String v : values) {
+                        inputLength += v.length();
                         requests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment));
 
                         // When using the inference metadata fields format, all the input values are concatenated so that the

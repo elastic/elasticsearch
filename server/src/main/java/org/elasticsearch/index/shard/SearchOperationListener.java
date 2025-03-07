@@ -63,7 +63,7 @@ public interface SearchOperationListener {
      * @param searchContext the current search context
      * @param tookInNanos the number of nanoseconds the fetch execution took
      *
-     * @see #onFailedFetchPhase(SearchContext)
+     * @see #onFailedFetchPhase(SearchContext, long)
      */
     default void onFetchPhase(SearchContext searchContext, long tookInNanos) {}
 

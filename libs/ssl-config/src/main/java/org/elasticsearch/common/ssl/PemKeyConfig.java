@@ -126,10 +126,10 @@ public final class PemKeyConfig implements SslKeyConfig {
                 throw new SslConfigException("could not load ssl private key file [" + path + "]");
             }
             return privateKey;
-        } catch (AccessControlException e) {
-            throw SslFileUtil.accessControlFailure(KEY_FILE_TYPE, List.of(path), e, configBasePath);
         } catch (NotEntitledException e) {
             throw SslFileUtil.notEntitledFailure(KEY_FILE_TYPE, List.of(path), e, configBasePath);
+        } catch (AccessControlException e) {
+            throw SslFileUtil.accessControlFailure(KEY_FILE_TYPE, List.of(path), e, configBasePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException(KEY_FILE_TYPE, List.of(path), e);
         } catch (GeneralSecurityException e) {

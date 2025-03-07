@@ -111,10 +111,10 @@ public final class PemUtils {
                 throw new SslConfigException("could not load ssl private key file [" + path + "]");
             }
             return privateKey;
-        } catch (AccessControlException e) {
-            throw SslFileUtil.accessControlFailure("PEM private key", List.of(path), e, null);
         } catch (NotEntitledException e) {
             throw SslFileUtil.notEntitledFailure("PEM private key", List.of(path), e, null);
+        } catch (AccessControlException e) {
+            throw SslFileUtil.accessControlFailure("PEM private key", List.of(path), e, null);
         } catch (IOException e) {
             throw SslFileUtil.ioException("PEM private key", List.of(path), e);
         } catch (GeneralSecurityException e) {

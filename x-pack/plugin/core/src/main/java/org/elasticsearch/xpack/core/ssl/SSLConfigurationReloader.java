@@ -110,7 +110,9 @@ public final class SSLConfigurationReloader {
             fileWatcher.addListener(changeListener);
             try {
                 resourceWatcherService.add(fileWatcher, Frequency.HIGH);
-            } catch (IOException | AccessControlException | NotEntitledException e) {
+            } catch (NotEntitledException e) {
+                logger.error("failed to start watching directory [{}] for ssl configurations [{}] - {}", path, configurations, e);
+            } catch (IOException | AccessControlException e) {
                 logger.error("failed to start watching directory [{}] for ssl configurations [{}] - {}", path, configurations, e);
             }
         });

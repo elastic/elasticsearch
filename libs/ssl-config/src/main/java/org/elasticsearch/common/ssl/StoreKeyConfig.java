@@ -167,10 +167,10 @@ public class StoreKeyConfig implements SslKeyConfig {
     private KeyStore readKeyStore(Path path) {
         try {
             return KeyStoreUtil.readKeyStore(path, type, storePassword);
-        } catch (AccessControlException e) {
-            throw SslFileUtil.accessControlFailure("[" + type + "] keystore", List.of(path), e, configBasePath);
         } catch (NotEntitledException e) {
             throw SslFileUtil.notEntitledFailure("[" + type + "] keystore", List.of(path), e, configBasePath);
+        } catch (AccessControlException e) {
+            throw SslFileUtil.accessControlFailure("[" + type + "] keystore", List.of(path), e, configBasePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException("[" + type + "] keystore", List.of(path), e);
         } catch (GeneralSecurityException e) {

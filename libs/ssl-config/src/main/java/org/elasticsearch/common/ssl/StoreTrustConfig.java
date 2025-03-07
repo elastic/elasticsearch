@@ -95,10 +95,10 @@ public final class StoreTrustConfig implements SslTrustConfig {
     private KeyStore readKeyStore(Path path) {
         try {
             return KeyStoreUtil.readKeyStore(path, type, password);
-        } catch (AccessControlException e) {
-            throw SslFileUtil.accessControlFailure(fileTypeForException(), List.of(path), e, configBasePath);
         } catch (NotEntitledException e) {
             throw SslFileUtil.notEntitledFailure(fileTypeForException(), List.of(path), e, configBasePath);
+        } catch (AccessControlException e) {
+            throw SslFileUtil.accessControlFailure(fileTypeForException(), List.of(path), e, configBasePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException(fileTypeForException(), List.of(path), e, getAdditionalErrorDetails());
         } catch (GeneralSecurityException e) {

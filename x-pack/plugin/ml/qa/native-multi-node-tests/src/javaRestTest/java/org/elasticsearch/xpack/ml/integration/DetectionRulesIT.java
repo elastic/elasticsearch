@@ -98,7 +98,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
 
         // push the data for the first half buckets
         postData(job.getId(), joinBetween(0, data.size() / 2, data));
-        closeJob(job.getId());
+        flushJob(job.getId(), true);
 
         List<AnomalyRecord> records = getRecords(job.getId());
         // remove records that are not anomalies
@@ -116,18 +116,35 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
             JobUpdate.Builder update = new JobUpdate.Builder(job.getId());
             update.setDetectorUpdates(Arrays.asList(new JobUpdate.DetectorUpdate(0, null, Arrays.asList(newRule))));
             updateJob(job.getId(), update.build());
+            // Wait until the notification that the job was updated is indexed
+            assertBusy(
+                () -> assertResponse(
+                    prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).setSize(1)
+                        .addSort("timestamp", SortOrder.DESC)
+                        .setQuery(
+                            QueryBuilders.boolQuery()
+                                .filter(QueryBuilders.termQuery("job_id", job.getId()))
+                                .filter(QueryBuilders.termQuery("level", "info"))
+                        ),
+                    searchResponse -> {
+                        SearchHit[] hits = searchResponse.getHits().getHits();
+                        assertThat(hits.length, equalTo(1));
+                        assertThat((String) hits[0].getSourceAsMap().get("message"), containsString("Job updated: [detectors]"));
+                    }
+                )
+            );
         }
 
         // push second half
-        openJob(job.getId());
         postData(job.getId(), joinBetween(data.size() / 2, data.size(), data));
-        closeJob(job.getId());
+        flushJob(job.getId(), true);
 
         GetRecordsAction.Request recordsAfterFirstHalf = new GetRecordsAction.Request(job.getId());
         recordsAfterFirstHalf.setStart(String.valueOf(firstRecordTimestamp + 1));
         records = getRecords(recordsAfterFirstHalf);
         assertThat("records were " + records, (int) (records.stream().filter(r -> r.getProbability() < 0.01).count()), equalTo(1));
         assertThat(records.get(0).getByFieldValue(), equalTo("low"));
+        closeJob(job.getId());
     }
 
     public void testScope() throws Exception {

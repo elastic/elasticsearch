@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -39,6 +38,7 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -255,7 +255,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                         request.field
                                     );
                                 } else {
-                                    failure = new ElasticsearchException(
+                                    failure = new InferenceException(
                                         "Error loading inference for inference id [{}] on field [{}]",
                                         exc,
                                         inferenceId,
@@ -284,7 +284,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             var acc = inferenceResults.get(request.index);
                             if (result instanceof ErrorChunkedInferenceResults error) {
                                 acc.addFailure(
-                                    new ElasticsearchException(
+                                    new InferenceException(
                                         "Exception when running inference id [{}] on field [{}]",
                                         error.getException(),
                                         inferenceProvider.model.getInferenceEntityId(),
@@ -315,7 +315,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         for (FieldInferenceRequest request : requests) {
                             addInferenceResponseFailure(
                                 request.index,
-                                new ElasticsearchException(
+                                new InferenceException(
                                     "Exception when running inference id [{}] on field [{}]",
                                     exc,
                                     inferenceProvider.model.getInferenceEntityId(),

@@ -636,6 +636,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             new BulkItemRequest(requestId, new IndexRequest("index").source(expectedDocMap, requestContentType)) };
     }
 
+    @SuppressWarnings({ "unchecked" })
     private static void assertInferenceResults(
         boolean useLegacyFormat,
         IndexRequest request,
@@ -649,21 +650,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 XContentMapValues.extractValue(getOriginalTextFieldName(fieldName), requestMap, EXPLICIT_NULL),
                 equalTo(expectedOriginalValue)
             );
-        } else {
-            assertThat(XContentMapValues.extractValue(fieldName, requestMap, EXPLICIT_NULL), equalTo(expectedOriginalValue));
-        }
 
-        assertChunksField(useLegacyFormat, requestMap, fieldName, expectedChunkCount);
-    }
-
-    @SuppressWarnings({ "unchecked" })
-    private static void assertChunksField(
-        boolean useLegacyFormat,
-        Map<String, Object> requestMap,
-        String fieldName,
-        Integer expectedChunkCount
-    ) {
-        if (useLegacyFormat) {
             List<Object> chunks = (List<Object>) XContentMapValues.extractValue(getChunksFieldName(fieldName), requestMap);
             if (expectedChunkCount == null) {
                 assertNull(chunks);
@@ -672,6 +659,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 assertThat(chunks.size(), equalTo(expectedChunkCount));
             }
         } else {
+            assertThat(XContentMapValues.extractValue(fieldName, requestMap, EXPLICIT_NULL), equalTo(expectedOriginalValue));
+
             Map<String, Object> inferenceMetadataFields = (Map<String, Object>) XContentMapValues.extractValue(
                 InferenceMetadataFieldsMapper.NAME,
                 requestMap,
@@ -679,15 +668,18 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             );
             assertNotNull(inferenceMetadataFields);
 
+            // When using the inference metadata fields format, chunks are mapped by source field. We handle clearing inference results for
+            // a field by emitting an empty chunk list for it. This is done to prevent the clear operation from clearing inference results
+            // for other source fields.
             List<Object> chunks = (List<Object>) XContentMapValues.extractValue(
                 getChunksFieldName(fieldName) + "." + fieldName,
                 inferenceMetadataFields,
                 EXPLICIT_NULL
             );
-            assertNotNull(chunks);
 
-            // In new format, we interpret null expectedChunkCount as 0
+            // When using the new format, the chunks field should always exist
             int expectedSize = expectedChunkCount == null ? 0 : expectedChunkCount;
+            assertNotNull(chunks);
             assertThat(chunks.size(), equalTo(expectedSize));
         }
     }

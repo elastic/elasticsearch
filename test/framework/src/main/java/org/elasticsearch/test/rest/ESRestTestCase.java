@@ -2792,13 +2792,15 @@ public abstract class ESRestTestCase extends ESTestCase {
             fail("Expected default project to have standard ingest pipelines, but was null");
         }
 
-        final Map<String, Object> ilmPolicies = state.evaluate("metadata.index_lifecycle.policies");
-        if (ilmPolicies != null) {
-            var policyNames = new HashSet<>(ilmPolicies.keySet());
-            policyNames.removeAll(preserveILMPolicyIds());
-            assertThat("Project [" + projectId + "] should not have ILM Policies", policyNames, empty());
-        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
-            fail("Expected default project to have standard ILM policies, but was null");
+        if (has(ProductFeature.ILM)) {
+            final Map<String, Object> ilmPolicies = state.evaluate("metadata.index_lifecycle.policies");
+            if (ilmPolicies != null) {
+                var policyNames = new HashSet<>(ilmPolicies.keySet());
+                policyNames.removeAll(preserveILMPolicyIds());
+                assertThat("Project [" + projectId + "] should not have ILM Policies", policyNames, empty());
+            } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
+                fail("Expected default project to have standard ILM policies, but was null");
+            }
         }
     }
 

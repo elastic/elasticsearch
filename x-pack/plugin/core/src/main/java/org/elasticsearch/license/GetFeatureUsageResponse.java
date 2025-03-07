@@ -55,11 +55,7 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
             }
             this.name = in.readString();
             this.lastUsedTime = ZonedDateTime.ofInstant(Instant.ofEpochSecond(in.readLong()), ZoneOffset.UTC);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_15_0)) {
-                this.context = in.readOptionalString();
-            } else {
-                this.context = null;
-            }
+            this.context = in.readOptionalString();
             this.licenseLevel = in.readString();
         }
 
@@ -70,9 +66,7 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
             }
             out.writeString(name);
             out.writeLong(lastUsedTime.toEpochSecond());
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_15_0)) {
-                out.writeOptionalString(this.context);
-            }
+            out.writeOptionalString(this.context);
             out.writeString(licenseLevel);
         }
 

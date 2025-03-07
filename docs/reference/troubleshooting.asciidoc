@@ -110,6 +110,8 @@ include::troubleshooting/data/increase-shard-limit.asciidoc[]
 
 include::troubleshooting/data/increase-cluster-shard-limit.asciidoc[]
 
+include::troubleshooting/data/source-mode-setting.asciidoc[]
+
 include::troubleshooting/corruption-issues.asciidoc[]
 
 include::troubleshooting/disk/fix-data-node-out-of-disk.asciidoc[]

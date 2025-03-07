@@ -270,19 +270,20 @@ public final class IngestDocument {
             if (context instanceof Map<?, ?> map) {
                 context = map.get(pathElement);
             } else if (context instanceof List<?> list) {
+                int index;
                 try {
-                    int index = Integer.parseInt(pathElement);
-                    if (index < 0 || index >= list.size()) {
-                        if (failOutOfRange) {
-                            throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
-                        } else {
-                            return false;
-                        }
-                    }
-                    context = list.get(index);
+                    index = Integer.parseInt(pathElement);
                 } catch (NumberFormatException e) {
                     return false;
                 }
+                if (index < 0 || index >= list.size()) {
+                    if (failOutOfRange) {
+                        throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
+                    } else {
+                        return false;
+                    }
+                }
+                context = list.get(index);
             } else {
                 return false;
             }

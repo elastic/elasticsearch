@@ -709,7 +709,7 @@ setup:
   - match: { hits.hits.0._source.sparse_field.text: "" }
   - length: { hits.hits.0._source.sparse_field.inference.chunks: 0 }
   - match: { hits.hits.1._source.sparse_field.text: "  " }
-  - length: { hits.hits.0._source.sparse_field.inference.chunks: 0 }
+  - length: { hits.hits.1._source.sparse_field.inference.chunks: 0 }
 
 ---
 "Multi chunks skips empty input embedding generation":

@@ -28,7 +28,7 @@ public class AggregateMetricFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_11_0;
+        return TransportVersions.ZERO;
     }
 
     @Override

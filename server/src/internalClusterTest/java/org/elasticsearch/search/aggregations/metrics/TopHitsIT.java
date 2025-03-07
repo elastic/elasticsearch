@@ -1281,10 +1281,7 @@ public class TopHitsIT extends ESIntegTestCase {
             prepareSearch("idx").addAggregation(
                 terms("terms").executionHint(randomExecutionHint())
                     .field(TERMS_AGGS_FIELD)
-                    .subAggregation(
-                        topHits("hits").sort(SortBuilders.scriptSort(script, ScriptSortType.NUMBER).order(SortOrder.DESC))
-                            .sort(SortBuilders.scoreSort())
-                    )
+                    .subAggregation(topHits("hits").sort(SortBuilders.scriptSort(script, ScriptSortType.NUMBER).order(SortOrder.DESC)))
             ),
             response -> {
                 Terms terms = response.getAggregations().get("terms");

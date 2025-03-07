@@ -137,7 +137,12 @@ public class MockScriptEngine implements ScriptEngine {
                             Map<String, Object> vars = new HashMap<>(parameters);
                             vars.put("params", parameters);
                             vars.put("doc", getDoc());
-                            vars.put("_score", get_score());
+                            try {
+                                vars.put("_score", get_score());
+                            } catch (Exception ignore) {
+                                // nothing to do: if get_score throws we don't set the _score, likely the scorer is null,
+                                // which is ok if _score was not requested.
+                            }
                             return ((Number) script.apply(vars)).doubleValue();
                         }
                     };

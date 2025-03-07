@@ -255,6 +255,7 @@ public class ComputeService {
                             LOCAL_CLUSTER,
                             rootTask,
                             configuration,
+                            foldContext,
                             dataNodePlan,
                             Set.of(localConcreteIndices.indices()),
                             localOriginalIndices,

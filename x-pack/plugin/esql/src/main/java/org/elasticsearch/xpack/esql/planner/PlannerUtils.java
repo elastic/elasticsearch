@@ -183,8 +183,8 @@ public class PlannerUtils {
     /**
      * Extracts a filter that can be used to skip unmatched shards on the coordinator.
      */
-    public static QueryBuilder canMatchFilter(PhysicalPlan plan) {
-        return detectFilter(plan, CoordinatorRewriteContext.SUPPORTED_FIELDS::contains);
+    public static QueryBuilder canMatchFilter(PhysicalPlan plan, FoldContext foldContext) {
+        return detectFilter(plan, CoordinatorRewriteContext.SUPPORTED_FIELDS::contains, foldContext);
     }
 
     /**
@@ -192,7 +192,7 @@ public class PlannerUtils {
      * We currently only use this filter for the @timestamp field, which is always a date field. Any tests that wish to use this should
      * take care to not use it with TEXT fields.
      */
-    static QueryBuilder detectFilter(PhysicalPlan plan, Predicate<String> fieldName) {
+    static QueryBuilder detectFilter(PhysicalPlan plan, Predicate<String> fieldName, FoldContext foldContext) {
         // first position is the REST filter, the second the query filter
         final List<QueryBuilder> requestFilters = new ArrayList<>();
         plan.forEachDown(FragmentExec.class, fe -> {
@@ -218,7 +218,7 @@ public class PlannerUtils {
                     }
                 }
                 if (matches.isEmpty() == false) {
-                    requestFilters.add(TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(matches)).asBuilder());
+                    requestFilters.add(TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(matches), foldContext).asBuilder());
                 }
             });
         });

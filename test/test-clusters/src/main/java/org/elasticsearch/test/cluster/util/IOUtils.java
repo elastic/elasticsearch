@@ -125,6 +125,7 @@ public final class IOUtils {
         assert Files.exists(destinationRoot) == false;
         try (Stream<Path> stream = Files.walk(sourceRoot)) {
             stream.forEach(source -> {
+                LOGGER.warn("Walking source: {}", source);
                 Path relativeDestination = sourceRoot.relativize(source);
 
                 Path destination = destinationRoot.resolve(relativeDestination);
@@ -134,6 +135,8 @@ public final class IOUtils {
                         Files.createDirectories(destination);
                     } catch (IOException e) {
                         throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
+                    } catch (Throwable ex) {
+                        LOGGER.error("Can't create directory {}", destination, ex);
                     }
                 } else {
                     try {
@@ -141,21 +144,27 @@ public final class IOUtils {
                         Files.createDirectories(destination.getParent());
                     } catch (IOException e) {
                         throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
+                    } catch (Throwable e) {
+                        LOGGER.error("Can't create directory {}", destination, e);
                     }
                     syncMethod.accept(destination, source);
                 }
             });
         } catch (UncheckedIOException e) {
+            LOGGER.error("Failed to sync using hard links", e);
             if (e.getCause() instanceof NoSuchFileException cause) {
                 // Ignore these files that are sometimes left behind by the JVM
                 if (cause.getFile() == null || cause.getFile().contains(".attach_pid") == false) {
                     throw new UncheckedIOException(cause);
                 }
+                LOGGER.error("NoSuchFileException ignored for {}", cause.getFile());
             } else {
                 throw e;
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Can't walk source " + sourceRoot, e);
+        } catch (Throwable e) {
+            LOGGER.error("Failed to sync using hard links", e);
         }
     }
 

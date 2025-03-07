@@ -113,6 +113,7 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
                     );
                 } else {
                     simulateRequest = SimulatePipelineRequest.parse(
+                        projectId,
                         source,
                         request.isVerbose(),
                         ingestService,

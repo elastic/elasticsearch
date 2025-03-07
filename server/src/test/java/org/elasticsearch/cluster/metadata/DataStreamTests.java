@@ -1647,15 +1647,15 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                             List.of(
                                 new DataStreamLifecycle.Downsampling.Round(
                                     TimeValue.timeValueMillis(2000),
-                                    new DownsampleConfig(new DateHistogramInterval("10m"))
+                                    new DownsampleConfig(new DateHistogramInterval("10m"), null)
                                 ),
                                 new DataStreamLifecycle.Downsampling.Round(
                                     TimeValue.timeValueMillis(3200),
-                                    new DownsampleConfig(new DateHistogramInterval("100m"))
+                                    new DownsampleConfig(new DateHistogramInterval("100m"), null)
                                 ),
                                 new DataStreamLifecycle.Downsampling.Round(
                                     TimeValue.timeValueMillis(3500),
-                                    new DownsampleConfig(new DateHistogramInterval("1000m"))
+                                    new DownsampleConfig(new DateHistogramInterval("1000m"), null)
                                 )
                             )
                         )
@@ -1708,15 +1708,15 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                             List.of(
                                 new DataStreamLifecycle.Downsampling.Round(
                                     TimeValue.timeValueMillis(2000),
-                                    new DownsampleConfig(new DateHistogramInterval("10m"))
+                                    new DownsampleConfig(new DateHistogramInterval("10m"), null)
                                 ),
                                 new DataStreamLifecycle.Downsampling.Round(
                                     TimeValue.timeValueMillis(3200),
-                                    new DownsampleConfig(new DateHistogramInterval("100m"))
+                                    new DownsampleConfig(new DateHistogramInterval("100m"), null)
                                 ),
                                 new DataStreamLifecycle.Downsampling.Round(
                                     TimeValue.timeValueMillis(3500),
-                                    new DownsampleConfig(new DateHistogramInterval("1000m"))
+                                    new DownsampleConfig(new DateHistogramInterval("1000m"), null)
                                 )
                             )
                         )

@@ -1038,7 +1038,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                     List.of(
                         new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueMillis(10),
-                            new DownsampleConfig(new DateHistogramInterval("10m"))
+                            new DownsampleConfig(new DateHistogramInterval("10m"), null)
                         )
                     )
                 )

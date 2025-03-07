@@ -1365,7 +1365,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             DataStreamLifecycle.newBuilder()
                 .downsampling(
                     new Downsampling(
-                        List.of(new Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
+                        List.of(new Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"), null)))
                     )
                 )
                 .dataRetention(TimeValue.MAX_VALUE)
@@ -1616,7 +1616,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             DataStreamLifecycle.newBuilder()
                 .downsampling(
                     new Downsampling(
-                        List.of(new Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
+                        List.of(new Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"), null)))
                     )
                 )
                 .dataRetention(TimeValue.timeValueMillis(1))

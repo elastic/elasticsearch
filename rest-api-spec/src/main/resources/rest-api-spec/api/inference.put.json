@@ -1,49 +1,53 @@
 {
-  "inference.put":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/put-inference-api.html",
-      "description":"Configure an inference endpoint for use in the Inference API"
+  "inference.put": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-inference-api.html",
+      "description": "Configure an inference endpoint for use in the Inference API"
     },
-    "stability":"experimental",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_inference/{inference_id}",
-          "methods":[
+          "path": "/_inference/{inference_id}",
+          "methods": [
             "PUT"
           ],
-          "parts":{
-            "inference_id":{
-              "type":"string",
-              "description":"The inference Id"
+          "parts": {
+            "inference_id": {
+              "type": "string",
+              "description": "The inference Id"
             }
           }
         },
         {
-          "path":"/_inference/{task_type}/{inference_id}",
-          "methods":[
+          "path": "/_inference/{task_type}/{inference_id}",
+          "methods": [
             "PUT"
           ],
-          "parts":{
-            "task_type":{
-              "type":"string",
-              "description":"The task type"
+          "parts": {
+            "task_type": {
+              "type": "string",
+              "description": "The task type"
             },
-            "inference_id":{
-              "type":"string",
-              "description":"The inference Id"
+            "inference_id": {
+              "type": "string",
+              "description": "The inference Id"
             }
           }
         }
       ]
     },
-    "body":{
-      "description":"The inference endpoint's task and service settings"
+    "body": {
+      "description": "The inference endpoint's task and service settings"
     }
   }
 }

@@ -2939,6 +2939,22 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [_fork]"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
+            from test metadata _score, _index, _id
+            | eval _fork = 1
+            | rrf
+            """));
+        assertThat(e.getMessage(), containsString("RRF can only be used after FORK, but found EVAL"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+             from test metadata _id, _index, _score
+            | fork ( where first_name:"foo" )
+                   ( where first_name:"bar" )
+            | rrf
+            | rrf
+            """));
+        assertThat(e.getMessage(), containsString("RRF can only be used after FORK, but found RRF"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
             from test
             | FORK ( WHERE emp_no == 1 )
                    ( WHERE emp_no > 1 )
@@ -2953,6 +2969,14 @@ public class AnalyzerTests extends ESTestCase {
             | RRF
             """));
         assertThat(e.getMessage(), containsString("Unknown column [_index]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test metadata _score, _index
+            | FORK ( WHERE emp_no == 1 )
+                   ( WHERE emp_no > 1 )
+            | RRF
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [_id]"));
     }
 
     // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.

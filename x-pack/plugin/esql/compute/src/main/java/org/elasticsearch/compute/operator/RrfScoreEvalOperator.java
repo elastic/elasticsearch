@@ -22,7 +22,7 @@ import java.util.HashMap;
  * The new score we assign to each row is equal to {@code 1 / (rank_constant + row_number)}.
  * We use the fork discriminator column to determine the {@code row_number} for each row.
  */
-public class RrfScoreEvalOperator implements Operator {
+public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
 
     public record Factory(int forkPosition, int scorePosition) implements OperatorFactory {
         @Override
@@ -40,9 +40,6 @@ public class RrfScoreEvalOperator implements Operator {
     private final int scorePosition;
     private final int forkPosition;
 
-    private boolean finished = false;
-    private Page prev = null;
-
     private HashMap<String, Integer> counters = new HashMap<>();
 
     public RrfScoreEvalOperator(int forkPosition, int scorePosition) {
@@ -51,30 +48,7 @@ public class RrfScoreEvalOperator implements Operator {
     }
 
     @Override
-    public boolean needsInput() {
-        return prev == null && finished == false;
-    }
-
-    @Override
-    public void addInput(Page page) {
-        assert prev == null : "has pending input page";
-        prev = page;
-    }
-
-    @Override
-    public void finish() {
-        finished = true;
-    }
-
-    @Override
-    public boolean isFinished() {
-        return finished && prev == null;
-    }
-
-    @Override
-    public Page getOutput() {
-        Page page = prev;
-
+    protected Page process(Page page) {
         BytesRefBlock forkBlock = (BytesRefBlock) page.getBlock(forkPosition);
 
         DoubleVector.Builder scores = forkBlock.blockFactory().newDoubleVectorBuilder(forkBlock.getPositionCount());
@@ -96,18 +70,11 @@ public class RrfScoreEvalOperator implements Operator {
             projections[i] = i == scorePosition ? page.getBlockCount() - 1 : i;
         }
 
-        page = page.projectBlocks(projections);
-
-        prev = null;
-        return page;
+        return page.projectBlocks(projections);
     }
 
     @Override
-    public void close() {
-        Releasables.closeExpectNoException(() -> {
-            if (prev != null) {
-                prev.releaseBlocks();
-            }
-        });
+    public String toString() {
+        return "RrfScoreEvalOperator";
     }
 }

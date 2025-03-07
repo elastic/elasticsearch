@@ -8,13 +8,19 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
+import java.util.Locale;
+import java.util.Objects;
 
-public class RrfScoreEval extends UnaryPlan {
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+
+public class RrfScoreEval extends UnaryPlan implements PostAnalysisVerificationAware {
     private final Attribute forkAttr;
     private final Attribute scoreAttr;
 
@@ -55,5 +61,36 @@ public class RrfScoreEval extends UnaryPlan {
 
     public Attribute forkAttribute() {
         return forkAttr;
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        if (this.child() instanceof Fork == false) {
+            failures.add(
+                fail(
+                    this,
+                    "Invalid use of RRF. RRF can only be used after FORK, but found {}",
+                    child().sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
+                )
+            );
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), scoreAttr, forkAttr);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        RrfScoreEval rrf = (RrfScoreEval) obj;
+        return child().equals(rrf.child()) && scoreAttr.equals(rrf.scoreAttribute()) && forkAttr.equals(forkAttribute());
     }
 }

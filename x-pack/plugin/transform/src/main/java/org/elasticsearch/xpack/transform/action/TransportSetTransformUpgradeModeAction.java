@@ -187,12 +187,15 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
 
     private void waitForTransformsToRestart(SetUpgradeModeActionRequest request, ActionListener<AcknowledgedResponse> listener) {
         logger.info("Disabling upgrade mode for Transforms, must wait for tasks to not have AWAITING_UPGRADE assignment");
-        persistentTasksService.waitForPersistentTasksCondition(
-            persistentTasksCustomMetadata -> persistentTasksCustomMetadata.tasks()
+        @FixForMultiProject
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        persistentTasksService.waitForPersistentTasksCondition(projectId, persistentTasksCustomMetadata -> {
+            if (persistentTasksCustomMetadata == null) {
+                return true;
+            }
+            return persistentTasksCustomMetadata.tasks()
                 .stream()
-                .noneMatch(t -> isTransformTask(t) && t.getAssignment().equals(AWAITING_UPGRADE)),
-            request.ackTimeout(),
-            listener.delegateFailureAndWrap((d, r) -> d.onResponse(AcknowledgedResponse.TRUE))
-        );
+                .noneMatch(t -> isTransformTask(t) && t.getAssignment().equals(AWAITING_UPGRADE));
+        }, request.ackTimeout(), listener.delegateFailureAndWrap((d, r) -> d.onResponse(AcknowledgedResponse.TRUE)));
     }
 }

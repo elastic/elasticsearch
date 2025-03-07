@@ -365,6 +365,13 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 }
                 LOGGER.warn("Logging disk space and file permissions for working dir after initialization: {}", workingDir);
                 DebugUtils.logDiskSpaceAndPrivileges(workingDir);
+
+                LOGGER.warn(
+                    "Logging disk space and file permissions for distribution dir after initialization: {}",
+                    distributionDescriptor.getDistributionDir()
+                );
+                DebugUtils.logDiskSpaceAndPrivileges(distributionDescriptor.getDistributionDir());
+
                 Files.createDirectories(repoDir);
                 Files.createDirectories(dataDir);
                 Files.createDirectories(logsDir);
@@ -934,7 +941,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private void runToolScript(String tool, String input, String... args) {
             try {
                 DebugUtils.logDiskSpaceAndPrivileges(distributionDir);
-                DebugUtils.logDiskSpaceAndPrivileges(distributionDir.resolve("bin"));
                 int exit = ProcessUtils.exec(
                     input,
                     distributionDir,

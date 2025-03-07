@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.instrumentation;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.lang.instrument.ClassFileTransformer;
 import java.security.ProtectionDomain;
 import java.util.Base64;
@@ -27,6 +29,7 @@ public class Transformer implements ClassFileTransformer {
         // TODO: Should warn if any MethodKey doesn't match any methods
     }
 
+    @SuppressForbidden(reason = "debugging cloud")
     @Override
     public byte[] transform(
         ClassLoader loader,

@@ -271,7 +271,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     private static DataStreamLifecycle.Downsampling.Round nextRound(DataStreamLifecycle.Downsampling.Round previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
         var fixedInterval = new DownsampleConfig(
-            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms"), null
+            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms"),
+            null
         );
         return new DataStreamLifecycle.Downsampling.Round(after, fixedInterval);
     }

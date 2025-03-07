@@ -267,37 +267,38 @@ public record SemanticTextField(
     /**
      * Converts the provided {@link ChunkedInference} into a list of {@link Chunk}.
      */
-    public static List<Chunk> toSemanticTextFieldChunks(
-        String input,
-        int offsetAdjustment,
-        ChunkedInference results,
-        XContentType contentType,
-        boolean useLegacyFormat
-    ) throws IOException {
+    public static List<Chunk> toSemanticTextFieldChunks(int offsetAdjustment, ChunkedInference results, XContentType contentType)
+        throws IOException {
         List<Chunk> chunks = new ArrayList<>();
         Iterator<ChunkedInference.Chunk> it = results.chunksAsByteReference(contentType.xContent());
         while (it.hasNext()) {
-            chunks.add(toSemanticTextFieldChunk(input, offsetAdjustment, it.next(), useLegacyFormat));
+            chunks.add(toSemanticTextFieldChunk(offsetAdjustment, it.next()));
         }
         return chunks;
     }
 
-    public static Chunk toSemanticTextFieldChunk(
-        String input,
-        int offsetAdjustment,
-        ChunkedInference.Chunk chunk,
-        boolean useLegacyFormat
-    ) {
+    /**
+     * Converts the provided {@link ChunkedInference} into a list of {@link Chunk}.
+     */
+    public static Chunk toSemanticTextFieldChunk(int offsetAdjustment, ChunkedInference.Chunk chunk) {
         String text = null;
-        int startOffset = -1;
-        int endOffset = -1;
-        if (useLegacyFormat) {
-            text = input.substring(chunk.textOffset().start(), chunk.textOffset().end());
-        } else {
-            startOffset = chunk.textOffset().start() + offsetAdjustment;
-            endOffset = chunk.textOffset().end() + offsetAdjustment;
-        }
-
+        int startOffset = chunk.textOffset().start() + offsetAdjustment;
+        int endOffset = chunk.textOffset().end() + offsetAdjustment;
         return new Chunk(text, startOffset, endOffset, chunk.bytesReference());
+    }
+
+    public static List<Chunk> toSemanticTextFieldChunksLegacy(String input, ChunkedInference results, XContentType contentType)
+        throws IOException {
+        List<Chunk> chunks = new ArrayList<>();
+        Iterator<ChunkedInference.Chunk> it = results.chunksAsByteReference(contentType.xContent());
+        while (it.hasNext()) {
+            chunks.add(toSemanticTextFieldChunkLegacy(input, it.next()));
+        }
+        return chunks;
+    }
+
+    public static Chunk toSemanticTextFieldChunkLegacy(String input, ChunkedInference.Chunk chunk) {
+        var text = input.substring(chunk.textOffset().start(), chunk.textOffset().end());
+        return new Chunk(text, -1, -1, chunk.bytesReference());
     }
 }

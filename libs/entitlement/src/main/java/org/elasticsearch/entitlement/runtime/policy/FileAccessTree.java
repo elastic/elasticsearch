@@ -54,7 +54,7 @@ public final class FileAccessTree {
     }
 
     static List<ExclusivePath> buildExclusivePathList(List<ExclusiveFileEntitlement> exclusiveFileEntitlements, PathLookup pathLookup) {
-        Map<String, ExclusivePath> exclusivePaths = new HashMap<>();
+        Map<String, ExclusivePath> exclusivePaths = new LinkedHashMap<>();
         for (ExclusiveFileEntitlement efe : exclusiveFileEntitlements) {
             for (FilesEntitlement.FileData fd : efe.filesEntitlement().filesData()) {
                 if (fd.exclusive()) {

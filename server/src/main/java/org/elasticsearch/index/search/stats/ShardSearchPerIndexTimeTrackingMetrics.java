@@ -51,14 +51,18 @@ public final class ShardSearchPerIndexTimeTrackingMetrics implements SearchOpera
 
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
         Runnable task = () -> {
-            indexExecutionTime.forEach((indexName, tuple) -> {
-                logger.info("Listener : Task execution time for index [{}] is [{}], average [{}}",
-                    indexName, tuple.v1().sum(),tuple.v2().getAverage());
-            });
-            double[] values = normalize(getIndexTrackingTimeList());
-            logger.info("Listener : Normalized task execution time for indexes [{}]",
-                Arrays.stream(values).mapToObj(Double::toString).collect(Collectors.joining(", ")));
-        };
+            if (indexExecutionTime.isEmpty()) {
+                return;
+            } else {
+                indexExecutionTime.forEach((indexName, tuple) -> {
+                    logger.info("Listener : Task execution time for index [{}] is [{}], average [{}}",
+                        indexName, tuple.v1().sum(), tuple.v2().getAverage());
+                });
+                double[] values = normalize(getIndexTrackingTimeList());
+                logger.info("Listener : Normalized task execution time for indexes [{}]",
+                    Arrays.stream(values).mapToObj(Double::toString).collect(Collectors.joining(", ")));
+            };
+        }
         scheduler.scheduleAtFixedRate(task, 2, 5, TimeUnit.SECONDS);
     }
 

@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -24,8 +23,6 @@ import java.util.stream.IntStream;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.common.Strings.INVALID_CHARS;
 import static org.elasticsearch.common.Strings.cleanTruncate;
-import static org.elasticsearch.common.Strings.collectionToDelimitedString;
-import static org.elasticsearch.common.Strings.collectionToDelimitedStringWithLimit;
 import static org.elasticsearch.common.Strings.deleteAny;
 import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.Strings.hasLength;
@@ -38,15 +35,12 @@ import static org.elasticsearch.common.Strings.substring;
 import static org.elasticsearch.common.Strings.toLowercaseAscii;
 import static org.elasticsearch.common.Strings.tokenizeByCommaToSet;
 import static org.elasticsearch.common.Strings.trimLeadingCharacter;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class StringsTests extends ESTestCase {
 

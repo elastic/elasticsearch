@@ -162,9 +162,7 @@ public class RefreshListenersTests extends ESTestCase {
         );
         engine = new InternalEngine(config);
         EngineTestCase.recoverFromTranslog(engine, (e, s) -> 0, Long.MAX_VALUE);
-        listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
-        listeners.setCurrentProcessedCheckpointSupplier(engine::getProcessedLocalCheckpoint);
-        listeners.setMaxIssuedSeqNoSupplier(engine::getMaxSeqNo);
+        listeners.onNewEngine(engine);
     }
 
     @After

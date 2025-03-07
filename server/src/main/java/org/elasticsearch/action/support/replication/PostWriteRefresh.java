@@ -49,21 +49,18 @@ public class PostWriteRefresh {
     ) {
         switch (policy) {
             case NONE -> listener.onResponse(false);
-            case WAIT_UNTIL -> waitUntil(indexShard, location, new ActionListener<>() {
-                @Override
-                public void onResponse(Boolean forced) {
-                    if (location != null && indexShard.routingEntry().isSearchable() == false) {
-                        refreshUnpromotables(indexShard, location, listener, forced, postWriteRefreshTimeout);
-                    } else {
-                        listener.onResponse(forced);
-                    }
+            case WAIT_UNTIL -> {
+                ActionListener<Boolean> wrapped;
+                if (location != null && indexShard.routingEntry().isSearchable() == false) {
+                    var engineOrNull = indexShard.getEngineOrNull();
+                    wrapped = listener.delegateFailure(
+                        (l, forced) -> refreshUnpromotables(indexShard, engineOrNull, location, listener, forced, postWriteRefreshTimeout)
+                    );
+                } else {
+                    wrapped = listener;
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+                waitUntil(indexShard, location, wrapped);
+            }
             case IMMEDIATE -> immediate(indexShard, listener.delegateFailureAndWrap((l, r) -> {
                 if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
                     sendUnpromotableRequests(indexShard, r.generation(), true, l, postWriteRefreshTimeout);
@@ -103,17 +100,16 @@ public class PostWriteRefresh {
 
     private void refreshUnpromotables(
         IndexShard indexShard,
+        Engine engineOrNull, // to avoid accessing it under the RefreshListener's refreshLock
         Translog.Location location,
         ActionListener<Boolean> listener,
         boolean forced,
         @Nullable TimeValue postWriteRefreshTimeout
     ) {
-        Engine engineOrNull = indexShard.getEngineOrNull();
         if (engineOrNull == null) {
             listener.onFailure(new AlreadyClosedException("Engine closed during refresh."));
             return;
         }
-
         engineOrNull.addFlushListener(location, listener.delegateFailureAndWrap((l, generation) -> {
             try (
                 ThreadContext.StoredContext ignore = transportService.getThreadPool()

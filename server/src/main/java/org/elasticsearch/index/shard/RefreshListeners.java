@@ -10,7 +10,6 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -19,6 +18,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineAwareRefreshListener;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 
@@ -39,7 +40,7 @@ import static java.util.Objects.requireNonNull;
  *
  * When {@link Closeable#close()}d it will no longer accept listeners and flush any existing listeners.
  */
-public final class RefreshListeners implements ReferenceManager.RefreshListener, Closeable {
+public final class RefreshListeners implements EngineAwareRefreshListener, Closeable {
     private final IntSupplier getMaxRefreshListeners;
     private final Runnable forceRefresh;
     private final Logger logger;
@@ -264,21 +265,21 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     /**
      * Setup the translog used to find the last refreshed location.
      */
-    public void setCurrentRefreshLocationSupplier(Supplier<Translog.Location> currentRefreshLocationSupplier) {
+    private void setCurrentRefreshLocationSupplier(Supplier<Translog.Location> currentRefreshLocationSupplier) {
         this.currentRefreshLocationSupplier = currentRefreshLocationSupplier;
     }
 
     /**
      * Setup the engine used to find the last processed sequence number checkpoint.
      */
-    public void setCurrentProcessedCheckpointSupplier(LongSupplier processedCheckpointSupplier) {
+    private void setCurrentProcessedCheckpointSupplier(LongSupplier processedCheckpointSupplier) {
         this.processedCheckpointSupplier = processedCheckpointSupplier;
     }
 
     /**
      * Setup the engine used to find the max issued seqNo.
      */
-    public void setMaxIssuedSeqNoSupplier(LongSupplier maxIssuedSeqNoSupplier) {
+    private void setMaxIssuedSeqNoSupplier(LongSupplier maxIssuedSeqNoSupplier) {
         this.maxIssuedSeqNoSupplier = maxIssuedSeqNoSupplier;
     }
 
@@ -296,6 +297,13 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private long currentRefreshCheckpoint;
     private LongSupplier processedCheckpointSupplier;
     private LongSupplier maxIssuedSeqNoSupplier;
+
+    @Override
+    public void onNewEngine(Engine engine) {
+        setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
+        setCurrentProcessedCheckpointSupplier(engine::getProcessedLocalCheckpoint);
+        setMaxIssuedSeqNoSupplier(engine::getMaxSeqNo);
+    }
 
     @Override
     public void beforeRefresh() throws IOException {

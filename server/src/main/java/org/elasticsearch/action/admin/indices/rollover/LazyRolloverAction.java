@@ -212,8 +212,9 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             }
 
             if (state != batchExecutionContext.initialState()) {
-                var reason = new StringBuilder();
-                Strings.collectionToDelimitedStringWithLimit(results, ",", "lazy bulk rollover [", "]", 1024, reason);
+                var reason = new StringBuilder("lazy bulk rollover [");
+                Strings.collectionToDelimitedStringWithLimit(results, ",", 1024, reason);
+                reason.append(']');
                 try (var ignored = batchExecutionContext.dropHeadersContext()) {
                     state = allocationService.reroute(state, reason.toString(), listener.reroute());
                 }
@@ -268,6 +269,11 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
 
             final var rolloverIndexName = rolloverResult.rolloverIndexName();
             final var sourceIndexName = rolloverResult.sourceIndexName();
+            logger.info(
+                "rolling over data stream [{}] to index [{}] because it was marked for lazy rollover",
+                dataStream.getName(),
+                rolloverIndexName
+            );
 
             final var waitForActiveShardsTimeout = rolloverRequest.masterNodeTimeout().millis() < 0
                 ? null

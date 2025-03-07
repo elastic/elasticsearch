@@ -36,10 +36,7 @@ public class CustomRequestTests extends ESTestCase {
         var uri = httpPost.getURI().toString();
         MatcherAssert.assertThat(uri, is(CustomModelTests.url + CustomModelTests.path + queryStringRes));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
-        MatcherAssert.assertThat(
-            httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(),
-            is(CustomModelTests.secretSettingsValue)
-        );
+        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(CustomModelTests.secretSettingsValue));
 
         String requestBody = convertStreamToString(httpPost.getEntity().getContent());
         MatcherAssert.assertThat(requestBody, is("\"input\":\"[\"abc\"]\""));

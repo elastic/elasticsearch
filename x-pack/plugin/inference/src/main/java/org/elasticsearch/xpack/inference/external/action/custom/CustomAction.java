@@ -32,9 +32,7 @@ public class CustomAction implements ExecutableAction {
 
     public CustomAction(Sender sender, CustomModel model, ServiceComponents serviceComponents) {
         this.model = Objects.requireNonNull(model);
-        this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-            "Custom Search"
-        );
+        this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Custom Search");
         this.sender = Objects.requireNonNull(sender);
         this.requestManager = CustomRequestManager.of(model, serviceComponents.threadPool());
     }

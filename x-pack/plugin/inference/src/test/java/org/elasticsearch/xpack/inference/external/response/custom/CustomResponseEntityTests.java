@@ -65,13 +65,7 @@ public class CustomResponseEntityTests extends ESTestCase {
         assertThat(results, instanceOf(TextEmbeddingFloatResults.class));
         assertThat(
             ((TextEmbeddingFloatResults) results).embeddings(),
-            is(
-                List.of(
-                    new TextEmbeddingFloatResults.Embedding(
-                        new float[] { -0.02868066355586052f, 0.022033605724573135f }
-                    )
-                )
-            )
+            is(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { -0.02868066355586052f, 0.022033605724573135f })))
         );
     }
 
@@ -181,11 +175,7 @@ public class CustomResponseEntityTests extends ESTestCase {
             )
         );
 
-        var request = CustomRequestTests.createRequest(
-            null,
-            List.of("abc"),
-            CustomModelTests.getTestModel(TaskType.RERANK, jsonParserMap)
-        );
+        var request = CustomRequestTests.createRequest(null, List.of("abc"), CustomModelTests.getTestModel(TaskType.RERANK, jsonParserMap));
 
         InferenceServiceResults results = CustomResponseEntity.fromResponse(
             request,

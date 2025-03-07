@@ -16,9 +16,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public record CustomRequestEntity (CustomServiceSettings serviceSettings, CustomTaskSettings taskSettings)
-    implements
-    ToXContentObject {
+public record CustomRequestEntity(CustomServiceSettings serviceSettings, CustomTaskSettings taskSettings) implements ToXContentObject {
 
     public CustomRequestEntity {
         Objects.requireNonNull(serviceSettings);

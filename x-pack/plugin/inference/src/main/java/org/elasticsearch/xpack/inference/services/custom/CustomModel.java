@@ -25,11 +25,7 @@ import java.util.Objects;
 public class CustomModel extends Model {
     private final CustomRateLimitServiceSettings rateLimitServiceSettings;
 
-    public CustomModel(
-        ModelConfigurations configurations,
-        ModelSecrets secrets,
-        CustomRateLimitServiceSettings rateLimitServiceSettings
-    ) {
+    public CustomModel(ModelConfigurations configurations, ModelSecrets secrets, CustomRateLimitServiceSettings rateLimitServiceSettings) {
         super(configurations, secrets);
         this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
     }

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.external.response.custom;
 
-import com.jayway.jsonpath.JsonPath;
-
 import net.minidev.json.JSONArray;
+
+import com.jayway.jsonpath.JsonPath;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

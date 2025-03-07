@@ -56,10 +56,7 @@ public class CustomTaskSettings implements TaskSettings {
      * @return a constructed {@link CustomTaskSettings}
      */
 
-    public static CustomTaskSettings of(
-        CustomTaskSettings originalSettings,
-        CustomTaskSettings requestTaskSettings
-    ) {
+    public static CustomTaskSettings of(CustomTaskSettings originalSettings, CustomTaskSettings requestTaskSettings) {
         // If both requestTaskSettings.getParameters() and originalSettings.getParameters() are defined
         // the maps should be merged.
         if (originalSettings != null

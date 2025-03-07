@@ -21,7 +21,9 @@ import java.util.Locale;
 public class CustomErrorResponseEntity extends ErrorResponse {
     private static final Logger logger = LogManager.getLogger(CustomErrorResponseEntity.class);
 
-    private CustomErrorResponseEntity(String errorMessage) {super(errorMessage);}
+    private CustomErrorResponseEntity(String errorMessage) {
+        super(errorMessage);
+    }
 
     public static ErrorResponse fromResponse(HttpResult response) {
         try (
@@ -38,9 +40,7 @@ public class CustomErrorResponseEntity extends ErrorResponse {
             );
         } catch (Exception e) {
             logger.info("Parsing custom response body failed. Response: {}", response.response(), e);
-            return new ErrorResponse(
-                String.format(Locale.ROOT, "Parsing custom response body failed. Response: %s", response.response())
-            );
+            return new ErrorResponse(String.format(Locale.ROOT, "Parsing custom response body failed. Response: %s", response.response()));
         }
     }
 }

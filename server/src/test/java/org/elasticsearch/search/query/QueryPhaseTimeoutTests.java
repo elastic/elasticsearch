@@ -167,8 +167,8 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
                 QueryPhase.executeQuery(context);
                 assertTrue(context.queryResult().searchTimedOut());
                 int firstSegmentMaxDoc = reader.leaves().get(0).reader().maxDoc();
-                //we are artificially raising the timeout when pulling the scorer supplier.
-                //We score the entire first segment, then trigger timeout.
+                // we are artificially raising the timeout when pulling the scorer supplier.
+                // We score the entire first segment, then trigger timeout.
                 assertEquals(firstSegmentMaxDoc, context.queryResult().topDocs().topDocs.totalHits.value());
                 assertEquals(Math.min(size, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.scoreDocs.length);
             }
@@ -242,8 +242,8 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
                 QueryPhase.executeQuery(context);
                 assertTrue(context.queryResult().searchTimedOut());
                 int firstSegmentMaxDoc = reader.leaves().get(0).reader().maxDoc();
-                //we are artificially raising the timeout when pulling the scorer supplier.
-                //We score the entire first segment, then trigger timeout.
+                // we are artificially raising the timeout when pulling the scorer supplier.
+                // We score the entire first segment, then trigger timeout.
                 assertEquals(firstSegmentMaxDoc, context.queryResult().topDocs().topDocs.totalHits.value());
                 assertEquals(Math.min(size, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.scoreDocs.length);
             }
@@ -306,8 +306,8 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
                 QueryPhase.executeQuery(context);
                 assertTrue(context.queryResult().searchTimedOut());
                 int firstSegmentMaxDoc = reader.leaves().get(0).reader().maxDoc();
-                //See CancellableBulkScorer#INITIAL_INTERVAL for the source of 2048: we always score the first
-                //batch of up to 2048 docs, and only then raise the timeout
+                // See CancellableBulkScorer#INITIAL_INTERVAL for the source of 2048: we always score the first
+                // batch of up to 2048 docs, and only then raise the timeout
                 assertEquals(Math.min(2048, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.totalHits.value());
                 assertEquals(Math.min(size, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.scoreDocs.length);
             }

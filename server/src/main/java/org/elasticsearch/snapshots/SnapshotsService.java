@@ -1529,11 +1529,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 shardGenerations
                             )
                         ),
-                        snInfo -> snapshotListeners.addListener(new ActionListener<>() {
+                        () -> snapshotListeners.addListener(new ActionListener<>() {
                             @Override
                             public void onResponse(List<ActionListener<SnapshotInfo>> actionListeners) {
-                                completeListenersIgnoringException(actionListeners, snInfo);
-                                logger.info("snapshot [{}] completed with state [{}]", snapshot, snInfo.state());
+                                completeListenersIgnoringException(actionListeners, snapshotInfo);
+                                logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
                             }
 
                             @Override

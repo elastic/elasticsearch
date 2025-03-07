@@ -72,16 +72,16 @@ log fields, such as DNS A records, HTTP headers, and log entries that represent 
 
 In `logsdb` index mode, the following sort settings are applied by default:
 
-`index.sort.field`: `["host.name", "@timestamp"]`::
+`"index.sort.field"`: `["host.name", "@timestamp"]`::
 Indices are sorted by `host.name` and `@timestamp` by default. The `@timestamp` field is automatically injected if it is not present.
 
-`index.sort.order`: `["desc", "desc"]`::
+`"index.sort.order"`: `["desc", "desc"]`::
 Both `host.name` and `@timestamp` are sorted in descending (`desc`) order, prioritizing the latest data.
 
-`index.sort.mode`: `["min", "min"]`::
+`"index.sort.mode"`: `["min", "min"]`::
 The `min` mode sorts indices by the minimum value of multi-value fields.
 
-`index.sort.missing`: `["_first", "_first"]`::
+`"index.sort.missing"`: `["_first", "_first"]`::
 Missing values are sorted to appear `_first`.
 
 You can override these default sort settings. For example, to sort on different fields
@@ -204,22 +204,22 @@ reconstructing the original value.
 
 The `logsdb` index mode uses the following settings: 
 
-* **`index.mode`**: `"logsdb"`
+* **`"index.mode"`**: `"logsdb"`
 
-* **`index.mapping.synthetic_source_keep`**: `"arrays"`
+* **`"index.mapping.synthetic_source_keep"`**: `"arrays"`
 
-* **`index.sort.field`**: `["host.name", "@timestamp"]`
+* **`"index.sort.field"`**: `["host.name", "@timestamp"]`
 
-* **`index.sort.order`**: `["desc", "desc"]`
+* **`"index.sort.order"`**: `["desc", "desc"]`
 
-* **`index.sort.mode`**: `["min", "min"]`
+* **`"index.sort.mode"`**: `["min", "min"]`
 
-* **`index.sort.missing`**: `["_first", "_first"]`
+* **`"index.sort.missing"`**: `["_first", "_first"]`
 
-* **`index.codec`**: `"best_compression"`
+* **`"index.codec"`**: `"best_compression"`
 
-* **`index.mapping.ignore_malformed`**: `true`
+* **`"index.mapping.ignore_malformed"`**: `true`
 
-* **`index.mapping.ignore_above`**: `8191`
+* **`"index.mapping.ignore_above"`**: `8191`
 
-* **`index.mapping.total_fields.ignore_dynamic_beyond_limit`**: `true`
+* **`"index.mapping.total_fields.ignore_dynamic_beyond_limit"`**: `true`

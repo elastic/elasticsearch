@@ -84,7 +84,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("formats", List.of("dd/MM/yyyyy"));
-        Locale locale = randomFrom(Locale.GERMANY, Locale.FRENCH, Locale.ROOT);
+        Locale locale = randomFrom(Locale.GERMANY, Locale.FRENCH, Locale.CANADA);
         config.put("locale", locale.toLanguageTag());
 
         DateProcessor processor = factory.create(null, null, null, config, null);

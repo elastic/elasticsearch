@@ -885,7 +885,7 @@ public class RBACEngine implements AuthorizationEngine {
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    // TODO clean this up
+                    // TODO clean this up and explain
                     if (indexAbstraction.isFailureIndexOfDataStream()
                         && predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES)) {
                         indicesAndAliases.add(indexAbstraction.getName());
@@ -913,10 +913,11 @@ public class RBACEngine implements AuthorizationEngine {
             timeChecker.accept(indicesAndAliases);
             return indicesAndAliases;
         }, () -> {
-            // TODO handle timeChecker
             if (includeDataStreams == false) {
                 return Collections.emptySet();
             }
+            // TODO is this right?
+            Consumer<Collection<String>> timeChecker = timerSupplier.get();
             Set<String> indicesAndAliases = new HashSet<>();
             for (IndexAbstraction indexAbstraction : lookup.values()) {
                 if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
@@ -928,6 +929,7 @@ public class RBACEngine implements AuthorizationEngine {
                     }
                 }
             }
+            timeChecker.accept(indicesAndAliases);
             return indicesAndAliases;
         }, (name, selectorString) -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);

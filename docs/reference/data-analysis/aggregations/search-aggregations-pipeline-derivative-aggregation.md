@@ -59,10 +59,9 @@ POST /sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
 
 1. `buckets_path` instructs this derivative aggregation to use the output of the `sales` aggregation for the derivative
-
+%  TEST[setup:sales]
 
 And the following may be the response:
 
@@ -110,14 +109,13 @@ And the following may be the response:
    }
 }
 ```
-%  TESTRESPONSE[s/"took": 11/"took": $body.took/]
-%  TESTRESPONSE[s/"_shards": .../"_shards": $body._shards/]
-%  TESTRESPONSE[s/"hits": .../"hits": $body.hits/]
 
 1. No derivative for the first bucket since we need at least 2 data points to calculate the derivative
 2. Derivative value units are implicitly defined by the `sales` aggregation and the parent histogram so in this case the units would be $/month assuming the `price` field has units of $.
 3. The number of documents in the bucket are represented by the `doc_count`
-
+%  TESTRESPONSE[s/"took": 11/"took": $body.took/]
+%  TESTRESPONSE[s/"_shards": .../"_shards": $body._shards/]
+%  TESTRESPONSE[s/"hits": .../"hits": $body.hits/]
 
 
 ## Second Order Derivative [_second_order_derivative]
@@ -155,10 +153,9 @@ POST /sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
 
 1. `buckets_path` for the second derivative points to the name of the first derivative
-
+%  TEST[setup:sales]
 
 And the following may be the response:
 
@@ -209,12 +206,11 @@ And the following may be the response:
    }
 }
 ```
+
+1. No second derivative for the first two buckets since we need at least 2 data points from the first derivative to calculate the second derivative
 %  TESTRESPONSE[s/"took": 50/"took": $body.took/]
 %  TESTRESPONSE[s/"_shards": .../"_shards": $body._shards/]
 %  TESTRESPONSE[s/"hits": .../"hits": $body.hits/]
-
-1. No second derivative for the first two buckets since we need at least 2 data points from the first derivative to calculate the second derivative
-
 
 
 ## Units [_units]
@@ -248,10 +244,9 @@ POST /sales/_search
   }
 }
 ```
-%  TEST[setup:sales]
 
 1. `unit` specifies what unit to use for the x-axis of the derivative calculation
-
+%  TEST[setup:sales]
 
 And the following may be the response:
 
@@ -301,12 +296,11 @@ And the following may be the response:
    }
 }
 ```
-%  TESTRESPONSE[s/"took": 50/"took": $body.took/]
-%  TESTRESPONSE[s/"_shards": .../"_shards": $body._shards/]
-%  TESTRESPONSE[s/"hits": .../"hits": $body.hits/]
 
 1. `value` is reported in the original units of *per month*
 2. `normalized_value` is reported in the desired units of *per day*
-
+%  TESTRESPONSE[s/"took": 50/"took": $body.took/]
+%  TESTRESPONSE[s/"_shards": .../"_shards": $body._shards/]
+%  TESTRESPONSE[s/"hits": .../"hits": $body.hits/]
 
 

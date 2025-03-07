@@ -584,11 +584,11 @@ POST music/_search?pretty
   }
 }
 ```
-%  TEST[continued]
 
 1. Prefix used to search for suggestions
 2. Type of suggestions
 3. Name of the field to search for suggestions in
+%  TEST[continued]
 
 It returns this response:
 
@@ -645,12 +645,11 @@ POST music/_search
   }
 }
 ```
-%  TEST[continued]
 
 1. Filter the source to return only the `suggest` field
 2. Name of the field to search for suggestions in
 3. Number of suggestions to return
-
+%  TEST[continued]
 
 Which should look like:
 
@@ -868,13 +867,12 @@ PUT place_path_category
   }
 }
 ```
-%  TESTSETUP
 
 1. Defines a `category` context named *place_type* where the categories must be sent with the suggestions.
 2. Defines a `geo` context named *location* where the categories must be sent with the suggestions.
 3. Defines a `category` context named *place_type* where the categories are read from the `cat` field.
 4. Defines a `geo` context named *location* where the categories are read from the `loc` field.
-
+%  TESTSETUP
 
 ::::{note} 
 Adding context mappings increases the index size for completion field. The completion index is entirely heap resident, you can monitor the completion field index size using [index statistics](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-stats).
@@ -965,9 +963,9 @@ POST place/_search?pretty
   }
 }
 ```
-%  TEST[continued]
 
 1. The context query filter suggestions associated with categories *cafe* and *restaurants* and boosts the suggestions associated with *restaurants* by a factor of `2`
+%  TEST[continued]
 
 In addition to accepting category values, a context query can be composed of multiple category context clauses.
 The parameters that are supported for a `category` context clause include:
@@ -1091,9 +1089,9 @@ POST place/_search?pretty
   }
 }
 ```
-%  TEST[continued]
 
 1. The context query filters for suggestions that fall under the geo location represented by a geohash of *(43.662, -79.380)* with a precision of *2* and boosts suggestions that fall under the geohash representation of *(43.6624803, -79.3863353)* with a default precision of *6* by a factor of `2`
+%  TEST[continued]
 
 ::::{note} 
 If a suggestion entry matches multiple contexts the final score is computed as the maximum score produced by any matching contexts.
@@ -1192,9 +1190,9 @@ In the response, the suggester names will be changed to respectively `term#my-fi
   ...
 }
 ```
-%  TESTRESPONSE[s/.../"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"/]
-%  TESTRESPONSE[s/"score": 0.8333333/"score": $body.suggest.term#my-first-suggester.2.options.0.score/]
-%  TESTRESPONSE[s/"score": 0.030227963/"score": $body.suggest.phrase#my-second-suggester.0.options.0.score/]
 
 1. The name `my-first-suggester` now contains the `term` prefix.
 2. The name `my-second-suggester` now contains the `phrase` prefix.
+%  TESTRESPONSE[s/.../"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"/]
+%  TESTRESPONSE[s/"score": 0.8333333/"score": $body.suggest.term#my-first-suggester.2.options.0.score/]
+%  TESTRESPONSE[s/"score": 0.030227963/"score": $body.suggest.phrase#my-second-suggester.0.options.0.score/]

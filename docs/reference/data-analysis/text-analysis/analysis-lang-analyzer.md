@@ -73,12 +73,11 @@ PUT /arabic_example
   }
 }
 ```
-%  TEST[s/"arabic_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: arabic_example, first: arabic, second: rebuilt_arabic}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"arabic_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: arabic_example, first: arabic, second: rebuilt_arabic}\nendyaml\n/]
 
 
 ### `armenian` analyzer [armenian-analyzer]
@@ -119,12 +118,11 @@ PUT /armenian_example
   }
 }
 ```
-%  TEST[s/"armenian_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: armenian_example, first: armenian, second: rebuilt_armenian}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"armenian_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: armenian_example, first: armenian, second: rebuilt_armenian}\nendyaml\n/]
 
 
 ### `basque` analyzer [basque-analyzer]
@@ -165,12 +163,11 @@ PUT /basque_example
   }
 }
 ```
-%  TEST[s/"basque_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: basque_example, first: basque, second: rebuilt_basque}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"basque_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: basque_example, first: basque, second: rebuilt_basque}\nendyaml\n/]
 
 
 ### `bengali` analyzer [bengali-analyzer]
@@ -214,12 +211,11 @@ PUT /bengali_example
   }
 }
 ```
-%  TEST[s/"bengali_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: bengali_example, first: bengali, second: rebuilt_bengali}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"bengali_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: bengali_example, first: bengali, second: rebuilt_bengali}\nendyaml\n/]
 
 
 ### `brazilian` analyzer [brazilian-analyzer]
@@ -260,12 +256,11 @@ PUT /brazilian_example
   }
 }
 ```
-%  TEST[s/"brazilian_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: brazilian_example, first: brazilian, second: rebuilt_brazilian}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"brazilian_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: brazilian_example, first: brazilian, second: rebuilt_brazilian}\nendyaml\n/]
 
 
 ### `bulgarian` analyzer [bulgarian-analyzer]
@@ -306,12 +301,11 @@ PUT /bulgarian_example
   }
 }
 ```
-%  TEST[s/"bulgarian_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: bulgarian_example, first: bulgarian, second: rebuilt_bulgarian}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"bulgarian_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: bulgarian_example, first: bulgarian, second: rebuilt_bulgarian}\nendyaml\n/]
 
 
 ### `catalan` analyzer [catalan-analyzer]
@@ -358,12 +352,11 @@ PUT /catalan_example
   }
 }
 ```
-%  TEST[s/"catalan_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: catalan_example, first: catalan, second: rebuilt_catalan}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"catalan_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: catalan_example, first: catalan, second: rebuilt_catalan}\nendyaml\n/]
 
 
 ### `cjk` analyzer [cjk-analyzer]
@@ -407,11 +400,10 @@ PUT /cjk_example
   }
 }
 ```
-%  TEST[s/"cjk_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: cjk_example, first: cjk, second: rebuilt_cjk}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters. The default stop words are **almost** the same as the `_english_` set, but not exactly the same.
-
+%  TEST[s/"cjk_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: cjk_example, first: cjk, second: rebuilt_cjk}\nendyaml\n/]
 
 
 ### `czech` analyzer [czech-analyzer]
@@ -452,12 +444,11 @@ PUT /czech_example
   }
 }
 ```
-%  TEST[s/"czech_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: czech_example, first: czech, second: rebuilt_czech}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"czech_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: czech_example, first: czech, second: rebuilt_czech}\nendyaml\n/]
 
 
 ### `danish` analyzer [danish-analyzer]
@@ -498,12 +489,11 @@ PUT /danish_example
   }
 }
 ```
-%  TEST[s/"danish_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: danish_example, first: danish, second: rebuilt_danish}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"danish_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: danish_example, first: danish, second: rebuilt_danish}\nendyaml\n/]
 
 
 ### `dutch` analyzer [dutch-analyzer]
@@ -554,12 +544,11 @@ PUT /dutch_example
   }
 }
 ```
-%  TEST[s/"dutch_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: dutch_example, first: dutch, second: rebuilt_dutch}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"dutch_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: dutch_example, first: dutch, second: rebuilt_dutch}\nendyaml\n/]
 
 
 ### `english` analyzer [english-analyzer]
@@ -605,12 +594,11 @@ PUT /english_example
   }
 }
 ```
-%  TEST[s/"english_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: english_example, first: english, second: rebuilt_english}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"english_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: english_example, first: english, second: rebuilt_english}\nendyaml\n/]
 
 
 ### `estonian` analyzer [estonian-analyzer]
@@ -651,12 +639,11 @@ PUT /estonian_example
   }
 }
 ```
-%  TEST[s/"estonian_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: estonian_example, first: estonian, second: rebuilt_estonian}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"estonian_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: estonian_example, first: estonian, second: rebuilt_estonian}\nendyaml\n/]
 
 
 ### `finnish` analyzer [finnish-analyzer]
@@ -697,12 +684,11 @@ PUT /finnish_example
   }
 }
 ```
-%  TEST[s/"finnish_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: finnish_example, first: finnish, second: rebuilt_finnish}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"finnish_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: finnish_example, first: finnish, second: rebuilt_finnish}\nendyaml\n/]
 
 
 ### `french` analyzer [french-analyzer]
@@ -753,12 +739,11 @@ PUT /french_example
   }
 }
 ```
-%  TEST[s/"french_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: french_example, first: french, second: rebuilt_french}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"french_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: french_example, first: french, second: rebuilt_french}\nendyaml\n/]
 
 
 ### `galician` analyzer [galician-analyzer]
@@ -799,12 +784,11 @@ PUT /galician_example
   }
 }
 ```
-%  TEST[s/"galician_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: galician_example, first: galician, second: rebuilt_galician}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"galician_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: galician_example, first: galician, second: rebuilt_galician}\nendyaml\n/]
 
 
 ### `german` analyzer [german-analyzer]
@@ -846,12 +830,11 @@ PUT /german_example
   }
 }
 ```
-%  TEST[s/"german_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: german_example, first: german, second: rebuilt_german}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"german_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: german_example, first: german, second: rebuilt_german}\nendyaml\n/]
 
 
 ### `greek` analyzer [greek-analyzer]
@@ -896,12 +879,11 @@ PUT /greek_example
   }
 }
 ```
-%  TEST[s/"greek_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: greek_example, first: greek, second: rebuilt_greek}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"greek_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: greek_example, first: greek, second: rebuilt_greek}\nendyaml\n/]
 
 
 ### `hindi` analyzer [hindi-analyzer]
@@ -945,12 +927,11 @@ PUT /hindi_example
   }
 }
 ```
-%  TEST[s/"hindi_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: hindi_example, first: hindi, second: rebuilt_hindi}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"hindi_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: hindi_example, first: hindi, second: rebuilt_hindi}\nendyaml\n/]
 
 
 ### `hungarian` analyzer [hungarian-analyzer]
@@ -991,12 +972,11 @@ PUT /hungarian_example
   }
 }
 ```
-%  TEST[s/"hungarian_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: hungarian_example, first: hungarian, second: rebuilt_hungarian}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"hungarian_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: hungarian_example, first: hungarian, second: rebuilt_hungarian}\nendyaml\n/]
 
 
 ### `indonesian` analyzer [indonesian-analyzer]
@@ -1037,12 +1017,11 @@ PUT /indonesian_example
   }
 }
 ```
-%  TEST[s/"indonesian_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: indonesian_example, first: indonesian, second: rebuilt_indonesian}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"indonesian_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: indonesian_example, first: indonesian, second: rebuilt_indonesian}\nendyaml\n/]
 
 
 ### `irish` analyzer [irish-analyzer]
@@ -1099,12 +1078,11 @@ PUT /irish_example
   }
 }
 ```
-%  TEST[s/"irish_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: irish_example, first: irish, second: rebuilt_irish}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"irish_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: irish_example, first: irish, second: rebuilt_irish}\nendyaml\n/]
 
 
 ### `italian` analyzer [italian-analyzer]
@@ -1156,12 +1134,11 @@ PUT /italian_example
   }
 }
 ```
-%  TEST[s/"italian_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: italian_example, first: italian, second: rebuilt_italian}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"italian_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: italian_example, first: italian, second: rebuilt_italian}\nendyaml\n/]
 
 
 ### `latvian` analyzer [latvian-analyzer]
@@ -1202,12 +1179,11 @@ PUT /latvian_example
   }
 }
 ```
-%  TEST[s/"latvian_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: latvian_example, first: latvian, second: rebuilt_latvian}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"latvian_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: latvian_example, first: latvian, second: rebuilt_latvian}\nendyaml\n/]
 
 
 ### `lithuanian` analyzer [lithuanian-analyzer]
@@ -1248,12 +1224,11 @@ PUT /lithuanian_example
   }
 }
 ```
-%  TEST[s/"lithuanian_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: lithuanian_example, first: lithuanian, second: rebuilt_lithuanian}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"lithuanian_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: lithuanian_example, first: lithuanian, second: rebuilt_lithuanian}\nendyaml\n/]
 
 
 ### `norwegian` analyzer [norwegian-analyzer]
@@ -1294,12 +1269,11 @@ PUT /norwegian_example
   }
 }
 ```
-%  TEST[s/"norwegian_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: norwegian_example, first: norwegian, second: rebuilt_norwegian}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"norwegian_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: norwegian_example, first: norwegian, second: rebuilt_norwegian}\nendyaml\n/]
 
 
 ### `persian` analyzer [persian-analyzer]
@@ -1341,11 +1315,10 @@ PUT /persian_example
   }
 }
 ```
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: persian_example, first: persian, second: rebuilt_persian}\nendyaml\n/]
 
 1. Replaces zero-width non-joiners with an ASCII space.
 2. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
-
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: persian_example, first: persian, second: rebuilt_persian}\nendyaml\n/]
 
 
 ### `portuguese` analyzer [portuguese-analyzer]
@@ -1386,12 +1359,11 @@ PUT /portuguese_example
   }
 }
 ```
-%  TEST[s/"portuguese_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: portuguese_example, first: portuguese, second: rebuilt_portuguese}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"portuguese_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: portuguese_example, first: portuguese, second: rebuilt_portuguese}\nendyaml\n/]
 
 
 ### `romanian` analyzer [romanian-analyzer]
@@ -1432,12 +1404,11 @@ PUT /romanian_example
   }
 }
 ```
-%  TEST[s/"romanian_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: romanian_example, first: romanian, second: rebuilt_romanian}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"romanian_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: romanian_example, first: romanian, second: rebuilt_romanian}\nendyaml\n/]
 
 
 ### `russian` analyzer [russian-analyzer]
@@ -1478,12 +1449,11 @@ PUT /russian_example
   }
 }
 ```
-%  TEST[s/"russian_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: russian_example, first: russian, second: rebuilt_russian}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"russian_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: russian_example, first: russian, second: rebuilt_russian}\nendyaml\n/]
 
 
 ### `serbian` analyzer [serbian-analyzer]
@@ -1525,12 +1495,11 @@ PUT /serbian_example
   }
 }
 ```
-%  TEST[s/"serbian_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: serbian_example, first: serbian, second: rebuilt_serbian}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"serbian_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: serbian_example, first: serbian, second: rebuilt_serbian}\nendyaml\n/]
 
 
 ### `sorani` analyzer [sorani-analyzer]
@@ -1573,12 +1542,11 @@ PUT /sorani_example
   }
 }
 ```
-%  TEST[s/"sorani_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: sorani_example, first: sorani, second: rebuilt_sorani}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"sorani_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: sorani_example, first: sorani, second: rebuilt_sorani}\nendyaml\n/]
 
 
 ### `spanish` analyzer [spanish-analyzer]
@@ -1619,12 +1587,11 @@ PUT /spanish_example
   }
 }
 ```
-%  TEST[s/"spanish_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: spanish_example, first: spanish, second: rebuilt_spanish}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"spanish_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: spanish_example, first: spanish, second: rebuilt_spanish}\nendyaml\n/]
 
 
 ### `swedish` analyzer [swedish-analyzer]
@@ -1665,12 +1632,11 @@ PUT /swedish_example
   }
 }
 ```
-%  TEST[s/"swedish_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: swedish_example, first: swedish, second: rebuilt_swedish}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"swedish_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: swedish_example, first: swedish, second: rebuilt_swedish}\nendyaml\n/]
 
 
 ### `turkish` analyzer [turkish-analyzer]
@@ -1716,12 +1682,11 @@ PUT /turkish_example
   }
 }
 ```
-%  TEST[s/"turkish_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: turkish_example, first: turkish, second: rebuilt_turkish}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 2. This filter should be removed unless there are words which should be excluded from stemming.
-
+%  TEST[s/"turkish_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: turkish_example, first: turkish, second: rebuilt_turkish}\nendyaml\n/]
 
 
 ### `thai` analyzer [thai-analyzer]
@@ -1753,11 +1718,10 @@ PUT /thai_example
   }
 }
 ```
-%  TEST[s/"thai_keywords",//]
-%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: thai_example, first: thai, second: rebuilt_thai}\nendyaml\n/]
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
-
+%  TEST[s/"thai_keywords",//]
+%  TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: thai_example, first: thai, second: rebuilt_thai}\nendyaml\n/]
 
 
 

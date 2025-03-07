@@ -181,8 +181,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 } else {
                     return null;
                 }
-            }, (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)), v -> v.toString().toLowerCase(Locale.ROOT))
-                .setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)
+            }, (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)), v -> {
+                if (v == null) {
+                    v = resolveSourceMode();
+                    if (v == null) {
+                        return null;
+                    }
+                }
+                return v.toString().toLowerCase(Locale.ROOT);
+            }).setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)
                 // don't emit if `enabled` is configured
                 .setSerializerCheck((includeDefaults, isConfigured, value) -> serializeMode && value != null);
         }
@@ -514,7 +521,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(null, Settings.EMPTY, false, serializeMode).init(this);
+        Settings.Builder settings = Settings.builder();
+        if (mode != null) {
+            settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), mode.name());
+        }
+        return new Builder(null, settings.build(), false, serializeMode).init(this);
     }
 
     public boolean isSynthetic() {

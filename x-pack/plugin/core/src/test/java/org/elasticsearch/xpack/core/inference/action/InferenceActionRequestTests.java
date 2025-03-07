@@ -47,7 +47,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4))),
             randomFrom(InputType.values()),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048)),
-            false
+            false,
+            new InferenceContext(randomAlphanumericOfLength(10))
         );
     }
 
@@ -183,7 +184,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
 
     @Override
     protected InferenceAction.Request mutateInstance(InferenceAction.Request instance) throws IOException {
-        int select = randomIntBetween(0, 6);
+        int select = randomIntBetween(0, 7);
         return switch (select) {
             case 0 -> {
                 var nextTask = TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length];
@@ -195,7 +196,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getTaskSettings(),
                     instance.getInputType(),
                     instance.getInferenceTimeout(),
-                    false
+                    false,
+                    instance.getContext()
                 );
             }
             case 1 -> new InferenceAction.Request(
@@ -206,7 +208,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 instance.getTaskSettings(),
                 instance.getInputType(),
                 instance.getInferenceTimeout(),
-                false
+                false,
+                instance.getContext()
             );
             case 2 -> {
                 var changedInputs = new ArrayList<String>(instance.getInput());
@@ -219,7 +222,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getTaskSettings(),
                     instance.getInputType(),
                     instance.getInferenceTimeout(),
-                    false
+                    false,
+                    instance.getContext()
                 );
             }
             case 3 -> {
@@ -238,7 +242,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     taskSettings,
                     instance.getInputType(),
                     instance.getInferenceTimeout(),
-                    false
+                    false,
+                    instance.getContext()
                 );
             }
             case 4 -> {
@@ -251,7 +256,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getTaskSettings(),
                     nextInputType,
                     instance.getInferenceTimeout(),
-                    false
+                    false,
+                    instance.getContext()
                 );
             }
             case 5 -> new InferenceAction.Request(
@@ -262,7 +268,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 instance.getTaskSettings(),
                 instance.getInputType(),
                 instance.getInferenceTimeout(),
-                false
+                false,
+                instance.getContext()
             );
             case 6 -> {
                 var newDuration = Duration.of(
@@ -278,7 +285,22 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getTaskSettings(),
                     instance.getInputType(),
                     TimeValue.timeValueMillis(newDuration.plus(additionalTime).toMillis()),
-                    false
+                    false,
+                    instance.getContext()
+                );
+            }
+            case 7 -> {
+                var newContext = new InferenceContext(instance.getContext().productUseCase() + randomAlphaOfLength(5));
+                yield new InferenceAction.Request(
+                    instance.getTaskType(),
+                    instance.getInferenceEntityId(),
+                    instance.getQuery(),
+                    instance.getInput(),
+                    instance.getTaskSettings(),
+                    instance.getInputType(),
+                    instance.getInferenceTimeout(),
+                    instance.isStreaming(),
+                    newContext
                 );
             }
             default -> throw new UnsupportedOperationException();

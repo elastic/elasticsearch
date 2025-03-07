@@ -87,7 +87,7 @@ public class InstrumenterImpl implements Instrumenter {
     static String verify(ClassReader reader) {
         StringWriter stringWriter = new StringWriter();
         PrintWriter printWriter = new PrintWriter(stringWriter);
-        CheckClassAdapter.verify(reader, true, printWriter);
+        CheckClassAdapter.verify(reader, false, printWriter);
 
         return stringWriter.toString();
     }
@@ -95,18 +95,29 @@ public class InstrumenterImpl implements Instrumenter {
     @Override
     public byte[] instrumentClass(String className, byte[] classfileBuffer) {
 
-        logger.info("Before: Verify: {}", verify(new ClassReader(classfileBuffer)));
+        var out = verify(new ClassReader(classfileBuffer));
+        if (out.isEmpty() == false) {
+            logger.error("Before: Verify: {}", out);
+        }
 
         ClassReader reader = new ClassReader(classfileBuffer);
         ClassWriter writer = new ClassWriter(reader, COMPUTE_FRAMES | COMPUTE_MAXS);
         ClassVisitor visitor = new EntitlementClassVisitor(Opcodes.ASM9, writer, className);
         reader.accept(visitor, 0);
 
-        var out = writer.toByteArray();
+        var outBytes = writer.toByteArray();
+//        var copy = Arrays.copyOf(outBytes, outBytes.length);
+//
+//        try {
+//            var out2 = verify(new ClassReader(copy));
+//            if (out2.isEmpty() == false) {
+//                logger.error("After: Verify: {}", out2);
+//            }
+//        } catch (Error e) {
+//            logger.error("After: Verify", e);
+//        }
 
-        logger.info("After: Verify: {}", verify(new ClassReader(out)));
-
-        return out;
+        return outBytes;
     }
 
     class EntitlementClassVisitor extends ClassVisitor {

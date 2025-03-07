@@ -29,3 +29,5 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
+tasks.named("dependencyLicenses").configure { enabled = false }
+

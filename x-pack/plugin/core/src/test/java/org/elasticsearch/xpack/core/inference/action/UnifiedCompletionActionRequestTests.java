@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializationTestCase<UnifiedCompletionAction.Request> {
@@ -29,7 +30,6 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             "inference_id",
             TaskType.COMPLETION,
             UnifiedCompletionRequest.of(null),
-            InferenceContext.empty(),
             TimeValue.timeValueSeconds(10)
         );
         var exception = request.validate();
@@ -41,7 +41,6 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             "inference_id",
             TaskType.COMPLETION,
             UnifiedCompletionRequest.of(List.of()),
-            InferenceContext.empty(),
             TimeValue.timeValueSeconds(10)
         );
         var exception = request.validate();
@@ -53,7 +52,6 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             "inference_id",
             TaskType.SPARSE_EMBEDDING,
             UnifiedCompletionRequest.of(List.of(UnifiedCompletionRequestTests.randomMessage())),
-            InferenceContext.empty(),
             TimeValue.timeValueSeconds(10)
         );
         var exception = request.validate();
@@ -65,7 +63,6 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             "inference_id",
             TaskType.ANY,
             UnifiedCompletionRequest.of(List.of(UnifiedCompletionRequestTests.randomMessage())),
-            InferenceContext.empty(),
             TimeValue.timeValueSeconds(10)
         );
         assertNull(request.validate());
@@ -76,7 +73,6 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             "model",
             TaskType.ANY,
             UnifiedCompletionRequest.of(List.of(UnifiedCompletionRequestTests.randomMessage())),
-            InferenceContext.empty(),
             TimeValue.timeValueSeconds(10)
         );
 
@@ -91,8 +87,36 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
         assertTrue(deserializedInstance.hasBeenRerouted());
     }
 
+    public void testWriteTo_WhenVersionIsBeforeInferenceContext_ShouldSetContextToEmptyContext() throws IOException {
+        var instance = new UnifiedCompletionAction.Request(
+            "model",
+            TaskType.ANY,
+            UnifiedCompletionRequest.of(List.of(UnifiedCompletionRequestTests.randomMessage())),
+            InferenceContext.empty(),
+            TimeValue.timeValueSeconds(10)
+        );
+
+        UnifiedCompletionAction.Request deserializedInstance = copyWriteable(
+            instance,
+            getNamedWriteableRegistry(),
+            instanceReader(),
+            TransportVersions.ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION
+        );
+        assertThat(deserializedInstance.getContext(), equalTo(InferenceContext.empty()));
+    }
+
     @Override
     protected UnifiedCompletionAction.Request mutateInstanceForVersion(UnifiedCompletionAction.Request instance, TransportVersion version) {
+        if (version.before(TransportVersions.INFERENCE_CONTEXT)) {
+            return new UnifiedCompletionAction.Request(
+                instance.getInferenceEntityId(),
+                instance.getTaskType(),
+                instance.getUnifiedCompletionRequest(),
+                InferenceContext.empty(),
+                instance.getTimeout()
+            );
+        }
+
         return instance;
     }
 

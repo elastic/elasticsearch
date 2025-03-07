@@ -261,6 +261,7 @@ GET /my_locations/_search
   }
 }
 ```
+%  TESTRESPONSE[s/"took" : 1/"took" : $body.took/]
 
 
 ## geohex grid [query-dsl-geo-grid-query-geohex]

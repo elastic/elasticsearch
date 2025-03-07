@@ -207,6 +207,7 @@ Will become:
   ]
 }
 ```
+%  TEST[s/^/{"_source":/ s/\n$/}/]
 
 
 ## `fielddata` mapping parameter [fielddata-mapping-param]

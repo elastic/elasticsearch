@@ -264,5 +264,6 @@ Will become:
   }
 }
 ```
+%  TEST[s/^/{"_source":/ s/\n$/}/]
 
 

@@ -12,7 +12,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -88,39 +88,42 @@ import java.util.Objects;
  */
 public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
     // ideally this would be final but the parser can't currently set it at construction time
-    private IndexReshardingState state;
+    private final IndexReshardingState state;
 
-    private static final ParseField SPLIT_FIELD = new ParseField("split");
+    private static final String SPLIT_FIELD_NAME = "split";
+    private static final ParseField SPLIT_FIELD = new ParseField(SPLIT_FIELD_NAME);
     // This exists only so that tests can verify that IndexReshardingMetadata supports more than one kind of operation.
     // It can be removed when we have defined a second real operation, such as shrink.
-    private static final ParseField NOOP_FIELD = new ParseField("noop");
+    private static final String NOOP_FIELD_NAME = "noop";
+    private static final ParseField NOOP_FIELD = new ParseField(NOOP_FIELD_NAME);
 
-    private static final ObjectParser<IndexReshardingMetadata, Void> PARSER = new ObjectParser<>(
+    private static final ConstructingObjectParser<IndexReshardingMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "index_resharding_metadata",
-        IndexReshardingMetadata::new
+        args -> {
+            // the parser ensures exactly one argument will not be null
+            if (args[0] != null) {
+                return new IndexReshardingMetadata((IndexReshardingState) args[0]);
+            } else {
+                return new IndexReshardingMetadata((IndexReshardingState) args[1]);
+            }
+        }
     );
 
     static {
         PARSER.declareObjectOrNull(
-            IndexReshardingMetadata::setState,
+            ConstructingObjectParser.optionalConstructorArg(),
             (parser, c) -> IndexReshardingState.Split.fromXContent(parser),
             null,
             SPLIT_FIELD
         );
         PARSER.declareObjectOrNull(
-            IndexReshardingMetadata::setState,
+            ConstructingObjectParser.optionalConstructorArg(),
             (parser, c) -> IndexReshardingState.Noop.fromXContent(parser),
             null,
             NOOP_FIELD
         );
         PARSER.declareExclusiveFieldSet(SPLIT_FIELD.getPreferredName(), NOOP_FIELD.getPreferredName());
         PARSER.declareRequiredFieldSet(SPLIT_FIELD.getPreferredName(), NOOP_FIELD.getPreferredName());
-    }
-
-    private IndexReshardingMetadata() {}
-
-    private void setState(IndexReshardingState state) {
-        this.state = state;
     }
 
     // for testing
@@ -151,16 +154,13 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
     }
 
     public IndexReshardingMetadata(StreamInput in) throws IOException {
-        this();
         var stateName = in.readString();
 
-        if (stateName.equals(SPLIT_FIELD.getPreferredName())) {
-            this.state = new IndexReshardingState.Split(in);
-        } else if (stateName.equals(NOOP_FIELD.getPreferredName())) {
-            this.state = new IndexReshardingState.Noop(in);
-        } else {
-            throw new IllegalArgumentException("unknown operation [" + stateName + "]");
-        }
+        state = switch (stateName) {
+            case NOOP_FIELD_NAME -> new IndexReshardingState.Noop(in);
+            case SPLIT_FIELD_NAME -> new IndexReshardingState.Split(in);
+            default -> throw new IllegalStateException("unknown operation [" + stateName + "]");
+        };
     }
 
     @Override
@@ -208,8 +208,8 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
 
     public IndexReshardingState.Split getSplit() {
         return switch (state) {
-            case IndexReshardingState.Split s -> s;
             case IndexReshardingState.Noop ignored -> throw new IllegalArgumentException("resharding metadata is not a split");
+            case IndexReshardingState.Split s -> s;
         };
     }
 }

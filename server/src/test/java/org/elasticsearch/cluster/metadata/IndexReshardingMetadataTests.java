@@ -11,8 +11,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
-
 public class IndexReshardingMetadataTests extends ESTestCase {
     // test that we can drive a split through all valid state transitions in random order and terminate
     public void testSplit() {
@@ -20,7 +18,7 @@ public class IndexReshardingMetadataTests extends ESTestCase {
         final var multiple = randomIntBetween(2, 5);
 
         final var metadata = IndexReshardingMetadata.newSplitByMultiple(numShards, multiple);
-        final var split = metadata.getSplit();
+        var split = metadata.getSplit();
 
         // starting state is as expected
         assert split.oldShardCount() == numShards;
@@ -34,6 +32,7 @@ public class IndexReshardingMetadataTests extends ESTestCase {
 
         // advance split state randomly and expect to terminate
         while (split.inProgress()) {
+            var splitBuilder = split.builder();
             // pick a shard at random and see if we can advance it
             int idx = randomIntBetween(0, numShards * multiple - 1);
             if (idx < numShards) {
@@ -41,25 +40,25 @@ public class IndexReshardingMetadataTests extends ESTestCase {
                 var sourceState = split.getSourceShardState(idx);
                 var nextState = randomFrom(IndexReshardingState.Split.SourceShardState.values());
                 if (nextState.ordinal() == sourceState.ordinal() + 1) {
-                    var targets = split.getTargetStatesFor(idx);
-                    if (Arrays.stream(targets).allMatch(target -> target == IndexReshardingState.Split.TargetShardState.DONE)) {
-                        split.setSourceShardState(idx, nextState);
+                    if (split.targetsDone(idx)) {
+                        splitBuilder.setSourceShardState(idx, nextState);
                     } else {
-                        assertThrows(AssertionError.class, () -> split.setSourceShardState(idx, nextState));
+                        assertThrows(AssertionError.class, () -> splitBuilder.setSourceShardState(idx, nextState));
                     }
                 } else {
-                    assertThrows(AssertionError.class, () -> split.setSourceShardState(idx, nextState));
+                    assertThrows(AssertionError.class, () -> splitBuilder.setSourceShardState(idx, nextState));
                 }
             } else {
                 // can we advance target?
                 var targetState = split.getTargetShardState(idx);
                 var nextState = randomFrom(IndexReshardingState.Split.TargetShardState.values());
                 if (nextState.ordinal() == targetState.ordinal() + 1) {
-                    split.setTargetShardState(idx, nextState);
+                    splitBuilder.setTargetShardState(idx, nextState);
                 } else {
-                    assertThrows(AssertionError.class, () -> split.setTargetShardState(idx, nextState));
+                    assertThrows(AssertionError.class, () -> splitBuilder.setTargetShardState(idx, nextState));
                 }
             }
+            split = splitBuilder.build();
         }
 
         for (int i = 0; i < numShards; i++) {

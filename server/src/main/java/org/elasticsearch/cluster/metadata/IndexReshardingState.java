@@ -68,24 +68,64 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
 
     public static final class Split extends IndexReshardingState {
         public enum SourceShardState implements Writeable {
-            SOURCE,
-            DONE;
+            /**
+             * The argument is for serialization because using the ordinal breaks if
+             * any values in the enum are reordered. It must not be changed once defined.
+             */
+            SOURCE((byte) 0),
+            DONE((byte) 1);
+
+            private final byte code;
+
+            SourceShardState(byte code) {
+                this.code = code;
+            }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                out.writeEnum(this);
+                out.writeByte(this.code);
+            }
+
+            public static SourceShardState readFrom(StreamInput in) throws IOException {
+                var code = in.readByte();
+                return switch (code) {
+                    case 0 -> SOURCE;
+                    case 1 -> DONE;
+                    default -> throw new IllegalStateException("unknown source shard state [" + code + "]");
+                };
             }
         }
 
         public enum TargetShardState implements Writeable {
-            CLONE,
-            HANDOFF,
-            SPLIT,
-            DONE;
+            /**
+             * The argument is for serialization because using the ordinal breaks if
+             * any values in the enum are reordered. It must not be changed once defined.
+             */
+            CLONE((byte) 0),
+            HANDOFF((byte) 1),
+            SPLIT((byte) 2),
+            DONE((byte) 3);
+
+            private final byte code;
+
+            TargetShardState(byte code) {
+                this.code = code;
+            }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                out.writeEnum(this);
+                out.writeByte(this.code);
+            }
+
+            public static TargetShardState readFrom(StreamInput in) throws IOException {
+                var code = in.readByte();
+                return switch (code) {
+                    case 0 -> CLONE;
+                    case 1 -> HANDOFF;
+                    case 2 -> SPLIT;
+                    case 3 -> DONE;
+                    default -> throw new IllegalStateException("unknown target shard state [" + code + "]");
+                };
             }
         }
 
@@ -129,8 +169,8 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
 
         Split(StreamInput in) throws IOException {
             this(
-                in.readArray(i -> i.readEnum(SourceShardState.class), SourceShardState[]::new),
-                in.readArray(i -> i.readEnum(TargetShardState.class), TargetShardState[]::new)
+                in.readArray(SourceShardState::readFrom, SourceShardState[]::new),
+                in.readArray(TargetShardState::readFrom, TargetShardState[]::new)
             );
         }
 
@@ -169,20 +209,24 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return Objects.hash(Arrays.hashCode(sourceShards), Arrays.hashCode(targetShards));
         }
 
-        public int oldShardCount() {
+        // visible for testing
+        int oldShardCount() {
             return oldShardCount;
         }
 
-        public int newShardCount() {
+        // visible for testing
+        int newShardCount() {
             return newShardCount;
         }
 
-        public SourceShardState[] sourceShards() {
-            return sourceShards;
+        // visible for testing
+        SourceShardState[] sourceShards() {
+            return sourceShards.clone();
         }
 
-        public TargetShardState[] targetShards() {
-            return targetShards;
+        // visible for testing
+        TargetShardState[] targetShards() {
+            return targetShards.clone();
         }
 
         /**
@@ -204,6 +248,71 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return new Split(sourceShards, targetShards);
         }
 
+        public static class Builder {
+            private final SourceShardState[] sourceShards;
+            private final TargetShardState[] targetShards;
+
+            public Builder(IndexReshardingState.Split split) {
+                this.sourceShards = split.sourceShards();
+                this.targetShards = split.targetShards();
+            }
+
+            /**
+             * Set the shard state of a source shard
+             * Currently the only legal transition is from SOURCE to DONE and any other transition will assert.
+             * This could be expressed through a markSourceDone API but this form is the same shape as {@link #setTargetShardState}
+             * and leaves the door open for additional source states.
+             * @param shardNum an index into the shards which must be no greater than the number of shards before split
+             * @param sourceShardState the state to which the shard should be set
+             */
+            public void setSourceShardState(int shardNum, SourceShardState sourceShardState) {
+                assert shardNum >= 0 && shardNum < sourceShards.length : "source shardNum is out of bounds";
+                assert sourceShards[shardNum].ordinal() + 1 == sourceShardState.ordinal() : "invalid source shard state transition";
+                assert sourceShardState == SourceShardState.DONE : "can only move source shard state to DONE";
+                var split = new Split(sourceShards, targetShards);
+                for (var target : split.getTargetStatesFor(shardNum)) {
+                    assert target == TargetShardState.DONE : "can only move source shard to DONE when all targets are DONE";
+                }
+
+                sourceShards[shardNum] = sourceShardState;
+            }
+
+            /**
+             * Set the target state of a shard
+             * The only legal state in the split state machine is the one following the shard's current state.
+             * The reason for this API rather than an advanceState API is to confirm that the caller knows
+             * what the current state is when setting it.
+             * @param shardNum an index into shards greater than or equal to the old shard count and less than the new shard count
+             * @param targetShardState the state to which the shard should be set
+             */
+            public void setTargetShardState(int shardNum, TargetShardState targetShardState) {
+                var targetShardNum = shardNum - sourceShards.length;
+
+                assert targetShardNum >= 0 && targetShardNum < targetShards.length : "target shardNum is out of bounds";
+                assert targetShards[targetShardNum].ordinal() + 1 == targetShardState.ordinal() : "invalid target shard state transition";
+
+                targetShards[targetShardNum] = targetShardState;
+            }
+
+            /**
+             * Build a new Split
+             * @return Split reflecting the current state of the builder
+             */
+            public Split build() {
+                return new Split(sourceShards, targetShards);
+            }
+        }
+
+        /**
+         * Create a Builder from the state of this Split
+         * The Split itself is immutable. Modifications can be applied to the builder,
+         * which can be used to replace the current Split in IndexMetadata when it in turn is built.
+         * @return a Builder reflecting the state of this split
+         */
+        public Builder builder() {
+            return new Builder(this);
+        }
+
         /**
          * Get the current shard state of a source shard
          * @param shardNum an index into the shards which must be no greater than the number of shards before split
@@ -213,25 +322,6 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             assert shardNum >= 0 && shardNum < sourceShards.length : "source shardNum is out of bounds";
 
             return sourceShards[shardNum];
-        }
-
-        /**
-         * Set the current shard state of a source shard
-         * Currently the only legal transition is from SOURCE to DONE and any other transition will assert.
-         * This could be expressed through a markSourceDone API but this form is the same shape as {@link #setTargetShardState}
-         * and leaves the door open for additional source states.
-         * @param shardNum an index into the shards which must be no greater than the number of shards before split
-         * @param sourceShardState the state to which the shard should be set
-         */
-        public void setSourceShardState(int shardNum, SourceShardState sourceShardState) {
-            assert shardNum >= 0 && shardNum < sourceShards.length : "source shardNum is out of bounds";
-            assert sourceShards[shardNum].ordinal() + 1 == sourceShardState.ordinal() : "invalid source shard state transition";
-            assert sourceShardState == SourceShardState.DONE : "can only move source shard state to DONE";
-            for (var target : getTargetStatesFor(shardNum)) {
-                assert target == TargetShardState.DONE : "can only move source shard to DONE when all targets are DONE";
-            }
-
-            sourceShards[shardNum] = sourceShardState;
         }
 
         /**
@@ -248,42 +338,6 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         }
 
         /**
-         * Set the target state of a shard
-         * The only legal state in the split state machine is the one following the shard's current state.
-         * The reason for this API rather than an advanceState API is to confirm that the caller knows
-         * what the current state is when setting it.
-         * @param shardNum an index into shards greater than or equal to the old shard count and less than the new shard count
-         * @param targetShardState the state to which the shard should be set
-         */
-        public void setTargetShardState(int shardNum, TargetShardState targetShardState) {
-            var targetShardNum = shardNum - oldShardCount;
-
-            assert targetShardNum >= 0 && targetShardNum < targetShards.length : "target shardNum is out of bounds";
-            assert targetShards[targetShardNum].ordinal() + 1 == targetShardState.ordinal() : "invalid target shard state transition";
-
-            targetShards[targetShardNum] = targetShardState;
-        }
-
-        /**
-         * Get all the target shard states related to the given source shard
-         * @param shardNum a source shard index greater than or equal to 0 and less than the original shard count
-         * @return an array of target shard states in order for the given shard
-         */
-        public TargetShardState[] getTargetStatesFor(int shardNum) {
-            final int numTargets = newShardCount / oldShardCount - 1;
-            // it might be useful to return the target shard's index as well as state, can iterate on this
-            TargetShardState[] targets = new TargetShardState[numTargets];
-
-            int cur = shardNum + oldShardCount;
-            for (int i = 0; i < numTargets; i++) {
-                targets[i] = getTargetShardState(cur);
-                cur += oldShardCount;
-            }
-
-            return targets;
-        }
-
-        /**
          * Check whether this metadata represents an incomplete split
          * @return true if the split is incomplete (not all source shards are DONE)
          */
@@ -295,6 +349,35 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             }
 
             return false;
+        }
+
+        /**
+         * Check whether all target shards for the given source shard are done.
+         * @param shardNum a source shard index greater than or equal to 0 and less than the original shard count
+         * @return true if all target shards for the given source shard are done.
+         */
+        public boolean targetsDone(int shardNum) {
+            var targets = getTargetStatesFor(shardNum);
+            return Arrays.stream(targets).allMatch(target -> target == IndexReshardingState.Split.TargetShardState.DONE);
+        }
+
+        /**
+         * Get all the target shard states related to the given source shard
+         * @param shardNum a source shard index greater than or equal to 0 and less than the original shard count
+         * @return an array of target shard states in order for the given shard
+         */
+        private TargetShardState[] getTargetStatesFor(int shardNum) {
+            final int numTargets = newShardCount / oldShardCount - 1;
+            // it might be useful to return the target shard's index as well as state, can iterate on this
+            TargetShardState[] targets = new TargetShardState[numTargets];
+
+            int cur = shardNum + oldShardCount;
+            for (int i = 0; i < numTargets; i++) {
+                targets[i] = getTargetShardState(cur);
+                cur += oldShardCount;
+            }
+
+            return targets;
         }
     }
 }

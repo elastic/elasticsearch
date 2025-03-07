@@ -247,7 +247,7 @@ class Elasticsearch {
             pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
             var pluginsResolver = PluginsResolver.create(pluginsLoader);
-            Map<String, Path> bundlesDirs = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
+            Map<String, Path> sourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
                 .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), PluginBundle::getDir));
             EntitlementBootstrap.bootstrap(
                 pluginPolicies,
@@ -259,7 +259,7 @@ class Elasticsearch {
                 nodeEnv.libDir(),
                 nodeEnv.modulesDir(),
                 nodeEnv.pluginsDir(),
-                bundlesDirs,
+                sourcePaths,
                 nodeEnv.logsDir(),
                 nodeEnv.tmpDir(),
                 args.pidFile(),

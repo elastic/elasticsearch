@@ -286,7 +286,7 @@ public class EntitlementInitialization {
             agentEntitlements,
             pluginPolicies,
             EntitlementBootstrap.bootstrapArgs().pluginResolver(),
-            EntitlementBootstrap.bootstrapArgs().bundlesDirs(),
+            EntitlementBootstrap.bootstrapArgs().sourcePaths(),
             AGENTS_PACKAGE_NAME,
             ENTITLEMENTS_MODULE,
             pathLookup,

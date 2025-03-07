@@ -42,7 +42,7 @@ public class EntitlementBootstrap {
         Path libDir,
         Path modulesDir,
         Path pluginsDir,
-        Map<String, Path> bundlesDirs,
+        Map<String, Path> sourcePaths,
         Path logsDir,
         Path tempDir,
         Path pidFile,
@@ -61,7 +61,7 @@ public class EntitlementBootstrap {
             requireNonNull(libDir);
             requireNonNull(modulesDir);
             requireNonNull(pluginsDir);
-            requireNonNull(bundlesDirs);
+            requireNonNull(sourcePaths);
             requireNonNull(logsDir);
             requireNonNull(tempDir);
             requireNonNull(suppressFailureLogClasses);
@@ -87,7 +87,7 @@ public class EntitlementBootstrap {
      * @param libDir         the lib directory for Elasticsearch
      * @param modulesDir     the directory where Elasticsearch modules are
      * @param pluginsDir     the directory where plugins are installed for Elasticsearch
-     * @param bundlesDirs    a map holding the path for each plugin or module, by plugin (or module) name.
+     * @param sourcePaths    a map holding the path to each plugin or module jars, by plugin (or module) name.
      * @param tempDir        the temp directory for Elasticsearch
      * @param logsDir        the log directory for Elasticsearch
      * @param pidFile        path to a pid file for Elasticsearch, or {@code null} if one was not specified
@@ -103,7 +103,7 @@ public class EntitlementBootstrap {
         Path libDir,
         Path modulesDir,
         Path pluginsDir,
-        Map<String, Path> bundlesDirs,
+        Map<String, Path> sourcePaths,
         Path logsDir,
         Path tempDir,
         Path pidFile,
@@ -123,7 +123,7 @@ public class EntitlementBootstrap {
             libDir,
             modulesDir,
             pluginsDir,
-            bundlesDirs,
+            sourcePaths,
             logsDir,
             tempDir,
             pidFile,

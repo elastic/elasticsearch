@@ -1948,6 +1948,39 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         /**
+         * Builder to create IndexMetadata that has an increased shard count (used for re-shard).
+         * The new shard count must be a multiple of the original shardcount.
+         * We do not support shrinking the shard count.
+         * @param shardCount   updated shardCount
+         *
+         * TODO: Check if this.version needs to be incremented
+         */
+        public Builder reshardAddShards(int shardCount) {
+            // Assert routingNumShards is null ?
+            // Assert numberOfShards > 0
+            if (shardCount % numberOfShards() != 0) {
+                throw new IllegalArgumentException(
+                    "New shard count ["
+                        + shardCount
+                        + "] should be a multiple"
+                        + " of current shard count ["
+                        + numberOfShards()
+                        + "] for ["
+                        + index
+                        + "]"
+                );
+            }
+            IndexVersion indexVersionCreated = indexCreatedVersion(settings);
+            settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, shardCount).build();
+            var newPrimaryTerms = new long[shardCount];
+            Arrays.fill(newPrimaryTerms, this.primaryTerms.length, newPrimaryTerms.length, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+            System.arraycopy(primaryTerms, 0, newPrimaryTerms, 0, this.primaryTerms.length);
+            primaryTerms = newPrimaryTerms;
+            routingNumShards = MetadataCreateIndexService.calculateNumRoutingShards(shardCount, indexVersionCreated);
+            return this;
+        }
+
+        /**
          * Sets the number of shards that should be used for routing. This should only be used if the number of shards in
          * an index has changed ie if the index is shrunk.
          */

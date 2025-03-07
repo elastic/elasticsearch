@@ -84,9 +84,9 @@ import java.util.stream.Stream;
 public class Setting<T> implements ToXContentObject {
     private static final String DEPRECATED_MESSAGE_TEMPLATE =
         "[{}] setting was deprecated in Elasticsearch and will be removed in a future release. "
-            + "See the %s changes documentation for the next major version.";
-    private static final String DEPRECATED_WARN_MESSAGE = String.format(Locale.ROOT, DEPRECATED_MESSAGE_TEMPLATE, "deprecation");
-    private static final String DEPRECATED_CRITICAL_MESSAGE = String.format(Locale.ROOT, DEPRECATED_MESSAGE_TEMPLATE, "breaking");
+            + "See the %s documentation for the next major version.";
+    private static final String DEPRECATED_WARN_MESSAGE = Strings.format(DEPRECATED_MESSAGE_TEMPLATE, "deprecation");
+    private static final String DEPRECATED_CRITICAL_MESSAGE = Strings.format(DEPRECATED_MESSAGE_TEMPLATE, "breaking changes");
 
     public enum Property {
         /**

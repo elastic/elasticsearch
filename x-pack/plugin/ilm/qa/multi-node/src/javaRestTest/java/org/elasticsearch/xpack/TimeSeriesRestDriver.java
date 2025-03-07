@@ -97,7 +97,7 @@ public final class TimeSeriesRestDriver {
             .setWarningsHandler(warnings -> warnings.isEmpty() == false && List.of("""
                 [indices.lifecycle.rollover.only_if_has_documents] setting was deprecated in Elasticsearch \
                 and will be removed in a future release. \
-                See the deprecation changes documentation for the next major version.""").equals(warnings) == false)
+                See the deprecation documentation for the next major version.""").equals(warnings) == false)
             .build();
 
         Request explainRequest = new Request("GET", indexPattern + "/_ilm/explain");

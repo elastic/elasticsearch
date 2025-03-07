@@ -113,7 +113,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES812PostingsFormat.class));
         assertWarnings(
             "[index.bloom_filter_for_id_field.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the deprecation documentation for the next major version."
         );
     }
 

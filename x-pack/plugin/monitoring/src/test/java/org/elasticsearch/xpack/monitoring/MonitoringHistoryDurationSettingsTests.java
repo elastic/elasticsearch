@@ -22,7 +22,7 @@ public class MonitoringHistoryDurationSettingsTests extends ESTestCase {
         assertEquals(sevenDays, MonitoringField.HISTORY_DURATION.get(buildSettings(MonitoringField.HISTORY_DURATION.getKey(), null)));
         assertWarnings(
             "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -34,7 +34,7 @@ public class MonitoringHistoryDurationSettingsTests extends ESTestCase {
         );
         assertWarnings(
             "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -47,7 +47,7 @@ public class MonitoringHistoryDurationSettingsTests extends ESTestCase {
         );
         assertWarnings(
             "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the deprecation documentation for the next major version."
         );
     }
 

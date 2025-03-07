@@ -111,7 +111,7 @@ public class MonitoringServiceTests extends ESTestCase {
         monitoringService.setMonitoringActive(false);
         assertWarnings(
             "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -137,9 +137,9 @@ public class MonitoringServiceTests extends ESTestCase {
         assertThat(exporter.getExportsCount(), equalTo(1));
         assertWarnings(
             "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version.",
+                + "See the deprecation documentation for the next major version.",
             "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the deprecation documentation for the next major version."
         );
     }
 

@@ -236,7 +236,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             super.filteredWarnings().stream(),
             Stream.of(
                 "[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                    + "See the deprecation changes documentation for the next major version."
+                    + "See the deprecation documentation for the next major version."
             )
         ).collect(Collectors.toList());
     }

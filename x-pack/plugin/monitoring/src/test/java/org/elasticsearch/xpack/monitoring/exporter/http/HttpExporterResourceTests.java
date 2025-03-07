@@ -397,9 +397,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         assertWarnings(
             "[xpack.monitoring.migration.decommission_alerts] setting was deprecated in Elasticsearch and will be "
-                + "removed in a future release. See the deprecation changes documentation for the next major version.",
+                + "removed in a future release. See the deprecation documentation for the next major version.",
             "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch and "
-                + "will be removed in a future release. See the deprecation changes documentation for the next major version."
+                + "will be removed in a future release. See the deprecation documentation for the next major version."
         );
     }
 
@@ -469,7 +469,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         assertWarnings(
             "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch "
-                + "and will be removed in a future release. See the deprecation changes documentation for the next major version."
+                + "and will be removed in a future release. See the deprecation documentation for the next major version."
         );
     }
 

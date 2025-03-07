@@ -60,7 +60,7 @@ public class CleanerServiceTests extends ESTestCase {
         } finally {
             assertWarnings(
                 "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                    + "See the deprecation changes documentation for the next major version."
+                    + "See the deprecation documentation for the next major version."
             );
         }
     }
@@ -73,7 +73,7 @@ public class CleanerServiceTests extends ESTestCase {
 
         assertWarnings(
             "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                + "See the deprecation changes documentation for the next major version."
+                + "See the deprecation documentation for the next major version."
         );
     }
 

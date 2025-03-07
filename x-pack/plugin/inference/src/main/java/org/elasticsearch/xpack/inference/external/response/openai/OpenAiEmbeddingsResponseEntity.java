@@ -9,28 +9,21 @@
 
 package org.elasticsearch.xpack.inference.external.response.openai;
 
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.XContentUtils;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.consumeUntilObjectEnd;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class OpenAiEmbeddingsResponseEntity {
-    private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in OpenAI embeddings response";
-
     /**
      * Parses the OpenAI json response.
      * For a request like:
@@ -75,35 +68,41 @@ public class OpenAiEmbeddingsResponseEntity {
      * </pre>
      */
     public static TextEmbeddingFloatResults fromResponse(Request request, HttpResult response) throws IOException {
-        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
-            moveToFirstToken(jsonParser);
-
-            XContentParser.Token token = jsonParser.currentToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
-
-            positionParserAtTokenAfterField(jsonParser, "data", FAILED_TO_FIND_FIELD_TEMPLATE);
-
-            List<TextEmbeddingFloatResults.Embedding> embeddingList = parseList(
-                jsonParser,
-                OpenAiEmbeddingsResponseEntity::parseEmbeddingObject
-            );
-
-            return new TextEmbeddingFloatResults(embeddingList);
+        try (var p = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, response.body())) {
+            return EmbeddingFloatResult.PARSER.apply(p, null).toTextEmbeddingFloatResults();
         }
     }
 
-    private static TextEmbeddingFloatResults.Embedding parseEmbeddingObject(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+    public record EmbeddingFloatResult(List<EmbeddingFloatResultEntry> embeddingResults) {
+        @SuppressWarnings("unchecked")
+        public static final ConstructingObjectParser<EmbeddingFloatResult, Void> PARSER = new ConstructingObjectParser<>(
+            EmbeddingFloatResult.class.getSimpleName(),
+            true,
+            args -> new EmbeddingFloatResult((List<EmbeddingFloatResultEntry>) args[0])
+        );
 
-        positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
+        static {
+            PARSER.declareObjectArray(constructorArg(), EmbeddingFloatResultEntry.PARSER::apply, new ParseField("data"));
+        }
 
-        List<Float> embeddingValuesList = parseList(parser, XContentUtils::parseFloat);
-        // parse and discard the rest of the object
-        consumeUntilObjectEnd(parser);
+        public TextEmbeddingFloatResults toTextEmbeddingFloatResults() {
+            return new TextEmbeddingFloatResults(
+                embeddingResults.stream().map(entry -> TextEmbeddingFloatResults.Embedding.of(entry.embedding)).toList()
+            );
+        }
+    }
 
-        return TextEmbeddingFloatResults.Embedding.of(embeddingValuesList);
+    public record EmbeddingFloatResultEntry(List<Float> embedding) {
+        @SuppressWarnings("unchecked")
+        public static final ConstructingObjectParser<EmbeddingFloatResultEntry, Void> PARSER = new ConstructingObjectParser<>(
+            EmbeddingFloatResultEntry.class.getSimpleName(),
+            true,
+            args -> new EmbeddingFloatResultEntry((List<Float>) args[0])
+        );
+
+        static {
+            PARSER.declareFloatArray(constructorArg(), new ParseField("embedding"));
+        }
     }
 
     private OpenAiEmbeddingsResponseEntity() {}

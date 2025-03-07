@@ -53,6 +53,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -1511,8 +1512,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
                 newCustomMetadata
             ).build();
-            Metadata metadata = Metadata.builder(currentState.metadata()).put(updatededIndexMetadata, true).build();
-            return ClusterState.builder(currentState).metadata(metadata).build();
+            ProjectMetadata project = ProjectMetadata.builder(currentState.metadata().getProject())
+                .put(updatededIndexMetadata, true)
+                .build();
+            return ClusterState.builder(currentState).putProjectMetadata(project).build();
         }
 
         @Override

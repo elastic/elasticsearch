@@ -57,7 +57,8 @@ public class SimulateIngestService extends IngestService {
                     pipelineId,
                     entry.getValue(),
                     ingestService.getProcessorFactories(),
-                    ingestService.getScriptService()
+                    ingestService.getScriptService(),
+                    ingestService.getProjectResolver().getProjectId()
                 );
                 parsedPipelineSubstitutions.put(pipelineId, pipeline);
             }

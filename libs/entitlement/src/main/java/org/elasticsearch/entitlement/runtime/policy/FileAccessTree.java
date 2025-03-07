@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode;
@@ -115,6 +116,7 @@ public final class FileAccessTree {
         String moduleName,
         FilesEntitlement filesEntitlement,
         PathLookup pathLookup,
+        Path componentPath,
         List<ExclusivePath> exclusivePaths
     ) {
         List<String> updatedExclusivePaths = new ArrayList<>();
@@ -163,10 +165,13 @@ public final class FileAccessTree {
             });
         }
 
-        // everything has access to the temp dir, config dir and the jdk
+        // everything has access to the temp dir, config dir, to their own dir (their own jar files) and the jdk
         addPathAndMaybeLink.accept(pathLookup.tempDir(), READ_WRITE);
         // TODO: this grants read access to the config dir for all modules until explicit read entitlements can be added
         addPathAndMaybeLink.accept(pathLookup.configDir(), Mode.READ);
+        if (componentPath != null) {
+            addPathAndMaybeLink.accept(componentPath, Mode.READ);
+        }
 
         // TODO: watcher uses javax.activation which looks for known mime types configuration, should this be global or explicit in watcher?
         Path jdk = Paths.get(System.getProperty("java.home"));
@@ -203,9 +208,10 @@ public final class FileAccessTree {
         String moduleName,
         FilesEntitlement filesEntitlement,
         PathLookup pathLookup,
+        @Nullable Path componentPath,
         List<ExclusivePath> exclusivePaths
     ) {
-        return new FileAccessTree(componentName, moduleName, filesEntitlement, pathLookup, exclusivePaths);
+        return new FileAccessTree(componentName, moduleName, filesEntitlement, pathLookup, componentPath, exclusivePaths);
     }
 
     boolean canRead(Path path) {

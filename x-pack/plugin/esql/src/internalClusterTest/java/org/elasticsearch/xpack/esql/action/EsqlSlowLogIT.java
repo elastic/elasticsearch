@@ -200,9 +200,4 @@ public class EsqlSlowLogIT extends AbstractEsqlIntegTestCase {
             ).get();
         }
     }
-
-    private DiscoveryNode randomDataNode() {
-        return randomFrom(clusterService().state().nodes().getDataNodes().values());
-    }
-
 }

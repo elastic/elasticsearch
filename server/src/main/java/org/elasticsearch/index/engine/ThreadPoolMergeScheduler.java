@@ -227,24 +227,22 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
     }
 
-    private void mergeDone(MergeTask mergeTask) {
-        try {
-            synchronized (this) {
-                boolean removed = currentlyRunningMergeTasks.remove(mergeTask.onGoingMerge.getMerge()) != null;
-                assert removed : "completed merge task [" + mergeTask + "] not registered as running";
-                // when one merge is done, maybe a backlogged one can now execute
-                enqueueBackloggedTasks();
-                // signal here, because, when closing, we wait for all currently running merges to finish
-                maybeSignalAllMergesDoneAfterClose();
-            }
-        } finally {
-            doneMergeTaskCount.incrementAndGet();
-            checkMergeTaskThrottling();
-        }
+    private synchronized void mergeTaskFinishedRunning(MergeTask mergeTask) {
+        boolean removed = currentlyRunningMergeTasks.remove(mergeTask.onGoingMerge.getMerge()) != null;
+        assert removed : "completed merge task [" + mergeTask + "] not registered as running";
+        // when one merge is done, maybe a backlogged one can now execute
+        enqueueBackloggedTasks();
+        // signal here, because, when closing, we wait for all currently running merges to finish
+        maybeSignalAllMergesDoneAfterClose();
+    }
+
+    private void mergeTaskDone() {
+        doneMergeTaskCount.incrementAndGet();
+        checkMergeTaskThrottling();
     }
 
     private synchronized void maybeSignalAllMergesDoneAfterClose() {
-        if (closed && currentlyRunningMergeTasks.isEmpty() && closedWithNoCurrentlyRunningMerges.getCount() > 0) {
+        if (closed && currentlyRunningMergeTasks.isEmpty()) {
             closedWithNoCurrentlyRunningMerges.countDown();
         }
     }
@@ -390,9 +388,13 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 if (verbose()) {
                     message(String.format(Locale.ROOT, "merge task %s end", this));
                 }
-                mergeDone(this);
                 try {
-                    // kick-off next merge, if any
+                    mergeTaskFinishedRunning(this);
+                } finally {
+                    mergeTaskDone();
+                }
+                try {
+                    // kick-off any follow-up merge
                     merge(mergeSource, MergeTrigger.MERGE_FINISHED);
                 } catch (@SuppressWarnings("unused") AlreadyClosedException ace) {
                     // OK, this is what the {@code ConcurrentMergeScheduler} does
@@ -404,8 +406,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
          * Aborts the merge task, for e.g. when the {@link MergeScheduler}, or the
          * {@link ThreadPoolMergeExecutorService} are closing. Either one of {@link #run()} or {@link #abort()}
          * MUST be invoked exactly once for evey {@link MergeTask}.
-         * An aborted merge means the segments considered by the current merge will be made available for
-         * subsequent merges.
+         * An aborted merge means that the segments involved will be made available
+         * (by the {@link org.apache.lucene.index.IndexWriter}) to any subsequent merges.
          */
         void abort() {
             assert isRunning() == false;
@@ -418,6 +420,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // The segments of an aborted merge become available to subsequent merges.
             onGoingMerge.getMerge().setAborted();
             try {
+                if (verbose()) {
+                    message(String.format(Locale.ROOT, "aborted merge task %s start", this));
+                }
                 // mark the merge task as running, even though the merge itself is aborted and the task will run for a brief time only
                 if (mergeStartTimeNS.compareAndSet(0L, System.nanoTime()) == false) {
                     throw new IllegalStateException("The merge task is already started");
@@ -427,8 +432,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 // so in theory it's not enough to just call {@code MergeSource#onMergeFinished} on it (as for "pending" ones).
                 doMerge(mergeSource, onGoingMerge.getMerge());
             } finally {
-                doneMergeTaskCount.incrementAndGet();
-                checkMergeTaskThrottling();
+                if (verbose()) {
+                    message(String.format(Locale.ROOT, "aborted merge task %s end", this));
+                }
+                mergeTaskDone();
             }
         }
 

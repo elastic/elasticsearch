@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -131,6 +132,8 @@ public class TransportExplainLifecycleAction extends TransportLocalClusterStateA
                 indexResponses.put(indexResponse.getIndex(), indexResponse);
             }
         }
+        // Ensure not cancelled before building XContent.
+        ((CancellableTask) task).ensureNotCancelled();
         listener.onResponse(new ExplainLifecycleResponse(indexResponses));
     }
 

@@ -885,6 +885,11 @@ public class RBACEngine implements AuthorizationEngine {
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
+                    // urgh
+                    if (indexAbstraction.isFailureIndexOfDataStream()
+                        && predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES)) {
+                        indicesAndAliases.add(indexAbstraction.getName());
+                    }
                     if (predicate.test(indexAbstraction, IndexComponentSelector.DATA)) {
                         indicesAndAliases.add(indexAbstraction.getName());
                         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
@@ -906,6 +911,7 @@ public class RBACEngine implements AuthorizationEngine {
             timeChecker.accept(indicesAndAliases);
             return indicesAndAliases;
         }, () -> {
+            // TODO handle timeChecker
             if (includeDataStreams == false) {
                 return Collections.emptySet();
             }
@@ -924,22 +930,24 @@ public class RBACEngine implements AuthorizationEngine {
         }, (name, selectorString) -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
             final IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);
+            assert selector != null || selectorString == null : "[" + selectorString + "] is not a valid selector";
             if (indexAbstraction == null) {
                 // test access (by name) to a resource that does not currently exist
                 // the action handler must handle the case of accessing resources that do not exist
                 return predicate.test(name, selector, null);
-            } else {
-                if (indexAbstraction.isFailureIndexOfDataStream()) {
-                    // TODO explain
-                    return predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES)
-                        || predicate.test(indexAbstraction, selector);
-                }
-                // We check the parent data stream first if there is one. For testing requested indices, this is most likely
-                // more efficient than checking the index name first because we recommend grant privileges over data stream
-                // instead of backing indices.
-                return (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream(), selector))
-                    || predicate.test(indexAbstraction, selector);
             }
+            // We check the parent data stream first if there is one. For testing requested indices, this is most likely
+            // more efficient than checking the index name first because we recommend grant privileges over data stream
+            // instead of backing indices.
+            if (indexAbstraction.getParentDataStream() != null) {
+                if (predicate.test(
+                    indexAbstraction.getParentDataStream(),
+                    indexAbstraction.isFailureIndexOfDataStream() ? IndexComponentSelector.FAILURES : selector
+                )) {
+                    return true;
+                }
+            }
+            return predicate.test(indexAbstraction, selector);
         });
     }
 

@@ -293,6 +293,7 @@ public interface AuthorizationEngine {
          */
         Supplier<Set<String>> all(@Nullable String selector);
 
+        // TODO remove me
         default Supplier<Set<String>> all() {
             return all(null);
         }
@@ -301,6 +302,11 @@ public interface AuthorizationEngine {
          * Checks if an index-like resource name is authorized, for an action by a user. The resource might or might not exist.
          */
         boolean check(String name, @Nullable String selector);
+
+        // TODO remove me
+        default boolean check(String name) {
+            return check(name, null);
+        }
     }
 
     /**

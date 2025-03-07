@@ -190,7 +190,8 @@ public final class IndicesPermission {
      */
     public static class IsResourceAuthorizedPredicate {
 
-        private final BiPredicate<String, IndexAbstraction> biPredicate;
+        private final BiPredicate<String, IndexAbstraction> isAuthorizedForData;
+        private final BiPredicate<String, IndexAbstraction> isAuthorizedForFailureStore;
 
         // public for tests
         public IsResourceAuthorizedPredicate(
@@ -199,21 +200,22 @@ public final class IndicesPermission {
             StringMatcher additionalNonDatastreamNameMatcher
         ) {
             this((String name, @Nullable IndexAbstraction indexAbstraction) -> {
-                Tuple<String, String> nameWithSelector = IndexNameExpressionResolver.splitSelectorExpression(name);
-                String indexAbstractionName = nameWithSelector.v1();
-                IndexComponentSelector selector = IndexComponentSelector.getByKey(nameWithSelector.v2());
-                assert indexAbstraction == null || indexAbstractionName.equals(indexAbstraction.getName());
-                if (IndexComponentSelector.FAILURES.equals(selector)) {
-                    // TODO assert isPartOfDataStream if indexAbstraction is not null
-                    return failureStoreNameMatcher.test(indexAbstractionName);
-                }
-                return resourceNameMatcher.test(indexAbstractionName)
-                    || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(indexAbstractionName));
+                assert indexAbstraction == null || name.equals(indexAbstraction.getName());
+                return resourceNameMatcher.test(name)
+                    || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(name));
+            }, (String name, @Nullable IndexAbstraction indexAbstraction) -> {
+                assert indexAbstraction == null || name.equals(indexAbstraction.getName());
+                // we can't enforce that the abstraction is part of a data stream since we need to account for non-existent resources
+                return failureStoreNameMatcher.test(name);
             });
         }
 
-        private IsResourceAuthorizedPredicate(BiPredicate<String, IndexAbstraction> biPredicate) {
-            this.biPredicate = biPredicate;
+        private IsResourceAuthorizedPredicate(
+            BiPredicate<String, IndexAbstraction> isAuthorizedForData,
+            BiPredicate<String, IndexAbstraction> isAuthorizedForFailureStore
+        ) {
+            this.isAuthorizedForData = isAuthorizedForData;
+            this.isAuthorizedForFailureStore = isAuthorizedForFailureStore;
         }
 
         /**
@@ -222,7 +224,15 @@ public final class IndicesPermission {
         * authorization tests of that other instance and this one.
         */
         public final IsResourceAuthorizedPredicate and(IsResourceAuthorizedPredicate other) {
-            return new IsResourceAuthorizedPredicate(this.biPredicate.and(other.biPredicate));
+            return new IsResourceAuthorizedPredicate(
+                this.isAuthorizedForData.and(other.isAuthorizedForData),
+                this.isAuthorizedForFailureStore.and(other.isAuthorizedForFailureStore)
+            );
+        }
+
+        // TODO remove me
+        public boolean test(IndexAbstraction indexAbstraction) {
+            return test(indexAbstraction.getName(), null, indexAbstraction);
         }
 
         /**
@@ -230,7 +240,7 @@ public final class IndicesPermission {
          * The resource must exist. Otherwise, use the {@link #test(String, IndexComponentSelector, IndexAbstraction)} method.
          * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
          */
-        public boolean test(IndexAbstraction indexAbstraction, IndexComponentSelector selector) {
+        public boolean test(IndexAbstraction indexAbstraction, @Nullable IndexComponentSelector selector) {
             return test(indexAbstraction.getName(), selector, indexAbstraction);
         }
 
@@ -240,8 +250,10 @@ public final class IndicesPermission {
          * if it doesn't.
          * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
          */
-        public boolean test(String name, IndexComponentSelector selector, @Nullable IndexAbstraction indexAbstraction) {
-            return biPredicate.test(name, indexAbstraction);
+        public boolean test(String name, @Nullable IndexComponentSelector selector, @Nullable IndexAbstraction indexAbstraction) {
+            return IndexComponentSelector.FAILURES.equals(selector)
+                ? isAuthorizedForFailureStore.test(name, indexAbstraction)
+                : isAuthorizedForData.test(name, indexAbstraction);
         }
 
         private static boolean isPartOfDatastream(IndexAbstraction indexAbstraction) {

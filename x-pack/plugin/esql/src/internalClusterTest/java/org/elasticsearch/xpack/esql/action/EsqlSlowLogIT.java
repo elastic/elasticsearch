@@ -26,7 +26,6 @@ import org.junit.BeforeClass;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -56,14 +55,12 @@ public class EsqlSlowLogIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testSetLevel() throws Exception {
-        final String node1, node2;
+        final String node1;
         if (randomBoolean()) {
             internalCluster().ensureAtLeastNumDataNodes(2);
             node1 = randomDataNode().getName();
-            node2 = randomValueOtherThan(node1, () -> randomDataNode().getName());
         } else {
             node1 = randomDataNode().getName();
-            node2 = randomDataNode().getName();
         }
 
         int numDocs1 = randomIntBetween(1, 15);
@@ -137,13 +134,16 @@ public class EsqlSlowLogIT extends AbstractEsqlIntegTestCase {
 
                     assertThat(took, greaterThan(planningTook));
 
-                    assertThat(msg.get("elasticsearch.slowlog.source"), is(querySource));
+                    assertThat(msg.get("elasticsearch.slowlog.query"), is(querySource));
                     assertThat(appender.getLastEventAndReset().getLevel(), equalTo(logLevel.getKey()));
                 } finally {
                     latch.countDown();
                 }
             }));
-            latch.await(30, TimeUnit.SECONDS);
+
+            safeAwait(latch);
+
+            assertEquals("All requests must respond", 0, latch.getCount());
 
             client().execute(
                 ClusterUpdateSettingsAction.INSTANCE,

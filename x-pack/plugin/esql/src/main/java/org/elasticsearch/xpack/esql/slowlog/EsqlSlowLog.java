@@ -11,12 +11,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -33,9 +32,16 @@ public final class EsqlSlowLog {
 
     private static final Logger queryLogger = LogManager.getLogger(SLOWLOG_PREFIX + ".query");
 
-    private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
+    private volatile long queryWarnThreshold;
+    private volatile long queryInfoThreshold;
+    private volatile long queryDebugThreshold;
+    private volatile long queryTraceThreshold;
 
     public EsqlSlowLog(ClusterSettings settings) {
+        settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING, this::setQueryWarnThreshold);
+        settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING, this::setQueryInfoThreshold);
+        settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING, this::setQueryDebugThreshold);
+        settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING, this::setQueryTraceThreshold);
         this.clusterSettings = settings;
     }
 
@@ -44,26 +50,34 @@ public final class EsqlSlowLog {
             return; // TODO review, it happens in some tests, not sure if it's a thing also in prod
         }
         long tookInNanos = esqlResult.executionInfo().overallTook().nanos();
-        var queryWarnThreshold = clusterSettings.get(ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING).nanos();
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
             queryLogger.warn(Message.of(esqlResult, query));
-            return;
-        }
-        var queryInfoThreshold = clusterSettings.get(ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING).nanos();
-        if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
+        } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
             queryLogger.info(Message.of(esqlResult, query));
-            return;
-        }
-        var queryDebugThreshold = clusterSettings.get(ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING).nanos();
-        if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold) {
+
+        } else if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold) {
             queryLogger.debug(Message.of(esqlResult, query));
-            return;
-        }
-        var queryTraceThreshold = clusterSettings.get(ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING).nanos();
-        if (queryTraceThreshold >= 0 && tookInNanos > queryTraceThreshold) {
+
+        } else if (queryTraceThreshold >= 0 && tookInNanos > queryTraceThreshold) {
             queryLogger.trace(Message.of(esqlResult, query));
-            return;
+
         }
+    }
+
+    public void setQueryWarnThreshold(TimeValue queryWarnThreshold) {
+        this.queryWarnThreshold = queryWarnThreshold.nanos();
+    }
+
+    public void setQueryInfoThreshold(TimeValue queryInfoThreshold) {
+        this.queryInfoThreshold = queryInfoThreshold.nanos();
+    }
+
+    public void setQueryDebugThreshold(TimeValue queryDebugThreshold) {
+        this.queryDebugThreshold = queryDebugThreshold.nanos();
+    }
+
+    public void setQueryTraceThreshold(TimeValue queryTraceThreshold) {
+        this.queryTraceThreshold = queryTraceThreshold.nanos();
     }
 
     static final class Message {
@@ -81,14 +95,13 @@ public final class EsqlSlowLog {
 
         private static Map<String, Object> prepareMap(Result esqlResult, String query) {
             Map<String, Object> messageFields = new HashMap<>();
-            messageFields.put("elasticsearch.slowlog.message", esqlResult.executionInfo().clusterAliases());
             messageFields.put("elasticsearch.slowlog.took", esqlResult.executionInfo().overallTook().nanos());
             messageFields.put("elasticsearch.slowlog.took_millis", esqlResult.executionInfo().overallTook().millis());
             messageFields.put("elasticsearch.slowlog.planning.took", esqlResult.executionInfo().planningTookTime().nanos());
             messageFields.put("elasticsearch.slowlog.planning.took_millis", esqlResult.executionInfo().planningTookTime().millis());
             messageFields.put("elasticsearch.slowlog.search_type", "ESQL");
             String source = escapeJson(query);
-            messageFields.put("elasticsearch.slowlog.source", source);
+            messageFields.put("elasticsearch.slowlog.query", source);
             return messageFields;
         }
     }

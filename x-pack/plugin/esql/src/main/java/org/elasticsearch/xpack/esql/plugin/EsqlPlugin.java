@@ -113,7 +113,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
 
     public static final Setting<TimeValue> ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING = Setting.timeSetting(
         "esql.slowlog.threshold.query.warn",
-        TimeValue.timeValueNanos(-1),
+        TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(Integer.MAX_VALUE),
         Setting.Property.NodeScope,
@@ -122,7 +122,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
 
     public static final Setting<TimeValue> ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING = Setting.timeSetting(
         "esql.slowlog.threshold.query.info",
-        TimeValue.timeValueNanos(-1),
+        TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(Integer.MAX_VALUE),
         Setting.Property.NodeScope,
@@ -131,7 +131,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
 
     public static final Setting<TimeValue> ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING = Setting.timeSetting(
         "esql.slowlog.threshold.query.debug",
-        TimeValue.timeValueNanos(-1),
+        TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(Integer.MAX_VALUE),
         Setting.Property.NodeScope,
@@ -140,7 +140,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
 
     public static final Setting<TimeValue> ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING = Setting.timeSetting(
         "esql.slowlog.threshold.query.trace",
-        TimeValue.timeValueNanos(-1),
+        TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(Integer.MAX_VALUE),
         Setting.Property.NodeScope,

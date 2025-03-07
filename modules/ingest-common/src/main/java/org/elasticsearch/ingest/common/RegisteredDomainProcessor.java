@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.common;
 
 import org.apache.http.conn.util.PublicSuffixMatcher;
 import org.apache.http.conn.util.PublicSuffixMatcherLoader;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
@@ -140,7 +141,8 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String tag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field", DEFAULT_TARGET_FIELD);

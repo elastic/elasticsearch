@@ -38,7 +38,7 @@ dependencies {
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
   api "com.ibm.icu:icu4j:${versions.icu4j}"
-  api "org.apache.commons:commons-lang3:3.12.0"
+  api "org.apache.commons:commons-lang3:${versions.commons_lang3}"
 
   runtimeOnly 'com.google.guava:guava:32.0.1-jre'
   implementation 'com.google.code.gson:gson:2.10'

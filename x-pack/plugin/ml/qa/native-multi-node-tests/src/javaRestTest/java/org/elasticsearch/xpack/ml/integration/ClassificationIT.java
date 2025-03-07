@@ -248,6 +248,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsHundred() throws Exception {
+        String sanity = "check";
+
         initialize("classification_only_training_data_and_training_percent_is_100");
         String predictedClassField = KEYWORD_FIELD + "_prediction";
         indexData(sourceIndex, 300, 0, KEYWORD_FIELD);

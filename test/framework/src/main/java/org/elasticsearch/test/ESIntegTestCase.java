@@ -852,6 +852,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return builder;
     }
 
+    /**
+     * Returns a list of the data stream's backing index names.
+     */
     public List<String> getDataStreamBackingIndexNames(String dataStreamName) {
         GetDataStreamAction.Response response = safeGet(
             client().execute(

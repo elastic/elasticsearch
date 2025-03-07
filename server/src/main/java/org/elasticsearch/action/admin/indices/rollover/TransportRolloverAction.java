@@ -221,45 +221,17 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final String trialRolloverIndexName = trialRolloverNames.rolloverName();
         MetadataCreateIndexService.validateIndexName(trialRolloverIndexName, projectMetadata, projectState.routingTable());
 
-        boolean isDataStream = projectMetadata.dataStreams().containsKey(resolvedRolloverTarget.resource());
         if (rolloverRequest.isLazy()) {
-            if (isDataStream == false || rolloverRequest.getConditions().hasConditions()) {
-                String message;
-                if (isDataStream) {
-                    message = "Lazy rollover can be used only without any conditions."
-                        + " Please remove the conditions from the request body or the query parameter 'lazy'.";
-                } else if (rolloverRequest.getConditions().hasConditions() == false) {
-                    message = "Lazy rollover can be applied only on a data stream." + " Please remove the query parameter 'lazy'.";
-                } else {
-                    message = "Lazy rollover can be applied only on a data stream with no conditions."
-                        + " Please remove the query parameter 'lazy'.";
-                }
-                listener.onFailure(new IllegalArgumentException(message));
-                return;
-            }
-            if (rolloverRequest.isDryRun() == false) {
-                metadataDataStreamsService.setRolloverOnWrite(
-                    projectState.projectId(),
-                    resolvedRolloverTarget.resource(),
-                    true,
-                    targetFailureStore,
-                    rolloverRequest.ackTimeout(),
-                    rolloverRequest.masterNodeTimeout(),
-                    listener.map(
-                        response -> new RolloverResponse(
-                            trialSourceIndexName,
-                            trialRolloverIndexName,
-                            Map.of(),
-                            false,
-                            false,
-                            response.isAcknowledged(),
-                            false,
-                            response.isAcknowledged()
-                        )
-                    )
-                );
-                return;
-            }
+            markForLazyRollover(
+                rolloverRequest,
+                listener,
+                projectMetadata,
+                resolvedRolloverTarget,
+                targetFailureStore,
+                trialSourceIndexName,
+                trialRolloverIndexName
+            );
+            return;
         }
 
         final IndexAbstraction rolloverTargetAbstraction = projectMetadata.getIndicesLookup().get(resolvedRolloverTarget.resource());
@@ -353,7 +325,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     false,
                     false,
                     false,
-                    rolloverRequest.isLazy()
+                    false
                 );
 
                 // If this is a dry run, return with the results without invoking a cluster state update
@@ -379,6 +351,58 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     delegate.onResponse(trialRolloverResponse);
                 }
             })
+        );
+    }
+
+    private void markForLazyRollover(
+        RolloverRequest rolloverRequest,
+        ActionListener<RolloverResponse> listener,
+        ProjectMetadata projectMetadata,
+        ResolvedExpression resolvedRolloverTarget,
+        boolean targetFailureStore,
+        String trialSourceIndexName,
+        String trialRolloverIndexName
+    ) {
+        boolean isDataStream = projectMetadata.dataStreams().containsKey(resolvedRolloverTarget.resource());
+        if (isDataStream == false || rolloverRequest.getConditions().hasConditions()) {
+            String message;
+            if (isDataStream) {
+                message = "Lazy rollover can be used only without any conditions."
+                    + " Please remove the conditions from the request body or the query parameter 'lazy'.";
+            } else if (rolloverRequest.getConditions().hasConditions() == false) {
+                message = "Lazy rollover can be applied only on a data stream. Please remove the query parameter 'lazy'.";
+            } else {
+                message = "Lazy rollover can be applied only on a data stream with no conditions."
+                    + " Please remove the query parameter 'lazy'.";
+            }
+            listener.onFailure(new IllegalArgumentException(message));
+            return;
+        }
+        if (rolloverRequest.isDryRun()) {
+            listener.onResponse(
+                new RolloverResponse(trialSourceIndexName, trialRolloverIndexName, Map.of(), true, false, false, false, true)
+            );
+            return;
+        }
+        metadataDataStreamsService.setRolloverOnWrite(
+            projectMetadata.id(),
+            resolvedRolloverTarget.resource(),
+            true,
+            targetFailureStore,
+            rolloverRequest.ackTimeout(),
+            rolloverRequest.masterNodeTimeout(),
+            listener.map(
+                response -> new RolloverResponse(
+                    trialSourceIndexName,
+                    trialRolloverIndexName,
+                    Map.of(),
+                    false,
+                    false,
+                    response.isAcknowledged(),
+                    false,
+                    true
+                )
+            )
         );
     }
 

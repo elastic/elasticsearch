@@ -447,13 +447,11 @@ public final class IndicesPermission {
         public boolean checkIndex(Group group) {
             final DataStream ds = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
             if (ds != null) {
-                if (group.checkIndex(ds.getName())) {
-                    final IndexComponentSelector selectorToCheck = indexAbstraction.isFailureIndexOfDataStream()
-                        ? IndexComponentSelector.FAILURES
-                        : selector;
-                    if (group.checkSelector(selectorToCheck)) {
-                        return true;
-                    }
+                final IndexComponentSelector selectorToCheck = indexAbstraction.isFailureIndexOfDataStream()
+                    ? IndexComponentSelector.FAILURES
+                    : selector;
+                if (group.checkSelector(selectorToCheck) && group.checkIndex(ds.getName())) {
+                    return true;
                 }
             }
             return group.checkSelector(selector) && group.checkIndex(name);

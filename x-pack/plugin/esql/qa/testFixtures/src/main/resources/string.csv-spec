@@ -734,10 +734,11 @@ null                                                                            
 ;
 
 convertFromFloats
+required_capability: fix_precision_of_scaled_float_fields
 from employees | sort emp_no| eval double = to_string(height), float = to_string(height.float), scaled_float = to_string(height.scaled_float), half_float = to_string(height.half_float) | keep emp_no, double, float, scaled_float, half_float, height  | limit 2;
 
 emp_no:integer |double:keyword |float:keyword     |scaled_float:keyword   |half_float:keyword   |height:double
-10001          |2.03           |2.0299999713897705|2.0300000000000002     |2.029296875          |2.03
+10001          |2.03           |2.0299999713897705|2.03                   |2.029296875          |2.03
 10002          |2.08           |2.0799999237060547|2.08                   |2.080078125          |2.08
 ;
 
@@ -1065,6 +1066,25 @@ from hosts | where host == "epsilon" | eval l1=replace(host_group, "\\s+", "") |
 Gatewayinstances|Gateway instances
 Gatewayinstances|Gateway instances
 null            |null             
+;
+
+replaceWarnings
+required_capability: functions_source_serialization_warnings
+
+FROM employees
+| SORT first_name ASC
+| EVAL
+    regex = CASE(first_name == "Alejandro", "(", ""),
+    result = replace(first_name, regex, "")
+| KEEP first_name, result
+| LIMIT 1
+;
+
+warningRegex:Line 5:10: evaluation of \[replace\(first_name, regex, \\"\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 5:10: java.util.regex.PatternSyntaxException: Unclosed group near index 1(%0D)?%0A\(
+
+first_name:keyword | result:keyword
+Alejandro          | null
 ;
 
 left

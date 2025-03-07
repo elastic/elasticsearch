@@ -56,7 +56,7 @@ steps:
         timeout_in_minutes: 300
         matrix:
           setup:
-            BWC_VERSION: ["8.16.5", "8.17.3", "8.18.0", "8.19.0", "9.0.0", "9.1.0"]
+            BWC_VERSION: ["8.16.6", "8.17.4", "8.18.0", "8.19.0", "9.0.0", "9.1.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -76,7 +76,7 @@ steps:
             ES_VERSION:
               - "9.0.0"
             ES_COMMIT:
-              - "10352e57d85505984582616e1e38530d3ec6ca59" # update to match last commit before lucene bump / head of combat-lucene-10-0-0
+              - "10352e57d85505984582616e1e38530d3ec6ca59" # update to match last commit before lucene bump maintained from combat-lucene-10-0-0 branch
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004

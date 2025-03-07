@@ -1,8 +1,0 @@
-include::migration_intro.asciidoc[]
-
-* <<migrating-9.1,Migrating to 9.1>>
-* <<migrating-9.0,Migrating to 9.0>>
-
-include::migrate_9_1.asciidoc[]
-include::migrate_9_0.asciidoc[]
-

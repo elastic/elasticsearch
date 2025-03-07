@@ -1,3 +1,13 @@
+org.elasticsearch.xcore:
+  - files:
+    - relative_path: ""
+      relative_to: config
+      mode: read
+org.elasticsearch.sslconfig:
+  - files:
+    - relative_path: ""
+      relative_to: config
+      mode: read
 org.apache.httpcomponents.httpclient:
   - outbound_network # For SamlRealm
   - manage_threads

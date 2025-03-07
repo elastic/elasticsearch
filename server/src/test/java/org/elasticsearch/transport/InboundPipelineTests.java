@@ -103,7 +103,7 @@ public class InboundPipelineTests extends ESTestCase {
                     final TransportVersion version = randomFrom(TransportVersion.current(), TransportVersions.MINIMUM_COMPATIBLE);
                     final String value = randomRealisticUnicodeOfCodepointLength(randomIntBetween(200, 400));
                     final boolean isRequest = randomBoolean();
-                    Compression.Scheme compressionScheme = getCompressionScheme(version);
+                    Compression.Scheme compressionScheme = getCompressionScheme();
                     final long requestId = totalMessages++;
 
                     final MessageData messageData;
@@ -159,12 +159,11 @@ public class InboundPipelineTests extends ESTestCase {
                     final int remainingBytes = networkBytes.length() - currentOffset;
                     final int bytesToRead = Math.min(randomIntBetween(1, 32 * 1024), remainingBytes);
                     final BytesReference slice = networkBytes.slice(currentOffset, bytesToRead);
-                    try (ReleasableBytesReference reference = new ReleasableBytesReference(slice, () -> {})) {
-                        toRelease.add(reference);
-                        bytesReceived += reference.length();
-                        pipeline.handleBytes(channel, reference);
-                        currentOffset += bytesToRead;
-                    }
+                    ReleasableBytesReference reference = new ReleasableBytesReference(slice, () -> {});
+                    toRelease.add(reference);
+                    bytesReceived += reference.length();
+                    pipeline.handleBytes(channel, reference);
+                    currentOffset += bytesToRead;
                 }
 
                 final int messages = expected.size();
@@ -194,16 +193,8 @@ public class InboundPipelineTests extends ESTestCase {
         }
     }
 
-    private static Compression.Scheme getCompressionScheme(TransportVersion version) {
-        if (randomBoolean()) {
-            return null;
-        } else {
-            if (version.before(Compression.Scheme.LZ4_VERSION)) {
-                return Compression.Scheme.DEFLATE;
-            } else {
-                return randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
-            }
-        }
+    private static Compression.Scheme getCompressionScheme() {
+        return randomFrom((Compression.Scheme) null, Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
     }
 
     public void testDecodeExceptionIsPropagated() throws IOException {
@@ -275,9 +266,8 @@ public class InboundPipelineTests extends ESTestCase {
             }
 
             final BytesReference reference = message.serialize(streamOutput);
-            final int fixedHeaderSize = TcpHeader.headerSize(TransportVersion.current());
-            final int variableHeaderSize = reference.getInt(fixedHeaderSize - 4);
-            final int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
+            final int variableHeaderSize = reference.getInt(TcpHeader.HEADER_SIZE - 4);
+            final int totalHeaderSize = TcpHeader.HEADER_SIZE + variableHeaderSize;
             final AtomicBoolean bodyReleased = new AtomicBoolean(false);
             for (int i = 0; i < totalHeaderSize - 1; ++i) {
                 try (ReleasableBytesReference slice = ReleasableBytesReference.wrap(reference.slice(i, 1))) {
@@ -288,13 +278,12 @@ public class InboundPipelineTests extends ESTestCase {
             final Releasable releasable = () -> bodyReleased.set(true);
             final int from = totalHeaderSize - 1;
             final BytesReference partHeaderPartBody = reference.slice(from, reference.length() - from - 1);
-            try (ReleasableBytesReference slice = new ReleasableBytesReference(partHeaderPartBody, releasable)) {
-                pipeline.handleBytes(new FakeTcpChannel(), slice);
-            }
+            pipeline.handleBytes(new FakeTcpChannel(), new ReleasableBytesReference(partHeaderPartBody, releasable));
             assertFalse(bodyReleased.get());
-            try (ReleasableBytesReference slice = new ReleasableBytesReference(reference.slice(reference.length() - 1, 1), releasable)) {
-                pipeline.handleBytes(new FakeTcpChannel(), slice);
-            }
+            pipeline.handleBytes(
+                new FakeTcpChannel(),
+                new ReleasableBytesReference(reference.slice(reference.length() - 1, 1), releasable)
+            );
             assertTrue(bodyReleased.get());
         }
     }

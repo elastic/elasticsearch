@@ -233,6 +233,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             );
             public static final ParseField FAILURE_STORE_ENABLED = new ParseField("enabled");
             public static final ParseField MAXIMUM_TIMESTAMP = new ParseField("maximum_timestamp");
+            public static final ParseField INDEX_MODE = new ParseField("index_mode");
 
             private final DataStream dataStream;
             private final ClusterHealthStatus dataStreamStatus;
@@ -247,6 +248,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             private final boolean templatePreferIlmValue;
             @Nullable
             private final Long maximumTimestamp;
+            @Nullable
+            private final String indexMode;
 
             public DataStreamInfo(
                 DataStream dataStream,
@@ -257,7 +260,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 @Nullable TimeSeries timeSeries,
                 Map<Index, IndexProperties> indexSettingsValues,
                 boolean templatePreferIlmValue,
-                @Nullable Long maximumTimestamp
+                @Nullable Long maximumTimestamp,
+                @Nullable String indexMode
             ) {
                 this.dataStream = dataStream;
                 this.failureStoreEffectivelyEnabled = failureStoreEffectivelyEnabled;
@@ -268,6 +272,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 this.indexSettingsValues = indexSettingsValues;
                 this.templatePreferIlmValue = templatePreferIlmValue;
                 this.maximumTimestamp = maximumTimestamp;
+                this.indexMode = indexMode;
             }
 
             public DataStream getDataStream() {
@@ -310,6 +315,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return maximumTimestamp;
             }
 
+            @Nullable
+            public String getIndexModeName() {
+                return indexMode;
+            }
+
             /**
              * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
              * we no longer need to support calling this action remotely.
@@ -333,6 +343,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                     out.writeOptionalVLong(maximumTimestamp);
+                }
+                if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
+                    out.writeOptionalString(indexMode);
                 }
             }
 
@@ -384,6 +397,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (this.maximumTimestamp != null) {
                     builder.field(MAXIMUM_TIMESTAMP.getPreferredName(), this.maximumTimestamp);
                 }
+                if (this.indexMode != null) {
+                    builder.field(INDEX_MODE.getPreferredName(), indexMode);
+                }
                 addAutoShardingEvent(builder, params, dataStream.getAutoShardingEvent());
                 if (timeSeries != null) {
                     builder.startObject(TIME_SERIES.getPreferredName());
@@ -427,6 +443,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                             builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
                         }
                         builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
+                        builder.field(INDEX_MODE.getPreferredName(), indexProperties.indexMode);
                     }
                     builder.endObject();
                 }
@@ -486,7 +503,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     && Objects.equals(ilmPolicyName, that.ilmPolicyName)
                     && Objects.equals(timeSeries, that.timeSeries)
                     && Objects.equals(indexSettingsValues, that.indexSettingsValues)
-                    && Objects.equals(maximumTimestamp, that.maximumTimestamp);
+                    && Objects.equals(maximumTimestamp, that.maximumTimestamp)
+                    && Objects.equals(indexMode, that.indexMode);
             }
 
             @Override
@@ -500,7 +518,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     timeSeries,
                     indexSettingsValues,
                     templatePreferIlmValue,
-                    maximumTimestamp
+                    maximumTimestamp,
+                    indexMode
                 );
             }
         }
@@ -538,9 +557,18 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
          * Encapsulates the configured properties we want to display for each backing index.
          * They'll usually be settings values, but could also be additional properties derived from settings.
          */
-        public record IndexProperties(boolean preferIlm, @Nullable String ilmPolicyName, ManagedBy managedBy) implements Writeable {
+        public record IndexProperties(boolean preferIlm, @Nullable String ilmPolicyName, ManagedBy managedBy, @Nullable String indexMode)
+            implements
+                Writeable {
             public IndexProperties(StreamInput in) throws IOException {
-                this(in.readBoolean(), in.readOptionalString(), in.readEnum(ManagedBy.class));
+                this(
+                    in.readBoolean(),
+                    in.readOptionalString(),
+                    in.readEnum(ManagedBy.class),
+                    in.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)
+                        ? in.readOptionalString()
+                        : "unknown"
+                );
             }
 
             @Override
@@ -548,6 +576,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 out.writeBoolean(preferIlm);
                 out.writeOptionalString(ilmPolicyName);
                 out.writeEnum(managedBy);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)) {
+                    out.writeOptionalString(indexMode);
+                }
             }
         }
 

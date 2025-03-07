@@ -97,13 +97,13 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
             String ilmPolicyName = "rollover-30days";
             Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
                 firstGenerationIndex,
-                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM),
+                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM, null),
                 secondGenerationIndex,
-                new Response.IndexProperties(false, ilmPolicyName, ManagedBy.LIFECYCLE),
+                new Response.IndexProperties(false, ilmPolicyName, ManagedBy.LIFECYCLE, null),
                 writeIndex,
-                new Response.IndexProperties(false, null, ManagedBy.LIFECYCLE),
+                new Response.IndexProperties(false, null, ManagedBy.LIFECYCLE, null),
                 failureStoreIndex,
-                new Response.IndexProperties(false, null, ManagedBy.LIFECYCLE)
+                new Response.IndexProperties(false, null, ManagedBy.LIFECYCLE, null)
             );
 
             Response.DataStreamInfo dataStreamInfo = new Response.DataStreamInfo(
@@ -115,6 +115,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 null,
                 indexSettingsValues,
                 false,
+                null,
                 null
             );
             Response response = new Response(List.of(dataStreamInfo));
@@ -201,13 +202,13 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
             String ilmPolicyName = "rollover-30days";
             Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
                 firstGenerationIndex,
-                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM),
+                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM, null),
                 secondGenerationIndex,
-                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM),
+                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM, null),
                 writeIndex,
-                new Response.IndexProperties(false, null, ManagedBy.UNMANAGED),
+                new Response.IndexProperties(false, null, ManagedBy.UNMANAGED, null),
                 failureStoreIndex,
-                new Response.IndexProperties(false, null, ManagedBy.UNMANAGED)
+                new Response.IndexProperties(false, null, ManagedBy.UNMANAGED, null)
             );
 
             Response.DataStreamInfo dataStreamInfo = new Response.DataStreamInfo(
@@ -219,6 +220,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 null,
                 indexSettingsValues,
                 false,
+                null,
                 null
             );
             Response response = new Response(List.of(dataStreamInfo));
@@ -315,7 +317,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                         new Response.IndexProperties(
                             randomBoolean(),
                             randomAlphaOfLengthBetween(50, 100),
-                            randomBoolean() ? ManagedBy.ILM : ManagedBy.LIFECYCLE
+                            randomBoolean() ? ManagedBy.ILM : ManagedBy.LIFECYCLE,
+                            null
                         )
                     )
             );
@@ -334,7 +337,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
             timeSeries,
             indexSettings,
             templatePreferIlm,
-            maximumTimestamp
+            maximumTimestamp,
+            null
         );
     }
 
@@ -355,7 +359,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 new Response.IndexProperties(
                     randomBoolean(),
                     randomAlphaOfLengthBetween(50, 100),
-                    randomBoolean() ? ManagedBy.ILM : ManagedBy.LIFECYCLE
+                    randomBoolean() ? ManagedBy.ILM : ManagedBy.LIFECYCLE,
+                    randomBoolean() ? randomFrom(IndexMode.values()).getName() : null
                 )
             );
         }
@@ -373,7 +378,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
             timeSeries != null ? new Response.TimeSeries(timeSeries) : null,
             generateRandomIndexSettingsValues(),
             randomBoolean(),
-            usually() ? randomNonNegativeLong() : null
+            usually() ? randomNonNegativeLong() : null,
+            usually() ? randomFrom(IndexMode.values()).getName() : null
         );
     }
 

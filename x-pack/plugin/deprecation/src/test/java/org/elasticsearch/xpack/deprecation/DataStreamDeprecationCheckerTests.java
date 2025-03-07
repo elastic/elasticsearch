@@ -302,4 +302,52 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
 
+    public void testOldSystemDataStreamIgnored() {
+        // We do not want system data streams coming back in the deprecation info API
+        int oldIndexCount = randomIntBetween(1, 100);
+        int newIndexCount = randomIntBetween(1, 100);
+        List<Index> allIndices = new ArrayList<>();
+        Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();
+        for (int i = 0; i < oldIndexCount; i++) {
+            Settings.Builder settings = settings(IndexVersion.fromId(7170099));
+
+            String indexName = "old-data-stream-index-" + i;
+            settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
+
+            IndexMetadata oldIndexMetadata = IndexMetadata.builder(indexName)
+                .settings(settings)
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
+            allIndices.add(oldIndexMetadata.getIndex());
+            nameToIndexMetadata.put(oldIndexMetadata.getIndex().getName(), oldIndexMetadata);
+        }
+        for (int i = 0; i < newIndexCount; i++) {
+            Index newIndex = createNewIndex(i, false, nameToIndexMetadata);
+            allIndices.add(newIndex);
+        }
+        DataStream dataStream = new DataStream(
+            randomAlphaOfLength(10),
+            allIndices,
+            randomNegativeLong(),
+            Map.of(),
+            true,
+            false,
+            true,
+            randomBoolean(),
+            randomFrom(IndexMode.values()),
+            null,
+            randomFrom(DataStreamOptions.EMPTY, DataStreamOptions.FAILURE_STORE_DISABLED, DataStreamOptions.FAILURE_STORE_ENABLED, null),
+            List.of(),
+            randomBoolean(),
+            null
+        );
+        Metadata metadata = Metadata.builder()
+            .indices(nameToIndexMetadata)
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+        assertThat(checker.check(clusterState), equalTo(Map.of()));
+    }
+
 }

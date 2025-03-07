@@ -889,6 +889,8 @@ public class RBACEngine implements AuthorizationEngine {
                     if (indexAbstraction.isFailureIndexOfDataStream()
                         && predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES)) {
                         indicesAndAliases.add(indexAbstraction.getName());
+                        // we know this is failure index and it's authorized so no need to check further
+                        continue;
                     }
                     if (predicate.test(indexAbstraction, IndexComponentSelector.DATA)) {
                         indicesAndAliases.add(indexAbstraction.getName());
@@ -929,8 +931,7 @@ public class RBACEngine implements AuthorizationEngine {
             return indicesAndAliases;
         }, (name, selectorString) -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
-            final IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);
-            assert selector != null || selectorString == null : "[" + selectorString + "] is not a valid selector";
+            final IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(selectorString);
             if (indexAbstraction == null) {
                 // test access (by name) to a resource that does not currently exist
                 // the action handler must handle the case of accessing resources that do not exist
@@ -942,6 +943,7 @@ public class RBACEngine implements AuthorizationEngine {
             if (indexAbstraction.getParentDataStream() != null) {
                 if (predicate.test(
                     indexAbstraction.getParentDataStream(),
+                    // access to failure indices is authorized via failures-based selectors on the parent data stream _not_ via data ones
                     indexAbstraction.isFailureIndexOfDataStream() ? IndexComponentSelector.FAILURES : selector
                 )) {
                     return true;

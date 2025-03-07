@@ -147,7 +147,6 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 return;
             }
 
-            // TODO: test
             var context = request.getContext();
             if (Objects.nonNull(context)) {
                 threadPool.getThreadContext().putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, context.productUseCase());

@@ -64,10 +64,6 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         this.searchInferenceId = Objects.requireNonNull(searchInferenceId);
         this.sourceFields = Objects.requireNonNull(sourceFields);
         this.chunkingSettings = chunkingSettings;
-
-        if (chunkingSettings != null && chunkingSettings.size() != EXPECTED_CHUNKING_SETTINGS_SIZE) {
-            throw new IllegalArgumentException("Chunking settings did not contain expected number of entries, was: " + chunkingSettings);
-        }
     }
 
     public InferenceFieldMetadata(StreamInput input) throws IOException {

@@ -188,7 +188,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             XContentBuilder::field,
             Objects::toString
         ).acceptsNull();
-
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private Function<MapperBuilderContext, ObjectMapper> inferenceFieldBuilder;

@@ -374,3 +374,54 @@ setup:
   - match: { hits.hits.2._id: "doc_2" }
   - length: { hits.hits.2.highlight.inference_field: 1 }
   - match: { hits.hits.2.highlight.inference_field.0: "Elasticsearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+
+
+---
+"Invalid chunking settings will result in an error":
+
+  - do:
+      catch: /chunking settings can not have the following settings/
+      indices.create:
+        index: invalid-chunking-extra-stuff
+        body:
+          mappings:
+            properties:
+              keyword_field:
+                type: keyword
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                chunking_settings:
+                  strategy: word
+                  max_chunk_size: 10
+                  overlap: 1
+                  extra: stuff
+
+  - do:
+      catch: /\[chunking_settings\] does not contain the required setting \[max_chunk_size\]/
+      indices.create:
+        index: invalid-chunking-missing-required-settings
+        body:
+          mappings:
+            properties:
+              keyword_field:
+                type: keyword
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                chunking_settings:
+                  strategy: word
+
+  - do:
+      catch: /Invalid chunkingStrategy/
+      indices.create:
+        index: invalid-chunking-invalid-strategy
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                chunking_settings:
+                  strategy: invalid
+

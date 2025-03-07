@@ -64,10 +64,15 @@ public class CustomRequestManager extends BaseRequestManager {
             QueryAndDocsInputs queryAndDocsInputs = QueryAndDocsInputs.of(inferenceInputs);
             query = queryAndDocsInputs.getQuery();
             input = queryAndDocsInputs.getChunks();
-        } else {
+        } else if (inferenceInputs instanceof ChatCompletionInput chatInputs) {
+            query = null;
+            input = chatInputs.getInputs();
+        } else if (inferenceInputs instanceof DocumentsOnlyInput) {
             DocumentsOnlyInput docsInputs = DocumentsOnlyInput.of(inferenceInputs);
             query = null;
             input = docsInputs.getInputs();
+        } else {
+            throw InferenceInputs.createUnsupportedTypeException(inferenceInputs, InferenceInputs.class);
         }
         CustomRequest request = new CustomRequest(query, input, model);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));

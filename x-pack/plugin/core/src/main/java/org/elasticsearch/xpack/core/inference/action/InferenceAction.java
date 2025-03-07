@@ -245,7 +245,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return e;
             }
 
-            if (taskType.equals(TaskType.RERANK) || taskType.equals(TaskType.CUSTOM)) {
+            if (taskType.equals(TaskType.RERANK)) {
                 if (query == null) {
                     var e = new ActionRequestValidationException();
                     e.addValidationError(format("Field [query] cannot be null for task type [%s]", TaskType.RERANK));
@@ -275,6 +275,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 var e = new ActionRequestValidationException();
                 e.addValidationError(format("Field [input_type] cannot be specified for task type [%s]", taskType));
                 return e;
+            }
+
+            if (taskType.equals(TaskType.CUSTOM)) {
+                if (query == null) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError(format("Field [query] cannot be null for task type [%s]", TaskType.CUSTOM));
+                    return e;
+                }
             }
 
             return null;

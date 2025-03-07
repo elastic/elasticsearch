@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -68,7 +69,8 @@ public class TransportExplainLifecycleAction extends TransportLocalClusterStateA
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver
     ) {
         super(
             ExplainLifecycleAction.NAME,
@@ -141,7 +143,8 @@ public class TransportExplainLifecycleAction extends TransportLocalClusterStateA
         NamedXContentRegistry xContentRegistry,
         boolean rolloverOnlyIfHasDocuments
     ) throws IOException {
-        IndexMetadata indexMetadata = metadata.index(indexName);
+        final var project = metadata.getProject();
+        IndexMetadata indexMetadata = project.index(indexName);
         Settings idxSettings = indexMetadata.getSettings();
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         String policyName = indexMetadata.getLifecyclePolicyName();
@@ -184,8 +187,8 @@ public class TransportExplainLifecycleAction extends TransportLocalClusterStateA
         }
 
         final IndexLifecycleExplainResponse indexResponse;
-        if (metadata.isIndexManagedByILM(indexMetadata)) {
-            final IndexLifecycleMetadata indexLifecycleMetadata = metadata.custom(IndexLifecycleMetadata.TYPE);
+        if (project.isIndexManagedByILM(indexMetadata)) {
+            final IndexLifecycleMetadata indexLifecycleMetadata = project.custom(IndexLifecycleMetadata.TYPE);
             final boolean policyExists = indexLifecycleMetadata.getPolicies().containsKey(policyName);
             // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy
             if (onlyErrors == false || (ErrorStep.NAME.equals(lifecycleState.step()) || policyExists == false)) {

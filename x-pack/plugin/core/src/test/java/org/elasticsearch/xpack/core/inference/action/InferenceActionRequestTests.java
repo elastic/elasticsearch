@@ -102,6 +102,21 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         assertNull(e);
     }
 
+    public void testValidation_Custom() {
+        InferenceAction.Request request = new InferenceAction.Request(
+            TaskType.CUSTOM,
+            "model",
+            "query",
+            List.of("input"),
+            null,
+            null,
+            null,
+            false
+        );
+        ActionRequestValidationException e = request.validate();
+        assertNull(e);
+    }
+
     public void testValidation_TextEmbedding_Null() {
         InferenceAction.Request inputNullRequest = new InferenceAction.Request(
             TaskType.TEXT_EMBEDDING,
@@ -164,6 +179,37 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         ActionRequestValidationException queryEmptyError = queryEmptyRequest.validate();
         assertNotNull(queryEmptyError);
         assertThat(queryEmptyError.getMessage(), is("Validation Failed: 1: Field [query] cannot be empty for task type [rerank];"));
+    }
+
+    public void testValidation_Custom_Null() {
+        InferenceAction.Request queryNullRequest = new InferenceAction.Request(
+            TaskType.CUSTOM,
+            "model",
+            null,
+            List.of("input"),
+            null,
+            null,
+            null,
+            false
+        );
+        ActionRequestValidationException queryNullError = queryNullRequest.validate();
+        assertNotNull(queryNullError);
+        assertThat(queryNullError.getMessage(), is("Validation Failed: 1: Field [query] cannot be null for task type [custom];"));
+    }
+
+    public void testValidation_Custom_Empty() {
+        InferenceAction.Request queryNullRequest = new InferenceAction.Request(
+            TaskType.CUSTOM,
+            "model",
+            "",
+            List.of("input"),
+            null,
+            null,
+            null,
+            false
+        );
+        ActionRequestValidationException e = queryNullRequest.validate();
+        assertNull(e);
     }
 
     public void testParseRequest_DefaultsInputTypeToIngest() throws IOException {

@@ -186,7 +186,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return e;
             }
 
-            if (taskType.equals(TaskType.RERANK) || taskType.equals(TaskType.CUSTOM)) {
+            if (taskType.equals(TaskType.RERANK)) {
                 if (query == null) {
                     var e = new ActionRequestValidationException();
                     e.addValidationError(format("Field [query] cannot be null for task type [%s]", TaskType.RERANK));
@@ -195,6 +195,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 if (query.isEmpty()) {
                     var e = new ActionRequestValidationException();
                     e.addValidationError(format("Field [query] cannot be empty for task type [%s]", TaskType.RERANK));
+                    return e;
+                }
+            }
+
+            if (taskType.equals(TaskType.CUSTOM)) {
+                if (query == null) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError(format("Field [query] cannot be null for task type [%s]", TaskType.CUSTOM));
                     return e;
                 }
             }

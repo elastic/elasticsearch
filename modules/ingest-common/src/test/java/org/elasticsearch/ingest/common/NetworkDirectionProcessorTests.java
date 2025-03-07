@@ -139,7 +139,8 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
             null,
             processorTag,
             null,
-            config
+            config,
+            null
         );
         IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
@@ -158,7 +159,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
         config.put("internal_networks", networks);
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> new NetworkDirectionProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config)
+            () -> new NetworkDirectionProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config, null)
         );
         assertThat(
             e.getMessage(),
@@ -184,7 +185,8 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
             null,
             processorTag,
             null,
-            config
+            config,
+            null
         );
 
         IngestDocument input = TestIngestDocument.withDefaultVersion(source);

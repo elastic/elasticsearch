@@ -35,7 +35,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -152,9 +153,10 @@ public class ModelRegistry implements ClusterStateListener {
         var executor = new SimpleBatchedAckListenerTaskExecutor<MetadataTask>() {
             @Override
             public Tuple<ClusterState, ClusterStateAckListener> executeTask(MetadataTask task, ClusterState clusterState) throws Exception {
-                var updated = task.executeTask(ModelRegistryMetadata.fromState(clusterState));
-                var metadata = Metadata.builder(clusterState.getMetadata()).putCustom(ModelRegistryMetadata.TYPE, updated).build();
-                return new Tuple<>(ClusterState.builder(clusterState).metadata(metadata).build(), task);
+                var projectMetadata = clusterState.metadata().getProject(task.getProjectId());
+                var updated = task.executeTask(ModelRegistryMetadata.fromState(projectMetadata));
+                var newProjectMetadata = ProjectMetadata.builder(projectMetadata).putCustom(ModelRegistryMetadata.TYPE, updated);
+                return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(newProjectMetadata).build(), task);
             }
         };
         this.metadataTaskQueue = clusterService.createTaskQueue("model_registry", Priority.NORMAL, executor);
@@ -224,7 +226,7 @@ public class ModelRegistry implements ClusterStateListener {
         if (config != null) {
             return config.settings();
         }
-        var state = ModelRegistryMetadata.fromState(clusterService.state());
+        var state = ModelRegistryMetadata.fromState(clusterService.state().projectState().metadata());
         var existing = state.getMinimalServiceSettings(inferenceEntityId);
         if (state.isUpgraded() && existing == null) {
             throw new ResourceNotFoundException(inferenceEntityId + " does not exist in this cluster.");
@@ -243,7 +245,7 @@ public class ModelRegistry implements ClusterStateListener {
                 result.add(entry.getValue().settings().toModelConfigurations(entry.getKey()));
             }
         }
-        var state = ModelRegistryMetadata.fromState(clusterService.state());
+        var state = ModelRegistryMetadata.fromState(clusterService.state().projectState().metadata());
         for (var entry : state.getModelMap().entrySet()) {
             if (duplicates.add(entry.getKey()) && taskType.isAnyOrSame(entry.getValue().taskType())) {
                 result.add(entry.getValue().toModelConfigurations(entry.getKey()));
@@ -687,6 +689,7 @@ public class ModelRegistry implements ClusterStateListener {
                 metadataTaskQueue.submitTask(
                     "add model [" + inferenceEntityId + "]",
                     new AddModelMetadataTask(
+                        clusterService.state().projectState().projectId(),
                         inferenceEntityId,
                         new MinimalServiceSettings(model),
                         getStoreMetadataListener(inferenceEntityId, listener)
@@ -832,7 +835,11 @@ public class ModelRegistry implements ClusterStateListener {
                 };
                 metadataTaskQueue.submitTask(
                     "delete models [" + inferenceEntityIds + "]",
-                    new DeleteModelMetadataTask(inferenceEntityIds, clusterStateListener),
+                    new DeleteModelMetadataTask(
+                        clusterService.state().projectState().projectId(),
+                        inferenceEntityIds,
+                        clusterStateListener
+                    ),
                     null
                 );
             }
@@ -911,7 +918,7 @@ public class ModelRegistry implements ClusterStateListener {
             return;
         }
 
-        var state = ModelRegistryMetadata.fromState(event.state());
+        var state = ModelRegistryMetadata.fromState(event.state().projectState().metadata());
         if (state.isUpgraded()) {
             return;
         }
@@ -941,7 +948,11 @@ public class ModelRegistry implements ClusterStateListener {
                     }
                     metadataTaskQueue.submitTask(
                         "model registry auto upgrade",
-                        new UpgradeModelsMetadataTask(map, ActionListener.running(() -> upgradeMetadataInProgress.set(false))),
+                        new UpgradeModelsMetadataTask(
+                            clusterService.state().metadata().getProject().id(),
+                            map,
+                            ActionListener.running(() -> upgradeMetadataInProgress.set(false))
+                        ),
                         null
                     );
                 }
@@ -955,18 +966,29 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     private abstract static class MetadataTask extends AckedBatchedClusterStateUpdateTask {
-        MetadataTask(ActionListener<AcknowledgedResponse> listener) {
+        private final ProjectId projectId;
+
+        MetadataTask(ProjectId projectId, ActionListener<AcknowledgedResponse> listener) {
             super(TimeValue.THIRTY_SECONDS, listener);
+            this.projectId = projectId;
         }
 
         abstract ModelRegistryMetadata executeTask(ModelRegistryMetadata current);
+
+        public ProjectId getProjectId() {
+            return projectId;
+        }
     }
 
     private static class UpgradeModelsMetadataTask extends MetadataTask {
         private final Map<String, MinimalServiceSettings> fromIndex;
 
-        UpgradeModelsMetadataTask(Map<String, MinimalServiceSettings> fromIndex, ActionListener<AcknowledgedResponse> listener) {
-            super(listener);
+        UpgradeModelsMetadataTask(
+            ProjectId projectId,
+            Map<String, MinimalServiceSettings> fromIndex,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(projectId, listener);
             this.fromIndex = fromIndex;
         }
 
@@ -980,8 +1002,13 @@ public class ModelRegistry implements ClusterStateListener {
         private final String inferenceEntityId;
         private final MinimalServiceSettings settings;
 
-        AddModelMetadataTask(String inferenceEntityId, MinimalServiceSettings settings, ActionListener<AcknowledgedResponse> listener) {
-            super(listener);
+        AddModelMetadataTask(
+            ProjectId projectId,
+            String inferenceEntityId,
+            MinimalServiceSettings settings,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            super(projectId, listener);
             this.inferenceEntityId = inferenceEntityId;
             this.settings = settings;
         }
@@ -995,8 +1022,8 @@ public class ModelRegistry implements ClusterStateListener {
     private static class DeleteModelMetadataTask extends MetadataTask {
         private final Set<String> inferenceEntityIds;
 
-        DeleteModelMetadataTask(Set<String> inferenceEntityId, ActionListener<AcknowledgedResponse> listener) {
-            super(listener);
+        DeleteModelMetadataTask(ProjectId projectId, Set<String> inferenceEntityId, ActionListener<AcknowledgedResponse> listener) {
+            super(projectId, listener);
             this.inferenceEntityIds = inferenceEntityId;
         }
 

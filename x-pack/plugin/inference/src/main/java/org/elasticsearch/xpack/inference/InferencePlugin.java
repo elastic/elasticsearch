@@ -373,7 +373,7 @@ public class InferencePlugin extends Plugin
         entries.add(new NamedWriteableRegistry.Entry(RankBuilder.class, TextSimilarityRankBuilder.NAME, TextSimilarityRankBuilder::new));
         entries.add(new NamedWriteableRegistry.Entry(RankBuilder.class, RandomRankBuilder.NAME, RandomRankBuilder::new));
         entries.add(new NamedWriteableRegistry.Entry(RankDoc.class, TextSimilarityRankDoc.NAME, TextSimilarityRankDoc::new));
-        entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new));
+        entries.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new));
         entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom));
         return entries;
     }
@@ -383,7 +383,7 @@ public class InferencePlugin extends Plugin
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.add(
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(ModelRegistryMetadata.TYPE),
                 ModelRegistryMetadata::fromXContent
             )

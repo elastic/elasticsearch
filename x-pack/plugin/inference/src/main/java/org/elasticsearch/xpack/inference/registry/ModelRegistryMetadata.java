@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.inference.registry;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Iterators;
@@ -46,7 +46,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * Deleted models are retained as tombstones until the {@link ModelRegistry} upgrades from the existing inference index.
  * After the upgrade, all active models are registered.
  */
-public class ModelRegistryMetadata implements Metadata.Custom {
+public class ModelRegistryMetadata implements Metadata.ProjectCustom {
     public static final String TYPE = "model_registry";
 
     public static final ModelRegistryMetadata EMPTY = new ModelRegistryMetadata(ImmutableOpenMap.of(), Set.of());
@@ -83,8 +83,8 @@ public class ModelRegistryMetadata implements Metadata.Custom {
         PARSER.declareStringArray(optionalConstructorArg(), TOMBSTONES_FIELD);
     }
 
-    public static ModelRegistryMetadata fromState(ClusterState state) {
-        ModelRegistryMetadata resp = state.metadata().custom(TYPE);
+    public static ModelRegistryMetadata fromState(ProjectMetadata projectMetadata) {
+        ModelRegistryMetadata resp = projectMetadata.custom(TYPE);
         return resp != null ? resp : EMPTY;
     }
 
@@ -208,11 +208,11 @@ public class ModelRegistryMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
         return new ModelRegistryMetadataDiff((ModelRegistryMetadata) before, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new ModelRegistryMetadataDiff(in);
     }
 
@@ -263,7 +263,7 @@ public class ModelRegistryMetadata implements Metadata.Custom {
         return tombstones;
     }
 
-    static class ModelRegistryMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static class ModelRegistryMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         private static final DiffableUtils.DiffableValueReader<String, MinimalServiceSettings> SETTINGS_DIFF_READER =
             new DiffableUtils.DiffableValueReader<>(MinimalServiceSettings::new, MinimalServiceSettings::readDiffFrom);
@@ -304,7 +304,7 @@ public class ModelRegistryMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             var metadata = (ModelRegistryMetadata) part;
             if (isUpgraded) {
                 return new ModelRegistryMetadata(settingsDiff.apply(metadata.modelMap));

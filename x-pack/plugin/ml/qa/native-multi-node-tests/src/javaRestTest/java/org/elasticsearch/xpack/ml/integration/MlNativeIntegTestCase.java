@@ -418,7 +418,9 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 new NamedWriteableRegistry.Entry(AutoscalingDeciderResult.Reason.class, MlScalingReason.NAME, MlScalingReason::new)
             );
 
-            entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new));
+            entries.add(
+                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new)
+            );
             entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom));
 
             doEnsureClusterStateConsistency(new NamedWriteableRegistry(entries));

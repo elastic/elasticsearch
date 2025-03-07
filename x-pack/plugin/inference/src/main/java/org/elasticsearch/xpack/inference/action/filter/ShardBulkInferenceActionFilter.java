@@ -25,6 +25,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -49,6 +50,7 @@ import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.inference.InferenceException;
@@ -91,6 +93,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     public static Setting<ByteSizeValue> INDICES_INFERENCE_BATCH_SIZE = Setting.byteSizeSetting(
         "indices.inference.batch_size",
         DEFAULT_BATCH_SIZE,
+        ByteSizeValue.ONE,
+        ByteSizeValue.ofBytes(100),
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );
@@ -252,17 +256,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             Map<String, List<FieldInferenceRequest>> fieldRequestsMap = new HashMap<>();
             long totalInputLength = 0;
             int itemIndex = itemOffset;
-            for (; itemIndex < bulkShardRequest.items().length; itemIndex++) {
+            while (itemIndex < items.length && totalInputLength < batchSizeInBytes) {
                 var item = items[itemIndex];
                 totalInputLength += addFieldInferenceRequests(item, itemIndex, fieldRequestsMap);
-                if (totalInputLength >= batchSizeInBytes) {
-                    break;
-                }
+                itemIndex += 1;
             }
-            int nextItemIndex = itemIndex + 1;
+            int nextItemOffset = itemIndex;
             Runnable onInferenceCompletion = () -> {
                 try {
-                    int limit = Math.min(nextItemIndex, items.length);
+                    int limit = Math.min(nextItemOffset, items.length);
                     for (int i = itemOffset; i < limit; i++) {
                         var result = inferenceResults.get(i);
                         if (result == null) {
@@ -278,7 +280,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         inferenceResults.set(i, null);
                     }
                 } finally {
-                    executeNext(nextItemIndex);
+                    executeNext(nextItemOffset);
                 }
             };
 
@@ -613,41 +615,42 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
                 indexRequest.source(newDocMap, indexRequest.getContentType());
             } else {
-                /**
-                 * Merges the original source with the new inference metadata field and writes the result
-                 * directly to an {@link XContentBuilder}, avoiding the need to materialize the original source as a {@link Map}.
-                 */
                 try (XContentBuilder builder = XContentBuilder.builder(indexRequest.getContentType().xContent())) {
-                    builder.startObject();
-
-                    // append the original source
-                    try (
-                        XContentParser parser = XContentHelper.createParserNotCompressed(
-                            XContentParserConfiguration.EMPTY,
-                            indexRequest.source(),
-                            indexRequest.getContentType()
-                        )
-                    ) {
-                        // skip start object
-                        parser.nextToken();
-                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                            builder.copyCurrentStructure(parser);
-                        }
-                    }
-
-                    // add the inference metadata field
-                    builder.field(InferenceMetadataFieldsMapper.NAME);
-                    try (
-                        XContentParser parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, inferenceFieldsMap)
-                    ) {
-                        builder.copyCurrentStructure(parser);
-                    }
-
-                    builder.endObject();
+                    appendSourceAndInferenceMetadata(builder, indexRequest.source(), indexRequest.getContentType(), inferenceFieldsMap);
                     indexRequest.source(builder);
                 }
             }
         }
+    }
+
+    /**
+     * Appends the original source and the new inference metadata field directly to the provided
+     * {@link XContentBuilder}, avoiding the need to materialize the original source as a {@link Map}.
+     */
+    private static void appendSourceAndInferenceMetadata(
+        XContentBuilder builder,
+        BytesReference source,
+        XContentType xContentType,
+        Map<String, Object> inferenceFieldsMap
+    ) throws IOException {
+        builder.startObject();
+
+        // append the original source
+        try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, xContentType)) {
+            // skip start object
+            parser.nextToken();
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                builder.copyCurrentStructure(parser);
+            }
+        }
+
+        // add the inference metadata field
+        builder.field(InferenceMetadataFieldsMapper.NAME);
+        try (XContentParser parser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, inferenceFieldsMap)) {
+            builder.copyCurrentStructure(parser);
+        }
+
+        builder.endObject();
     }
 
     static IndexRequest getIndexRequestOrNull(DocWriteRequest<?> docWriteRequest) {

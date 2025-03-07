@@ -175,6 +175,8 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Embe
 
         @Override
         public Embedding merge(Embedding embedding) {
+            // This code assumes that the tokens are sorted by weight in descending order.
+            // If that's not the case, the resulting merged embedding will be incorrect.
             List<WeightedToken> mergedTokens = new ArrayList<>();
             Set<String> seenTokens = new HashSet<>();
             int i = 0;

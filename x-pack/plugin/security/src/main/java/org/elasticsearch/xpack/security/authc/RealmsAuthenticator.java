@@ -358,11 +358,11 @@ public class RealmsAuthenticator implements Authenticator {
             }, e -> {
                 logger.debug(
                     () -> format(
-                        "An error occurred while looking up run-as user [{}] for authenticated user [{}]",
+                        "An error occurred while looking up run-as user [%s] for authenticated user [%s]",
                         runAsUsername,
-                        authentication.getAuthenticatingSubject().getUser().principal(),
-                        e
-                    )
+                        authentication.getAuthenticatingSubject().getUser().principal()
+                    ),
+                    e
                 );
                 listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken()));
             }));

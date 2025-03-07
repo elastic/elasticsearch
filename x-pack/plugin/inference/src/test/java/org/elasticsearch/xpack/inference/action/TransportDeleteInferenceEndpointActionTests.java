@@ -24,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -42,7 +43,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        modelRegistry = new ModelRegistry(mock(Client.class));
+        modelRegistry = new ModelRegistry(mock(ClusterService.class), mock(Client.class));
         threadPool = createThreadPool(inferenceUtilityPool());
         action = new TransportDeleteInferenceEndpointAction(
             mock(TransportService.class),
@@ -62,7 +63,11 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
 
     public void testFailsToDelete_ADefaultEndpoint() {
         modelRegistry.addDefaultIds(
-            new InferenceService.DefaultConfigId("model-id", MinimalServiceSettings.chatCompletion(), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId(
+                "model-id",
+                MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME),
+                mock(InferenceService.class)
+            )
         );
 
         var listener = new PlainActionFuture<DeleteInferenceEndpointAction.Response>();

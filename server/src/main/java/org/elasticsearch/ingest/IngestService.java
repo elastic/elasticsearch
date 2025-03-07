@@ -372,6 +372,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return scriptService;
     }
 
+    public ProjectResolver getProjectResolver() {
+        return projectResolver;
+    }
+
     /**
      * Deletes the pipeline specified by id in the request.
      */
@@ -522,7 +526,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
 
         nodeInfoListener.accept(listener.delegateFailureAndWrap((l, nodeInfos) -> {
-            validatePipelineRequest(request, nodeInfos);
+            validatePipelineRequest(projectId, request, nodeInfos);
 
             taskQueue.submitTask(
                 "put-pipeline-" + request.getId(),
@@ -532,14 +536,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }));
     }
 
-    public void validatePipelineRequest(PutPipelineRequest request, NodesInfoResponse nodeInfos) throws Exception {
+    public void validatePipelineRequest(ProjectId projectId, PutPipelineRequest request, NodesInfoResponse nodeInfos) throws Exception {
         final Map<String, Object> config = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
         Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
         for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
             ingestInfos.put(nodeInfo.getNode(), nodeInfo.getInfo(IngestInfo.class));
         }
 
-        validatePipeline(ingestInfos, request.getId(), config);
+        validatePipeline(ingestInfos, projectId, request.getId(), config);
     }
 
     public static boolean isNoOpPipelineUpdate(ProjectMetadata metadata, PutPipelineRequest request) {
@@ -729,8 +733,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     @UpdateForV10(owner = DATA_MANAGEMENT) // Change deprecation log for special characters in name to a failure
-    void validatePipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, String pipelineId, Map<String, Object> pipelineConfig)
-        throws Exception {
+    void validatePipeline(
+        Map<DiscoveryNode, IngestInfo> ingestInfos,
+        ProjectId projectId,
+        String pipelineId,
+        Map<String, Object> pipelineConfig
+    ) throws Exception {
         if (ingestInfos.isEmpty()) {
             throw new IllegalStateException("Ingest info is empty");
         }
@@ -746,7 +754,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             deprecationLogger.critical(DeprecationCategory.API, "pipeline_name_special_chars", e.getMessage());
         }
 
-        Pipeline pipeline = Pipeline.create(pipelineId, pipelineConfig, processorFactories, scriptService);
+        Pipeline pipeline = Pipeline.create(pipelineId, pipelineConfig, processorFactories, scriptService, projectId);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
 
@@ -1394,7 +1402,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     newConfiguration.getId(),
                     newConfiguration.getConfig(false),
                     processorFactories,
-                    scriptService
+                    scriptService,
+                    projectId
                 );
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
 
@@ -1523,7 +1532,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public synchronized void reloadPipeline(ProjectId projectId, String id) throws Exception {
         var originalPipelines = this.pipelines.getOrDefault(projectId, ImmutableOpenMap.of());
         PipelineHolder holder = originalPipelines.get(id);
-        Pipeline updatedPipeline = Pipeline.create(id, holder.configuration.getConfig(false), processorFactories, scriptService);
+        Pipeline updatedPipeline = Pipeline.create(id, holder.configuration.getConfig(false), processorFactories, scriptService, projectId);
         ImmutableOpenMap<String, PipelineHolder> updatedPipelines = ImmutableOpenMap.builder(originalPipelines)
             .fPut(id, new PipelineHolder(holder.configuration, updatedPipeline))
             .build();

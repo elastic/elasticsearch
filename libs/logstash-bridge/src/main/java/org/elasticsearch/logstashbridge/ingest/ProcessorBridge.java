@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.logstashbridge.ingest;
 
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
@@ -118,7 +119,7 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
         @Override
         default Processor.Factory unwrap() {
             final Factory stableAPIFactory = this;
-            return (registry, tag, description, config) -> stableAPIFactory.create(
+            return (registry, tag, description, config, projectId) -> stableAPIFactory.create(
                 StableBridgeAPI.wrap(registry, Factory::wrap),
                 tag,
                 description,
@@ -131,6 +132,7 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
                 super(delegate);
             }
 
+            @FixForMultiProject(description = "should we pass a non-null project ID here?")
             @Override
             public ProcessorBridge create(
                 final Map<String, Factory> registry,
@@ -138,7 +140,9 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
                 final String description,
                 final Map<String, Object> config
             ) throws Exception {
-                return ProcessorBridge.wrap(this.delegate.create(StableBridgeAPI.unwrap(registry), processorTag, description, config));
+                return ProcessorBridge.wrap(
+                    this.delegate.create(StableBridgeAPI.unwrap(registry), processorTag, description, config, null)
+                );
             }
 
             @Override

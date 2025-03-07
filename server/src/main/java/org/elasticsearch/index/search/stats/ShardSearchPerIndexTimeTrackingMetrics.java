@@ -61,8 +61,8 @@ public final class ShardSearchPerIndexTimeTrackingMetrics implements SearchOpera
                 double[] values = normalize(getIndexTrackingTimeList());
                 logger.info("Listener : Normalized task execution time for indexes [{}]",
                     Arrays.stream(values).mapToObj(Double::toString).collect(Collectors.joining(", ")));
-            };
-        }
+            }
+        };
         scheduler.scheduleAtFixedRate(task, 2, 5, TimeUnit.SECONDS);
     }
 

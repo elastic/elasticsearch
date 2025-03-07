@@ -25,7 +25,6 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENCE_ID;
 
-// TODO: test
 abstract class BaseInferenceAction extends BaseRestHandler {
     static Params parseParams(RestRequest restRequest) {
         if (restRequest.hasParam(INFERENCE_ID)) {

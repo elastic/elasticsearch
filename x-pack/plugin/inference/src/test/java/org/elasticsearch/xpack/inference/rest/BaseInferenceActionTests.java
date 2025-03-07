@@ -168,8 +168,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
         Map<String, List<String>> headers = new HashMap<>();
         headers.put(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of(productUseCase));
 
-        RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
+        RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath(route("test"))
             .withHeaders(headers)
             .withContent(new BytesArray("{}"), XContentType.JSON)
@@ -195,8 +194,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
         }));
 
         // Create a request without the product use case header
-        RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
+        RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath(route("test"))
             .withContent(new BytesArray("{}"), XContentType.JSON)
             .build();
@@ -224,8 +222,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
         Map<String, List<String>> headers = new HashMap<>();
         headers.put(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of(""));
 
-        RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
+        RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath(route("test"))
             .withHeaders(headers)
             .withContent(new BytesArray("{}"), XContentType.JSON)

@@ -93,7 +93,7 @@ public class InstrumenterImpl implements Instrumenter {
 
     class EntitlementClassVisitor extends ClassVisitor {
 
-        private static final String ENTITLEMENT_ANNOTATION = Type.getDescriptor(EntitlementInstrumented.class);
+        private static final String ENTITLEMENT_ANNOTATION_DESCRIPTOR = Type.getDescriptor(EntitlementInstrumented.class);
 
         private final String className;
 
@@ -112,7 +112,7 @@ public class InstrumenterImpl implements Instrumenter {
 
         @Override
         public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-            if (visible && descriptor.equals(ENTITLEMENT_ANNOTATION)) {
+            if (visible && descriptor.equals(ENTITLEMENT_ANNOTATION_DESCRIPTOR)) {
                 isAnnotationPresent = true;
                 annotationNeeded = false;
             }
@@ -178,7 +178,7 @@ public class InstrumenterImpl implements Instrumenter {
         private void addClassAnnotationIfNeeded() {
             if (annotationNeeded) {
                 // logger.debug("Adding {} annotation", ENTITLEMENT_ANNOTATION);
-                AnnotationVisitor av = cv.visitAnnotation(ENTITLEMENT_ANNOTATION, true);
+                AnnotationVisitor av = cv.visitAnnotation(ENTITLEMENT_ANNOTATION_DESCRIPTOR, true);
                 if (av != null) {
                     av.visitEnd();
                 }

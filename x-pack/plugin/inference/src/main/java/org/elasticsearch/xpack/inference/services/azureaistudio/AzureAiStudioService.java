@@ -114,6 +114,7 @@ public class AzureAiStudioService extends SenderService {
         Model model,
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
@@ -124,7 +125,7 @@ public class AzureAiStudioService extends SenderService {
             List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
                 inputs.getInputs(),
                 EMBEDDING_MAX_BATCH_SIZE,
-                baseAzureAiStudioModel.getConfigurations().getChunkingSettings()
+                chunkingSettings != null ? chunkingSettings : baseAzureAiStudioModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {

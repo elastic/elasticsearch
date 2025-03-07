@@ -323,6 +323,7 @@ public class OpenAiService extends SenderService {
         Model model,
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
@@ -338,7 +339,7 @@ public class OpenAiService extends SenderService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            openAiModel.getConfigurations().getChunkingSettings()
+            chunkingSettings != null ? chunkingSettings : openAiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {

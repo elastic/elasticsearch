@@ -270,6 +270,7 @@ public class AzureOpenAiService extends SenderService {
         Model model,
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
@@ -284,7 +285,7 @@ public class AzureOpenAiService extends SenderService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            azureOpenAiModel.getConfigurations().getChunkingSettings()
+            chunkingSettings != null ? chunkingSettings : azureOpenAiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {

@@ -925,6 +925,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             null,
             List.of("a", "bb"),
             Map.of(),
+            chunkingSettings,
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener
@@ -997,6 +998,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             null,
             List.of("a", "bb"),
             Map.of(),
+            chunkingSettings,
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener
@@ -1069,6 +1071,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             null,
             List.of("a", "bb"),
             Map.of(),
+            chunkingSettings,
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener
@@ -1177,6 +1180,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             null,
             List.of("foo", "bar", "baz"),
             Map.of(),
+            null,
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener
@@ -1249,6 +1253,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             null,
             List.of(input),
             Map.of(),
+            null,
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener

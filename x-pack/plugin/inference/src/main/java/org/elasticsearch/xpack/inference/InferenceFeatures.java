@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankR
 
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG;
 import static org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_FILTER_FIX;
 import static org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
 import static org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor.SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
@@ -49,7 +50,8 @@ public class InferenceFeatures implements FeatureSpecification {
             SemanticInferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_ENABLED_BY_DEFAULT,
             SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT,
             SEMANTIC_KNN_FILTER_FIX,
-            TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE
+            TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE,
+            SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG
         );
     }
 }

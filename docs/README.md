@@ -17,7 +17,7 @@ Docs live in **three places**:
 
 1. **Reference content** lives in this repo. This covers low-level stuff like settings and configuration information that is tightly coupled to code.
 - 👩🏽‍💻 **Engineers** own the bulk of this content.
-2.  **API reference docs** live in the [Elasticsearch specification](https://github.com/elastic/elasticsearch-specification)
+2.  **API reference docs** live in the [Elasticsearch specification](https://github.com/elastic/elasticsearch-specification/blob/main/README.md#how-to-generate-the-openapi-representation)
     - This is where you need to update API docs published in the [new API docs system](https://www.elastic.co/docs/api/doc/elasticsearch/v8/)
 - 👩🏽‍💻 **Engineers** own this content.
 3. **Narrative, overview, and conceptual content** mostly lives in the [`docs-content`](https://github.com/elastic/docs-content/) repo. 
@@ -49,14 +49,14 @@ To re-run CI checks, an Elastic employee can select the `Re-run this job` option
 
 > [!TIP]
 As of 9.0.0, we are currently only publishing from the `main` branch.
-**This means that backporting is currently not necessary for 9.0+ Elasticsearch docs.**
+We will continue to backport changes as usual, in case we need to revisit this approach in the future.
 
-However, if you need to update the `8.x` docs, you'll have to use the old `asciidoc` system. Refer to the [`8.x` README](https://github.com/elastic/elasticsearch/blob/8.x/docs/README.asciidoc) for more information.
+If you need to update the `8.x` docs, you'll have to use the old `asciidoc` system. Refer to the [`8.x` README](https://github.com/elastic/elasticsearch/blob/8.x/docs/README.asciidoc) for more information.
 
 > [!NOTE]
 > If you need to make changes to 9.x docs and 8.x docs, you'll need to use two different workflows:
 
-- **For `9.x` docs**, create a PR using the new Markdown system against the `main` branch.
+- **For `9.x` docs**, create a PR using the new Markdown system against the `main` branch and backport as necessary.
 - **For `8.x` docs**, create a PR using the old AsciiDoc system against the `8.x` branch and backport the changes to any other `8.x` branches needed.
 
 ## Test code snippets

@@ -518,10 +518,11 @@ public interface EntitlementChecker {
         Class<?>[] classes
     );
 
-    void check$sun_net_www_protocol_https_AbstractDelegateHttpsURLConnection$connect(
-        Class<?> callerClass,
-        javax.net.ssl.HttpsURLConnection that
-    );
+    void check$sun_net_www_protocol_https_AbstractDelegateHttpsURLConnection$connect(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_mailto_MailToURLConnection$connect(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_mailto_MailToURLConnection$getOutputStream(Class<?> callerClass, java.net.URLConnection that);
 
     // Network miscellanea
 
@@ -1213,6 +1214,26 @@ public interface EntitlementChecker {
         WatchEvent.Kind<?>[] events,
         WatchEvent.Modifier... modifiers
     );
+
+    // URLConnection
+
+    void check$sun_net_www_protocol_file_FileURLConnection$connect(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getHeaderFields(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, String name);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, int n);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getContentLengthLong(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getHeaderFieldKey(Class<?> callerClass, java.net.URLConnection that, int n);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getLastModified(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_file_FileURLConnection$getInputStream(Class<?> callerClass, java.net.URLConnection that);
 
     ////////////////////
     //

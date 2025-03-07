@@ -38,8 +38,6 @@ import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.BWCLucene50PostingsFor
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene54.Lucene54DocValuesFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60MetadataOnlyPointsFormat;
 
-import java.util.Objects;
-
 /**
  * Implements the Lucene 6.2 index format.
  *
@@ -70,13 +68,13 @@ public class Lucene62Codec extends BWCCodec {
         }
     };
 
+    /**
+     * Instantiates a new codec. Called by SPI.
+     */
+    @SuppressWarnings("unused")
     public Lucene62Codec() {
-        this(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
-    }
-
-    public Lucene62Codec(Lucene50StoredFieldsFormat.Mode mode) {
         super("Lucene62");
-        this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Objects.requireNonNull(mode));
+        this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
     }
 
     @Override

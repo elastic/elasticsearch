@@ -131,7 +131,7 @@ public class EsqlParser {
     private static final BaseErrorListener ERROR_LISTENER = new BaseErrorListener() {
         // replace entries that start with <comma?><space?>DEV_<space?>
         private final Pattern REPLACE_DEV = Pattern.compile(",*\\s*DEV_\\w+\\s*");
-        private final String BEFORE_REGEX = "([\\s,]*)", AFTER_REGEX = "([\\s,]|$)";
+        private final String BEFORE_REGEX = "(^|[\\s,])", AFTER_REGEX = "([\\s,]|$)";
         private final String BEFORE_REPLACEMENT = "$1'", AFTER_REPLACEMENT = "'$2";
         private final Pattern REPLACE_LP = Pattern.compile(BEFORE_REGEX + "LP" + AFTER_REGEX);
         private final Pattern REPLACE_LEFT_BRACKET = Pattern.compile(BEFORE_REGEX + "OPENING_BRACKET" + AFTER_REGEX);

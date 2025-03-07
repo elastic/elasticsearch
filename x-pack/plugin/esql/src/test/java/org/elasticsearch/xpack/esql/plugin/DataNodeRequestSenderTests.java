@@ -42,6 +42,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -87,7 +88,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     }
 
     @After
-    public void shutdownThreadPool() throws Exception {
+    public void shutdownThreadPool() {
         terminate(threadPool);
     }
 
@@ -111,8 +112,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
         var future = sendRequests(targetShards, randomBoolean(), (node, shardIds, aliasFilters, listener) -> {
             sent.add(new NodeRequest(node, shardIds, aliasFilters));
-            var resp = new DataNodeComputeResponse(List.of(), Map.of());
-            runWithDelay(() -> listener.onResponse(resp));
+            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
         });
         safeGet(future);
         assertThat(sent.size(), equalTo(2));
@@ -243,6 +243,34 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(resp.totalShards, equalTo(3));
         assertThat(resp.failedShards, equalTo(2));
         assertThat(resp.successfulShards, equalTo(1));
+    }
+
+    public void testNonFatalErrorIsRetriedOnAnotherShard() {
+        var targetShards = List.of(targetShard(shard1, node1, node2));
+        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        var response = safeGet(sendRequests(targetShards, false, (node, shardIds, aliasFilters, listener) -> {
+            sent.add(new NodeRequest(node, shardIds, aliasFilters));
+            if (Objects.equals(node1, node)) {
+                runWithDelay(() -> listener.onFailure(new RuntimeException("test request level non fatal failure"), false));
+            } else {
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
+            }
+        }));
+        assertThat(response.totalShards, equalTo(1));
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(response.failedShards, equalTo(0));
+        assertThat(sent.size(), equalTo(2));
+    }
+
+    public void testNonFatalFailedOnAllNodes() {
+        var targetShards = List.of(targetShard(shard1, node1, node2));
+        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        var future = sendRequests(targetShards, false, (node, shardIds, aliasFilters, listener) -> {
+            sent.add(new NodeRequest(node, shardIds, aliasFilters));
+            runWithDelay(() -> listener.onFailure(new RuntimeException("test request level non fatal failure"), false));
+        });
+        expectThrows(RuntimeException.class, equalTo("test request level non fatal failure"), future::actionGet);
+        assertThat(sent.size(), equalTo(2));
     }
 
     public void testDoNotRetryCircuitBreakerException() {

@@ -147,7 +147,7 @@ public class ProfileParser {
         builder.field("cpu_nanos", readIntOrLong(driver, "cpu_nanos"));
         builder.field("took_nanos", readIntOrLong(driver, "took_nanos"));
         builder.field("iterations", readIntOrLong(driver, "iterations"));
-        // TODO: Sleeps have more details
+        // TODO: Sleeps have more details that could be added here
         int sleeps = ((Map<?, ?>) driver.get("sleeps")).size();
         builder.field("sleeps", sleeps);
         builder.field("operators");

@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
@@ -171,25 +172,35 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     }
 
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingByte(Model model, List<String> inputs) {
-        List<TextEmbeddingByteResults.Chunk> chunks = new ArrayList<>();
+        List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
             byte[] values = new byte[model.getServiceSettings().dimensions()];
             for (int j = 0; j < values.length; j++) {
                 values[j] = randomByte();
             }
-            chunks.add(new TextEmbeddingByteResults.Chunk(values, new ChunkedInference.TextOffset(0, input.length())));
+            chunks.add(
+                new EmbeddingResults.Chunk(
+                    new TextEmbeddingByteResults.Embedding(values),
+                    new ChunkedInference.TextOffset(0, input.length())
+                )
+            );
         }
         return new ChunkedInferenceEmbedding(chunks);
     }
 
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingFloat(Model model, List<String> inputs) {
-        List<TextEmbeddingFloatResults.Chunk> chunks = new ArrayList<>();
+        List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
             float[] values = new float[model.getServiceSettings().dimensions()];
             for (int j = 0; j < values.length; j++) {
                 values[j] = randomFloat();
             }
-            chunks.add(new TextEmbeddingFloatResults.Chunk(values, new ChunkedInference.TextOffset(0, input.length())));
+            chunks.add(
+                new EmbeddingResults.Chunk(
+                    new TextEmbeddingFloatResults.Embedding(values),
+                    new ChunkedInference.TextOffset(0, input.length())
+                )
+            );
         }
         return new ChunkedInferenceEmbedding(chunks);
     }
@@ -199,13 +210,18 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     }
 
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingSparse(List<String> inputs, boolean withFloats) {
-        List<SparseEmbeddingResults.Chunk> chunks = new ArrayList<>();
+        List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
             var tokens = new ArrayList<WeightedToken>();
             for (var token : input.split("\\s+")) {
                 tokens.add(new WeightedToken(token, withFloats ? randomFloat() : randomIntBetween(1, 255)));
             }
-            chunks.add(new SparseEmbeddingResults.Chunk(tokens, new ChunkedInference.TextOffset(0, input.length())));
+            chunks.add(
+                new EmbeddingResults.Chunk(
+                    new SparseEmbeddingResults.Embedding(tokens, false),
+                    new ChunkedInference.TextOffset(0, input.length())
+                )
+            );
         }
         return new ChunkedInferenceEmbedding(chunks);
     }
@@ -297,7 +313,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     ) {
         switch (field.inference().modelSettings().taskType()) {
             case SPARSE_EMBEDDING -> {
-                List<SparseEmbeddingResults.Chunk> chunks = new ArrayList<>();
+                List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
                 for (var entry : field.inference().chunks().entrySet()) {
                     String entryField = entry.getKey();
                     List<SemanticTextField.Chunk> entryChunks = entry.getValue();
@@ -308,13 +324,13 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                         String matchedText = matchedTextIt.next();
                         ChunkedInference.TextOffset offset = createOffset(useLegacyFormat, chunk, matchedText);
                         var tokens = parseWeightedTokens(chunk.rawEmbeddings(), field.contentType());
-                        chunks.add(new SparseEmbeddingResults.Chunk(tokens, offset));
+                        chunks.add(new EmbeddingResults.Chunk(new SparseEmbeddingResults.Embedding(tokens, false), offset));
                     }
                 }
                 return new ChunkedInferenceEmbedding(chunks);
             }
             case TEXT_EMBEDDING -> {
-                List<TextEmbeddingFloatResults.Chunk> chunks = new ArrayList<>();
+                List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
                 for (var entry : field.inference().chunks().entrySet()) {
                     String entryField = entry.getKey();
                     List<SemanticTextField.Chunk> entryChunks = entry.getValue();
@@ -329,7 +345,12 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                             field.inference().modelSettings().dimensions(),
                             field.contentType()
                         );
-                        chunks.add(new TextEmbeddingFloatResults.Chunk(FloatConversionUtils.floatArrayOf(values), offset));
+                        chunks.add(
+                            new EmbeddingResults.Chunk(
+                                new TextEmbeddingFloatResults.Embedding(FloatConversionUtils.floatArrayOf(values)),
+                                offset
+                            )
+                        );
                     }
                 }
                 return new ChunkedInferenceEmbedding(chunks);

@@ -8,25 +8,16 @@
  */
 package org.elasticsearch.datastreams.action;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.ManagedBy;
-import org.elasticsearch.action.support.local.LocalClusterStateHelper;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,10 +25,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.IOException;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -46,30 +33,7 @@ import static org.elasticsearch.cluster.metadata.DataStream.getDefaultFailureSto
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase<GetDataStreamsResponseTests.ResponseWrapper> {
-
-    @Override
-    protected Writeable.Reader<ResponseWrapper> instanceReader() {
-        return ResponseWrapper::new;
-    }
-
-    @Override
-    protected ResponseWrapper createTestInstance() {
-        int numDataStreams = randomIntBetween(0, 8);
-        List<Response.DataStreamInfo> dataStreams = new ArrayList<>();
-        for (int i = 0; i < numDataStreams; i++) {
-            dataStreams.add(generateRandomDataStreamInfo());
-        }
-        return new ResponseWrapper(new Response(dataStreams));
-    }
-
-    @Override
-    protected ResponseWrapper mutateInstance(ResponseWrapper instance) {
-        if (instance.response().getDataStreams().isEmpty()) {
-            return new ResponseWrapper(new Response(List.of(generateRandomDataStreamInfo())));
-        }
-        return new ResponseWrapper(new Response(instance.response().getDataStreams().stream().map(this::mutateInstance).toList()));
-    }
+public class GetDataStreamsResponseTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testResponseIlmAndDataStreamLifecycleRepresentation() throws Exception {
@@ -288,149 +252,5 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
         assertThat(ManagedBy.ILM.displayValue, is("Index Lifecycle Management"));
         assertThat(ManagedBy.LIFECYCLE.displayValue, is("Data stream lifecycle"));
         assertThat(ManagedBy.UNMANAGED.displayValue, is("Unmanaged"));
-    }
-
-    private Response.DataStreamInfo mutateInstance(Response.DataStreamInfo instance) {
-        var dataStream = instance.getDataStream();
-        var failureStoreEffectivelyEnabled = instance.isFailureStoreEffectivelyEnabled();
-        var status = instance.getDataStreamStatus();
-        var indexTemplate = instance.getIndexTemplate();
-        var ilmPolicyName = instance.getIlmPolicy();
-        var timeSeries = instance.getTimeSeries();
-        var indexSettings = instance.getIndexSettingsValues();
-        var templatePreferIlm = instance.templatePreferIlmValue();
-        var maximumTimestamp = instance.getMaximumTimestamp();
-        switch (randomIntBetween(0, 8)) {
-            case 0 -> dataStream = randomValueOtherThan(dataStream, DataStreamTestHelper::randomInstance);
-            case 1 -> status = randomValueOtherThan(status, () -> randomFrom(ClusterHealthStatus.values()));
-            case 2 -> indexTemplate = randomBoolean() && indexTemplate != null ? null : randomAlphaOfLengthBetween(2, 10);
-            case 3 -> ilmPolicyName = randomBoolean() && ilmPolicyName != null ? null : randomAlphaOfLengthBetween(2, 10);
-            case 4 -> timeSeries = randomBoolean() && timeSeries != null
-                ? null
-                : randomValueOtherThan(timeSeries, () -> new Response.TimeSeries(generateRandomTimeSeries()));
-            case 5 -> indexSettings = randomValueOtherThan(
-                indexSettings,
-                () -> randomBoolean()
-                    ? Map.of()
-                    : Map.of(
-                        new Index(randomAlphaOfLengthBetween(50, 100), UUIDs.base64UUID()),
-                        new Response.IndexProperties(
-                            randomBoolean(),
-                            randomAlphaOfLengthBetween(50, 100),
-                            randomBoolean() ? ManagedBy.ILM : ManagedBy.LIFECYCLE,
-                            null
-                        )
-                    )
-            );
-            case 6 -> templatePreferIlm = templatePreferIlm ? false : true;
-            case 7 -> maximumTimestamp = (maximumTimestamp == null)
-                ? randomNonNegativeLong()
-                : (usually() ? randomValueOtherThan(maximumTimestamp, ESTestCase::randomNonNegativeLong) : null);
-            case 8 -> failureStoreEffectivelyEnabled = failureStoreEffectivelyEnabled ? false : true;
-        }
-        return new Response.DataStreamInfo(
-            dataStream,
-            failureStoreEffectivelyEnabled,
-            status,
-            indexTemplate,
-            ilmPolicyName,
-            timeSeries,
-            indexSettings,
-            templatePreferIlm,
-            maximumTimestamp,
-            null
-        );
-    }
-
-    private List<Tuple<Instant, Instant>> generateRandomTimeSeries() {
-        List<Tuple<Instant, Instant>> timeSeries = new ArrayList<>();
-        int numTimeSeries = randomIntBetween(0, 3);
-        for (int j = 0; j < numTimeSeries; j++) {
-            timeSeries.add(new Tuple<>(Instant.now(), Instant.now()));
-        }
-        return timeSeries;
-    }
-
-    private Map<Index, Response.IndexProperties> generateRandomIndexSettingsValues() {
-        Map<Index, Response.IndexProperties> values = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(0, 3); i++) {
-            values.put(
-                new Index(randomAlphaOfLengthBetween(50, 100), UUIDs.base64UUID()),
-                new Response.IndexProperties(
-                    randomBoolean(),
-                    randomAlphaOfLengthBetween(50, 100),
-                    randomBoolean() ? ManagedBy.ILM : ManagedBy.LIFECYCLE,
-                    randomBoolean() ? randomFrom(IndexMode.values()).getName() : null
-                )
-            );
-        }
-        return values;
-    }
-
-    private Response.DataStreamInfo generateRandomDataStreamInfo() {
-        List<Tuple<Instant, Instant>> timeSeries = randomBoolean() ? generateRandomTimeSeries() : null;
-        return new Response.DataStreamInfo(
-            DataStreamTestHelper.randomInstance(),
-            randomBoolean(),
-            ClusterHealthStatus.GREEN,
-            randomAlphaOfLengthBetween(2, 10),
-            randomAlphaOfLengthBetween(2, 10),
-            timeSeries != null ? new Response.TimeSeries(timeSeries) : null,
-            generateRandomIndexSettingsValues(),
-            randomBoolean(),
-            usually() ? randomNonNegativeLong() : null,
-            usually() ? randomFrom(IndexMode.values()).getName() : null
-        );
-    }
-
-    /**
-     * We need to wrap the repsonse class because the response itself doesn't need to be able to deserialize from the wire because
-     * a new node will never forward the request to a different node. Therefore, we moved the deserialization here to still be able to test
-     * the serialization.
-     */
-    public static class ResponseWrapper extends LocalClusterStateHelper.ResponseSerializationWrapper<Response> {
-
-        public ResponseWrapper(Response response) {
-            super(response);
-        }
-
-        public ResponseWrapper(StreamInput in) throws IOException {
-            super(
-                new Response(
-                    in.readCollectionAsList(ResponseWrapper::readDataStreamInfo),
-                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
-                        ? in.readOptionalWriteable(RolloverConfiguration::new)
-                        : null,
-                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
-                        ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
-                        : null
-                )
-            );
-        }
-
-        private static Response.DataStreamInfo readDataStreamInfo(StreamInput in) throws IOException {
-            final var dataStream = DataStream.read(in);
-            return new Response.DataStreamInfo(
-                dataStream,
-                in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)
-                    ? in.readBoolean()
-                    : dataStream.isFailureStoreExplicitlyEnabled(), // Revert to the behaviour before this field was added
-                ClusterHealthStatus.readFrom(in),
-                in.readOptionalString(),
-                in.readOptionalString(),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)
-                    ? in.readOptionalWriteable(ResponseWrapper::readTimeSeries)
-                    : null,
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)
-                    ? in.readMap(Index::new, Response.IndexProperties::new)
-                    : Map.of(),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X) ? in.readBoolean() : true,
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalVLong() : null
-            );
-        }
-
-        private static Response.TimeSeries readTimeSeries(StreamInput in) throws IOException {
-            return new Response.TimeSeries(in.readCollectionAsList(in1 -> new Tuple<>(in1.readInstant(), in1.readInstant())));
-        }
     }
 }

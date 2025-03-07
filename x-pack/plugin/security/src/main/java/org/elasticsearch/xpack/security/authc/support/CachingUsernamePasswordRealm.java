@@ -36,7 +36,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     private final UserAuthenticationCache cache;
     private final ThreadPool threadPool;
     private final boolean authenticationEnabled;
-    protected final Hasher credentialHasher;
+    protected final Hasher cacheHasher;
 
     protected CachingUsernamePasswordRealm(RealmConfig config, ThreadPool threadPool) {
         this(config, threadPool, buildDefaultCache(config));
@@ -44,7 +44,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     protected CachingUsernamePasswordRealm(RealmConfig config, ThreadPool threadPool, UserAuthenticationCache cache) {
         super(config);
-        credentialHasher = Hasher.resolve(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING));
+        cacheHasher = Hasher.resolve(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING));
         this.threadPool = threadPool;
         this.authenticationEnabled = config.getSetting(CachingUsernamePasswordRealmSettings.AUTHC_ENABLED_SETTING);
         this.cache = cache;
@@ -255,9 +255,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                     // notify any forestalled request listeners; they will not reach to the
                     // authentication request and instead will use this result if they contain
                     // the same credentials
-                    listenableCacheEntry.onResponse(
-                        new CachedResult(authResult, credentialHasher, authResult.getValue(), token.credentials())
-                    );
+                    listenableCacheEntry.onResponse(new CachedResult(authResult, cacheHasher, authResult.getValue(), token.credentials()));
                     listener.onResponse(authResult);
                 }, e -> {
                     cache.invalidate(token.principal(), listenableCacheEntry);
@@ -322,7 +320,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             if (false == lookupInCache.get()) {
                 // attempt lookup against the user directory
                 doLookupUser(username, ActionListener.wrap(user -> {
-                    final CachedResult result = new CachedResult(AuthenticationResult.notHandled(), credentialHasher, user, null);
+                    final CachedResult result = new CachedResult(AuthenticationResult.notHandled(), cacheHasher, user, null);
                     if (user == null) {
                         // user not found, invalidate cache so that subsequent requests are forwarded to
                         // the user directory

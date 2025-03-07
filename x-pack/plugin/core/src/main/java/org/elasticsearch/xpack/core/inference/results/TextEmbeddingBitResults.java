@@ -42,7 +42,7 @@ import java.util.Objects;
  */
 public record TextEmbeddingBitResults(List<TextEmbeddingByteResults.Embedding> embeddings)
     implements
-        TextEmbeddingResults<TextEmbeddingByteResults.Chunk, TextEmbeddingByteResults.Embedding> {
+        TextEmbeddingResults<TextEmbeddingByteResults.Embedding> {
     public static final String NAME = "text_embedding_service_bit_results";
     public static final String TEXT_EMBEDDING_BITS = "text_embedding_bits";
 

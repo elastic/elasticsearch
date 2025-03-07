@@ -37,9 +37,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
-public record SparseEmbeddingResults(List<Embedding> embeddings)
-    implements
-        EmbeddingResults<SparseEmbeddingResults.Chunk, SparseEmbeddingResults.Embedding> {
+public record SparseEmbeddingResults(List<Embedding> embeddings) implements EmbeddingResults<SparseEmbeddingResults.Embedding> {
 
     public static final String NAME = "sparse_embedding_results";
     public static final String SPARSE_EMBEDDING = TaskType.SPARSE_EMBEDDING.toString();
@@ -126,7 +124,7 @@ public record SparseEmbeddingResults(List<Embedding> embeddings)
         implements
             Writeable,
             ToXContentObject,
-            EmbeddingResults.Embedding<Chunk, Embedding> {
+            EmbeddingResults.Embedding<Embedding> {
 
         public static final String EMBEDDING = "embedding";
         public static final String IS_TRUNCATED = "is_truncated";

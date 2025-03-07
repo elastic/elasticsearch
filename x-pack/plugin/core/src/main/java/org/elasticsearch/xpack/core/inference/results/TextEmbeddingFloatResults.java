@@ -53,9 +53,7 @@ import java.util.stream.Collectors;
  *     ]
  * }
  */
-public record TextEmbeddingFloatResults(List<Embedding> embeddings)
-    implements
-        TextEmbeddingResults<TextEmbeddingFloatResults.Chunk, TextEmbeddingFloatResults.Embedding> {
+public record TextEmbeddingFloatResults(List<Embedding> embeddings) implements TextEmbeddingResults<TextEmbeddingFloatResults.Embedding> {
     public static final String NAME = "text_embedding_service_results";
     public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
 
@@ -161,7 +159,7 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings)
         implements
             Writeable,
             ToXContentObject,
-            EmbeddingResults.Embedding<Chunk, Embedding> {
+            EmbeddingResults.Embedding<Embedding> {
         public static final String EMBEDDING = "embedding";
 
         public Embedding(float[] values) {

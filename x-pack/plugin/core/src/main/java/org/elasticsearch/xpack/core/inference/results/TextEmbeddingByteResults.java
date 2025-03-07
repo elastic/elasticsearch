@@ -48,9 +48,7 @@ import java.util.Objects;
  *     ]
  * }
  */
-public record TextEmbeddingByteResults(List<Embedding> embeddings)
-    implements
-        TextEmbeddingResults<TextEmbeddingByteResults.Chunk, TextEmbeddingByteResults.Embedding> {
+public record TextEmbeddingByteResults(List<Embedding> embeddings) implements TextEmbeddingResults<TextEmbeddingByteResults.Embedding> {
     public static final String NAME = "text_embedding_service_byte_results";
     public static final String TEXT_EMBEDDING_BYTES = "text_embedding_bytes";
 
@@ -124,7 +122,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings)
         implements
             Writeable,
             ToXContentObject,
-            EmbeddingResults.Embedding<Chunk, Embedding> {
+            EmbeddingResults.Embedding<Embedding> {
 
         public static final String EMBEDDING = "embedding";
 

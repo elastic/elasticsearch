@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * processing and map the results back to the original element
  * in the input list.
  */
-public class EmbeddingRequestChunker<C extends EmbeddingResults.Chunk, E extends EmbeddingResults.Embedding<C, E>> {
+public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
     // Visible for testing
     record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, List<String> inputs) {
@@ -150,12 +150,12 @@ public class EmbeddingRequestChunker<C extends EmbeddingResults.Chunk, E extends
 
         @Override
         public void onResponse(InferenceServiceResults inferenceServiceResults) {
-            if (inferenceServiceResults instanceof EmbeddingResults<?, ?> == false) {
+            if (inferenceServiceResults instanceof EmbeddingResults<?> == false) {
                 onFailure(unexpectedResultTypeException(inferenceServiceResults.getWriteableName()));
                 return;
             }
             @SuppressWarnings("unchecked")
-            EmbeddingResults<C, E> embeddingResults = (EmbeddingResults<C, E>) inferenceServiceResults;
+            EmbeddingResults<E> embeddingResults = (EmbeddingResults<E>) inferenceServiceResults;
             if (embeddingResults.embeddings().size() != request.requests.size()) {
                 onFailure(numResultsDoesntMatchException(embeddingResults.embeddings().size(), request.requests.size()));
                 return;

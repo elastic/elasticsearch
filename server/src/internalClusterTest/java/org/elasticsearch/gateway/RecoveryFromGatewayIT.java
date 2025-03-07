@@ -141,7 +141,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
         final Map<String, long[]> result = new HashMap<>();
         final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        for (IndexMetadata indexMetadata : state.metadata().indices().values()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject().indices().values()) {
             final String index = indexMetadata.getIndex().getName();
             final long[] previous = previousTerms.get(index);
             final long[] current = IntStream.range(0, indexMetadata.getNumberOfShards()).mapToLong(indexMetadata::primaryTerm).toArray();
@@ -407,7 +407,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        indicesAdmin().prepareAliases().addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value")).get();
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value"))
+            .get();
 
         logger.info("--> stopping the second node");
         internalCluster().stopRandomDataNode();
@@ -432,9 +434,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
 
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        assertThat(state.metadata().templates().get("template_1").patterns(), equalTo(Collections.singletonList("te*")));
-        assertThat(state.metadata().index("test").getAliases().get("test_alias"), notNullValue());
-        assertThat(state.metadata().index("test").getAliases().get("test_alias").filter(), notNullValue());
+        assertThat(state.metadata().getProject().templates().get("template_1").patterns(), equalTo(Collections.singletonList("te*")));
+        assertThat(state.metadata().getProject().index("test").getAliases().get("test_alias"), notNullValue());
+        assertThat(state.metadata().getProject().index("test").getAliases().get("test_alias").filter(), notNullValue());
     }
 
     public void testReuseInFileBasedPeerRecovery() throws Exception {

@@ -40,6 +40,8 @@ import java.util.jar.JarOutputStream;
 import java.util.regex.Pattern;
 
 import static java.util.Map.entry;
+import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
+import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
 
 @CacheableTransform
 public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatcher.Parameters> {
@@ -128,7 +130,7 @@ public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatch
                     byte[] classToPatch = jarFile.getInputStream(entry).readAllBytes();
 
                     ClassReader classReader = new ClassReader(classToPatch);
-                    ClassWriter classWriter = new ClassWriter(classReader, 0);
+                    ClassWriter classWriter = new ClassWriter(classReader, COMPUTE_FRAMES | COMPUTE_MAXS);
                     classReader.accept(classPatcher.apply(classWriter), 0);
 
                     jos.write(classWriter.toByteArray());

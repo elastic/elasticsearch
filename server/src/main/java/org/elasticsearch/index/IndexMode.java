@@ -11,8 +11,8 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -90,7 +91,7 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+        public MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c) {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
@@ -187,8 +188,8 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper() {
-            return TimeSeriesIdFieldMapper.INSTANCE;
+        public MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c) {
+            return TimeSeriesIdFieldMapper.getInstance(c);
         }
 
         @Override
@@ -277,7 +278,7 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+        public MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c) {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
@@ -348,7 +349,7 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+        public MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c) {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
@@ -518,7 +519,7 @@ public enum IndexMode {
      * the _tsid field. The field mapper will be added to the list of the metadata
      * field mappers for the index.
      */
-    public abstract MetadataFieldMapper timeSeriesIdFieldMapper();
+    public abstract MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c);
 
     /**
      * Return an instance of the {@link TimeSeriesRoutingHashFieldMapper} that generates
@@ -586,7 +587,7 @@ public enum IndexMode {
             case STANDARD -> 0;
             case TIME_SERIES -> 1;
             case LOGSDB -> 2;
-            case LOOKUP -> out.getTransportVersion().onOrAfter(TransportVersions.INDEX_MODE_LOOKUP) ? 3 : 0;
+            case LOOKUP -> out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0) ? 3 : 0;
         };
         out.writeByte((byte) code);
     }
@@ -606,7 +607,7 @@ public enum IndexMode {
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
-            Metadata metadata,
+            ProjectMetadata projectMetadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
             List<CompressedXContent> combinedTemplateMappings

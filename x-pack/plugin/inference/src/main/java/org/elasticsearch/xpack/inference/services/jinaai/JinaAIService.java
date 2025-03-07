@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModel;
@@ -267,7 +268,6 @@ public class JinaAIService extends SenderService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(model.getServiceSettings().elementType()),
             jinaaiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -282,7 +282,7 @@ public class JinaAIService extends SenderService {
         if (model instanceof JinaAIEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
+            var similarityToUse = similarityFromModel == null ? defaultSimilarity(serviceSettings.getEmbeddingType()) : similarityFromModel;
             var maxInputTokens = serviceSettings.maxInputTokens();
 
             var updatedServiceSettings = new JinaAIEmbeddingsServiceSettings(
@@ -293,7 +293,8 @@ public class JinaAIService extends SenderService {
                 ),
                 similarityToUse,
                 embeddingSize,
-                maxInputTokens
+                maxInputTokens,
+                serviceSettings.getEmbeddingType()
             );
 
             return new JinaAIEmbeddingsModel(embeddingsModel, updatedServiceSettings);
@@ -310,7 +311,10 @@ public class JinaAIService extends SenderService {
      *
      * @return The default similarity.
      */
-    static SimilarityMeasure defaultSimilarity() {
+    static SimilarityMeasure defaultSimilarity(JinaAIEmbeddingType embeddingType) {
+        if (embeddingType == JinaAIEmbeddingType.BINARY || embeddingType == JinaAIEmbeddingType.BIT) {
+            return SimilarityMeasure.L2_NORM;
+        }
         return SimilarityMeasure.DOT_PRODUCT;
     }
 

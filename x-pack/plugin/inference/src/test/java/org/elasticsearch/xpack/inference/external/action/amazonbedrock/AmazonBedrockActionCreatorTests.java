@@ -15,7 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockMockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
@@ -52,8 +52,8 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
 
     public void testEmbeddingsRequestAction() throws IOException {
         var serviceComponents = ServiceComponentsTests.createWithEmptySettings(threadPool);
-        var mockedFloatResults = List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.0123F, -0.0123F }));
-        var mockedResult = new InferenceTextEmbeddingFloatResults(mockedFloatResults);
+        var mockedFloatResults = List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F }));
+        var mockedResult = new TextEmbeddingFloatResults(mockedFloatResults);
         try (var sender = new AmazonBedrockMockRequestSender()) {
             sender.enqueue(mockedResult);
             var creator = new AmazonBedrockActionCreator(sender, serviceComponents, TIMEOUT);

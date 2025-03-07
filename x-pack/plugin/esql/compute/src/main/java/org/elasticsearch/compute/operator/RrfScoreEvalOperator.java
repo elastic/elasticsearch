@@ -12,7 +12,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasables;
 
 import java.util.HashMap;
 

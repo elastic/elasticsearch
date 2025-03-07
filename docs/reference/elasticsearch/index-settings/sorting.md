@@ -152,10 +152,9 @@ GET /events/_search
   "track_total_hits": false
 }
 ```
-%  TEST[continued]
 
 1. The index sort will be used to rank the top documents and each segment will early terminate the collection after the first 10 matches.
-
+%  TEST[continued]
 
 This time, Elasticsearch will not try to count the number of documents and will be able to terminate the query as soon as N documents have been collected per segment.
 
@@ -170,11 +169,10 @@ This time, Elasticsearch will not try to count the number of documents and will 
   "timed_out": false
 }
 ```
-%  TESTRESPONSE[s/"_shards": .../"_shards": "$body._shards",/]
-%  TESTRESPONSE[s/"took": 20,/"took": "$body.took",/]
 
 1. The total number of hits matching the query is unknown because of early termination.
-
+%  TESTRESPONSE[s/"_shards": .../"_shards": "$body._shards",/]
+%  TESTRESPONSE[s/"took": 20,/"took": "$body.took",/]
 
 ::::{note}
 Aggregations will collect all documents that match the query regardless of the value of `track_total_hits`

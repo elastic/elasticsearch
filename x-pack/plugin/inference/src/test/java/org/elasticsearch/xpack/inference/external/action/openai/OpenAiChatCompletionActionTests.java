@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiUnifiedChatCompletionRequest;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.After;
 import org.junit.Before;

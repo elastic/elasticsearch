@@ -325,7 +325,7 @@ public abstract class FullTextFunction extends Function implements TranslationAw
                 failures.add(
                     fail(
                         condition,
-                        "Invalid condition [{}]. [{}] {} can’t be used with {}",
+                        "Invalid condition [{}]. [{}] {} can't be used with {}",
                         condition.sourceText(),
                         ftf.functionName(),
                         ftf.functionType(),

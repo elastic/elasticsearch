@@ -91,8 +91,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     public static Setting<ByteSizeValue> INDICES_INFERENCE_BATCH_SIZE = Setting.byteSizeSetting(
         "indices.inference.batch_size",
         DEFAULT_BATCH_SIZE,
-        ByteSizeValue.ONE,
-        ByteSizeValue.ofBytes(100),
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );
@@ -172,7 +170,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
      * @param offsetAdjustment The adjustment to apply to the chunk text offsets.
      */
     private record FieldInferenceRequest(
-        String inferenceId,
         int bulkItemIndex,
         String field,
         String sourceField,
@@ -252,32 +249,21 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
 
             var items = bulkShardRequest.items();
-            Map<String, List<FieldInferenceRequest>> requestsMap = new HashMap<>();
+            Map<String, List<FieldInferenceRequest>> fieldRequestsMap = new HashMap<>();
             long totalInputLength = 0;
             int itemIndex = itemOffset;
-
-            while (itemIndex < items.length && totalInputLength < batchSizeInBytes) {
+            for (; itemIndex < bulkShardRequest.items().length; itemIndex++) {
                 var item = items[itemIndex];
-                var requests = createFieldInferenceRequests(item, itemIndex);
-
-                totalInputLength += requests.stream().mapToLong(r -> r.input.length()).sum();
-                if (requestsMap.size() > 0 && totalInputLength >= batchSizeInBytes) {
-                    /**
-                     * Exits early because the new requests exceed the allowable size.
-                     * These requests will be processed in the next iteration.
-                     */
+                totalInputLength += addFieldInferenceRequests(item, itemIndex, fieldRequestsMap);
+                if (totalInputLength >= batchSizeInBytes) {
                     break;
                 }
-
-                for (var request : requests) {
-                    requestsMap.computeIfAbsent(request.inferenceId, k -> new ArrayList<>()).add(request);
-                }
-                itemIndex++;
             }
-            int nextItemOffset = itemIndex;
+            int nextItemIndex = itemIndex + 1;
             Runnable onInferenceCompletion = () -> {
                 try {
-                    for (int i = itemOffset; i < nextItemOffset; i++) {
+                    int limit = Math.min(nextItemIndex, items.length);
+                    for (int i = itemOffset; i < limit; i++) {
                         var result = inferenceResults.get(i);
                         if (result == null) {
                             continue;
@@ -292,12 +278,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         inferenceResults.set(i, null);
                     }
                 } finally {
-                    executeNext(nextItemOffset);
+                    executeNext(nextItemIndex);
                 }
             };
 
             try (var releaseOnFinish = new RefCountingRunnable(onInferenceCompletion)) {
-                for (var entry : requestsMap.entrySet()) {
+                for (var entry : fieldRequestsMap.entrySet()) {
                     executeChunkedInferenceAsync(entry.getKey(), null, entry.getValue(), releaseOnFinish.acquire());
                 }
             }
@@ -425,16 +411,18 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         }
 
         /**
-         * Returns all inference requests from the provided {@link BulkItemRequest}.
+         * Adds all inference requests associated with their respective inference IDs to the given {@code requestsMap}
+         * for the specified {@code item}.
          *
          * @param item       The bulk request item to process.
          * @param itemIndex  The position of the item within the original bulk request.
-         * @return The list of {@link FieldInferenceRequest} associated with the item.
+         * @param requestsMap A map storing inference requests, where each key is an inference ID,
+         *                    and the value is a list of associated {@link FieldInferenceRequest} objects.
+         * @return The total content length of all newly added requests, or {@code 0} if no requests were added.
          */
-        private List<FieldInferenceRequest> createFieldInferenceRequests(BulkItemRequest item, int itemIndex) {
+        private long addFieldInferenceRequests(BulkItemRequest item, int itemIndex, Map<String, List<FieldInferenceRequest>> requestsMap) {
             boolean isUpdateRequest = false;
             final IndexRequest indexRequest;
-
             if (item.request() instanceof IndexRequest ir) {
                 indexRequest = ir;
             } else if (item.request() instanceof UpdateRequest updateRequest) {
@@ -448,16 +436,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             SemanticTextFieldMapper.CONTENT_TYPE
                         )
                     );
-                    return List.of();
+                    return 0;
                 }
                 indexRequest = updateRequest.doc();
             } else {
                 // ignore delete request
-                return List.of();
+                return 0;
             }
 
             final Map<String, Object> docMap = indexRequest.sourceAsMap();
-            List<FieldInferenceRequest> requests = new ArrayList<>();
+            long inputLength = 0;
             for (var entry : fieldInferenceMap.values()) {
                 String field = entry.getName();
                 String inferenceId = entry.getInferenceId();
@@ -526,9 +514,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         break;
                     }
 
+                    inputLength += values.stream().mapToLong(String::length).sum();
+
+                    List<FieldInferenceRequest> requests = requestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
                     int offsetAdjustment = 0;
                     for (String v : values) {
-                        requests.add(new FieldInferenceRequest(inferenceId, itemIndex, field, sourceField, v, order++, offsetAdjustment));
+                        requests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment));
 
                         // When using the inference metadata fields format, all the input values are concatenated so that the
                         // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
@@ -537,7 +528,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     }
                 }
             }
-            return requests;
+            return inputLength;
         }
 
         private FieldInferenceResponseAccumulator ensureResponseAccumulatorSlot(int id) {

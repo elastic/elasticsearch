@@ -26,6 +26,7 @@ import org.elasticsearch.index.IndexingPressure;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -133,8 +134,9 @@ public class IncrementalBulkService {
             } else {
                 assert bulkRequest != null;
                 if (internalAddItems(items, releasable)) {
-                    if (incrementalOperation.shouldSplit()) {
-                        IndexingPressure.Coordinating coordinating = incrementalOperation.split();
+                    Optional<Releasable> maybeSplit = incrementalOperation.maybeSplit();
+                    if (maybeSplit.isPresent()) {
+                        Releasable coordinating = maybeSplit.get();
                         final boolean isFirstRequest = incrementalRequestSubmitted == false;
                         incrementalRequestSubmitted = true;
                         final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
@@ -156,8 +158,8 @@ public class IncrementalBulkService {
                             }
                         }, () -> {
                             bulkInProgress = false;
-                            coordinating.close();
                             toRelease.forEach(Releasable::close);
+                            coordinating.close();
                             nextItems.run();
                         }));
                     } else {
@@ -177,7 +179,7 @@ public class IncrementalBulkService {
             } else {
                 assert bulkRequest != null;
                 if (internalAddItems(items, releasable)) {
-                    IndexingPressure.Coordinating coordinating = incrementalOperation.split();
+                    Releasable coordinating = incrementalOperation.split();
                     final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                     releasables.clear();
                     // We do not need to set this back to false as this will be the last request.
@@ -198,8 +200,8 @@ public class IncrementalBulkService {
                             errorResponse(listener);
                         }
                     }, () -> {
-                        coordinating.close();
                         toRelease.forEach(Releasable::close);
+                        coordinating.close();
                     }));
                 } else {
                     errorResponse(listener);

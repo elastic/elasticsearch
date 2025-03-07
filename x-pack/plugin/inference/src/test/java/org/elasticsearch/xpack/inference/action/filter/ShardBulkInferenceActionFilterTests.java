@@ -33,13 +33,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.license.MockLicenseState;
@@ -251,7 +249,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 assertNotNull(bulkShardRequest.items()[0].getPrimaryResponse());
                 assertTrue(bulkShardRequest.items()[0].getPrimaryResponse().isFailed());
                 BulkItemResponse.Failure failure = bulkShardRequest.items()[0].getPrimaryResponse().getFailure();
+                assertThat(failure.getCause().getMessage(), containsString("Exception when running inference"));
                 assertThat(failure.getCause().getCause().getMessage(), containsString("boom"));
+                assertThat(failure.getStatus(), is(RestStatus.BAD_REQUEST));
 
                 // item 1 is a success
                 assertNull(bulkShardRequest.items()[1].getPrimaryResponse());
@@ -270,7 +270,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 assertNotNull(bulkShardRequest.items()[2].getPrimaryResponse());
                 assertTrue(bulkShardRequest.items()[2].getPrimaryResponse().isFailed());
                 failure = bulkShardRequest.items()[2].getPrimaryResponse().getFailure();
+                assertThat(failure.getCause().getMessage(), containsString("Exception when running inference"));
                 assertThat(failure.getCause().getCause().getMessage(), containsString("boom"));
+                assertThat(failure.getStatus(), is(RestStatus.BAD_REQUEST));
             } finally {
                 chainExecuted.countDown();
             }
@@ -700,7 +702,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         }
 
         public static StaticModel createRandomInstance() {
-            TestModel testModel = randomModel(randomFrom(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING));
+            TestModel testModel = TestModel.createRandomInstance();
             return new StaticModel(
                 testModel.getInferenceEntityId(),
                 testModel.getTaskType(),
@@ -722,19 +724,5 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         boolean hasResult(String text) {
             return resultMap.containsKey(text);
         }
-    }
-
-    private static TestModel randomModel(TaskType taskType) {
-        var dimensions = taskType == TaskType.TEXT_EMBEDDING ? randomIntBetween(2, 64) : null;
-        var similarity = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(SimilarityMeasure.values()) : null;
-        var elementType = taskType == TaskType.TEXT_EMBEDDING ? DenseVectorFieldMapper.ElementType.FLOAT : null;
-        return new TestModel(
-            randomAlphaOfLength(4),
-            taskType,
-            randomAlphaOfLength(10),
-            new TestModel.TestServiceSettings(randomAlphaOfLength(4), dimensions, similarity, elementType),
-            new TestModel.TestTaskSettings(randomInt(3)),
-            new TestModel.TestSecretSettings(randomAlphaOfLength(4))
-        );
     }
 }

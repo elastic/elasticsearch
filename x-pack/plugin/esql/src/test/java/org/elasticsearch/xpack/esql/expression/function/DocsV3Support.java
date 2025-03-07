@@ -113,8 +113,8 @@ public class DocsV3Support {
         // Various other remaining old asciidoc links
         // <<match-field-params,match query parameters>>
         return switch (parts[0]) {
-            case "text" -> makeLink(key, "", "/reference/mapping-reference/text.md");
-            case "semantic-text" -> makeLink(key, "", "/reference/mapping-reference/semantic_text.md");
+            case "text" -> makeLink(key, "", "/reference/elasticsearch/mapping-reference/text.md");
+            case "semantic-text" -> makeLink(key, "", "/reference/elasticsearch/mapping-reference/semantic-text.md");
             case "match-field-params" -> makeLink(key, "", "/reference/query-languages/query-dsl-match-query.md");
             default -> throw new IllegalArgumentException("Invalid link key <<" + key + ">>");
         };

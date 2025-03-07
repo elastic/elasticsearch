@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -50,20 +52,26 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     }
 
     @Override
-    public Processor create(Map<String, Processor.Factory> processorFactories, String tag, String description, Map<String, Object> config)
-        throws Exception {
+    public Processor create(
+        Map<String, Processor.Factory> processorFactories,
+        String tag,
+        String description,
+        Map<String, Object> config,
+        ProjectId projectId
+    ) throws Exception {
         final String policyName = ConfigurationUtils.readStringProperty(TYPE, tag, config, "policy_name");
         final String indexAlias = EnrichPolicy.getBaseName(policyName);
         if (metadata == null) {
             throw new IllegalStateException("enrich processor factory has not yet been initialized with cluster state");
         }
-        IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(indexAlias);
+        final var project = metadata.getProject(projectId);
+        IndexAbstraction indexAbstraction = project.getIndicesLookup().get(indexAlias);
         if (indexAbstraction == null) {
             throw new IllegalArgumentException("no enrich index exists for policy with name [" + policyName + "]");
         }
         assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
         assert indexAbstraction.getIndices().size() == 1;
-        IndexMetadata imd = metadata.getProject().index(indexAbstraction.getIndices().get(0));
+        IndexMetadata imd = project.index(indexAbstraction.getIndices().get(0));
 
         Map<String, Object> mappingAsMap = imd.mapping().sourceAsMap();
         String policyType = (String) XContentMapValues.extractValue(
@@ -80,7 +88,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         if (maxMatches < 1 || maxMatches > 128) {
             throw ConfigurationUtils.newConfigurationException(TYPE, tag, "max_matches", "should be between 1 and 128");
         }
-        var searchRunner = createSearchRunner(indexAlias, client, enrichCache);
+        var searchRunner = createSearchRunner(project, indexAlias);
         switch (policyType) {
             case EnrichPolicy.MATCH_TYPE:
             case EnrichPolicy.RANGE_TYPE:
@@ -125,12 +133,12 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         metadata = state.getMetadata();
     }
 
-    private SearchRunner createSearchRunner(String indexAlias, Client client, EnrichCache enrichCache) {
+    private SearchRunner createSearchRunner(ProjectMetadata project, String indexAlias) {
         Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
         return (value, maxMatches, reqSupplier, handler) -> {
             // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
             enrichCache.computeIfAbsent(
-                getEnrichIndexKey(indexAlias),
+                getEnrichIndexKey(project, indexAlias),
                 value,
                 maxMatches,
                 (searchResponseActionListener) -> originClient.execute(
@@ -143,8 +151,8 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         };
     }
 
-    private String getEnrichIndexKey(String indexAlias) {
-        IndexAbstraction ia = metadata.getProject().getIndicesLookup().get(indexAlias);
+    private String getEnrichIndexKey(ProjectMetadata project, String indexAlias) {
+        IndexAbstraction ia = project.getIndicesLookup().get(indexAlias);
         if (ia == null) {
             throw new IndexNotFoundException("no generated enrich index [" + indexAlias + "]");
         }

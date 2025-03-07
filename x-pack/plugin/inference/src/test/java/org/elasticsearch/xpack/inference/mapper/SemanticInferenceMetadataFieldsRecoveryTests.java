@@ -55,7 +55,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
     private final boolean useIncludesExcludes;
 
     public SemanticInferenceMetadataFieldsRecoveryTests(boolean useSynthetic, boolean useIncludesExcludes) {
-        this.model1 = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING, List.of(SimilarityMeasure.COSINE));
+        this.model1 = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING, List.of(SimilarityMeasure.DOT_PRODUCT));
         this.model2 = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         this.useSynthetic = useSynthetic;
         this.useIncludesExcludes = useIncludesExcludes;

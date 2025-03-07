@@ -705,8 +705,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
 
-            System.out.println(rerankFields);
-
             return new Rerank(source, p, visitStringOrParameter(ctx.inferenceId), visitStringOrParameter(ctx.queryText), rerankFields);
         };
     }

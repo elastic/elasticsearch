@@ -36,10 +36,16 @@ public class Transformer implements ClassFileTransformer {
         byte[] classfileBuffer
     ) {
         if (classesToTransform.contains(className)) {
+            var dumpClass = className.equals("sun/net/www/protocol/https/AbstractDelegateHttpsURLConnection");
+            if (dumpClass) {
+                System.out.println(
+                    "Before: Transformed AbstractDelegateHttpsURLConnection:" + Base64.getEncoder().encodeToString(classfileBuffer)
+                );
+            }
             // System.out.println("Transforming " + className);
             byte[] bytes = instrumenter.instrumentClass(className, classfileBuffer);
-            if (className.equals("sun/net/www/protocol/https/AbstractDelegateHttpsURLConnection")) {
-                System.out.println("Transformed AbstractDelegateHttpsURLConnection:" + Base64.getEncoder().encodeToString(bytes));
+            if (dumpClass) {
+                System.out.println("After: Transformed AbstractDelegateHttpsURLConnection:" + Base64.getEncoder().encodeToString(bytes));
             }
             return bytes;
         } else {

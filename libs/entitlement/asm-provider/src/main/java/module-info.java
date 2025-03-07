@@ -16,6 +16,7 @@ module org.elasticsearch.entitlement.instrumentation {
 
     requires static org.elasticsearch.base; // for SuppressForbidden
     requires org.elasticsearch.logging;
+    requires org.objectweb.asm.util;
 
     provides InstrumentationService with InstrumentationServiceImpl;
 }

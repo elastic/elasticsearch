@@ -23,9 +23,12 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.RecordComponentVisitor;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.util.CheckClassAdapter;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -81,13 +84,29 @@ public class InstrumenterImpl implements Instrumenter {
         return new ClassFileInfo(fileName, originalBytecodes);
     }
 
+    static String verify(ClassReader reader) {
+        StringWriter stringWriter = new StringWriter();
+        PrintWriter printWriter = new PrintWriter(stringWriter);
+        CheckClassAdapter.verify(reader, true, printWriter);
+
+        return stringWriter.toString();
+    }
+
     @Override
     public byte[] instrumentClass(String className, byte[] classfileBuffer) {
+
+        logger.info("Before: Verify: {}", verify(new ClassReader(classfileBuffer)));
+
         ClassReader reader = new ClassReader(classfileBuffer);
         ClassWriter writer = new ClassWriter(reader, COMPUTE_FRAMES | COMPUTE_MAXS);
         ClassVisitor visitor = new EntitlementClassVisitor(Opcodes.ASM9, writer, className);
         reader.accept(visitor, 0);
-        return writer.toByteArray();
+
+        var out = writer.toByteArray();
+
+        logger.info("After: Verify: {}", verify(new ClassReader(out)));
+
+        return out;
     }
 
     class EntitlementClassVisitor extends ClassVisitor {

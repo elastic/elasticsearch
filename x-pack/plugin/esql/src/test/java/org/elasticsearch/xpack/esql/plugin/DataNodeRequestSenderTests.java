@@ -15,6 +15,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -123,8 +125,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             var future = sendRequests(targetShards, false, (node, shardIds, aliasFilters, listener) -> {
                 fail("expect no data-node request is sent when target shards are missing");
             });
-            var error = expectThrows(NoShardAvailableActionException.class, future::actionGet);
-            assertThat(error.getMessage(), containsString("no shard copies found"));
+            expectThrows(NoShardAvailableActionException.class, containsString("no shard copies found"), future::actionGet);
         }
         {
             var targetShards = List.of(targetShard(shard1, node1), targetShard(shard3), targetShard(shard4, node2, node3));
@@ -242,6 +243,17 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(resp.totalShards, equalTo(3));
         assertThat(resp.failedShards, equalTo(2));
         assertThat(resp.successfulShards, equalTo(1));
+    }
+
+    public void testDoNotRetryCircuitBreakerException() {
+        var targetShards = List.of(targetShard(shard1, node1, node2));
+        var sent = ConcurrentCollections.newQueue();
+        var future = sendRequests(targetShards, false, (node, shardIds, aliasFilters, listener) -> {
+            sent.add(new NodeRequest(node, shardIds, aliasFilters));
+            runWithDelay(() -> listener.onFailure(new CircuitBreakingException("cbe", randomFrom(Durability.values())), false));
+        });
+        expectThrows(CircuitBreakingException.class, equalTo("cbe"), future::actionGet);
+        assertThat(sent.size(), equalTo(1));
     }
 
     static DataNodeRequestSender.TargetShard targetShard(ShardId shardId, DiscoveryNode... nodes) {

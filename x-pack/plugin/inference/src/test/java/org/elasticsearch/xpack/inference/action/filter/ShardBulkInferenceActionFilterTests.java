@@ -65,6 +65,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.to
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -173,7 +174,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 assertNotNull(bulkShardRequest.items()[0].getPrimaryResponse());
                 assertTrue(bulkShardRequest.items()[0].getPrimaryResponse().isFailed());
                 BulkItemResponse.Failure failure = bulkShardRequest.items()[0].getPrimaryResponse().getFailure();
+                assertThat(failure.getCause().getMessage(), containsString("Exception when running inference"));
                 assertThat(failure.getCause().getCause().getMessage(), containsString("boom"));
+                assertThat(failure.getStatus(), is(RestStatus.BAD_REQUEST));
 
                 // item 1 is a success
                 assertNull(bulkShardRequest.items()[1].getPrimaryResponse());
@@ -184,7 +187,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 assertNotNull(bulkShardRequest.items()[2].getPrimaryResponse());
                 assertTrue(bulkShardRequest.items()[2].getPrimaryResponse().isFailed());
                 failure = bulkShardRequest.items()[2].getPrimaryResponse().getFailure();
+                assertThat(failure.getCause().getMessage(), containsString("Exception when running inference"));
                 assertThat(failure.getCause().getCause().getMessage(), containsString("boom"));
+                assertThat(failure.getStatus(), is(RestStatus.BAD_REQUEST));
             } finally {
                 chainExecuted.countDown();
             }

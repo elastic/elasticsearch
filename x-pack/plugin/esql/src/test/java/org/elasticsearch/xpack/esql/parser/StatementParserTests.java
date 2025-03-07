@@ -3121,6 +3121,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // test for [
         expectError("explain", "line 1:8: mismatched input '<EOF>' expecting '['");
         expectError("explain ]", "line 1:9: token recognition error at: ']'");
+        expectError("explain [row x = 1", "line 1:19: missing ']' at '<EOF>'");
     }
 
     static Alias alias(String name, Expression value) {

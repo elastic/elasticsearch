@@ -146,6 +146,10 @@ public class EsqlParser {
             RecognitionException e
         ) {
             if (recognizer instanceof EsqlBaseParser parser) {
+                // Hack for when ANTLr spills the token names into the error message, like in
+                // `row a = 1 not in` which expects a `(` next but the error message will be "mismatched input '<EOF>' expecting 'LP'.
+                // This is somehow related to how we pop lexer modes.
+                // TODO: fix this properly, this used to work in the past.
                 Matcher m = REPLACE_LP.matcher(message);
                 message = m.replaceAll(BEFORE_REPLACEMENT + "(" + AFTER_REPLACEMENT);
                 m = REPLACE_LEFT_BRACKET.matcher(message);

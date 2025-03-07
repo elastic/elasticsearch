@@ -278,6 +278,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 failure = bulkShardRequest.items()[2].getPrimaryResponse().getFailure();
                 assertThat(failure.getCause().getCause().getMessage(), containsString("inference exception"));
                 assertThat(failure.getCause().getCause().getCause().getMessage(), containsString("boom"));
+                assertThat(failure.getStatus(), is(RestStatus.BAD_REQUEST));
             } finally {
                 chainExecuted.countDown();
             }

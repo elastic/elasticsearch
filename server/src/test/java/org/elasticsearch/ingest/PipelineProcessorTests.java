@@ -61,7 +61,7 @@ public class PipelineProcessorTests extends ESTestCase {
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Map<String, Object> config = new HashMap<>();
         config.put("name", pipelineId);
-        factory.create(Map.of(), null, null, config).execute(testIngestDocument, (result, e) -> {});
+        factory.create(Map.of(), null, null, config, null).execute(testIngestDocument, (result, e) -> {});
         assertIngestDocument(testIngestDocument, safeGet(invoked));
     }
 
@@ -72,7 +72,7 @@ public class PipelineProcessorTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("name", "missingPipelineId");
         IllegalStateException[] e = new IllegalStateException[1];
-        factory.create(Map.of(), null, null, config).execute(testIngestDocument, (result, e1) -> e[0] = (IllegalStateException) e1);
+        factory.create(Map.of(), null, null, config, null).execute(testIngestDocument, (result, e1) -> e[0] = (IllegalStateException) e1);
         assertEquals("Pipeline processor configured for non-existent pipeline [missingPipelineId]", e[0].getMessage());
     }
 
@@ -86,7 +86,7 @@ public class PipelineProcessorTests extends ESTestCase {
 
         var r = new IngestDocument[1];
         var e = new Exception[1];
-        var processor = factory.create(Map.of(), null, null, config);
+        var processor = factory.create(Map.of(), null, null, config, null);
         processor.execute(testIngestDocument, (result, e1) -> {
             r[0] = result;
             e[0] = e1;
@@ -108,7 +108,7 @@ public class PipelineProcessorTests extends ESTestCase {
             null,
             null,
             null,
-            new CompoundProcessor(factory.create(Map.of(), null, null, outerConfig))
+            new CompoundProcessor(factory.create(Map.of(), null, null, outerConfig, null))
         );
         Map<String, Object> innerConfig = new HashMap<>();
         innerConfig.put("name", outerPipelineId);
@@ -117,13 +117,14 @@ public class PipelineProcessorTests extends ESTestCase {
             null,
             null,
             null,
-            new CompoundProcessor(factory.create(Map.of(), null, null, innerConfig))
+            new CompoundProcessor(factory.create(Map.of(), null, null, innerConfig, null))
         );
         when(ingestService.getPipeline(outerPipelineId)).thenReturn(outer);
         when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
         outerConfig.put("name", innerPipelineId);
         ElasticsearchException[] e = new ElasticsearchException[1];
-        factory.create(Map.of(), null, null, outerConfig).execute(testIngestDocument, (result, e1) -> e[0] = (ElasticsearchException) e1);
+        factory.create(Map.of(), null, null, outerConfig, null)
+            .execute(testIngestDocument, (result, e1) -> e[0] = (ElasticsearchException) e1);
         assertEquals("Cycle detected for pipeline: inner", e[0].getRootCause().getMessage());
     }
 
@@ -136,7 +137,7 @@ public class PipelineProcessorTests extends ESTestCase {
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Pipeline inner = new Pipeline(innerPipelineId, null, null, null, new CompoundProcessor());
         when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
-        Processor outerProc = factory.create(Map.of(), null, null, outerConfig);
+        Processor outerProc = factory.create(Map.of(), null, null, outerConfig, null);
         outerProc.execute(testIngestDocument, (result, e) -> {});
         outerProc.execute(testIngestDocument, (result, e) -> {});
     }
@@ -150,11 +151,11 @@ public class PipelineProcessorTests extends ESTestCase {
 
         Map<String, Object> pipeline1ProcessorConfig = new HashMap<>();
         pipeline1ProcessorConfig.put("name", pipeline2Id);
-        PipelineProcessor pipeline1Processor = factory.create(Map.of(), null, null, pipeline1ProcessorConfig);
+        PipelineProcessor pipeline1Processor = factory.create(Map.of(), null, null, pipeline1ProcessorConfig, null);
 
         Map<String, Object> pipeline2ProcessorConfig = new HashMap<>();
         pipeline2ProcessorConfig.put("name", pipeline3Id);
-        PipelineProcessor pipeline2Processor = factory.create(Map.of(), null, null, pipeline2ProcessorConfig);
+        PipelineProcessor pipeline2Processor = factory.create(Map.of(), null, null, pipeline2ProcessorConfig, null);
 
         LongSupplier relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L);

@@ -25,7 +25,7 @@ import java.util.function.Function;
 /**
  * An extension to thread pool executor, which tracks statistics for the task execution time.
  */
-public class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
+public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;

@@ -10,8 +10,9 @@ FROM books
 | WHERE author:"Faulkner"
 | KEEP book_no, author 
 | SORT book_no 
-| LIMIT 5;
+| LIMIT 5
 // end::match-with-field[]
+;
 
 // tag::match-with-field-result[]
 book_no:keyword | author:text
@@ -20,8 +21,8 @@ book_no:keyword | author:text
 2847            | Colleen Faulkner
 2883            | William Faulkner
 3293            | Danny Faulkner
-;
 // end::match-with-field-result[]
+;
 
 matchWithMultipleFunctions
 required_capability: match_operator_colon
@@ -682,4 +683,77 @@ from semantic_text
 
 host:keyword | semantic_text_field:text
 "host1"      | live long and prosper
+;
+
+testMatchWithNonPushableDisjunctions
+required_capability: match_operator_colon
+required_capability: full_text_functions_disjunctions_compute_engine
+
+from books 
+| where title:"lord" or length(title) > 130 
+| keep book_no
+;
+ignoreOrder: true
+
+book_no:keyword
+2675   
+2714   
+4023   
+7140   
+8678
+;
+
+testMatchWithNonPushableDisjunctionsOnComplexExpressions
+required_capability: match_operator_colon
+required_capability: full_text_functions_disjunctions_compute_engine
+
+from books 
+| where (title:"lord" and ratings > 4.5) or (author:"dostoevsky" and length(title) > 50)
+| keep book_no
+;
+ignoreOrder: true
+
+book_no:keyword
+2675
+2924
+4023
+1937
+7140
+2714
+;
+
+testMatchWithSemanticTextAndLookupJoin
+required_capability: match_operator_colon
+required_capability: semantic_text_field_caps
+required_capability: join_lookup_v12
+
+from semantic_text METADATA _id
+| where semantic_text_field:"something"
+| LOOKUP JOIN languages_lookup ON language_name
+| KEEP _id, language_name, language_code
+;
+
+ignoreOrder: true
+
+_id:keyword | language_name:keyword | language_code:integer
+1           | English               | 1
+2           | French                | 2
+3           | Spanish               | 3
+;
+
+testMatchWithSemanticTextKqlAndLookupJoin
+required_capability: match_operator_colon
+required_capability: semantic_text_type
+required_capability: kql_function
+required_capability: semantic_text_field_caps
+required_capability: join_lookup_v12
+
+from semantic_text
+| where kql("host:host1") AND semantic_text_field:"something"
+| LOOKUP JOIN languages_lookup ON language_name
+| KEEP host, semantic_text_field, language_name, language_code
+;
+
+host:keyword | semantic_text_field:text | language_name:keyword | language_code:integer
+"host1"      | live long and prosper    | English               | 1
 ;

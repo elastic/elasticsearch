@@ -319,7 +319,7 @@ public class ShardStateActionTests extends ESTestCase {
         ShardRouting failedShard = getRandomShardRouting(index);
 
         final TestListener listener = new TestListener();
-        long primaryTerm = clusterService.state().metadata().index(index).primaryTerm(failedShard.id());
+        long primaryTerm = clusterService.state().metadata().getProject().index(index).primaryTerm(failedShard.id());
         assertThat(primaryTerm, greaterThanOrEqualTo(1L));
         shardStateAction.remoteShardFailed(
             failedShard.shardId(),
@@ -484,7 +484,7 @@ public class ShardStateActionTests extends ESTestCase {
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         final ShardRouting shardRouting = getRandomShardRouting(index);
-        final long primaryTerm = clusterService.state().metadata().index(shardRouting.index()).primaryTerm(shardRouting.id());
+        final long primaryTerm = clusterService.state().metadata().getProject().index(shardRouting.index()).primaryTerm(shardRouting.id());
         final TestListener listener = new TestListener();
         shardStateAction.shardStarted(
             shardRouting,
@@ -612,11 +612,7 @@ public class ShardStateActionTests extends ESTestCase {
         final String allocationId = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
         final long primaryTerm = randomIntBetween(0, 100);
         final String message = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
-        final TransportVersion version = randomFrom(
-            getFirstVersion(),
-            getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE),
-            getPreviousVersion(TransportVersions.V_8_15_0)
-        );
+        final TransportVersion version = randomFrom(getFirstVersion(), getPreviousVersion(TransportVersions.V_8_15_0));
         final ShardLongFieldRange timestampRange = ShardLongFieldRangeWireTests.randomRange();
         final ShardLongFieldRange eventIngestedRange = ShardLongFieldRangeWireTests.randomRange();
         var startedShardEntry = new StartedShardEntry(shardId, allocationId, primaryTerm, message, timestampRange, eventIngestedRange);

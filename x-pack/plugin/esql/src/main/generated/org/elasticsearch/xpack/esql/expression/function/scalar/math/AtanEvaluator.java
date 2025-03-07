@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Atan}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class AtanEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;

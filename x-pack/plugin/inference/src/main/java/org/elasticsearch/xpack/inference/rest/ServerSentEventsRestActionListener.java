@@ -35,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.XContentFormattedException;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -45,9 +46,7 @@ import java.util.Objects;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_CAUSE;
-import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
-import static org.elasticsearch.rest.RestController.ERROR_TRACE_DEFAULT;
+import static org.elasticsearch.xpack.core.inference.results.XContentFormattedException.X_CONTENT_PARAM;
 
 /**
  * A version of {@link org.elasticsearch.rest.action.RestChunkedToXContentListener} that reads from a {@link Flow.Publisher} and encodes
@@ -77,7 +76,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
 
     public ServerSentEventsRestActionListener(RestChannel channel, ToXContent.Params params, SetOnce<ThreadPool> threadPool) {
         this.channel = channel;
-        this.params = params;
+        this.params = new ToXContent.DelegatingMapParams(Map.of(X_CONTENT_PARAM, String.valueOf(channel.detailedErrorsEnabled())), params);
         this.threadPool = Objects.requireNonNull(threadPool);
     }
 
@@ -154,48 +153,30 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
         }
     }
 
-    // taken indirectly from "new Response(channel, e)"
-    // except we need to emit the error as SSE
     private ChunkedToXContent errorChunk(Throwable t) {
+        // if we've already formatted it, just return that format
+        if (ExceptionsHelper.unwrapCause(t) instanceof XContentFormattedException xContentFormattedException) {
+            return xContentFormattedException;
+        }
+
+        // else, try to parse the format and return something that the ES client knows how to interpret
         var status = ExceptionsHelper.status(t);
-        return params -> Iterators.concat(ChunkedToXContentHelper.startObject(), ChunkedToXContentHelper.chunk((b, p) -> {
-            // Render the exception with a simple message
-            if (channel.detailedErrorsEnabled() == false) {
-                String message = "No ElasticsearchException found";
-                var inner = t;
-                for (int counter = 0; counter < 10 && inner != null; counter++) {
-                    if (inner instanceof ElasticsearchException) {
-                        message = inner.getClass().getSimpleName() + "[" + inner.getMessage() + "]";
-                        break;
-                    }
-                    inner = inner.getCause();
-                }
-                return b.field("error", message);
-            }
 
-            var errorParams = p;
-            if (errorParams.paramAsBoolean("error_trace", ERROR_TRACE_DEFAULT) && status != RestStatus.UNAUTHORIZED) {
-                errorParams = new ToXContent.DelegatingMapParams(
-                    Map.of(REST_EXCEPTION_SKIP_STACK_TRACE, "false", REST_EXCEPTION_SKIP_CAUSE, "true"),
-                    params
-                );
-            }
-
-            // Render the exception with all details
-            final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(t);
-            b.startObject("error");
-            {
-                b.startArray("root_cause");
-                for (ElasticsearchException rootCause : rootCauses) {
-                    b.startObject();
-                    rootCause.toXContent(b, errorParams);
-                    b.endObject();
-                }
-                b.endArray();
-            }
-            ElasticsearchException.generateThrowableXContent(b, errorParams, t);
-            return b.endObject();
-        }), ChunkedToXContentHelper.field("status", status.getStatus()), ChunkedToXContentHelper.endObject());
+        Exception e;
+        if (t instanceof Exception) {
+            e = (Exception) t;
+        } else {
+            // if not exception, then error, and we should not let it escape. rethrow on another thread, and inform the user we're stopping.
+            ExceptionsHelper.maybeDieOnAnotherThread(t);
+            e = new RuntimeException("Fatal error while streaming response. Please retry the request.");
+            logger.error(e.getMessage(), t);
+        }
+        return params -> Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            Iterators.single((b, p) -> ElasticsearchException.generateFailureXContent(b, p, e, channel.detailedErrorsEnabled())),
+            Iterators.single((b, p) -> b.field("status", status.getStatus())),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     private void requestNextChunk(ActionListener<ChunkedRestResponseBodyPart> listener) {

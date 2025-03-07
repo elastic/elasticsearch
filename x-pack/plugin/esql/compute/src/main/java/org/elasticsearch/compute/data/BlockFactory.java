@@ -432,6 +432,39 @@ public class BlockFactory {
         return b;
     }
 
+    public AggregateMetricDoubleBlockBuilder newAggregateMetricDoubleBlockBuilder(int estimatedSize) {
+        return new AggregateMetricDoubleBlockBuilder(estimatedSize, this);
+    }
+
+    public final Block newConstantAggregateMetricDoubleBlock(
+        AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral value,
+        int positions
+    ) {
+        try (AggregateMetricDoubleBlockBuilder builder = newAggregateMetricDoubleBlockBuilder(positions)) {
+            if (value.min() != null) {
+                builder.min().appendDouble(value.min());
+            } else {
+                builder.min().appendNull();
+            }
+            if (value.max() != null) {
+                builder.max().appendDouble(value.max());
+            } else {
+                builder.max().appendNull();
+            }
+            if (value.sum() != null) {
+                builder.sum().appendDouble(value.sum());
+            } else {
+                builder.sum().appendNull();
+            }
+            if (value.count() != null) {
+                builder.count().appendInt(value.count());
+            } else {
+                builder.count().appendNull();
+            }
+            return builder.build();
+        }
+    }
+
     /**
      * Returns the maximum number of bytes that a Block should be backed by a primitive array before switching to using BigArrays.
      */

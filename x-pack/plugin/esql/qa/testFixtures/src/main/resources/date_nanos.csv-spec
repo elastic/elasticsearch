@@ -500,6 +500,28 @@ millis:date              | nanos:date_nanos               | num:long
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
 ;
 
+Date nanos date extract
+required_capability: date_nanos_date_extract
+
+FROM date_nanos
+| EVAL nn = MV_MAX(nanos)
+| EVAL year = DATE_EXTRACT("year", nn), ns = DATE_EXTRACT("nano_of_second", nn)
+| KEEP nn, year, ns
+| SORT nn DESC;
+
+nn:date_nanos                  | year:long | ns:long
+2023-10-23T13:55:01.543123456Z | 2023      | 543123456
+2023-10-23T13:53:55.832987654Z | 2023      | 832987654
+2023-10-23T13:52:55.015787878Z | 2023      | 015787878
+2023-10-23T13:51:54.732102837Z | 2023      | 732102837
+2023-10-23T13:33:34.937193000Z | 2023      | 937193000
+2023-10-23T12:27:28.948000000Z | 2023      | 948000000
+2023-10-23T12:15:03.360103847Z | 2023      | 360103847
+2023-10-23T12:15:03.360103847Z | 2023      | 360103847
+2023-03-23T12:15:03.360103847Z | 2023      | 360103847
+2023-03-23T12:15:03.360103847Z | 2023      | 360103847
+;
+
 date nanos to long, index version
 required_capability: to_date_nanos
 
@@ -1248,4 +1270,29 @@ sv_nanos:date_nanos               | a:keyword             | b:keyword  | c:keywo
 2023-10-23T12:15:03.360103847Z | 2023-10-23T12:15:03.360Z | 2023-10-23 | 2023-10-23T12:15:03.360103847Z
 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23 | 2023-03-23T12:15:03.360103847Z
 2023-03-23T12:15:03.360103847Z | 2023-03-23T12:15:03.360Z | 2023-03-23 | 2023-03-23T12:15:03.360103847Z
+;
+
+Date Nanos Date Diff
+required_capability: date_nanos_date_diff
+required_capability: to_date_nanos
+
+FROM date_nanos
+| EVAL n = MV_MAX(nanos)
+| EVAL diff_sec = DATE_DIFF("seconds", TO_DATE_NANOS("2023-10-23T12:15:03.360103847Z"), n)
+| EVAL diff_sec_m = DATE_DIFF("seconds", TO_DATETIME("2023-10-23T12:15:03.360103847Z"), n)
+| KEEP diff_sec, diff_sec_m, n;
+ignoreOrder:true
+
+# Note - it is expected that the millisecond diff is slightly different due to rounding.
+diff_sec:integer | diff_sec_m:integer | n:date_nanos
+5998             | 5998             | 2023-10-23T13:55:01.543123456Z
+5932             | 5932             | 2023-10-23T13:53:55.832987654Z
+5871             | 5871             | 2023-10-23T13:52:55.015787878Z
+5811             | 5811             | 2023-10-23T13:51:54.732102837Z
+4711             | 4711             | 2023-10-23T13:33:34.937193000Z
+745              | 745              | 2023-10-23T12:27:28.948000000Z
+0                | 0                | 2023-10-23T12:15:03.360103847Z
+0                | 0                | 2023-10-23T12:15:03.360103847Z
+-18489600        | -18489599        | 2023-03-23T12:15:03.360103847Z
+-18489600        | -18489599        | 2023-03-23T12:15:03.360103847Z
 ;

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -175,7 +176,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 channel,
                 requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME,
-                new TransportHandshaker.HandshakeRequest(version),
+                new TransportHandshaker.HandshakeRequest(version, Build.current().version()),
                 TransportRequestOptions.EMPTY,
                 v,
                 null,

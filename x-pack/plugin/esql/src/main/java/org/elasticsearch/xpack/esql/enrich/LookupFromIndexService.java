@@ -17,14 +17,13 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -35,6 +34,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static java.lang.System.in;
 
 /**
  * {@link LookupFromIndexService} performs lookup against a Lookup index for
@@ -78,10 +79,17 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     @Override
-    protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
-        MappedFieldType fieldType = context.getFieldType(request.matchField);
-        validateTypes(request.inputDataType, fieldType);
-        return termQueryList(fieldType, context, inputBlock, inputDataType).onlySingleValues();
+    protected QueryList queryList(
+        TransportRequest request,
+        SearchExecutionContext context,
+        Block inputBlock,
+        DataType inputDataType,
+        Warnings warnings
+    ) {
+        return termQueryList(context.getFieldType(request.matchField), context, inputBlock, inputDataType).onlySingleValues(
+            warnings,
+            "LOOKUP JOIN encountered multi-value"
+        );
     }
 
     @Override
@@ -92,20 +100,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     @Override
     protected AbstractLookupService.LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
         return new LookupResponse(in, blockFactory);
-    }
-
-    @Override
-    protected String getRequiredPrivilege() {
-        return null;
-    }
-
-    private static void validateTypes(DataType inputDataType, MappedFieldType fieldType) {
-        // TODO: consider supporting implicit type conversion as done in ENRICH for some types
-        if (fieldType.typeName().equals(inputDataType.typeName()) == false) {
-            throw new EsqlIllegalArgumentException(
-                "LOOKUP JOIN match and input types are incompatible: match[" + fieldType.typeName() + "], input[" + inputDataType + "]"
-            );
-        }
     }
 
     public static class Request extends AbstractLookupService.Request {
@@ -155,8 +149,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
             String matchField = in.readString();
             var source = Source.EMPTY;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
                 source = Source.readFrom(planIn);
+            }
+            // Source.readFrom() requires the query from the Configuration passed to PlanStreamInput.
+            // As we don't have the Configuration here, and it may be heavy to serialize, we directly pass the Source text.
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
+                String sourceText = in.readString();
+                source = new Source(source.source(), sourceText);
             }
             TransportRequest result = new TransportRequest(
                 sessionId,
@@ -182,8 +182,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
             out.writeString(matchField);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
                 source.writeTo(planOut);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
+                out.writeString(source.text());
             }
         }
 

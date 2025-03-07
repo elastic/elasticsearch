@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.countedkeyword;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -20,12 +22,15 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -75,7 +80,6 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             minimalMapping(b);
-            b.field("synthetic_source_keep", "none");
             b.endObject();
         })).documentMapper();
 
@@ -94,7 +98,6 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             minimalMapping(b);
-            b.field("synthetic_source_keep", "none");
             b.endObject();
         })).documentMapper();
 
@@ -114,19 +117,32 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
         assertThat(syntheticSource(mapper, new SourceFilter(null, new String[] { "field" }), buildInput), equalTo("{}"));
     }
 
-    @Override
-    public void testSyntheticSourceKeepAll() throws IOException {
-        // For now, native synthetic source is only supported when "synthetic_source_keep" mapping attribute is "none"
-    }
+    public void testSyntheticSourceIndexLevelKeepArrays() throws IOException {
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        XContentBuilder mappings = mapping(b -> {
+            b.startObject("field");
+            example.mapping().accept(b);
+            b.endObject();
+        });
 
-    @Override
-    public void testSyntheticSourceKeepArrays() throws IOException {
-        // For now, native synthetic source is only supported when "synthetic_source_keep" mapping attribute is "none"
-    }
+        var settings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        DocumentMapper mapperAll = createMapperService(getVersion(), settings, () -> true, mappings).documentMapper();
 
-    @Override
-    public void testSyntheticSourceKeepNone() throws IOException {
-        // For now, native synthetic source is only supported when "synthetic_source_keep" mapping attribute is "none"
+        int elementCount = randomIntBetween(2, 5);
+        CheckedConsumer<XContentBuilder, IOException> buildInput = (XContentBuilder builder) -> {
+            example.buildInputArray(builder, elementCount);
+        };
+
+        var builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        buildInput.accept(builder);
+        builder.endObject();
+        String expected = Strings.toString(builder);
+        String actual = syntheticSource(mapperAll, buildInput);
+        assertThat(actual, equalTo(expected));
     }
 
     @Override
@@ -151,16 +167,21 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
                 return new SyntheticSourceExample(in, out, this::mapping);
             }
 
+            private final Set<String> previousValues = new HashSet<>();
+
             private Tuple<String, String> generateValue() {
-                String v = ESTestCase.randomAlphaOfLength(5);
+                String v;
+                if (previousValues.size() > 0 && randomBoolean()) {
+                    v = randomFrom(previousValues);
+                } else {
+                    v = ESTestCase.randomAlphaOfLength(5);
+                    previousValues.add(v);
+                }
                 return Tuple.tuple(v, v);
             }
 
             private void mapping(XContentBuilder b) throws IOException {
                 minimalMapping(b);
-                // For now, synthetic source is only supported when "synthetic_source_keep" is "none".
-                // Once we implement true synthetic source support, we should remove this.
-                b.field("synthetic_source_keep", "none");
             }
 
             @Override

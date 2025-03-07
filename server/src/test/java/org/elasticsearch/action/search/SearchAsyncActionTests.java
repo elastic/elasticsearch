@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -67,7 +66,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+        List<SearchShardIterator> shardsIter = getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards,
@@ -182,7 +181,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_1");
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+        List<SearchShardIterator> shardsIter = getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards,
@@ -285,7 +284,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<DiscoveryNode, Set<ShardSearchContextId>> nodeToContextMap = newConcurrentMap();
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         int numShards = randomIntBetween(1, 10);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+        List<SearchShardIterator> shardsIter = getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards,
@@ -415,7 +414,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<DiscoveryNode, Set<ShardSearchContextId>> nodeToContextMap = newConcurrentMap();
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         int numShards = randomIntBetween(2, 10);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+        List<SearchShardIterator> shardsIter = getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards,
@@ -534,7 +533,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_1");
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+        List<SearchShardIterator> shardsIter = getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards,
@@ -546,7 +545,7 @@ public class SearchAsyncActionTests extends ESTestCase {
 
         SearchTransportService transportService = new SearchTransportService(null, null, null);
         Map<String, Transport.Connection> lookup = new HashMap<>();
-        Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
+        Map<ShardId, AtomicInteger> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", AliasFilter.EMPTY);
@@ -582,17 +581,18 @@ public class SearchAsyncActionTests extends ESTestCase {
                     Transport.Connection connection,
                     SearchActionListener<TestSearchPhaseResult> listener
                 ) {
-                    seenShard.computeIfAbsent(shardIt.shardId(), (i) -> {
+                    AtomicInteger retries = seenShard.computeIfAbsent(shardIt.shardId(), (i) -> {
                         numRequests.incrementAndGet(); // only count this once per shard copy
-                        return Boolean.TRUE;
+                        return new AtomicInteger(0);
                     });
+                    int numRetries = retries.incrementAndGet();
                     new Thread(() -> {
                         TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
                             new ShardSearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()),
                             connection.getNode()
                         );
                         try {
-                            if (shardIt.remaining() > 0) {
+                            if (numRetries < shardIt.size()) {
                                 numFailReplicas.incrementAndGet();
                                 listener.onFailure(new RuntimeException());
                             } else {
@@ -644,10 +644,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             );
             // Skip all the shards
             searchShardIterator.skip(true);
-            searchShardIterator.reset();
             searchShardIterators.add(searchShardIterator);
         }
-        GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(searchShardIterators);
         Map<String, Transport.Connection> lookup = Map.of(primaryNode.getId(), new MockConnection(primaryNode));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -666,11 +664,11 @@ public class SearchAsyncActionTests extends ESTestCase {
             null,
             request,
             responseListener,
-            shardsIter,
+            searchShardIterators,
             new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
             ClusterState.EMPTY_STATE,
             null,
-            new ArraySearchPhaseResults<>(shardsIter.size()),
+            new ArraySearchPhaseResults<>(searchShardIterators.size()),
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY
         ) {
@@ -703,10 +701,10 @@ public class SearchAsyncActionTests extends ESTestCase {
         assertNotNull(searchResponse.get());
         assertThat(searchResponse.get().getSkippedShards(), equalTo(numUnavailableSkippedShards));
         assertThat(searchResponse.get().getFailedShards(), equalTo(0));
-        assertThat(searchResponse.get().getSuccessfulShards(), equalTo(shardsIter.size()));
+        assertThat(searchResponse.get().getSuccessfulShards(), equalTo(searchShardIterators.size()));
     }
 
-    static GroupShardsIterator<SearchShardIterator> getShardsIter(
+    static List<SearchShardIterator> getShardsIter(
         String index,
         OriginalIndices originalIndices,
         int numShards,
@@ -714,9 +712,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         DiscoveryNode primaryNode,
         DiscoveryNode replicaNode
     ) {
-        return new GroupShardsIterator<>(
-            getShardsIter(new Index(index, "_na_"), originalIndices, numShards, doReplicas, primaryNode, replicaNode)
-        );
+        return getShardsIter(new Index(index, "_na_"), originalIndices, numShards, doReplicas, primaryNode, replicaNode);
     }
 
     static List<SearchShardIterator> getShardsIter(
@@ -731,7 +727,6 @@ public class SearchAsyncActionTests extends ESTestCase {
         for (int i = 0; i < numShards; i++) {
             ArrayList<ShardRouting> started = new ArrayList<>();
             ArrayList<ShardRouting> initializing = new ArrayList<>();
-            ArrayList<ShardRouting> unassigned = new ArrayList<>();
 
             ShardRouting routing = ShardRouting.newUnassigned(
                 new ShardId(index, i),
@@ -761,8 +756,6 @@ public class SearchAsyncActionTests extends ESTestCase {
                     } else {
                         initializing.add(routing);
                     }
-                } else {
-                    unassigned.add(routing); // unused yet
                 }
             }
             Collections.shuffle(started, random());

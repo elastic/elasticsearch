@@ -40,6 +40,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
@@ -49,8 +50,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
@@ -299,7 +300,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         Arrays.fill(inference, 1.0);
         MlTextEmbeddingResults textEmbeddingResults = new MlTextEmbeddingResults(DEFAULT_RESULTS_FIELD, inference, false);
 
-        return new InferenceAction.Response(InferenceTextEmbeddingFloatResults.of(List.of(textEmbeddingResults)));
+        return new InferenceAction.Response(TextEmbeddingFloatResults.of(List.of(textEmbeddingResults)));
     }
 
     @Override
@@ -351,10 +352,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         DenseVectorFieldMapper.ElementType denseVectorElementType,
         boolean useLegacyFormat
     ) throws IOException {
-        SemanticTextField.ModelSettings modelSettings = switch (inferenceResultType) {
+        var modelSettings = switch (inferenceResultType) {
             case NONE -> null;
-            case SPARSE_EMBEDDING -> new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null);
-            case TEXT_EMBEDDING -> new SemanticTextField.ModelSettings(
+            case SPARSE_EMBEDDING -> new MinimalServiceSettings(TaskType.SPARSE_EMBEDDING, null, null, null);
+            case TEXT_EMBEDDING -> new MinimalServiceSettings(
                 TaskType.TEXT_EMBEDDING,
                 TEXT_EMBEDDING_DIMENSION_COUNT,
                 SimilarityMeasure.COSINE,

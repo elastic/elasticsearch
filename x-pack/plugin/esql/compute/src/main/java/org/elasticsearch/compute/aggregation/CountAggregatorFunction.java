@@ -19,15 +19,25 @@ import org.elasticsearch.compute.operator.DriverContext;
 import java.util.List;
 
 public class CountAggregatorFunction implements AggregatorFunction {
-    public static AggregatorFunctionSupplier supplier(List<Integer> channels) {
+    public static AggregatorFunctionSupplier supplier() {
         return new AggregatorFunctionSupplier() {
             @Override
-            public AggregatorFunction aggregator(DriverContext driverContext) {
+            public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+                return CountAggregatorFunction.intermediateStateDesc();
+            }
+
+            @Override
+            public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+                return CountGroupingAggregatorFunction.intermediateStateDesc();
+            }
+
+            @Override
+            public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
                 return CountAggregatorFunction.create(channels);
             }
 
             @Override
-            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
                 return CountGroupingAggregatorFunction.create(driverContext, channels);
             }
 

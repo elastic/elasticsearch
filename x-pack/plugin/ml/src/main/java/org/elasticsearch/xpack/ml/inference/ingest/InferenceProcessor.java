@@ -8,11 +8,13 @@ package org.elasticsearch.xpack.ml.inference.ingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -386,15 +388,15 @@ public class InferenceProcessor extends AbstractProcessor {
         private static final Logger logger = LogManager.getLogger(Factory.class);
 
         private final Client client;
-        private final InferenceAuditor auditor;
+        private final SetOnce<InferenceAuditor> auditor;
         private volatile ClusterState clusterState = ClusterState.EMPTY_STATE;
         private volatile int maxIngestProcessors;
         private volatile MlConfigVersion minNodeVersion = MlConfigVersion.CURRENT;
 
-        public Factory(Client client, ClusterService clusterService, Settings settings, boolean includeNodeInfo) {
+        public Factory(Client client, ClusterService clusterService, Settings settings, SetOnce<InferenceAuditor> auditor) {
             this.client = client;
             this.maxIngestProcessors = MAX_INFERENCE_PROCESSORS.get(settings);
-            this.auditor = new InferenceAuditor(client, clusterService, includeNodeInfo);
+            this.auditor = auditor;
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_INFERENCE_PROCESSORS, this::setMaxIngestProcessors);
         }
 
@@ -414,7 +416,8 @@ public class InferenceProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> processorFactories,
             String tag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) {
             final var currentInferenceProcessors = InferenceProcessorInfoExtractor.countInferenceProcessors(clusterState);
             if (this.maxIngestProcessors <= currentInferenceProcessors) {
@@ -481,7 +484,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
                 return fromInputFieldConfiguration(
                     client,
-                    auditor,
+                    auditor.get(),
                     tag,
                     description,
                     modelId,
@@ -509,7 +512,7 @@ public class InferenceProcessor extends AbstractProcessor {
                 }
                 return fromTargetFieldConfiguration(
                     client,
-                    auditor,
+                    auditor.get(),
                     tag,
                     description,
                     targetField,

@@ -30,4 +30,6 @@ public interface RequestManager extends RateLimitable {
     // executePreparedRequest() which will execute all prepared requests aka sends the batch
 
     String inferenceEntityId();
+
+    // TODO: add service() and taskType()
 }

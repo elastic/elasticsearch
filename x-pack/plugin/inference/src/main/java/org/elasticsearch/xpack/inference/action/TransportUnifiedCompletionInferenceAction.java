@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -19,11 +20,18 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
+import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
+
+import java.util.concurrent.Flow;
 
 public class TransportUnifiedCompletionInferenceAction extends BaseTransportInferenceAction<UnifiedCompletionAction.Request> {
 
@@ -35,7 +43,10 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
-        StreamingTaskManager streamingTaskManager
+        StreamingTaskManager streamingTaskManager,
+        InferenceServiceRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
+        NodeClient nodeClient,
+        ThreadPool threadPool
     ) {
         super(
             UnifiedCompletionAction.NAME,
@@ -46,7 +57,10 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,
-            UnifiedCompletionAction.Request::new
+            UnifiedCompletionAction.Request::new,
+            inferenceServiceNodeLocalRateLimitCalculator,
+            nodeClient,
+            threadPool
         );
     }
 
@@ -76,5 +90,41 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
         ActionListener<InferenceServiceResults> listener
     ) {
         service.unifiedCompletionInfer(model, request.getUnifiedCompletionRequest(), null, listener);
+    }
+
+    @Override
+    protected void doExecute(Task task, UnifiedCompletionAction.Request request, ActionListener<InferenceAction.Response> listener) {
+        super.doExecute(task, request, listener.delegateResponse((l, e) -> l.onFailure(UnifiedChatCompletionException.fromThrowable(e))));
+    }
+
+    /**
+     * If we get any errors, either in {@link #doExecute} via the listener.onFailure or while streaming, make sure that they are formatted
+     * as {@link UnifiedChatCompletionException}.
+     */
+    @Override
+    protected <T> Flow.Publisher<T> streamErrorHandler(Flow.Processor<T, T> upstream) {
+        return downstream -> {
+            upstream.subscribe(new Flow.Subscriber<>() {
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    downstream.onSubscribe(subscription);
+                }
+
+                @Override
+                public void onNext(T item) {
+                    downstream.onNext(item);
+                }
+
+                @Override
+                public void onError(Throwable throwable) {
+                    downstream.onError(UnifiedChatCompletionException.fromThrowable(throwable));
+                }
+
+                @Override
+                public void onComplete() {
+                    downstream.onComplete();
+                }
+            });
+        };
     }
 }

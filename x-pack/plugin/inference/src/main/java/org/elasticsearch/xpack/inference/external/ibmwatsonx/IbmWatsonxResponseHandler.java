@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.inference.external.response.ibmwatsonx.IbmWatsonx
 import static org.elasticsearch.core.Strings.format;
 
 public class IbmWatsonxResponseHandler extends BaseResponseHandler {
-
     public IbmWatsonxResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, IbmWatsonxErrorResponseEntity::fromResponse);
     }

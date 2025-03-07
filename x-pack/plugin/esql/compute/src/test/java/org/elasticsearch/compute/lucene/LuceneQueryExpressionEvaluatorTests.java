@@ -39,6 +39,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ShuffleDocsOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
@@ -183,8 +184,8 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
             );
             LuceneQueryExpressionEvaluator luceneQueryEvaluator = new LuceneQueryExpressionEvaluator(
                 blockFactory,
-                new LuceneQueryExpressionEvaluator.ShardConfig[] { shard },
-                0
+                new LuceneQueryExpressionEvaluator.ShardConfig[] { shard }
+
             );
 
             List<Operator> operators = new ArrayList<>();
@@ -209,12 +210,11 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
             );
             operators.add(new EvalOperator(blockFactory, luceneQueryEvaluator));
             List<Page> results = new ArrayList<>();
-            Driver driver = new Driver(
+            Driver driver = TestDriverFactory.create(
                 driverContext,
                 luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT, scoring).get(driverContext),
                 operators,
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             );
             OperatorTestCase.runDriver(driver);
             OperatorTests.assertDriverContext(driverContext);

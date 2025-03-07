@@ -19,6 +19,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.ClassRule;
@@ -32,17 +33,27 @@ import java.util.function.Supplier;
 public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
 
     @ClassRule
-    public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
-        .module("constant-keyword")
-        .module("data-streams")
-        .module("mapper-extras")
-        .module("x-pack-aggregate-metric")
-        .module("x-pack-stack")
-        .setting("xpack.security.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
-        .build();
+    public static final ElasticsearchCluster cluster = buildCluster();
+
+    private static ElasticsearchCluster buildCluster() {
+        Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
+        var cluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .version(Version.fromString(OLD_CLUSTER_VERSION))
+            .module("constant-keyword")
+            .module("data-streams")
+            .module("mapper-extras")
+            .module("x-pack-aggregate-metric")
+            .module("x-pack-stack")
+            .setting("xpack.security.enabled", "false")
+            .setting("xpack.license.self_generated.type", "trial");
+
+        if (oldVersion.before(Version.fromString("9.1.0"))) {
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+        return cluster.build();
+    }
 
     public LogsIndexModeFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
@@ -120,6 +131,10 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
         }""";
 
     public void testLogsIndexing() throws IOException {
+        assumeTrue(
+            "otherwise first backing index of logs-apache-production will be in logsdb mode",
+            getOldClusterTestVersion().before("9.0.0")
+        );
         if (isRunningAgainstOldCluster()) {
             assertOK(client().performRequest(putTemplate(client(), "logs-template", STANDARD_TEMPLATE)));
             assertOK(client().performRequest(createDataStream("logs-apache-production")));

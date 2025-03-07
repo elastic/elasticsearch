@@ -58,7 +58,7 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
         ----
         include::{esql-specs}/string.csv-spec[tag=rlikeEscapingTripleQuotes]
         ----
-        """, examples = @Example(file = "docs", tag = "rlike"))
+        """, operator = "RLIKE", examples = @Example(file = "docs", tag = "rlike"))
     public RLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal value.") Expression value,

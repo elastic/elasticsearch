@@ -22,8 +22,8 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
@@ -42,7 +42,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.ENABLED;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MIN_NUMBER_OF_ALLOCATIONS;
-import static org.elasticsearch.xpack.inference.rest.Paths.UNIFIED_SUFFIX;
+import static org.elasticsearch.xpack.inference.rest.Paths.STREAM_SUFFIX;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 
 public final class ServiceUtils {
@@ -741,7 +741,7 @@ public final class ServiceUtils {
             InputType.INGEST,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener.delegateFailureAndWrap((delegate, r) -> {
-                if (r instanceof TextEmbedding embeddingResults) {
+                if (r instanceof TextEmbeddingResults<?, ?> embeddingResults) {
                     try {
                         delegate.onResponse(embeddingResults.getFirstEmbeddingSize());
                     } catch (Exception e) {
@@ -754,7 +754,7 @@ public final class ServiceUtils {
                         new ElasticsearchStatusException(
                             "Could not determine embedding size. "
                                 + "Expected a result of type ["
-                                + InferenceTextEmbeddingFloatResults.NAME
+                                + TextEmbeddingFloatResults.NAME
                                 + "] got ["
                                 + r.getWriteableName()
                                 + "]",
@@ -796,7 +796,7 @@ public final class ServiceUtils {
             model.getTaskType(),
             model.getTaskType(),
             model.getInferenceEntityId(),
-            UNIFIED_SUFFIX
+            STREAM_SUFFIX
         );
     }
 

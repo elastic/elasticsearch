@@ -14,9 +14,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ScriptService;
@@ -29,6 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
@@ -48,20 +52,26 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     }
 
     @Override
-    public Processor create(Map<String, Processor.Factory> processorFactories, String tag, String description, Map<String, Object> config)
-        throws Exception {
-        String policyName = ConfigurationUtils.readStringProperty(TYPE, tag, config, "policy_name");
-        String policyAlias = EnrichPolicy.getBaseName(policyName);
+    public Processor create(
+        Map<String, Processor.Factory> processorFactories,
+        String tag,
+        String description,
+        Map<String, Object> config,
+        ProjectId projectId
+    ) throws Exception {
+        final String policyName = ConfigurationUtils.readStringProperty(TYPE, tag, config, "policy_name");
+        final String indexAlias = EnrichPolicy.getBaseName(policyName);
         if (metadata == null) {
             throw new IllegalStateException("enrich processor factory has not yet been initialized with cluster state");
         }
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(policyAlias);
+        final var project = metadata.getProject(projectId);
+        IndexAbstraction indexAbstraction = project.getIndicesLookup().get(indexAlias);
         if (indexAbstraction == null) {
             throw new IllegalArgumentException("no enrich index exists for policy with name [" + policyName + "]");
         }
         assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
         assert indexAbstraction.getIndices().size() == 1;
-        IndexMetadata imd = metadata.index(indexAbstraction.getIndices().get(0));
+        IndexMetadata imd = project.index(indexAbstraction.getIndices().get(0));
 
         Map<String, Object> mappingAsMap = imd.mapping().sourceAsMap();
         String policyType = (String) XContentMapValues.extractValue(
@@ -78,7 +88,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         if (maxMatches < 1 || maxMatches > 128) {
             throw ConfigurationUtils.newConfigurationException(TYPE, tag, "max_matches", "should be between 1 and 128");
         }
-        BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> searchRunner = createSearchRunner(client, enrichCache);
+        var searchRunner = createSearchRunner(project, indexAlias);
         switch (policyType) {
             case EnrichPolicy.MATCH_TYPE:
             case EnrichPolicy.RANGE_TYPE:
@@ -121,25 +131,40 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     @Override
     public void accept(ClusterState state) {
         metadata = state.getMetadata();
-        enrichCache.setMetadata(metadata);
     }
 
-    private static BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> createSearchRunner(
-        Client client,
-        EnrichCache enrichCache
-    ) {
+    private SearchRunner createSearchRunner(ProjectMetadata project, String indexAlias) {
         Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
-        return (req, handler) -> {
+        return (value, maxMatches, reqSupplier, handler) -> {
             // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
             enrichCache.computeIfAbsent(
-                req,
-                (searchRequest, searchResponseActionListener) -> originClient.execute(
+                getEnrichIndexKey(project, indexAlias),
+                value,
+                maxMatches,
+                (searchResponseActionListener) -> originClient.execute(
                     EnrichCoordinatorProxyAction.INSTANCE,
-                    searchRequest,
+                    reqSupplier.get(),
                     searchResponseActionListener
                 ),
                 ActionListener.wrap(resp -> handler.accept(resp, null), e -> handler.accept(null, e))
             );
         };
+    }
+
+    private String getEnrichIndexKey(ProjectMetadata project, String indexAlias) {
+        IndexAbstraction ia = project.getIndicesLookup().get(indexAlias);
+        if (ia == null) {
+            throw new IndexNotFoundException("no generated enrich index [" + indexAlias + "]");
+        }
+        return ia.getIndices().get(0).getName();
+    }
+
+    public interface SearchRunner {
+        void accept(
+            Object value,
+            int maxMatches,
+            Supplier<SearchRequest> searchRequestSupplier,
+            BiConsumer<List<Map<?, ?>>, Exception> handler
+        );
     }
 }

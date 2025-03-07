@@ -103,23 +103,23 @@ public class EvilSecurityTests extends ESTestCase {
         // check that all directories got permissions:
 
         // bin file: ro
-        assertExactPermissions(new FilePermission(environment.binFile().toString(), "read,readlink"), permissions);
+        assertExactPermissions(new FilePermission(environment.binDir().toString(), "read,readlink"), permissions);
         // lib file: ro
-        assertExactPermissions(new FilePermission(environment.libFile().toString(), "read,readlink"), permissions);
+        assertExactPermissions(new FilePermission(environment.libDir().toString(), "read,readlink"), permissions);
         // modules file: ro
-        assertExactPermissions(new FilePermission(environment.modulesFile().toString(), "read,readlink"), permissions);
+        assertExactPermissions(new FilePermission(environment.modulesDir().toString(), "read,readlink"), permissions);
         // config file: ro
-        assertExactPermissions(new FilePermission(environment.configFile().toString(), "read,readlink"), permissions);
+        assertExactPermissions(new FilePermission(environment.configDir().toString(), "read,readlink"), permissions);
         // plugins: ro
-        assertExactPermissions(new FilePermission(environment.pluginsFile().toString(), "read,readlink"), permissions);
+        assertExactPermissions(new FilePermission(environment.pluginsDir().toString(), "read,readlink"), permissions);
 
         // data paths: r/w
-        for (Path dataPath : environment.dataFiles()) {
+        for (Path dataPath : environment.dataDirs()) {
             assertExactPermissions(new FilePermission(dataPath.toString(), "read,readlink,write,delete"), permissions);
         }
-        assertExactPermissions(new FilePermission(environment.sharedDataFile().toString(), "read,readlink,write,delete"), permissions);
+        assertExactPermissions(new FilePermission(environment.sharedDataDir().toString(), "read,readlink,write,delete"), permissions);
         // logs: r/w
-        assertExactPermissions(new FilePermission(environment.logsFile().toString(), "read,readlink,write,delete"), permissions);
+        assertExactPermissions(new FilePermission(environment.logsDir().toString(), "read,readlink,write,delete"), permissions);
         // temp dir: r/w
         assertExactPermissions(new FilePermission(fakeTmpDir.toString(), "read,readlink,write,delete"), permissions);
     }

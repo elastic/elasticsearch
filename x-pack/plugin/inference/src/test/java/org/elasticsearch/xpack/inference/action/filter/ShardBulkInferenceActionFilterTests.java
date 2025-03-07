@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.action.filter;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemRequest;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +42,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -47,8 +50,10 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
+import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -81,9 +86,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class ShardBulkInferenceActionFilterTests extends ESTestCase {
@@ -113,7 +120,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testFilterNoop() throws Exception {
-        ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), DEFAULT_BATCH_SIZE, useLegacyFormat);
+        ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), DEFAULT_BATCH_SIZE, useLegacyFormat, true);
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
@@ -137,13 +144,52 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testLicenseInvalidForInference() throws InterruptedException {
+        StaticModel model = StaticModel.createRandomInstance();
+        ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), DEFAULT_BATCH_SIZE, useLegacyFormat, false);
+        CountDownLatch chainExecuted = new CountDownLatch(1);
+        ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
+            try {
+                BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
+                assertThat(bulkShardRequest.items().length, equalTo(1));
+
+                BulkItemResponse.Failure failure = bulkShardRequest.items()[0].getPrimaryResponse().getFailure();
+                assertNotNull(failure);
+                assertThat(failure.getCause(), instanceOf(ElasticsearchSecurityException.class));
+                assertThat(
+                    failure.getMessage(),
+                    containsString(org.elasticsearch.core.Strings.format("current license is non-compliant for [%s]", XPackField.INFERENCE))
+                );
+            } finally {
+                chainExecuted.countDown();
+            }
+
+        };
+        ActionListener actionListener = mock(ActionListener.class);
+        Task task = mock(Task.class);
+
+        Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
+            "obj.field1",
+            new InferenceFieldMetadata("obj.field1", model.getInferenceEntityId(), new String[] { "obj.field1" })
+        );
+        BulkItemRequest[] items = new BulkItemRequest[1];
+        items[0] = new BulkItemRequest(0, new IndexRequest("test").source("obj.field1", "Test"));
+        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        request.setInferenceFieldMap(inferenceFieldMap);
+
+        filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
+        awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testInferenceNotFound() throws Exception {
         StaticModel model = StaticModel.createRandomInstance();
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(model.getInferenceEntityId(), model),
             randomIntBetween(1, 10),
-            useLegacyFormat
+            useLegacyFormat,
+            true
         );
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
@@ -189,7 +235,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             threadPool,
             Map.of(model.getInferenceEntityId(), model),
             randomIntBetween(1, 10),
-            useLegacyFormat
+            useLegacyFormat,
+            true
         );
         model.putResult("I am a failure", new ChunkedInferenceError(new IllegalArgumentException("boom")));
         model.putResult("I am a success", randomChunkedInferenceEmbeddingSparse(List.of("I am a success")));
@@ -255,7 +302,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             threadPool,
             Map.of(model.getInferenceEntityId(), model),
             randomIntBetween(1, 10),
-            useLegacyFormat
+            useLegacyFormat,
+            true
         );
 
         CountDownLatch chainExecuted = new CountDownLatch(1);
@@ -344,7 +392,13 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             modifiedRequests[id] = res[1];
         }
 
-        ShardBulkInferenceActionFilter filter = createFilter(threadPool, inferenceModelMap, randomIntBetween(10, 30), useLegacyFormat);
+        ShardBulkInferenceActionFilter filter = createFilter(
+            threadPool,
+            inferenceModelMap,
+            randomIntBetween(10, 30),
+            useLegacyFormat,
+            true
+        );
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
@@ -379,7 +433,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ThreadPool threadPool,
         Map<String, StaticModel> modelMap,
         int batchSize,
-        boolean useLegacyFormat
+        boolean useLegacyFormat,
+        boolean isLicenseValidForInference
     ) {
         ModelRegistry modelRegistry = mock(ModelRegistry.class);
         Answer<?> unparsedModelAnswer = invocationOnMock -> {
@@ -437,10 +492,14 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         InferenceServiceRegistry inferenceServiceRegistry = mock(InferenceServiceRegistry.class);
         when(inferenceServiceRegistry.getService(any())).thenReturn(Optional.of(inferenceService));
 
+        MockLicenseState licenseState = MockLicenseState.createMock();
+        when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(isLicenseValidForInference);
+
         return new ShardBulkInferenceActionFilter(
             createClusterService(useLegacyFormat),
             inferenceServiceRegistry,
             modelRegistry,
+            licenseState,
             batchSize
         );
     }
@@ -453,8 +512,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             .build();
         when(indexMetadata.getSettings()).thenReturn(settings);
 
+        ProjectMetadata project = spy(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).build());
+        when(project.index(anyString())).thenReturn(indexMetadata);
+
         Metadata metadata = mock(Metadata.class);
-        when(metadata.index(any(String.class))).thenReturn(indexMetadata);
+        when(metadata.getProject()).thenReturn(project);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
         ClusterService clusterService = mock(ClusterService.class);
@@ -596,7 +658,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         }
 
         ChunkedInference getResults(String text) {
-            return resultMap.getOrDefault(text, new ChunkedInferenceEmbeddingSparse(List.of()));
+            return resultMap.getOrDefault(text, new ChunkedInferenceEmbedding(List.of()));
         }
 
         void putResult(String text, ChunkedInference result) {

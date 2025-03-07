@@ -78,12 +78,12 @@ public class ScriptScoreBenchmark {
     private final PluginsService pluginsService = new PluginsService(
         Settings.EMPTY,
         null,
-        PluginsLoader.createPluginsLoader(Set.of(), PluginsLoader.loadPluginsBundles(Path.of(System.getProperty("plugins.dir"))))
+        PluginsLoader.createPluginsLoader(Set.of(), PluginsLoader.loadPluginsBundles(Path.of(System.getProperty("plugins.dir"))), Map.of())
     );
     private final ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, pluginsService.filterPlugins(ScriptPlugin.class).toList());
 
     private final Map<String, MappedFieldType> fieldTypes = Map.ofEntries(
-        Map.entry("n", new NumberFieldType("n", NumberType.LONG, false, false, true, true, null, Map.of(), null, false, null, null))
+        Map.entry("n", new NumberFieldType("n", NumberType.LONG, false, false, true, true, null, Map.of(), null, false, null, null, false))
     );
     private final IndexFieldDataCache fieldDataCache = new IndexFieldDataCache.None();
     private final CircuitBreakerService breakerService = new NoneCircuitBreakerService();

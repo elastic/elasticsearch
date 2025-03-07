@@ -11,15 +11,16 @@ package org.elasticsearch.transport;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Streams;
 
 import java.io.IOException;
@@ -42,35 +43,29 @@ abstract class OutboundMessage extends NetworkMessage {
 
     BytesReference serialize(RecyclerBytesStreamOutput bytesStream) throws IOException {
         bytesStream.setTransportVersion(version);
-        bytesStream.skip(TcpHeader.headerSize(version));
+        bytesStream.skip(TcpHeader.HEADER_SIZE);
 
         // The compressible bytes stream will not close the underlying bytes stream
         BytesReference reference;
-        int variableHeaderLength = -1;
         final long preHeaderPosition = bytesStream.position();
 
-        if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-            writeVariableHeader(bytesStream);
-            variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
-        }
+        writeVariableHeader(bytesStream);
+        int variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
 
         final boolean compress = TransportStatus.isCompress(status);
         final StreamOutput stream = compress ? wrapCompressed(bytesStream) : bytesStream;
-        final BytesReference zeroCopyBuffer;
+        final ReleasableBytesReference zeroCopyBuffer;
         try {
             stream.setTransportVersion(version);
-            if (variableHeaderLength == -1) {
-                writeVariableHeader(stream);
-            }
             if (message instanceof BytesTransportRequest bRequest) {
                 bRequest.writeThin(stream);
                 zeroCopyBuffer = bRequest.bytes;
             } else if (message instanceof RemoteTransportException) {
                 stream.writeException((RemoteTransportException) message);
-                zeroCopyBuffer = BytesArray.EMPTY;
+                zeroCopyBuffer = ReleasableBytesReference.empty();
             } else {
                 message.writeTo(stream);
-                zeroCopyBuffer = BytesArray.EMPTY;
+                zeroCopyBuffer = ReleasableBytesReference.empty();
             }
         } finally {
             // We have to close here before accessing the bytes when using compression to ensure that some marker bytes (EOS marker)
@@ -83,11 +78,12 @@ abstract class OutboundMessage extends NetworkMessage {
         if (zeroCopyBuffer.length() == 0) {
             reference = message;
         } else {
-            reference = CompositeBytesReference.of(message, zeroCopyBuffer);
+            zeroCopyBuffer.mustIncRef();
+            reference = new ReleasableBytesReference(CompositeBytesReference.of(message, zeroCopyBuffer), (RefCounted) zeroCopyBuffer);
         }
 
         bytesStream.seek(0);
-        final int contentSize = reference.length() - TcpHeader.headerSize(version);
+        final int contentSize = reference.length() - TcpHeader.HEADER_SIZE;
         TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
         return reference;
     }

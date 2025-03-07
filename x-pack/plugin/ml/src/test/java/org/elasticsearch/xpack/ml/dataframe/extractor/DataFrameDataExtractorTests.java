@@ -592,7 +592,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
     public void testExtractionWithProcessedFieldThrows() {
         ProcessedField processedField = mock(ProcessedField.class);
-        doThrow(new RuntimeException("process field error")).when(processedField).value(any(), any());
+        doThrow(new RuntimeException("process field error")).when(processedField).value(any(), any(), any());
 
         extractedFields = new ExtractedFields(
             Arrays.asList(

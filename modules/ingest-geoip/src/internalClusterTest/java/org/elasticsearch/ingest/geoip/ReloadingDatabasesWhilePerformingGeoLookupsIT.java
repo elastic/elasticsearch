@@ -74,12 +74,19 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         databaseNodeService.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
         lazyLoadReaders(databaseNodeService);
 
-        final GeoIpProcessor processor1 = (GeoIpProcessor) factory.create(null, "_tag", null, new HashMap<>(Map.of("field", "_field")));
+        final GeoIpProcessor processor1 = (GeoIpProcessor) factory.create(
+            null,
+            "_tag",
+            null,
+            new HashMap<>(Map.of("field", "_field")),
+            null
+        );
         final GeoIpProcessor processor2 = (GeoIpProcessor) factory.create(
             null,
             "_tag",
             null,
-            new HashMap<>(Map.of("field", "_field", "database_file", "GeoLite2-City-Test.mmdb"))
+            new HashMap<>(Map.of("field", "_field", "database_file", "GeoLite2-City-Test.mmdb")),
+            null
         );
 
         final AtomicBoolean completed = new AtomicBoolean(false);
@@ -99,7 +106,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                             1L,
                             "routing",
                             VersionType.EXTERNAL,
-                            Map.of("_field", "89.160.20.128")
+                            new HashMap<>(Map.of("_field", "89.160.20.128"))
                         );
                         processor1.execute(document1);
                         assertThat(document1.getSourceAndMetadata().get("geoip"), notNullValue());
@@ -109,7 +116,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                             1L,
                             "routing",
                             VersionType.EXTERNAL,
-                            Map.of("_field", "89.160.20.128")
+                            new HashMap<>(Map.of("_field", "89.160.20.128"))
                         );
                         processor2.execute(document2);
                         assertThat(document2.getSourceAndMetadata().get("geoip"), notNullValue());

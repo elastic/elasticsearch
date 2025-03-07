@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -140,6 +141,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     private final Settings settings;
     private final SetOnce<TransformServices> transformServices = new SetOnce<>();
     private final SetOnce<TransformConfigAutoMigration> transformConfigAutoMigration = new SetOnce<>();
+    private final SetOnce<TransformAuditor> transformAuditor = new SetOnce<>();
     private final TransformExtension transformExtension = new DefaultTransformExtension();
 
     public static final Integer DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE = Integer.valueOf(500);
@@ -299,8 +301,10 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             client,
             clusterService.getNodeName(),
             clusterService,
+            services.indexNameExpressionResolver(),
             getTransformExtension().includeNodeInfo()
         );
+        this.transformAuditor.set(auditor);
         Clock clock = Clock.systemUTC();
         TransformCheckpointService checkpointService = new TransformCheckpointService(
             clock,
@@ -439,12 +443,17 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public void cleanUpFeature(
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         Client unwrappedClient,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
     ) {
         OriginSettingClient client = new OriginSettingClient(unwrappedClient, TRANSFORM_ORIGIN);
-        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(
-            success -> client.execute(
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(success -> {
+            //
+            if (transformAuditor.get() != null) {
+                transformAuditor.get().reset();
+            }
+            client.execute(
                 SetResetModeAction.INSTANCE,
                 SetResetModeActionRequest.disabled(true),
                 ActionListener.wrap(resetSuccess -> finalListener.onResponse(success), resetFailure -> {
@@ -457,7 +466,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                         )
                     );
                 })
-            ),
+            );
+        },
             failure -> client.execute(
                 SetResetModeAction.INSTANCE,
                 SetResetModeActionRequest.disabled(false),
@@ -475,7 +485,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
         ActionListener<ListTasksResponse> afterWaitingForTasks = ActionListener.wrap(listTasksResponse -> {
             listTasksResponse.rethrowFailures("Waiting for transform indexing tasks");
-            SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
+            SystemIndexPlugin.super.cleanUpFeature(clusterService, projectResolver, client, unsetResetModeListener);
         }, unsetResetModeListener::onFailure);
 
         ActionListener<StopTransformAction.Response> afterForceStoppingTransforms = ActionListener.wrap(stopTransformsResponse -> {

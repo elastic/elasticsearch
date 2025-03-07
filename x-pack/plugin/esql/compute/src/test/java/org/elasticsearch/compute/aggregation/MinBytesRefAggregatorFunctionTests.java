@@ -31,8 +31,8 @@ public class MinBytesRefAggregatorFunctionTests extends AggregatorFunctionTestCa
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MinBytesRefAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MinBytesRefAggregatorFunctionSupplier();
     }
 
     @Override

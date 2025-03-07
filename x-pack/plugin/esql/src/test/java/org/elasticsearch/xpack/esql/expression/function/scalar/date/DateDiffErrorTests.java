@@ -36,7 +36,7 @@ public class DateDiffErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             if (i == 0) {
                 return "string";
             }
-            return "datetime";
+            return "datetime or date_nanos";
         }));
     }
 }

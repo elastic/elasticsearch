@@ -33,10 +33,10 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.EsqlConverter.STRING_TO_CHRONO_FIELD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLongNanos;
 
 public class DateExtract extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -72,7 +72,11 @@ public class DateExtract extends EsqlConfigurationFunction {
             Refer to https://docs.oracle.com/javase/8/docs/api/java/time/temporal/ChronoField.html[java.time.temporal.ChronoField]
             for a description of these values.\n
             If `null`, the function returns `null`.""") Expression chronoFieldExp,
-        @Param(name = "date", type = "date", description = "Date expression. If `null`, the function returns `null`.") Expression field,
+        @Param(
+            name = "date",
+            type = { "date", "date_nanos" },
+            description = "Date expression. If `null`, the function returns `null`."
+        ) Expression field,
         Configuration configuration
     ) {
         super(source, List.of(chronoFieldExp, field), configuration);
@@ -109,17 +113,42 @@ public class DateExtract extends EsqlConfigurationFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var fieldEvaluator = toEvaluator.apply(children().get(1));
+        boolean isNanos = switch (field().dataType()) {
+            case DATETIME -> false;
+            case DATE_NANOS -> true;
+            default -> throw new UnsupportedOperationException(
+                "Unsupported field type ["
+                    + field().dataType().name()
+                    + "]. "
+                    + "If you're seeing this, there's a bug in DateExtract.resolveType"
+            );
+        };
+
+        ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(children().get(1));
+
+        // Constant chrono field
         if (children().get(0).foldable()) {
             ChronoField chrono = chronoField(toEvaluator.foldCtx());
             if (chrono == null) {
                 BytesRef field = (BytesRef) children().get(0).fold(toEvaluator.foldCtx());
                 throw new InvalidArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
             }
-            return new DateExtractConstantEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
+
+            if (isNanos) {
+                return new DateExtractConstantNanosEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
+            } else {
+                return new DateExtractConstantMillisEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
+            }
         }
+
         var chronoEvaluator = toEvaluator.apply(children().get(0));
-        return new DateExtractEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
+
+        if (isNanos) {
+            return new DateExtractNanosEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
+        } else {
+            return new DateExtractMillisEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
+        }
+
     }
 
     private ChronoField chronoField(FoldContext ctx) {
@@ -138,14 +167,24 @@ public class DateExtract extends EsqlConfigurationFunction {
         return chronoField;
     }
 
-    @Evaluator(warnExceptions = { IllegalArgumentException.class })
-    static long process(long value, BytesRef chronoField, @Fixed ZoneId zone) {
+    @Evaluator(extraName = "Millis", warnExceptions = { IllegalArgumentException.class })
+    static long processMillis(long value, BytesRef chronoField, @Fixed ZoneId zone) {
         return chronoToLong(value, chronoField, zone);
     }
 
-    @Evaluator(extraName = "Constant")
-    static long process(long value, @Fixed ChronoField chronoField, @Fixed ZoneId zone) {
+    @Evaluator(extraName = "ConstantMillis")
+    static long processMillis(long value, @Fixed ChronoField chronoField, @Fixed ZoneId zone) {
         return chronoToLong(value, chronoField, zone);
+    }
+
+    @Evaluator(extraName = "Nanos", warnExceptions = { IllegalArgumentException.class })
+    static long processNanos(long value, BytesRef chronoField, @Fixed ZoneId zone) {
+        return chronoToLongNanos(value, chronoField, zone);
+    }
+
+    @Evaluator(extraName = "ConstantNanos")
+    static long processNanos(long value, @Fixed ChronoField chronoField, @Fixed ZoneId zone) {
+        return chronoToLongNanos(value, chronoField, zone);
     }
 
     @Override
@@ -168,8 +207,15 @@ public class DateExtract extends EsqlConfigurationFunction {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
+        String operationName = sourceText();
         return isStringAndExact(children().get(0), sourceText(), TypeResolutions.ParamOrdinal.FIRST).and(
-            isDate(children().get(1), sourceText(), TypeResolutions.ParamOrdinal.SECOND)
+            TypeResolutions.isType(
+                children().get(1),
+                DataType::isDate,
+                operationName,
+                TypeResolutions.ParamOrdinal.SECOND,
+                "datetime or date_nanos"
+            )
         );
     }
 

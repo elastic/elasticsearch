@@ -195,7 +195,7 @@ public class BinaryFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            var loader = new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
+            return new SyntheticSourceSupport.Native(() -> new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
                 @Override
                 protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
                     var in = new ByteArrayStreamInput();
@@ -221,9 +221,7 @@ public class BinaryFieldMapper extends FieldMapper {
                         b.endArray();
                     }
                 }
-            };
-
-            return new SyntheticSourceSupport.Native(loader);
+            });
         }
 
         return super.syntheticSourceSupport();

@@ -69,7 +69,7 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
         ----
         include::{esql-specs}/string.csv-spec[tag=likeEscapingTripleQuotes]
         ----
-        """, examples = @Example(file = "docs", tag = "like"))
+        """, operator = "LIKE", examples = @Example(file = "docs", tag = "like"))
     public WildcardLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal expression.") Expression left,

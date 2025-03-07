@@ -26,8 +26,15 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 
 public abstract class AbstractTestInferenceService implements InferenceService {
+
+    protected static final Random random = new Random(
+        System.getProperty("tests.seed") == null
+            ? System.currentTimeMillis()
+            : Long.parseUnsignedLong(System.getProperty("tests.seed").split(":")[0], 16)
+    );
 
     protected static int stringWeight(String input, int position) {
         int hashCode = input.hashCode();

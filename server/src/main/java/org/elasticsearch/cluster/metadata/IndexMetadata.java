@@ -1847,12 +1847,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeOptionalDouble(writeLoadForecast);
             out.writeOptionalLong(shardSizeInBytesForecast);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            eventIngestedRange.writeTo(out);
-        } else {
-            assert eventIngestedRange == IndexLongFieldRange.UNKNOWN
-                : "eventIngestedRange should be UNKNOWN until all nodes are on the new version but is " + eventIngestedRange;
-        }
+        eventIngestedRange.writeTo(out);
     }
 
     @Override
@@ -1949,6 +1944,39 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder numberOfShards(int numberOfShards) {
             settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+            return this;
+        }
+
+        /**
+         * Builder to create IndexMetadata that has an increased shard count (used for re-shard).
+         * The new shard count must be a multiple of the original shardcount.
+         * We do not support shrinking the shard count.
+         * @param shardCount   updated shardCount
+         *
+         * TODO: Check if this.version needs to be incremented
+         */
+        public Builder reshardAddShards(int shardCount) {
+            // Assert routingNumShards is null ?
+            // Assert numberOfShards > 0
+            if (shardCount % numberOfShards() != 0) {
+                throw new IllegalArgumentException(
+                    "New shard count ["
+                        + shardCount
+                        + "] should be a multiple"
+                        + " of current shard count ["
+                        + numberOfShards()
+                        + "] for ["
+                        + index
+                        + "]"
+                );
+            }
+            IndexVersion indexVersionCreated = indexCreatedVersion(settings);
+            settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, shardCount).build();
+            var newPrimaryTerms = new long[shardCount];
+            Arrays.fill(newPrimaryTerms, this.primaryTerms.length, newPrimaryTerms.length, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+            System.arraycopy(primaryTerms, 0, newPrimaryTerms, 0, this.primaryTerms.length);
+            primaryTerms = newPrimaryTerms;
+            routingNumShards = MetadataCreateIndexService.calculateNumRoutingShards(shardCount, indexVersionCreated);
             return this;
         }
 
@@ -2074,6 +2102,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder putRolloverInfo(RolloverInfo rolloverInfo) {
             rolloverInfos.put(rolloverInfo.getAlias(), rolloverInfo);
+            return this;
+        }
+
+        public Builder putRolloverInfos(Map<String, RolloverInfo> rolloverInfos) {
+            this.rolloverInfos.clear();
+            this.rolloverInfos.putAllFromMap(rolloverInfos);
             return this;
         }
 

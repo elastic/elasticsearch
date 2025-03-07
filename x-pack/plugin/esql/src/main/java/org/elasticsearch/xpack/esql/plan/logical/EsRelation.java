@@ -173,11 +173,6 @@ public class EsRelation extends LeafPlan {
     }
 
     @Override
-    public String commandName() {
-        return "FROM";
-    }
-
-    @Override
     public boolean expressionsResolved() {
         // For unresolved expressions to exist in EsRelation is fine, as long as they are not used in later operations
         // This allows for them to be converted to null@unsupported fields in final output, an important feature of ES|QL
@@ -230,5 +225,9 @@ public class EsRelation extends LeafPlan {
         } else if (indexMode != IndexMode.STANDARD) {
             throw new IllegalStateException("not ready to support index mode [" + indexMode + "]");
         }
+    }
+
+    public EsRelation withAttributes(List<Attribute> newAttributes) {
+        return new EsRelation(source(), indexPattern, indexMode, indexNameWithModes, newAttributes);
     }
 }

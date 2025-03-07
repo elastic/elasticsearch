@@ -11,6 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.elastic.ElasticInferenceServiceResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -40,6 +42,10 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
 
     private final TraceContext traceContext;
 
+    private final InputType inputType;
+
+    private final String productOrigin;
+
     private static ResponseHandler createSparseEmbeddingsHandler() {
         return new ElasticInferenceServiceResponseHandler(
             String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
@@ -50,12 +56,15 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
     public ElasticInferenceServiceSparseEmbeddingsRequestManager(
         ElasticInferenceServiceSparseEmbeddingsModel model,
         ServiceComponents serviceComponents,
-        TraceContext traceContext
+        TraceContext traceContext,
+        InputType inputType
     ) {
         super(serviceComponents.threadPool(), model);
         this.model = model;
         this.truncator = serviceComponents.truncator();
         this.traceContext = traceContext;
+        this.productOrigin = serviceComponents.threadPool().getThreadContext().getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+        this.inputType = inputType;
     }
 
     @Override
@@ -72,7 +81,9 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
             truncator,
             truncatedInput,
             model,
-            traceContext
+            traceContext,
+            productOrigin,
+            inputType
         );
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

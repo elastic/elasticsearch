@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.api;
 
-public class NotEntitledException extends RuntimeException {
+public class NotEntitledException extends SecurityException {
     public NotEntitledException(String message) {
         super(message);
     }

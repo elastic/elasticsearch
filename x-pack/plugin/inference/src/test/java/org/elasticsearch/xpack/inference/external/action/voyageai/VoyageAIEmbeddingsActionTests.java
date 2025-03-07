@@ -27,9 +27,10 @@ import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.http.sender.VoyageAIEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIUtils;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
@@ -47,6 +48,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
+import static org.elasticsearch.xpack.inference.external.action.voyageai.VoyageAIActionCreator.EMBEDDINGS_HANDLER;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationBinary;
@@ -396,9 +398,16 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         Sender sender
     ) {
         var model = VoyageAIEmbeddingsModelTests.createModel(url, apiKey, taskSettings, 1024, 1024, modelName, embeddingType);
+        var manager = new GenericRequestManager<>(
+            threadPool,
+            model,
+            EMBEDDINGS_HANDLER,
+            (documentsOnlyInput) -> new VoyageAIEmbeddingsRequest(documentsOnlyInput.getInputs(), model),
+            DocumentsOnlyInput.class
+        );
+
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("VoyageAI embeddings");
-        var requestCreator = VoyageAIEmbeddingsRequestManager.of(model, threadPool);
-        return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
+        return new SenderExecutableAction(sender, manager, failedToSendRequestErrorMessage);
     }
 
 }

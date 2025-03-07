@@ -400,15 +400,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     public static Set<String> getCheckActionsAllowedInPlugins() {
         return checkActions.entrySet()
             .stream()
-            .filter(kv -> kv.getValue().expectedAccess().equals(PLUGINS))
-            .map(Entry::getKey)
-            .collect(Collectors.toSet());
-    }
-
-    public static Set<String> getAlwaysAllowedCheckActions() {
-        return checkActions.entrySet()
-            .stream()
-            .filter(kv -> kv.getValue().expectedAccess().equals(ALWAYS_ALLOWED))
+            .filter(kv -> kv.getValue().expectedAccess().equals(PLUGINS) || kv.getValue().expectedAccess().equals(ALWAYS_ALLOWED))
             .map(Entry::getKey)
             .collect(Collectors.toSet());
     }

@@ -333,7 +333,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 // item 3
                 assertNull(bulkShardRequest.items()[3].getPrimaryResponse());
                 actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[3].request());
-                assertInferenceResults(useLegacyFormat, actualRequest, "obj.field1", EXPLICIT_NULL, useLegacyFormat ? null: 0);
+                assertInferenceResults(useLegacyFormat, actualRequest, "obj.field1", EXPLICIT_NULL, useLegacyFormat ? null : 0);
 
                 // item 4
                 assertNull(bulkShardRequest.items()[4].getPrimaryResponse());

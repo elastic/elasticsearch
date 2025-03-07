@@ -81,4 +81,11 @@ public final class EntitledActions {
     public static URLConnection createMailToURLConnection() throws URISyntaxException, IOException {
         return new URI("mailto", "email@example.com", null).toURL().openConnection();
     }
+
+    public static URLConnection createJarURLConnection() throws IOException {
+        var tmpJarFile = Files.createFile(readWriteDir().resolve("entitlements-" + random.nextLong() + ".jar"));
+        var jarFileUrl = tmpJarFile.toUri().toURL();
+        var jarUrl = URI.create("jar:" + jarFileUrl + "!/").toURL();
+        return jarUrl.openConnection();
+    }
 }

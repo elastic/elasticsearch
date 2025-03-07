@@ -728,8 +728,9 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             exceptions
         );
 
-        ElasticsearchException ex = new ElasticsearchException("error occurred while reindexing data stream ["
-            + migrationInfo.getDataStreamName() + "]");
+        ElasticsearchException ex = new ElasticsearchException(
+            "error occurred while reindexing data stream [" + migrationInfo.getDataStreamName() + "]"
+        );
         for (Exception exception : exceptions) {
             ex.addSuppressed(exception);
         }

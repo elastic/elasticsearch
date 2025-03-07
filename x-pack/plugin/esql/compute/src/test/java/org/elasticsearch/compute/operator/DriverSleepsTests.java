@@ -86,7 +86,7 @@ public class DriverSleepsTests extends AbstractWireSerializingTestCase<DriverSle
 
     public void testWakingToXContent() {
         Formatter formatter = new Formatter();
-        String expected = formatter.format( """
+        String expected = formatter.format("""
             {
               "counts" : {
                 "driver iterations" : 1

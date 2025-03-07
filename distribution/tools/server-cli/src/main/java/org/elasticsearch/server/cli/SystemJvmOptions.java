@@ -12,7 +12,6 @@ package org.elasticsearch.server.cli;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.jdk.RuntimeVersionFeature;
 
 import java.io.IOException;
@@ -28,7 +27,7 @@ final class SystemJvmOptions {
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
-        boolean entitlementsExplicitlyEnabled = Booleans.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "false"));
+        boolean entitlementsExplicitlyEnabled = Booleans.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "true"));
         // java 24+ only supports entitlements, but it may be enabled on earlier versions explicitly
         boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsExplicitlyEnabled;
         return Stream.of(
@@ -150,7 +149,6 @@ final class SystemJvmOptions {
         return Stream.of();
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     private static Stream<String> maybeAllowSecurityManager(boolean useEntitlements) {
         if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
             // Will become conditional on useEntitlements once entitlements can run without SM
@@ -180,7 +178,7 @@ final class SystemJvmOptions {
         }
         // We instrument classes in these modules to call the bridge. Because the bridge gets patched
         // into java.base, we must export the bridge from java.base to these modules, as a comma-separated list
-        String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming";
+        String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
         return Stream.of(
             "-Des.entitlements.enabled=true",
             "-XX:+EnableDynamicAgentLoading",

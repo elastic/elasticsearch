@@ -197,7 +197,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             assertThat(innerMap, hasEntry("innerKey", "innerValue"));
 
             // We shouldn't have any results in the cluster state as no features have fully finished yet.
-            FeatureMigrationResults currentResults = clusterState.metadata().custom(FeatureMigrationResults.TYPE);
+            FeatureMigrationResults currentResults = clusterState.metadata().getProject().custom(FeatureMigrationResults.TYPE);
             assertThat(currentResults, nullValue());
             postUpgradeHookCalled.set(true);
         });
@@ -249,7 +249,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
     private static Metadata assertMetadataAfterMigration(String featureName) {
         Metadata finalMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
         // Check that the results metadata is what we expect.
-        FeatureMigrationResults currentResults = finalMetadata.custom(FeatureMigrationResults.TYPE);
+        FeatureMigrationResults currentResults = finalMetadata.getProject().custom(FeatureMigrationResults.TYPE);
         assertThat(currentResults, notNullValue());
         assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(1), hasKey(featureName)));
         assertThat(currentResults.getFeatureStatuses().get(featureName).succeeded(), is(true));
@@ -308,7 +308,11 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         });
 
         // Get the settings to see if the write block was removed
-        var allsettings = client().admin().indices().prepareGetSettings(INTERNAL_UNMANAGED.getIndexPattern()).get().getIndexToSettings();
+        var allsettings = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, INTERNAL_UNMANAGED.getIndexPattern())
+            .get()
+            .getIndexToSettings();
         var internalUnmanagedOldIndexSettings = allsettings.get(".int-unman-old");
         var writeBlock = internalUnmanagedOldIndexSettings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey());
         assertThat("Write block on old index should be removed on migration ERROR status", writeBlock, equalTo("false"));

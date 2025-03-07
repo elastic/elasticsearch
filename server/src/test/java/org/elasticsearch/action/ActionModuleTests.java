@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -130,8 +131,10 @@ public class ActionModuleTests extends ESTestCase {
             mock(ClusterService.class),
             null,
             List.of(),
+            List.of(),
             RestExtension.allowAll(),
-            new IncrementalBulkService(null, null)
+            new IncrementalBulkService(null, null),
+            TestProjectResolvers.singleProjectOnly()
         );
         actionModule.initRestHandlers(null, null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -195,8 +198,10 @@ public class ActionModuleTests extends ESTestCase {
                 mock(ClusterService.class),
                 null,
                 List.of(),
+                List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null)
+                new IncrementalBulkService(null, null),
+                TestProjectResolvers.singleProjectOnly()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
@@ -253,8 +258,10 @@ public class ActionModuleTests extends ESTestCase {
                 mock(ClusterService.class),
                 null,
                 List.of(),
+                List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null)
+                new IncrementalBulkService(null, null),
+                TestProjectResolvers.singleProjectOnly()
             );
             actionModule.initRestHandlers(null, null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -304,8 +311,10 @@ public class ActionModuleTests extends ESTestCase {
                     mock(ClusterService.class),
                     null,
                     List.of(),
+                    List.of(),
                     RestExtension.allowAll(),
-                    new IncrementalBulkService(null, null)
+                    new IncrementalBulkService(null, null),
+                    TestProjectResolvers.singleProjectOnly()
                 )
             );
             assertThat(
@@ -346,8 +355,10 @@ public class ActionModuleTests extends ESTestCase {
                     mock(ClusterService.class),
                     null,
                     List.of(),
+                    List.of(),
                     RestExtension.allowAll(),
-                    new IncrementalBulkService(null, null)
+                    new IncrementalBulkService(null, null),
+                    TestProjectResolvers.singleProjectOnly()
                 )
             );
             assertThat(

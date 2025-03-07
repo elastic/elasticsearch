@@ -133,6 +133,9 @@ develocity {
         }
       } else {
         tag 'LOCAL'
+        if (System.getProperty('idea.active') == 'true') {
+          tag 'IDEA'
+        }
       }
     }
   }

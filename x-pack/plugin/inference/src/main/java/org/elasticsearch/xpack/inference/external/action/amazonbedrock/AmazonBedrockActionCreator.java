@@ -43,7 +43,7 @@ public class AmazonBedrockActionCreator implements AmazonBedrockActionVisitor {
             serviceComponents.threadPool(),
             timeout
         );
-        var errorMessage = constructFailedToSendRequestMessage(null, "Amazon Bedrock embeddings");
+        var errorMessage = constructFailedToSendRequestMessage("Amazon Bedrock embeddings");
         return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 
@@ -51,7 +51,7 @@ public class AmazonBedrockActionCreator implements AmazonBedrockActionVisitor {
     public ExecutableAction create(AmazonBedrockChatCompletionModel completionModel, Map<String, Object> taskSettings) {
         var overriddenModel = AmazonBedrockChatCompletionModel.of(completionModel, taskSettings);
         var requestManager = new AmazonBedrockChatCompletionRequestManager(overriddenModel, serviceComponents.threadPool(), timeout);
-        var errorMessage = constructFailedToSendRequestMessage(null, "Amazon Bedrock completion");
+        var errorMessage = constructFailedToSendRequestMessage("Amazon Bedrock completion");
         return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 }

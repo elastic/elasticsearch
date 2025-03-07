@@ -25,6 +25,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -54,15 +55,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     IndicesStatsResponse(StreamInput in) throws IOException {
         super(in);
         shards = in.readArray(ShardStats::new, ShardStats[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS_REVERT)) {
-            indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
-            indexStateMap = in.readMap(IndexMetadata.State::readFrom);
-        } else if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS)) {
-            indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
-            indexStateMap = in.readMap(IndexMetadata.State::readFrom);
-            in.readMap(StreamInput::readStringCollectionAsList); // unused, reverted
-            in.readMap(StreamInput::readLong); // unused, reverted
-        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
             // Between 8.1 and INDEX_STATS_ADDITIONAL_FIELDS, we had a different format for the response
             // where we only had health and state available.
             indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
@@ -73,6 +66,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         }
     }
 
+    @FixForMultiProject(description = "we can pass ProjectMetadata here")
     IndicesStatsResponse(
         ShardStats[] shards,
         int totalShards,
@@ -91,7 +85,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         Map<String, IndexMetadata.State> indexStateModifiableMap = new HashMap<>();
         for (ShardStats shard : shards) {
             Index index = shard.getShardRouting().index();
-            IndexMetadata indexMetadata = metadata.index(index);
+            IndexMetadata indexMetadata = metadata.findIndex(index).orElse(null);
             if (indexMetadata != null) {
                 indexHealthModifiableMap.computeIfAbsent(
                     index.getName(),
@@ -184,15 +178,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeArray(shards);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS_REVERT)) {
-            out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
-            out.writeMap(indexStateMap, StreamOutput::writeWriteable);
-        } else if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS)) {
-            out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
-            out.writeMap(indexStateMap, StreamOutput::writeWriteable);
-            out.writeMap(Map.of(), StreamOutput::writeStringCollection);
-            out.writeMap(Map.of(), StreamOutput::writeLong);
-        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
             out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
             out.writeMap(indexStateMap, StreamOutput::writeWriteable);
         }
@@ -232,22 +218,20 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                         }),
 
                         level == ClusterStatsLevel.SHARDS
-                            ? Iterators.concat(
-                                ChunkedToXContentHelper.startObject(Fields.SHARDS),
+                            ? ChunkedToXContentHelper.object(
+                                Fields.SHARDS,
                                 Iterators.flatMap(
                                     indexStats.iterator(),
-                                    indexShardStats -> Iterators.concat(
-                                        ChunkedToXContentHelper.startArray(Integer.toString(indexShardStats.getShardId().id())),
-                                        Iterators.<ShardStats, ToXContent>map(indexShardStats.iterator(), shardStats -> (builder, p) -> {
+                                    indexShardStats -> ChunkedToXContentHelper.array(
+                                        Integer.toString(indexShardStats.getShardId().id()),
+                                        Iterators.map(indexShardStats.iterator(), shardStats -> (builder, p) -> {
                                             builder.startObject();
                                             shardStats.toXContent(builder, p);
                                             builder.endObject();
                                             return builder;
-                                        }),
-                                        ChunkedToXContentHelper.endArray()
+                                        })
                                     )
-                                ),
-                                ChunkedToXContentHelper.endObject()
+                                )
                             )
                             : Collections.emptyIterator(),
 

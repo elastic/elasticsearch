@@ -89,7 +89,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.V_7_17_0,
+            TransportVersions.V_8_0_0,
             TransportVersionUtils.getPreviousVersion(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
         out.setTransportVersion(version);

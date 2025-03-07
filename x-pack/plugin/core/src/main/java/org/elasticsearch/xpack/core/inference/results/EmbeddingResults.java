@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContent;
@@ -22,31 +23,27 @@ import java.util.List;
 public interface EmbeddingResults<E extends EmbeddingResults.Embedding<E>> extends InferenceServiceResults {
 
     /**
-     * A resulting embedding together with the offset into the input text.
-     */
-    interface Chunk {
-        ChunkedInference.Chunk toChunk(XContent xcontent) throws IOException;
-
-        ChunkedInference.TextOffset offset();
-    }
-
-    /**
      * A resulting embedding for one of the input texts to the inference service.
      */
     interface Embedding<E extends Embedding<E>> {
         /**
-         * Combines the resulting embedding with the offset into the input text into a chunk.
-         */
-        Chunk toChunk(ChunkedInference.TextOffset offset);
-
-        /**
          * Merges the existing embedding and provided embedding into a new embedding.
          */
         E merge(E embedding);
+
+        /**
+         * Serializes the embedding to bytes.
+         */
+        BytesReference toBytesRef(XContent xContent) throws IOException;
     }
 
     /**
      * The resulting list of embeddings for the input texts to the inference service.
      */
     List<E> embeddings();
+
+    /**
+     * A resulting embedding together with the offset into the input text.
+     */
+    record Chunk(Embedding<?> embedding, ChunkedInference.TextOffset offset) {}
 }

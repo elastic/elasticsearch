@@ -219,10 +219,9 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
         AtomicReferenceArray<E> embeddings = resultEmbeddings.get(inputIndex);
 
         List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
-
         for (int i = 0; i < embeddings.length(); i++) {
             ChunkedInference.TextOffset offset = new ChunkedInference.TextOffset(startOffsets.get(i), endOffsets.get(i));
-            chunks.add(embeddings.get(i).toChunk(offset));
+            chunks.add(new EmbeddingResults.Chunk(embeddings.get(i), offset));
         }
         return new ChunkedInferenceEmbedding(chunks);
     }

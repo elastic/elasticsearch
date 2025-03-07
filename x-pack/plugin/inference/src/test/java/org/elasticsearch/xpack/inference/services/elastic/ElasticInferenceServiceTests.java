@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
@@ -564,8 +565,11 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 sparseResult.chunks(),
                 is(
                     List.of(
-                        new SparseEmbeddingResults.Chunk(
-                            List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
+                        new EmbeddingResults.Chunk(
+                            new SparseEmbeddingResults.Embedding(
+                                List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
+                                false
+                            ),
                             new ChunkedInference.TextOffset(0, "input text".length())
                         )
                     )

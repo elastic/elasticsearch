@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
-import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
@@ -175,11 +174,6 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Embe
         }
 
         @Override
-        public Chunk toChunk(ChunkedInference.TextOffset offset) {
-            return new Chunk(tokens, offset);
-        }
-
-        @Override
         public Embedding merge(Embedding embedding) {
             List<WeightedToken> mergedTokens = new ArrayList<>();
             Set<String> seenTokens = new HashSet<>();
@@ -204,15 +198,9 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Embe
             boolean mergedIsTruncated = isTruncated || embedding.isTruncated();
             return new Embedding(mergedTokens, mergedIsTruncated);
         }
-    }
 
-    public record Chunk(List<WeightedToken> weightedTokens, ChunkedInference.TextOffset offset) implements EmbeddingResults.Chunk {
-
-        public ChunkedInference.Chunk toChunk(XContent xcontent) throws IOException {
-            return new ChunkedInference.Chunk(offset, toBytesReference(xcontent, weightedTokens));
-        }
-
-        private static BytesReference toBytesReference(XContent xContent, List<WeightedToken> tokens) throws IOException {
+        @Override
+        public BytesReference toBytesRef(XContent xContent) throws IOException {
             XContentBuilder b = XContentBuilder.builder(xContent);
             b.startObject();
             for (var weightedToken : tokens) {

@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
-import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -196,11 +195,6 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements Te
         }
 
         @Override
-        public Chunk toChunk(ChunkedInference.TextOffset offset) {
-            return new Chunk(values, offset);
-        }
-
-        @Override
         public Embedding merge(Embedding embedding) {
             byte[] newValues = new byte[values.length];
             int[] newSumMergedValues = new int[values.length];
@@ -214,22 +208,13 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements Te
             }
             return new Embedding(newValues, newSumMergedValues, newNumberOfMergedEmbeddings);
         }
-    }
 
-    /**
-     * Serialises the {@code value} array, according to the provided {@link XContent}, into a {@link BytesReference}.
-     */
-    public record Chunk(byte[] embedding, ChunkedInference.TextOffset offset) implements EmbeddingResults.Chunk {
-
-        public ChunkedInference.Chunk toChunk(XContent xcontent) throws IOException {
-            return new ChunkedInference.Chunk(offset, toBytesReference(xcontent, embedding));
-        }
-
-        private static BytesReference toBytesReference(XContent xContent, byte[] value) throws IOException {
+        @Override
+        public BytesReference toBytesRef(XContent xContent) throws IOException {
             XContentBuilder builder = XContentBuilder.builder(xContent);
             builder.startArray();
-            for (byte v : value) {
-                builder.value(v);
+            for (byte value : values) {
+                builder.value(value);
             }
             builder.endArray();
             return BytesReference.bytes(builder);

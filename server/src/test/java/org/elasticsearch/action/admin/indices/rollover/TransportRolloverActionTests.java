@@ -494,8 +494,14 @@ public class TransportRolloverActionTests extends ESTestCase {
             rolloverRequest.dryRun(true);
             transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
             RolloverResponse rolloverResponse = future.actionGet();
+            assertThat(rolloverResponse.getOldIndex(), equalTo(".ds-logs-ds-000001"));
+            assertThat(rolloverResponse.getNewIndex(), Matchers.startsWith(".ds-logs-ds-"));
+            assertThat(rolloverResponse.getNewIndex(), Matchers.endsWith("-000002"));
             assertThat(rolloverResponse.isLazy(), equalTo(true));
             assertThat(rolloverResponse.isDryRun(), equalTo(true));
+            assertThat(rolloverResponse.isRolledOver(), equalTo(false));
+            assertThat(rolloverResponse.getConditionStatus().size(), equalTo(0));
+            assertThat(rolloverResponse.isAcknowledged(), is(false));
         }
     }
 

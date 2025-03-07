@@ -126,7 +126,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
         ElasticsearchStatusException ex = expectThrows(
             ElasticsearchStatusException.class,
-            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, Collections.emptyMap())
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, Collections.emptyMap(), null)
         );
 
         assertThat(
@@ -157,7 +157,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
         ElasticsearchStatusException ex = expectThrows(
             ElasticsearchStatusException.class,
-            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config)
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config, null)
         );
         assertThat(
             ex.getMessage(),
@@ -179,7 +179,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         };
         ex = expectThrows(
             ElasticsearchStatusException.class,
-            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config2)
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config2, null)
         );
         assertThat(ex.getMessage(), equalTo("inference_config must be an object with one inference type mapped to an object."));
 
@@ -193,7 +193,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         };
         ex = expectThrows(
             ElasticsearchStatusException.class,
-            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config3)
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config3, null)
         );
         assertThat(ex.getMessage(), equalTo("inference_config must be an object with one inference type mapped to an object."));
     }
@@ -224,7 +224,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
         ElasticsearchException ex = expectThrows(
             ElasticsearchException.class,
-            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression)
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression, null)
         );
         assertThat(
             ex.getMessage(),
@@ -248,7 +248,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
         ex = expectThrows(
             ElasticsearchException.class,
-            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, classification)
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, classification, null)
         );
         assertThat(
             ex.getMessage(),
@@ -322,7 +322,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             }
         };
 
-        var processor = processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression);
+        var processor = processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression, null);
         assertFalse(processor.isConfiguredWithInputsFields());
         assertEquals("my_model", processor.getModelId());
         assertEquals("result", processor.getTargetField());
@@ -344,7 +344,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             }
         };
 
-        processor = processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, classification);
+        processor = processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, classification, null);
         assertFalse(processor.isConfiguredWithInputsFields());
 
         Map<String, Object> mininmal = new HashMap<>() {
@@ -354,7 +354,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             }
         };
 
-        processor = processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, mininmal);
+        processor = processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, mininmal, null);
         assertFalse(processor.isConfiguredWithInputsFields());
         assertEquals("my_model", processor.getModelId());
         assertEquals("result", processor.getTargetField());
@@ -381,7 +381,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             }
         };
 
-        var processor = processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config);
+        var processor = processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config, null);
         assertFalse(processor.isConfiguredWithInputsFields());
         assertEquals("my_model", processor.getModelId());
         assertEquals("result", processor.getTargetField());
@@ -414,7 +414,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         inputOutputs.add(input2);
         config.put(InferenceProcessor.INPUT_OUTPUT, inputOutputs);
 
-        var processor = processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config);
+        var processor = processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config, null);
         assertTrue(processor.isConfiguredWithInputsFields());
         assertEquals("my_model", processor.getModelId());
         var configuredInputs = processor.getInputs();
@@ -451,7 +451,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
         Exception ex = expectThrows(
             Exception.class,
-            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression)
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression, null)
         );
         assertThat(ex.getMessage(), equalTo("Invalid inference config. " + "More than one field is configured as [warning]"));
     }
@@ -481,7 +481,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
         Exception ex = expectThrows(
             Exception.class,
-            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression)
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression, null)
         );
         assertThat(ex.getMessage(), equalTo("Invalid inference config. " + "More than one field is configured as [warning]"));
     }
@@ -538,7 +538,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
         ElasticsearchParseException ex = expectThrows(
             ElasticsearchParseException.class,
-            () -> processorFactory.create(Collections.emptyMap(), "processor_with_inputs", null, config)
+            () -> processorFactory.create(Collections.emptyMap(), "processor_with_inputs", null, config, null)
         );
         assertThat(
             ex.getMessage(),
@@ -580,7 +580,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
         ElasticsearchParseException ex = expectThrows(
             ElasticsearchParseException.class,
-            () -> processorFactory.create(Collections.emptyMap(), "processor_with_inputs", null, config)
+            () -> processorFactory.create(Collections.emptyMap(), "processor_with_inputs", null, config, null)
         );
         assertThat(
             ex.getMessage(),
@@ -645,7 +645,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             config.put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(inferenceConfigType, Collections.emptyMap()));
         }
 
-        var inferenceProcessor = processorFactory.create(Collections.emptyMap(), "processor_with_inputs", null, config);
+        var inferenceProcessor = processorFactory.create(Collections.emptyMap(), "processor_with_inputs", null, config, null);
         assertEquals("my_model", inferenceProcessor.getModelId());
         assertTrue(inferenceProcessor.isConfiguredWithInputsFields());
 
@@ -689,7 +689,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 );
             }
 
-            var inferenceProcessor = processorFactory.create(Collections.emptyMap(), "processor_with_single_input", null, config);
+            var inferenceProcessor = processorFactory.create(Collections.emptyMap(), "processor_with_single_input", null, config, null);
             assertEquals("my_model", inferenceProcessor.getModelId());
             assertTrue(inferenceProcessor.isConfiguredWithInputsFields());
 
@@ -717,7 +717,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
             var e = expectThrows(
                 ElasticsearchParseException.class,
-                () -> processorFactory.create(Collections.emptyMap(), "processor_with_bad_config", null, config)
+                () -> processorFactory.create(Collections.emptyMap(), "processor_with_bad_config", null, config, null)
             );
             assertThat(e.getMessage(), containsString("[input_output] property isn't a list of maps"));
         }
@@ -728,7 +728,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
             var e = expectThrows(
                 ElasticsearchParseException.class,
-                () -> processorFactory.create(Collections.emptyMap(), "processor_with_bad_config", null, config)
+                () -> processorFactory.create(Collections.emptyMap(), "processor_with_bad_config", null, config, null)
             );
             assertThat(e.getMessage(), containsString("[input_output] property isn't a map or list of maps"));
         }
@@ -741,7 +741,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
             var e = expectThrows(
                 ElasticsearchParseException.class,
-                () -> processorFactory.create(Collections.emptyMap(), "processor_with_bad_config", null, config)
+                () -> processorFactory.create(Collections.emptyMap(), "processor_with_bad_config", null, config, null)
             );
             assertThat(e.getMessage(), containsString("[input_field] required property is missing"));
         }
@@ -753,7 +753,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
             var e = expectThrows(
                 ElasticsearchParseException.class,
-                () -> processorFactory.create(Collections.emptyMap(), "processor_with_bad_config", null, config)
+                () -> processorFactory.create(Collections.emptyMap(), "processor_with_bad_config", null, config, null)
             );
             assertThat(e.getMessage(), containsString("[input_output] property cannot be empty at least one is required"));
         }

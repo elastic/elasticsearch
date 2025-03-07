@@ -20,6 +20,9 @@ options {
   tokenVocab=EsqlBaseLexer;
 }
 
+import Expression,
+       Join;
+
 singleStatement
     : query EOF
     ;
@@ -57,66 +60,11 @@ processingCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? changePointCommand
     | {this.isDevVersion()}? insistCommand
+    | {this.isDevVersion()}? forkCommand
     ;
 
 whereCommand
     : WHERE booleanExpression
-    ;
-
-booleanExpression
-    : NOT booleanExpression                                                      #logicalNot
-    | valueExpression                                                            #booleanDefault
-    | regexBooleanExpression                                                     #regexExpression
-    | left=booleanExpression operator=AND right=booleanExpression                #logicalBinary
-    | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
-    | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
-    | valueExpression IS NOT? NULL                                               #isNull
-    | matchBooleanExpression                                                     #matchExpression
-    ;
-
-regexBooleanExpression
-    : valueExpression (NOT)? kind=LIKE pattern=string
-    | valueExpression (NOT)? kind=RLIKE pattern=string
-    ;
-
-matchBooleanExpression
-    : fieldExp=qualifiedName (CAST_OP fieldType=dataType)? COLON matchQuery=constant
-    ;
-
-valueExpression
-    : operatorExpression                                                                      #valueExpressionDefault
-    | left=operatorExpression comparisonOperator right=operatorExpression                     #comparison
-    ;
-
-operatorExpression
-    : primaryExpression                                                                       #operatorExpressionDefault
-    | operator=(MINUS | PLUS) operatorExpression                                              #arithmeticUnary
-    | left=operatorExpression operator=(ASTERISK | SLASH | PERCENT) right=operatorExpression  #arithmeticBinary
-    | left=operatorExpression operator=(PLUS | MINUS) right=operatorExpression                #arithmeticBinary
-    ;
-
-primaryExpression
-    : constant                                                                          #constantDefault
-    | qualifiedName                                                                     #dereference
-    | functionExpression                                                                #function
-    | LP booleanExpression RP                                                           #parenthesizedExpression
-    | primaryExpression CAST_OP dataType                                                #inlineCast
-    ;
-
-functionExpression
-    : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)* (COMMA mapExpression)?))? RP
-    ;
-
-functionName
-    : identifierOrParameter
-    ;
-
-mapExpression
-    : LEFT_BRACES entryExpression (COMMA entryExpression)* RIGHT_BRACES
-    ;
-
-entryExpression
-    : key=string COLON value=constant
     ;
 
 dataType
@@ -199,19 +147,6 @@ identifierPattern
     | parameter
     ;
 
-constant
-    : NULL                                                                              #nullLiteral
-    | integerValue UNQUOTED_IDENTIFIER                                                  #qualifiedIntegerLiteral
-    | decimalValue                                                                      #decimalLiteral
-    | integerValue                                                                      #integerLiteral
-    | booleanValue                                                                      #booleanLiteral
-    | parameter                                                                         #inputParameter
-    | string                                                                            #stringLiteral
-    | OPENING_BRACKET numericValue (COMMA numericValue)* CLOSING_BRACKET                #numericArrayLiteral
-    | OPENING_BRACKET booleanValue (COMMA booleanValue)* CLOSING_BRACKET                #booleanArrayLiteral
-    | OPENING_BRACKET string (COMMA string)* CLOSING_BRACKET                            #stringArrayLiteral
-    ;
-
 parameter
     : PARAM                        #inputParam
     | NAMED_OR_POSITIONAL_PARAM    #inputNamedOrPositionalParam
@@ -270,31 +205,6 @@ commandOption
     : identifier ASSIGN constant
     ;
 
-booleanValue
-    : TRUE | FALSE
-    ;
-
-numericValue
-    : decimalValue
-    | integerValue
-    ;
-
-decimalValue
-    : (PLUS | MINUS)? DECIMAL_LITERAL
-    ;
-
-integerValue
-    : (PLUS | MINUS)? INTEGER_LITERAL
-    ;
-
-string
-    : QUOTED_STRING
-    ;
-
-comparisonOperator
-    : EQ | NEQ | LT | LTE | GT | GTE
-    ;
-
 explainCommand
     : EXPLAIN subqueryExpression
     ;
@@ -326,26 +236,33 @@ inlinestatsCommand
     : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
     ;
 
-joinCommand
-    : type=(JOIN_LOOKUP | DEV_JOIN_LEFT | DEV_JOIN_RIGHT) JOIN joinTarget joinCondition
-    ;
-
-joinTarget
-    : index=indexPattern
-    ;
-
-joinCondition
-    : ON joinPredicate (COMMA joinPredicate)*
-    ;
-
-joinPredicate
-    : valueExpression
-    ;
-
 changePointCommand
     : DEV_CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
     ;
 
 insistCommand
     : DEV_INSIST qualifiedNamePatterns
+    ;
+
+forkCommand
+    : DEV_FORK forkSubQueries
+    ;
+
+forkSubQueries
+    : (forkSubQuery)+
+    ;
+
+forkSubQuery
+    : LP forkSubQueryCommand RP
+    ;
+
+forkSubQueryCommand
+    : forkSubQueryProcessingCommand                             #singleForkSubQueryCommand
+    | forkSubQueryCommand PIPE forkSubQueryProcessingCommand    #compositeForkSubQuery
+    ;
+
+forkSubQueryProcessingCommand
+    : whereCommand
+    | sortCommand
+    | limitCommand
     ;

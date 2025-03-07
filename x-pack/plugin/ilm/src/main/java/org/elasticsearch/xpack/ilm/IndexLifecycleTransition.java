@@ -122,14 +122,14 @@ public final class IndexLifecycleTransition {
         PolicyStepsRegistry stepRegistry,
         boolean forcePhaseDefinitionRefresh
     ) {
-        IndexMetadata idxMeta = state.getMetadata().index(index);
+        IndexMetadata idxMeta = state.getMetadata().getProject().index(index);
         Step.StepKey currentStepKey = Step.getCurrentStepKey(idxMeta.getLifecycleExecutionState());
         validateTransition(idxMeta, currentStepKey, newStepKey, stepRegistry);
 
         String policyName = idxMeta.getLifecyclePolicyName();
         logger.info("moving index [{}] from [{}] to [{}] in policy [{}]", index.getName(), currentStepKey, newStepKey, policyName);
 
-        IndexLifecycleMetadata ilmMeta = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata ilmMeta = state.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas().get(idxMeta.getLifecyclePolicyName());
         LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
         LifecycleExecutionState newLifecycleState = updateExecutionStateToStep(
@@ -155,8 +155,8 @@ public final class IndexLifecycleTransition {
         LongSupplier nowSupplier,
         BiFunction<IndexMetadata, Step.StepKey, Step> stepLookupFunction
     ) {
-        IndexMetadata idxMeta = clusterState.getMetadata().index(index);
-        IndexLifecycleMetadata ilmMeta = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        IndexMetadata idxMeta = clusterState.getMetadata().getProject().index(index);
+        IndexLifecycleMetadata ilmMeta = clusterState.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas().get(idxMeta.getLifecyclePolicyName());
         LifecycleExecutionState currentState = idxMeta.getLifecycleExecutionState();
         Step.StepKey currentStep;
@@ -218,7 +218,7 @@ public final class IndexLifecycleTransition {
         boolean isAutomaticRetry
     ) {
         ClusterState newState;
-        IndexMetadata indexMetadata = currentState.metadata().index(index);
+        IndexMetadata indexMetadata = currentState.metadata().getProject().index(index);
         if (indexMetadata == null) {
             throw new IllegalArgumentException("index [" + index + "] does not exist");
         }
@@ -228,7 +228,7 @@ public final class IndexLifecycleTransition {
         if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.name()) && Strings.isNullOrEmpty(failedStep) == false) {
             Step.StepKey nextStepKey = new Step.StepKey(currentStepKey.phase(), currentStepKey.action(), failedStep);
             validateTransition(indexMetadata, currentStepKey, nextStepKey, stepRegistry);
-            IndexLifecycleMetadata ilmMeta = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
+            IndexLifecycleMetadata ilmMeta = currentState.metadata().getProject().custom(IndexLifecycleMetadata.TYPE);
 
             LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas().get(indexMetadata.getLifecyclePolicyName());
 
@@ -423,7 +423,7 @@ public final class IndexLifecycleTransition {
      * if no changes to step info exist
      */
     static ClusterState addStepInfoToClusterState(Index index, ClusterState clusterState, ToXContentObject stepInfo) {
-        IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+        IndexMetadata indexMetadata = clusterState.getMetadata().getProject().index(index);
         if (indexMetadata == null) {
             // This index doesn't exist anymore, we can't do anything
             return clusterState;
@@ -446,7 +446,7 @@ public final class IndexLifecycleTransition {
         Metadata.Builder newMetadata = Metadata.builder(currentState.getMetadata());
         boolean clusterStateChanged = false;
         for (Index index : indices) {
-            IndexMetadata indexMetadata = currentState.getMetadata().index(index);
+            IndexMetadata indexMetadata = currentState.getMetadata().getProject().index(index);
             if (indexMetadata == null) {
                 // Index doesn't exist so fail it
                 failedIndexes.add(index.getName());

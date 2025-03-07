@@ -110,7 +110,8 @@ public class Configuration implements Writeable {
         } else {
             this.queryStartTimeNanos = -1;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
             this.allowPartialResults = in.readBoolean();
         } else {
             this.allowPartialResults = false;
@@ -139,7 +140,8 @@ public class Configuration implements Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeLong(queryStartTimeNanos);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
             out.writeBoolean(allowPartialResults);
         }
     }

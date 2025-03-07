@@ -436,9 +436,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         requestTimeout = in.readTimeValue();
         pageTimeout = in.readTimeValue();
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-            runtimeMappings = in.readGenericMap();
-        }
+        runtimeMappings = in.readGenericMap();
     }
 
     public static void writeSqlTypedParamValue(StreamOutput out, SqlTypedParamValue value) throws IOException {
@@ -464,9 +462,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         out.writeTimeValue(requestTimeout);
         out.writeTimeValue(pageTimeout);
         out.writeOptionalNamedWriteable(filter);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-            out.writeGenericMap(runtimeMappings);
-        }
+        out.writeGenericMap(runtimeMappings);
     }
 
     @Override

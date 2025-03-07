@@ -517,8 +517,6 @@ POST INDEX_NAME/_update_by_query?conflicts=proceed
 }
 ```
 %  TEST[skip:TODO]
-%  TEST[skip:TODO]
-
 
 ### Document-level security [es-connectors-sharepoint-online-client-dls]
 

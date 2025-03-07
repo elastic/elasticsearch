@@ -291,13 +291,13 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testTempDirAccess() {
-        var tree = FileAccessTree.of("test-component", "test-module", FilesEntitlement.EMPTY, TEST_PATH_LOOKUP, List.of());
+        var tree = FileAccessTree.of("test-component", "test-module", FilesEntitlement.EMPTY, TEST_PATH_LOOKUP, null, List.of());
         assertThat(tree.canRead(TEST_PATH_LOOKUP.tempDir()), is(true));
         assertThat(tree.canWrite(TEST_PATH_LOOKUP.tempDir()), is(true));
     }
 
     public void testConfigDirAccess() {
-        var tree = FileAccessTree.of("test-component", "test-module", FilesEntitlement.EMPTY, TEST_PATH_LOOKUP, List.of());
+        var tree = FileAccessTree.of("test-component", "test-module", FilesEntitlement.EMPTY, TEST_PATH_LOOKUP, null, List.of());
         assertThat(tree.canRead(TEST_PATH_LOOKUP.configDir()), is(true));
         assertThat(tree.canWrite(TEST_PATH_LOOKUP.configDir()), is(false));
     }
@@ -453,6 +453,7 @@ public class FileAccessTreeTests extends ESTestCase {
                 )
             ),
             TEST_PATH_LOOKUP,
+            null,
             List.of()
         );
 
@@ -464,7 +465,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     FileAccessTree accessTree(FilesEntitlement entitlement, List<ExclusivePath> exclusivePaths) {
-        return FileAccessTree.of("test-component", "test-module", entitlement, TEST_PATH_LOOKUP, exclusivePaths);
+        return FileAccessTree.of("test-component", "test-module", entitlement, TEST_PATH_LOOKUP, null, exclusivePaths);
     }
 
     static FilesEntitlement entitlement(String... values) {

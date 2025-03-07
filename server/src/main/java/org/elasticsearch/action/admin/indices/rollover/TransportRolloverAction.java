@@ -528,8 +528,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             }
 
             if (state != batchExecutionContext.initialState()) {
-                var reason = new StringBuilder();
-                Strings.collectionToDelimitedStringWithLimit(results, ",", "bulk rollover [", "]", 1024, reason);
+                var reason = new StringBuilder("bulk rollover [");
+                Strings.collectionToDelimitedStringWithLimit(results, ",", 1024, reason);
+                reason.append(']');
                 try (var ignored = batchExecutionContext.dropHeadersContext()) {
                     state = allocationService.reroute(state, reason.toString(), listener.reroute());
                 }

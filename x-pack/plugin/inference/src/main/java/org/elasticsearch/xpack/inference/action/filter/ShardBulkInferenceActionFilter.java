@@ -94,7 +94,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         "indices.inference.batch_size",
         DEFAULT_BATCH_SIZE,
         ByteSizeValue.ONE,
-        ByteSizeValue.ofBytes(100),
+        ByteSizeValue.ofMb(100),
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );

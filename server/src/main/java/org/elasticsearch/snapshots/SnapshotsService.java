@@ -2506,13 +2506,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     @Override
                     public void onFailure(Exception e) {
                         logger.warn(() -> {
-                            final StringBuilder sb = new StringBuilder("failed to complete snapshot deletion for [");
-                            Strings.collectionToDelimitedStringWithLimit(
-                                deleteEntry.snapshots().stream().map(SnapshotId::getName).toList(),
-                                ",",
-                                1024,
-                                sb
-                            );
+                            final var sb = new StringBuilder("failed to complete snapshot deletion for [");
+                            final var collector = new Strings.BoundedDelimitedStringCollector(sb, ",", 1024);
+                            deleteEntry.snapshots().forEach(s -> collector.appendItem(s.getName()));
+                            collector.finish();
                             sb.append("] from repository [").append(deleteEntry.repository()).append("]");
                             return sb;
                         }, e);
@@ -2527,7 +2524,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         );
                     }
                 }, () -> {
-                    logger.info("snapshots {} deleted", snapshotIds);
+                    logger.info(() -> {
+                        final var sb = new StringBuilder("snapshots [");
+                        final var collector = new Strings.BoundedDelimitedStringCollector(sb, ",", 1024);
+                        snapshotIds.forEach(collector::appendItem);
+                        collector.finish();
+                        sb.append("] deleted");
+                        return sb;
+                    });
                     doneFuture.onResponse(null);
                 });
         }

@@ -1172,7 +1172,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$sun_net_www_protocol_https_AbstractDelegateHttpsURLConnection$connect(
         Class<?> callerClass,
-        javax.net.ssl.HttpsURLConnection that
+        java.net.HttpURLConnection that
     ) {
         policyManager.checkOutboundNetworkAccess(callerClass);
     }

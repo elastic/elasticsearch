@@ -83,6 +83,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -821,7 +822,8 @@ class NodeConstruction {
         );
         MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics);
 
-        ShardSearchPerIndexTimeTrackingMetrics listener = new ShardSearchPerIndexTimeTrackingMetrics(0.3);
+        ShardSearchPerIndexTimeTrackingMetrics listener =
+            new ShardSearchPerIndexTimeTrackingMetrics(EsExecutors.TaskTrackingConfig.DEFAULT.getEwmaAlpha());
         final List<SearchOperationListener> searchOperationListeners = List.of(
             new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry()), listener);
 

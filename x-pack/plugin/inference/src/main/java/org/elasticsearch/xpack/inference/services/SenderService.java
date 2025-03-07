@@ -74,7 +74,7 @@ public abstract class SenderService implements InferenceService {
     private static InferenceInputs createInput(Model model, List<String> input, @Nullable String query, boolean stream) {
         return switch (model.getTaskType()) {
             case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(input, stream);
-            case RERANK -> new QueryAndDocsInputs(query, input, stream);
+            case RERANK, CUSTOM -> new QueryAndDocsInputs(query, input, stream);
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> new DocumentsOnlyInput(input, stream);
             default -> throw new ElasticsearchStatusException(
                 Strings.format("Invalid task type received when determining input type: [%s]", model.getTaskType().toString()),

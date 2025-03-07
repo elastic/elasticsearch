@@ -38,6 +38,7 @@ dependencies {
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
   api "com.ibm.icu:icu4j:${versions.icu4j}"
+  api "org.apache.commons:commons-lang3:3.12.0"
 
   runtimeOnly 'com.google.guava:guava:32.0.1-jre'
   implementation 'com.google.code.gson:gson:2.10'
@@ -57,6 +58,11 @@ dependencies {
   implementation 'io.grpc:grpc-context:1.49.2'
   implementation 'io.opencensus:opencensus-api:0.31.1'
   implementation 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  implementation 'org.apache.commons:commons-text:1.4'
+  implementation 'com.jayway.jsonpath:json-path:2.9.0'
+  implementation 'net.minidev:json-smart:2.5.2'
+  implementation 'net.minidev:accessors-smart:2.5.2'
+
 
   /* AWS SDK v2 */
   implementation ("software.amazon.awssdk:bedrockruntime:${versions.awsv2sdk}")

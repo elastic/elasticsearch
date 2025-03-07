@@ -60,10 +60,9 @@ PUT my-index-000001/_doc/2?refresh
   }
 }
 ```
-%  TEST[continued]
 
 1. This document is a `question` document.
-
+%  TEST[continued]
 
 When indexing parent documents, you can choose to specify just the name of the relation as a shortcut instead of encapsulating it in the normal object notation:
 
@@ -82,10 +81,9 @@ PUT my-index-000001/_doc/2?refresh
   "my_join_field": "question"
 }
 ```
-%  TEST[continued]
 
 1. Simpler notation for a parent document just uses the relation name.
-
+%  TEST[continued]
 
 When indexing a child, the name of the relation as well as the parent id of the document must be added in the `_source`.
 
@@ -117,12 +115,11 @@ PUT my-index-000001/_doc/4?routing=1&refresh
   }
 }
 ```
-%  TEST[continued]
 
 1. The routing value is mandatory because parent and child documents must be indexed on the same shard
 2. `answer` is the name of the join for this document
 3. The parent id of this child document
-
+%  TEST[continued]
 
 ## Parent-join and performance [_parent_join_and_performance]
 
@@ -237,14 +234,12 @@ Will return:
   }
 }
 ```
-%  TESTRESPONSE[s/.../"timed_out": false, "took": $body.took, "_shards": $body._shards/]
 
 1. This document belongs to the `question` join
 2. This document belongs to the `question` join
 3. This document belongs to the `answer` join
 4. The linked parent id for the child document
-
-
+%  TESTRESPONSE[s/.../"timed_out": false, "took": $body.took, "_shards": $body._shards/]
 
 ## Parent-join queries and aggregations [_parent_join_queries_and_aggregations]
 
@@ -282,14 +277,12 @@ GET my-index-000001/_search
   ]
 }
 ```
-%  TEST[continued]
-%  TEST[s/_search/_search?filter_path=aggregations,hits.hits&sort=my_id/]
 
 1. Querying the `parent id` field (also see the [`has_parent` query](/reference/query-languages/query-dsl-has-parent-query.md) and the [`has_child` query](/reference/query-languages/query-dsl-has-child-query.md))
 2. Aggregating on the `parent id` field (also see the [`children`](/reference/data-analysis/aggregations/search-aggregations-bucket-children-aggregation.md) aggregation)
 3. Accessing the `parent id` field in scripts.
-
-
+%  TEST[continued]
+%  TEST[s/_search/_search?filter_path=aggregations,hits.hits&sort=my_id/]
 
 ## Global ordinals [_global_ordinals]
 
@@ -405,10 +398,11 @@ PUT my-index-000001/_doc/3?routing=1&refresh <1>
   }
 }
 ```
-%  TEST[continued]
 
 1. This child document must be on the same shard than its grand-parent and parent
 2. The parent id of this document (must points to an `answer` document)
+%  TEST[continued]
+
 
 
 

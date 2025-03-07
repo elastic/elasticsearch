@@ -58,12 +58,11 @@ POST my-index-000001/_search
   "_source": false
 }
 ```
-%  TEST[setup:my_index]
-%  TEST[s/_search/_search?filter_path=hits/]
 
 1. Both full field names and wildcard patterns are accepted.
 2. Use the `format` parameter to apply a custom format for the field’s values.
-
+%  TEST[setup:my_index]
+%  TEST[s/_search/_search?filter_path=hits/]
 
 ::::{note}
 By default, document metadata fields like `_id` or `_index` are not returned when the requested `fields` option uses wildcard patterns like `*`. However, when explicitly requested using the field name, the `_id`, `_routing`, `_ignored`, `_index` and `_version` metadata fields can be retrieved.
@@ -539,11 +538,10 @@ GET my-index-000001/_search
   ]
 }
 ```
-%  TEST[setup:my_index]
 
 1. Both full field names and wildcard patterns are accepted.
 2. Using object notation, you can pass a `format` parameter to apply a custom format for the field’s doc values. [Date fields](/reference/elasticsearch/mapping-reference/date.md) support a [date `format`](/reference/elasticsearch/mapping-reference/mapping-date-format.md). [Numeric fields](/reference/elasticsearch/mapping-reference/number.md) support a [DecimalFormat pattern](https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.md). Other field datatypes do not support the `format` parameter.
-
+%  TEST[setup:my_index]
 
 ::::{tip}
 You cannot use the `docvalue_fields` parameter to retrieve doc values for nested objects. If you specify a nested object, the search returns an empty array (`[ ]`) for the field. To access nested fields, use the [`inner_hits`](/reference/elasticsearch/rest-apis/retrieve-inner-hits.md) parameter’s `docvalue_fields` property.

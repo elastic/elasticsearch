@@ -650,10 +650,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 equalTo(expectedOriginalValue)
             );
         } else {
-            assertThat(
-                XContentMapValues.extractValue(fieldName, requestMap, EXPLICIT_NULL),
-                equalTo(expectedOriginalValue)
-            );
+            assertThat(XContentMapValues.extractValue(fieldName, requestMap, EXPLICIT_NULL), equalTo(expectedOriginalValue));
         }
 
         assertChunksField(useLegacyFormat, requestMap, fieldName, expectedChunkCount);

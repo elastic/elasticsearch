@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -85,12 +86,53 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         isFieldWithinRangeTestCase(ft);
     }
 
+    public void testIsFieldWithinQueryDateMillisDocValueSkipper() throws IOException {
+        DateFieldType ft = new DateFieldType(
+            "my_date",
+            false,
+            false,
+            false,
+            true,
+            true,
+            false,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            Resolution.MILLISECONDS,
+            null,
+            null,
+            Collections.emptyMap()
+        );
+        isFieldWithinRangeTestCase(ft);
+    }
+
+    public void testIsFieldWithinQueryDateNanosDocValueSkipper() throws IOException {
+        DateFieldType ft = new DateFieldType(
+            "my_date",
+            false,
+            false,
+            false,
+            true,
+            true,
+            false,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            Resolution.NANOSECONDS,
+            null,
+            null,
+            Collections.emptyMap()
+        );
+        isFieldWithinRangeTestCase(ft);
+    }
+
     public void isFieldWithinRangeTestCase(DateFieldType ft) throws IOException {
 
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         LuceneDocument doc = new LuceneDocument();
-        LongPoint field = new LongPoint("my_date", ft.parse("2015-10-12"));
+        Field field;
+        if (ft.hasDocValuesSkipper()) {
+            field = SortedNumericDocValuesField.indexedField("my_date", ft.parse("2015-10-12"));
+        } else {
+            field = new LongPoint("my_date", ft.parse("2015-10-12"));
+        }
         doc.add(field);
         w.addDocument(doc);
         field.setLongValue(ft.parse("2016-04-03"));

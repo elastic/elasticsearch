@@ -60,8 +60,8 @@ public class SecurityRolesMultiProjectIT extends MultiProjectRestTestCase {
     }
 
     public void testUsersWithSameRoleNamesInDifferentProjects() throws Exception {
-        var project1 = new ProjectId(randomIdentifier());
-        var project2 = new ProjectId(randomIdentifier());
+        var project1 = randomUniqueProjectId();
+        var project2 = randomUniqueProjectId();
 
         createProject(project1.id());
         createProject(project2.id());
@@ -79,8 +79,8 @@ public class SecurityRolesMultiProjectIT extends MultiProjectRestTestCase {
     }
 
     public void testInvalidateRoleInSingleProjectOnly() throws Exception {
-        var project1 = new ProjectId(randomIdentifier());
-        var project2 = new ProjectId(randomIdentifier());
+        var project1 = randomUniqueProjectId();
+        var project2 = randomUniqueProjectId();
 
         createProject(project1.id());
         createProject(project2.id());
@@ -117,8 +117,8 @@ public class SecurityRolesMultiProjectIT extends MultiProjectRestTestCase {
                  - monitor
             """, roleName)));
 
-        var project1 = new ProjectId(randomIdentifier());
-        var project2 = new ProjectId(randomIdentifier());
+        var project1 = randomUniqueProjectId();
+        var project2 = randomUniqueProjectId();
 
         createProject(project1.id());
         createProject(project2.id());

@@ -136,7 +136,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         this.batchQueryPhase = batchQueryPhase;
         // don't build the SearchShard list (can be expensive) if the SearchProgressListener won't use it
         if (progressListener != SearchProgressListener.NOOP) {
-            notifyListShards(progressListener, clusters, request.source());
+            notifyListShards(progressListener, clusters, request, shardsIts);
         }
     }
 

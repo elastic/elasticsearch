@@ -11,15 +11,22 @@ package org.elasticsearch.logsdb.datageneration.matchers.source;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.logsdb.datageneration.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.math.BigInteger;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.logsdb.datageneration.matchers.Messages.formatErrorMessage;
@@ -334,20 +341,135 @@ interface FieldSpecificMatcher {
         }
     }
 
-    // TODO basic implementation only right now
-    class DateMatcher extends GenericMappingAwareMatcher {
+    class BooleanMatcher extends GenericMappingAwareMatcher {
+        BooleanMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super("boolean", actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        Object convert(Object value, Object nullValue) {
+            Boolean nullValueBool = null;
+            if (nullValue != null) {
+                nullValueBool = nullValue instanceof Boolean b ? b : Boolean.parseBoolean((String) nullValue);
+            }
+
+            if (value == null) {
+                return nullValueBool;
+            }
+            if (value instanceof String s && s.isEmpty()) {
+                // This a documented behavior.
+                return false;
+            }
+            if (value instanceof String s) {
+                try {
+                    return Boolean.parseBoolean(s);
+                } catch (Exception e) {
+                    // malformed
+                    return value;
+                }
+            }
+
+            return value;
+        }
+    }
+
+    class DateMatcher implements FieldSpecificMatcher {
+        private final XContentBuilder actualMappings;
+        private final Settings.Builder actualSettings;
+        private final XContentBuilder expectedMappings;
+        private final Settings.Builder expectedSettings;
+
         DateMatcher(
             XContentBuilder actualMappings,
             Settings.Builder actualSettings,
             XContentBuilder expectedMappings,
             Settings.Builder expectedSettings
         ) {
-            super("date", actualMappings, actualSettings, expectedMappings, expectedSettings);
+            this.actualMappings = actualMappings;
+            this.actualSettings = actualSettings;
+            this.expectedMappings = expectedMappings;
+            this.expectedSettings = expectedSettings;
         }
 
         @Override
+        public MatchResult match(
+            List<Object> actual,
+            List<Object> expected,
+            Map<String, Object> actualMapping,
+            Map<String, Object> expectedMapping
+        ) {
+            var format = (String) getMappingParameter("format", actualMapping, expectedMapping);
+            var nullValue = getNullValue(actualMapping, expectedMapping);
+
+            Function<Object, Object> convert = v -> convert(v, nullValue);
+            if (format != null) {
+                var formatter = DateTimeFormatter.ofPattern(format, Locale.ROOT).withZone(ZoneId.from(ZoneOffset.UTC));
+                convert = v -> convert(v, nullValue, formatter);
+            }
+
+            var actualNormalized = normalize(actual, convert);
+            var expectedNormalized = normalize(expected, convert);
+
+            return actualNormalized.equals(expectedNormalized)
+                ? MatchResult.match()
+                : MatchResult.noMatch(
+                    formatErrorMessage(
+                        actualMappings,
+                        actualSettings,
+                        expectedMappings,
+                        expectedSettings,
+                        "Values of type [date] don't match after normalization, normalized "
+                            + prettyPrintCollections(actualNormalized, expectedNormalized)
+                    )
+                );
+        }
+
+        private Set<Object> normalize(List<Object> values, Function<Object, Object> convert) {
+            if (values == null) {
+                return Set.of();
+            }
+
+            return values.stream().map(convert).filter(Objects::nonNull).collect(Collectors.toSet());
+        }
+
         Object convert(Object value, Object nullValue) {
-            return value;
+            if (value == null) {
+                return nullValue == null ? null : Instant.ofEpochMilli((Long) nullValue);
+            }
+            if (value instanceof Integer i) {
+                return Instant.ofEpochMilli(i);
+            }
+            if (value instanceof Long l) {
+                return Instant.ofEpochMilli(l);
+            }
+
+            assert value instanceof String;
+            try {
+                // values from synthetic source will be formatted with default formatter
+                return Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse((String) value));
+            } catch (Exception e) {
+                // malformed
+                return value;
+            }
+        }
+
+        Object convert(Object value, Object nullValue, DateTimeFormatter dateTimeFormatter) {
+            if (value == null) {
+                return nullValue == null ? null : Instant.from(dateTimeFormatter.parse((String) nullValue)).toEpochMilli();
+            }
+
+            assert value instanceof String;
+            try {
+                return Instant.from(dateTimeFormatter.parse((String) value)).toEpochMilli();
+            } catch (Exception e) {
+                // malformed
+                return value;
+            }
         }
     }
 

@@ -348,6 +348,9 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
   issue: https://github.com/elastic/elasticsearch/issues/124315
+- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
+  method: testSnapshotRecovery {p0=false p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/124383
 
 # Examples:
 #

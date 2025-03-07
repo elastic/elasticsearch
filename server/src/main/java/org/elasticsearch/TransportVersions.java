@@ -10,7 +10,6 @@
 package org.elasticsearch;
 
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;

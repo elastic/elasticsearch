@@ -718,7 +718,7 @@ public class ShardStateAction {
                                 matched
                             );
                             tasksToBeApplied.add(taskContext);
-                        } else if (validShardSplit(startedShardEntry, initialState) == false) {
+                        } else if (validShardSplit(startedShardEntry, projectId, initialState) == false) {
                             logger.debug("{} failing shard started task because split validation failed", startedShardEntry.shardId);
 
                         } else {
@@ -810,10 +810,12 @@ public class ShardStateAction {
                 if (updatedPrimaryTerms.isEmpty() == false) {
                     final Metadata.Builder metadataBuilder = Metadata.builder(maybeUpdatedState.metadata());
                     for (Map.Entry<ShardId, Long> updatedPrimaryTerm : updatedPrimaryTerms.entrySet()) {
-                        IndexMetadata indexMetadata = metadataBuilder.getSafe(updatedPrimaryTerm.getKey().getIndex())
+                        var projectId = maybeUpdatedState.metadata().projectFor(updatedPrimaryTerm.getKey().getIndex()).id();
+                        var projectMetadataBuilder = metadataBuilder.getProject(projectId);
+                        IndexMetadata indexMetadata = projectMetadataBuilder.getSafe(updatedPrimaryTerm.getKey().getIndex())
                             .withSetPrimaryTerm(updatedPrimaryTerm.getKey().id(), updatedPrimaryTerm.getValue());
                         // TODO: Increment version?
-                        metadataBuilder.put(indexMetadata, true);
+                        projectMetadataBuilder.put(indexMetadata, true);
                     }
                     maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
                 }
@@ -834,18 +836,18 @@ public class ShardStateAction {
             return maybeUpdatedState;
         }
 
-        private static boolean validShardSplit(StartedShardEntry startedShardEntry, ClusterState clusterState) {
+        private static boolean validShardSplit(StartedShardEntry startedShardEntry, ProjectId projectId, ClusterState clusterState) {
             ShardSplit shardSplit = startedShardEntry.shardSplit;
             if (shardSplit == null) {
                 return true;
             }
-            final IndexMetadata indexMetadata = clusterState.metadata().index(startedShardEntry.shardId.getIndex());
-            assert indexMetadata != null;
             // TODO: Fetch the actual source shard id from the IndexMetadata reshard object
             ShardId sourceShardId = startedShardEntry.shardId;
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).index(startedShardEntry.shardId.getIndex());
+            assert indexMetadata != null;
             final long currentPrimaryTerm = indexMetadata.primaryTerm(sourceShardId.id());
             if (currentPrimaryTerm != shardSplit.sourcePrimaryTerm()
-                || clusterState.routingTable().shardRoutingTable(sourceShardId).primaryShard().relocating()) {
+                || clusterState.routingTable(projectId).shardRoutingTable(sourceShardId).primaryShard().relocating()) {
                 return false;
             } else {
                 return true;

@@ -7,17 +7,17 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.features;
+package org.elasticsearch.test;
 
-import java.util.Set;
+import com.carrotsearch.randomizedtesting.ThreadFilter;
 
 /**
- * This class specifies features for the features functionality itself.
+ * JNA has a special thread to cleanup native memory references. It is static per JVM, so we
+ * filter it out of test leak detection.
  */
-public class FeatureInfrastructureFeatures implements FeatureSpecification {
-
+public class JnaCleanerThreadsFilter implements ThreadFilter {
     @Override
-    public Set<NodeFeature> getTestFeatures() {
-        return Set.of(FeatureService.TEST_FEATURES_ENABLED);
+    public boolean reject(Thread t) {
+        return t.getName().equals("JNA Cleaner");
     }
 }

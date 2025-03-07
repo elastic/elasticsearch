@@ -279,12 +279,12 @@ public class EntitlementInitialization {
                 )
             )
         );
-        var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
         return new PolicyManager(
             serverPolicy,
             agentEntitlements,
             pluginPolicies,
-            resolver,
+            EntitlementBootstrap.bootstrapArgs().pluginResolver(),
+            EntitlementBootstrap.bootstrapArgs().sourcePaths(),
             AGENTS_PACKAGE_NAME,
             ENTITLEMENTS_MODULE,
             pathLookup,

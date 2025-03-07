@@ -80,6 +80,12 @@ public class IndexingPressure {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<ByteSizeValue> MAX_OPERATION_SIZE = Setting.memorySizeSetting(
+        "indexing_pressure.memory.max_operation_size",
+        "10%",
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(IndexingPressure.class);
 
     private final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
@@ -109,6 +115,9 @@ public class IndexingPressure {
     private final AtomicLong lowWaterMarkSplits = new AtomicLong(0);
     private final AtomicLong highWaterMarkSplits = new AtomicLong(0);
 
+    private final AtomicLong largeOpsRejections = new AtomicLong(0);
+    private final AtomicLong totalRejectedLargeOpsBytes = new AtomicLong(0);
+
     private final long lowWatermark;
     private final long lowWatermarkSize;
     private final long highWatermark;
@@ -116,6 +125,7 @@ public class IndexingPressure {
     private final long coordinatingLimit;
     private final long primaryLimit;
     private final long replicaLimit;
+    private final long operationLimit;
 
     public IndexingPressure(Settings settings) {
         this.lowWatermark = SPLIT_BULK_LOW_WATERMARK.get(settings).getBytes();
@@ -125,6 +135,7 @@ public class IndexingPressure {
         this.coordinatingLimit = MAX_COORDINATING_BYTES.get(settings).getBytes();
         this.primaryLimit = MAX_PRIMARY_BYTES.get(settings).getBytes();
         this.replicaLimit = MAX_REPLICA_BYTES.get(settings).getBytes();
+        this.operationLimit = MAX_OPERATION_SIZE.get(settings).getBytes();
     }
 
     private static Releasable wrapReleasable(Releasable releasable) {
@@ -302,7 +313,13 @@ public class IndexingPressure {
         }
     }
 
-    public Releasable markPrimaryOperationLocalToCoordinatingNodeStarted(int operations, long bytes) {
+    public Releasable validateAndMarkPrimaryOperationLocalToCoordinatingNodeStarted(
+        int operations,
+        long bytes,
+        long largestOperationSizeInBytes,
+        boolean allowsOperationsBeyondSizeLimit
+    ) {
+        checkLargestPrimaryOperationIsWithinLimits(operations, largestOperationSizeInBytes, allowsOperationsBeyondSizeLimit);
         currentPrimaryBytes.getAndAdd(bytes);
         currentPrimaryOps.getAndAdd(operations);
         totalPrimaryBytes.getAndAdd(bytes);
@@ -313,7 +330,49 @@ public class IndexingPressure {
         });
     }
 
-    public Releasable markPrimaryOperationStarted(int operations, long bytes, boolean forceExecution) {
+    void checkLargestPrimaryOperationIsWithinLimits(
+        int operations,
+        long largestOperationSizeInBytes,
+        boolean allowsOperationsBeyondSizeLimit
+    ) {
+        if (largestOperationSizeInBytes > operationLimit) {
+            this.largeOpsRejections.getAndIncrement();
+            this.totalRejectedLargeOpsBytes.addAndGet(largestOperationSizeInBytes);
+            if (allowsOperationsBeyondSizeLimit == false) {
+                this.primaryRejections.getAndIncrement();
+                this.primaryDocumentRejections.addAndGet(operations);
+                throw new EsRejectedExecutionException(
+                    "Request contains an operation of size ["
+                        + largestOperationSizeInBytes
+                        + "] bytes, which exceeds the maximum allowed limit of ["
+                        + operationLimit
+                        + "] bytes"
+                );
+            }
+        }
+    }
+
+    public Releasable validateAndMarkPrimaryOperationStarted(
+        int operations,
+        long bytes,
+        long largestOperationSizeInBytes,
+        boolean forceExecution,
+        boolean allowsOperationsBeyondSizeLimit
+    ) {
+        checkLargestPrimaryOperationIsWithinLimits(operations, largestOperationSizeInBytes, allowsOperationsBeyondSizeLimit);
+        return markPrimaryOperationStarted(operations, bytes, forceExecution, false);
+    }
+
+    public Releasable trackPrimaryOperationExpansion(int operations, long expandedBytes, boolean forceExecution) {
+        return markPrimaryOperationStarted(operations, expandedBytes, forceExecution, true);
+    }
+
+    // visible for testing
+    Releasable markPrimaryOperationStarted(int operations, long bytes, boolean forceExecution) {
+        return markPrimaryOperationStarted(operations, bytes, forceExecution, false);
+    }
+
+    private Releasable markPrimaryOperationStarted(int operations, long bytes, boolean forceExecution, boolean operationExpansionTracking) {
         long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         long replicaWriteBytes = this.currentReplicaBytes.get();
         long totalBytes = combinedBytes + replicaWriteBytes;
@@ -345,16 +404,28 @@ public class IndexingPressure {
         }
         logger.trace(() -> Strings.format("adding [%d] primary operations and [%d] bytes", operations, bytes));
         currentPrimaryBytes.getAndAdd(bytes);
-        currentPrimaryOps.getAndAdd(operations);
         totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
         totalPrimaryBytes.getAndAdd(bytes);
-        totalPrimaryOps.getAndAdd(operations);
+        // If operation expansion is being tracked, we don't re-count the operations,
+        // as they were already included in the request when it was initially received
+        if (operationExpansionTracking == false) {
+            currentPrimaryOps.getAndAdd(operations);
+            totalPrimaryOps.getAndAdd(operations);
+        }
         return wrapReleasable(() -> {
             logger.trace(() -> Strings.format("removing [%d] primary operations and [%d] bytes", operations, bytes));
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
             this.currentPrimaryBytes.getAndAdd(-bytes);
-            this.currentPrimaryOps.getAndAdd(-operations);
+            if (operationExpansionTracking == false) {
+                this.currentPrimaryOps.getAndAdd(-operations);
+            }
         });
+    }
+
+    public Releasable trackReplicaOperationExpansion(long expandedBytes, boolean forceExecution) {
+        // Operations are already tracked by the initial call to #markReplicaStarted.
+        // This method only increments the in-flight bytes to account for operation expansion during indexing.
+        return markReplicaOperationStarted(0, expandedBytes, forceExecution);
     }
 
     public Releasable markReplicaOperationStarted(int operations, long bytes, boolean forceExecution) {
@@ -409,7 +480,9 @@ public class IndexingPressure {
             primaryDocumentRejections.get(),
             totalCoordinatingRequests.get(),
             lowWaterMarkSplits.get(),
-            highWaterMarkSplits.get()
+            highWaterMarkSplits.get(),
+            largeOpsRejections.get(),
+            totalRejectedLargeOpsBytes.get()
         );
     }
 }

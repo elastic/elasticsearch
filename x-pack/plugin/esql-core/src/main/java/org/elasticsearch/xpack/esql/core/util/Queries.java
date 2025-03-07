@@ -51,6 +51,9 @@ public class Queries {
                 firstQuery = query;
                 if (firstQuery instanceof BoolQueryBuilder bqb) {
                     bool = bqb.shallowCopy();
+                } else if (clause == Clause.FILTER) {
+                    // Filter is wrapped in a bool query to ensure scoring is not calculated
+                    bool = combine(clause, boolQuery(), query);
                 }
             }
             // at least two entries, start copying

@@ -85,4 +85,13 @@ public abstract class Query {
     public Query negate(Source source) {
         return new NotQuery(source, this);
     }
+
+    /**
+     * Defines whether a query should be scored or not
+     *
+     * @return true if the query should be scored
+     */
+    public boolean scorable() {
+        return false;
+    }
 }

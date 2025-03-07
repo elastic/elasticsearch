@@ -34,4 +34,10 @@ public class TranslationAwareExpressionQuery extends Query {
     protected String innerToString() {
         return queryBuilder.toString();
     }
+
+    @Override
+    public boolean scorable() {
+        // All Full Text Functions are translated to queries using this method
+        return true;
+    }
 }

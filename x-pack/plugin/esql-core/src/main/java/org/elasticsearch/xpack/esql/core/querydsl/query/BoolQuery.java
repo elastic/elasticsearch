@@ -46,10 +46,15 @@ public class BoolQuery extends Query {
     public QueryBuilder asBuilder() {
         BoolQueryBuilder boolQuery = boolQuery();
         for (Query query : queries) {
+            QueryBuilder queryBuilder = query.asBuilder();
             if (isAnd) {
-                boolQuery.must(query.asBuilder());
+                if (query.scorable()) {
+                    boolQuery.must(queryBuilder);
+                } else {
+                    boolQuery.filter(queryBuilder);
+                }
             } else {
-                boolQuery.should(query.asBuilder());
+                boolQuery.should(queryBuilder);
             }
         }
         return boolQuery;

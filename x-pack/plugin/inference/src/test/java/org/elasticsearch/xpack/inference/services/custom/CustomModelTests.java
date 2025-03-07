@@ -117,4 +117,3 @@ public class CustomModelTests extends ESTestCase {
         return CustomModelTests.createModel("service", taskType, serviceSettings, taskSettings, secretSettings);
     }
 }
-

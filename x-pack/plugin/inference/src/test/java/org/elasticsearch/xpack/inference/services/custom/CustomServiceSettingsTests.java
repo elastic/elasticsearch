@@ -123,10 +123,7 @@ public class CustomServiceSettingsTests extends AbstractWireSerializingTestCase<
     }
 
     public static CustomServiceSettings createRandom() {
-        return createRandom(
-            randomAlphaOfLength(5),
-            randomAlphaOfLength(5),
-            randomAlphaOfLength(5));
+        return createRandom(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5));
     }
 
     public void testFromMap() {
@@ -292,4 +289,3 @@ public class CustomServiceSettingsTests extends AbstractWireSerializingTestCase<
         return null;
     }
 }
-

@@ -32,7 +32,6 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-// TODO: test
 public class TransportInferenceActionProxy extends HandledTransportAction<InferenceActionProxy.Request, InferenceAction.Response> {
     private final ModelRegistry modelRegistry;
     private final Client client;

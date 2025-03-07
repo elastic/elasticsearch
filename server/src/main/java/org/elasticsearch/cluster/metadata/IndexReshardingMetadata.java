@@ -87,7 +87,6 @@ import java.util.Objects;
  * to beginning another resharding operation.
  */
 public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
-    // ideally this would be final but the parser can't currently set it at construction time
     private final IndexReshardingState state;
 
     private static final String SPLIT_FIELD_NAME = "split";

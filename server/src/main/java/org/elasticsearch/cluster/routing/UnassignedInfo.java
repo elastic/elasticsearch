@@ -416,7 +416,7 @@ public record UnassignedInfo(
         for (ShardRouting shard : state.getRoutingNodes().unassigned()) {
             UnassignedInfo unassignedInfo = shard.unassignedInfo();
             if (unassignedInfo.delayed()) {
-                Settings indexSettings = metadata.getProject().index(shard.index()).getSettings();
+                Settings indexSettings = metadata.indexMetadata(shard.index()).getSettings();
                 // calculate next time to schedule
                 final long newComputedLeftDelayNanos = unassignedInfo.remainingDelay(
                     currentNanoTime,

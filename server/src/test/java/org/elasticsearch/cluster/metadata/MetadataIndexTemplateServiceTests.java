@@ -1501,7 +1501,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     List.of(
                         new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueDays(30),
-                            new DownsampleConfig(new DateHistogramInterval("3h"))
+                            new DownsampleConfig(new DateHistogramInterval("3h"), null)
                         )
                     )
                 )

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.downsample;
 
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
@@ -30,7 +29,8 @@ public class DownsampleActionConfigTests extends AbstractXContentSerializingTest
     }
 
     public static DownsampleConfig randomConfig() {
-        return new DownsampleConfig(ConfigTestHelpers.randomInterval());
+        Integer forceMergeMaxNumSegments = randomBoolean() ? null : randomIntBetween(-1, 128);
+        return new DownsampleConfig(ConfigTestHelpers.randomInterval(), forceMergeMaxNumSegments);
     }
 
     @Override
@@ -44,12 +44,13 @@ public class DownsampleActionConfigTests extends AbstractXContentSerializingTest
     }
 
     public void testEmptyFixedInterval() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new DownsampleConfig((DateHistogramInterval) null));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new DownsampleConfig(null, null));
         assertThat(e.getMessage(), equalTo("Parameter [fixed_interval] is required."));
     }
 
     public void testEmptyTimezone() {
-        DownsampleConfig config = new DownsampleConfig(ConfigTestHelpers.randomInterval());
+        Integer forceMergeMaxNumSegments = randomBoolean() ? null : randomIntBetween(-1, 128);
+        DownsampleConfig config = new DownsampleConfig(ConfigTestHelpers.randomInterval(), forceMergeMaxNumSegments);
         assertEquals("UTC", config.getTimeZone());
     }
 }

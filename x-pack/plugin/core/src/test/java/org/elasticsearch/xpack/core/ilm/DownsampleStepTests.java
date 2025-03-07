@@ -49,7 +49,8 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             nextStepKey,
             client,
             fixedInterval,
-            randomTimeValue(1, 1000, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS, TimeUnit.MILLISECONDS)
+            randomTimeValue(1, 1000, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS, TimeUnit.MILLISECONDS),
+            randomBoolean() ? null : randomIntBetween(-1, 128)
         );
     }
 
@@ -71,7 +72,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new DownsampleStep(key, nextKey, instance.getClient(), fixedInterval, timeout);
+        return new DownsampleStep(key, nextKey, instance.getClient(), fixedInterval, timeout, null);
     }
 
     @Override
@@ -81,7 +82,8 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             instance.getNextStepKey(),
             instance.getClient(),
             instance.getFixedInterval(),
-            instance.getWaitTimeout()
+            instance.getWaitTimeout(),
+            instance.getForceMergeMaxNumSegments()
         );
     }
 
@@ -256,7 +258,15 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                 StepKey nextKey = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
                 TimeValue timeout = DownsampleAction.DEFAULT_WAIT_TIMEOUT;
-                DownsampleStep completeStep = new DownsampleStep(randomStepKey(), nextKey, client, fixedInterval, timeout) {
+                Integer forceMergeMaxNumSegments = randomBoolean() ? null : randomIntBetween(-1, 128);
+                DownsampleStep completeStep = new DownsampleStep(
+                    randomStepKey(),
+                    nextKey,
+                    client,
+                    fixedInterval,
+                    timeout,
+                    forceMergeMaxNumSegments
+                ) {
                     void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
                         listener.onResponse(null);
                     }
@@ -271,7 +281,15 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                 StepKey nextKey = randomStepKey();
                 DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
                 TimeValue timeout = DownsampleAction.DEFAULT_WAIT_TIMEOUT;
-                DownsampleStep doubleInvocationStep = new DownsampleStep(randomStepKey(), nextKey, client, fixedInterval, timeout) {
+                Integer forceMergeMaxNumSegments = randomBoolean() ? null : randomIntBetween(-1, 128);
+                DownsampleStep doubleInvocationStep = new DownsampleStep(
+                    randomStepKey(),
+                    nextKey,
+                    client,
+                    fixedInterval,
+                    timeout,
+                    forceMergeMaxNumSegments
+                ) {
                     void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
                         listener.onFailure(
                             new IllegalStateException(

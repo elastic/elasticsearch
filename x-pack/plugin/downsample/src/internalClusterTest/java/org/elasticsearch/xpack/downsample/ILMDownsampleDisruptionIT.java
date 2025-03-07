@@ -130,7 +130,7 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
             new Phase(
                 "warm",
                 TimeValue.ZERO,
-                Map.of("downsample", new org.elasticsearch.xpack.core.ilm.DownsampleAction(DateHistogramInterval.HOUR, null))
+                Map.of("downsample", new org.elasticsearch.xpack.core.ilm.DownsampleAction(DateHistogramInterval.HOUR, null, null))
             )
         );
         LifecyclePolicy policy = new LifecyclePolicy(POLICY_NAME, phases);

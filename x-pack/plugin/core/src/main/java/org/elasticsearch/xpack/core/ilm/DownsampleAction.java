@@ -52,10 +52,11 @@ public class DownsampleAction implements LifecycleAction {
     public static final TimeValue DEFAULT_WAIT_TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
     private static final ParseField FIXED_INTERVAL_FIELD = new ParseField(DownsampleConfig.FIXED_INTERVAL);
     private static final ParseField WAIT_TIMEOUT_FIELD = new ParseField("wait_timeout");
+    private static final ParseField FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD = new ParseField("force_merge_max_num_segments");
 
     private static final ConstructingObjectParser<DownsampleAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new DownsampleAction((DateHistogramInterval) a[0], (TimeValue) a[1])
+        a -> new DownsampleAction((DateHistogramInterval) a[0], (TimeValue) a[1], (Integer) a[2])
     );
 
     static {
@@ -71,21 +72,24 @@ public class DownsampleAction implements LifecycleAction {
             WAIT_TIMEOUT_FIELD,
             ObjectParser.ValueType.STRING
         );
+        PARSER.declareField(optionalConstructorArg(), p -> p.intValue(), FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD, ObjectParser.ValueType.INT);
     }
 
     private final DateHistogramInterval fixedInterval;
     private final TimeValue waitTimeout;
+    private final Integer forceMergeMaxNumSegments;
 
     public static DownsampleAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public DownsampleAction(final DateHistogramInterval fixedInterval, final TimeValue waitTimeout) {
+    public DownsampleAction(final DateHistogramInterval fixedInterval, final TimeValue waitTimeout, Integer forceMergeMaxNumSegments) {
         if (fixedInterval == null) {
             throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL_FIELD.getPreferredName() + "] is required.");
         }
         this.fixedInterval = fixedInterval;
         this.waitTimeout = waitTimeout == null ? DEFAULT_WAIT_TIMEOUT : waitTimeout;
+        this.forceMergeMaxNumSegments = forceMergeMaxNumSegments;
     }
 
     public DownsampleAction(StreamInput in) throws IOException {
@@ -93,7 +97,10 @@ public class DownsampleAction implements LifecycleAction {
             new DateHistogramInterval(in),
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)
                 ? TimeValue.parseTimeValue(in.readString(), WAIT_TIMEOUT_FIELD.getPreferredName())
-                : DEFAULT_WAIT_TIMEOUT
+                : DEFAULT_WAIT_TIMEOUT,
+            in.getTransportVersion().onOrAfter(TransportVersions.DOWNSAMPLE_FORCE_MERGE_MAX_NUM_SEGMENTS_PARAMETER)
+                ? in.readOptionalInt()
+                : null
         );
     }
 
@@ -105,6 +112,9 @@ public class DownsampleAction implements LifecycleAction {
         } else {
             out.writeString(DEFAULT_WAIT_TIMEOUT.getStringRep());
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.DOWNSAMPLE_FORCE_MERGE_MAX_NUM_SEGMENTS_PARAMETER)) {
+            out.writeOptionalInt(forceMergeMaxNumSegments);
+        }
     }
 
     @Override
@@ -112,6 +122,9 @@ public class DownsampleAction implements LifecycleAction {
         builder.startObject();
         builder.field(FIXED_INTERVAL_FIELD.getPreferredName(), fixedInterval.toString());
         builder.field(WAIT_TIMEOUT_FIELD.getPreferredName(), waitTimeout.getStringRep());
+        if (forceMergeMaxNumSegments != null) {
+            builder.field(FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD.getPreferredName(), forceMergeMaxNumSegments);
+        }
         builder.endObject();
         return builder;
     }
@@ -127,6 +140,10 @@ public class DownsampleAction implements LifecycleAction {
 
     public TimeValue waitTimeout() {
         return waitTimeout;
+    }
+
+    public Integer getForceMergeMaxNumSegments() {
+        return forceMergeMaxNumSegments;
     }
 
     @Override
@@ -220,7 +237,14 @@ public class DownsampleAction implements LifecycleAction {
         );
 
         // Here is where the actual downsample action takes place
-        DownsampleStep downsampleStep = new DownsampleStep(downsampleKey, waitForDownsampleIndexKey, client, fixedInterval, waitTimeout);
+        DownsampleStep downsampleStep = new DownsampleStep(
+            downsampleKey,
+            waitForDownsampleIndexKey,
+            client,
+            fixedInterval,
+            waitTimeout,
+            forceMergeMaxNumSegments
+        );
 
         // Wait until the downsampled index is recovered. We again wait until the configured threshold is breached and
         // if the downsampled index has not successfully recovered until then, we rewind to the "cleanup-downsample-index"
@@ -305,12 +329,13 @@ public class DownsampleAction implements LifecycleAction {
         if (o == null || getClass() != o.getClass()) return false;
 
         DownsampleAction that = (DownsampleAction) o;
-        return Objects.equals(this.fixedInterval, that.fixedInterval);
+        return Objects.equals(this.fixedInterval, that.fixedInterval)
+            && Objects.equals(this.forceMergeMaxNumSegments, that.forceMergeMaxNumSegments);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fixedInterval);
+        return Objects.hash(fixedInterval, forceMergeMaxNumSegments);
     }
 
     @Override

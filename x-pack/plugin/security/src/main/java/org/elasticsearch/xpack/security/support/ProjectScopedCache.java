@@ -168,9 +168,9 @@ public class ProjectScopedCache<K, V> {
     }
 
     private record ProjectScoped<T>(ProjectId projectId, T value) {
-            private ProjectScoped(ProjectId projectId, T value) {
-                this.projectId = Objects.requireNonNull(projectId);
-                this.value = value;
-            }
+        private ProjectScoped(ProjectId projectId, T value) {
+            this.projectId = Objects.requireNonNull(projectId);
+            this.value = value;
+        }
     }
 }

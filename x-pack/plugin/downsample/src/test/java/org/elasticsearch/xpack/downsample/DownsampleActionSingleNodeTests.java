@@ -270,7 +270,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDownsampleIndex() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
@@ -329,7 +329,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDownsampleIndexWithFlattenedAndMultiFieldDimensions() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
@@ -366,7 +366,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testDownsampleOfDownsample() throws Exception {
         int intervalMinutes = randomIntBetween(10, 120);
-        DownsampleConfig config = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes));
+        DownsampleConfig config = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes), null);
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
@@ -402,7 +402,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         // Downsample the downsample index. The downsampling interval is a multiple of the previous downsampling interval.
         String downsampleIndex2 = downsampleIndex + "-2";
-        DownsampleConfig config2 = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes * randomIntBetween(2, 50)));
+        DownsampleConfig config2 = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes * randomIntBetween(2, 50)), null);
         downsample(downsampleIndex, downsampleIndex2, config2);
         assertDownsampleIndex(downsampleIndex, downsampleIndex2, config2);
     }
@@ -436,7 +436,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         var updateSettingsReq = new UpdateSettingsRequest(settings, sourceIndex);
         assertAcked(indicesAdmin().updateSettings(updateSettingsReq).actionGet());
 
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             return XContentFactory.jsonBuilder()
@@ -464,7 +464,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testNullSourceIndexName() {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         ActionRequestValidationException exception = expectThrows(
             ActionRequestValidationException.class,
             () -> downsample(null, downsampleIndex, config)
@@ -473,7 +473,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testNullDownsampleIndexName() {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         ActionRequestValidationException exception = expectThrows(
             ActionRequestValidationException.class,
             () -> downsample(sourceIndex, null, config)
@@ -490,7 +490,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDownsampleSparseMetrics() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         SourceSupplier sourceSupplier = () -> {
             XContentBuilder builder = XContentFactory.jsonBuilder()
                 .startObject()
@@ -511,7 +511,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testCannotDownsampleToExistingIndex() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         prepareSourceIndex(sourceIndex, true);
 
         // Create an empty index with the same name as the downsample index
@@ -524,7 +524,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDownsampleEmptyIndex() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         // Source index has been created in the setup() method
         prepareSourceIndex(sourceIndex, true);
         downsample(sourceIndex, downsampleIndex, config);
@@ -551,21 +551,21 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             )
             .get();
 
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         prepareSourceIndex(sourceIndex, true);
         downsample(sourceIndex, downsampleIndex, config);
         assertDownsampleIndex(sourceIndex, downsampleIndex, config);
     }
 
     public void testCannotDownsampleWriteableIndex() {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         // Source index has been created in the setup() method and is empty and still writable
         Exception exception = expectThrows(ElasticsearchException.class, () -> downsample(sourceIndex, downsampleIndex, config));
         assertThat(exception.getMessage(), containsString("Downsample requires setting [index.blocks.write = true] for index"));
     }
 
     public void testCannotDownsampleMissingIndex() {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         IndexNotFoundException exception = expectThrows(
             IndexNotFoundException.class,
             () -> downsample("missing-index", downsampleIndex, config)
@@ -575,7 +575,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testCannotDownsampleWhileOtherDownsampleInProgress() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -630,7 +630,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDownsampleDatastream() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         String dataStreamName = createDataStream();
 
         final Instant now = Instant.now();
@@ -666,7 +666,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testCancelDownsampleIndexer() throws IOException {
         // create downsample config and index documents into source index
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -718,7 +718,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testDownsampleBulkFailed() throws IOException {
         // create downsample config and index documents into source index
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -786,7 +786,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testTooManyBytesInFlight() throws IOException {
         // create downsample config and index documents into source index
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -840,7 +840,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testDownsampleStats() throws Exception {
         final PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
-        final DownsampleConfig config = new DownsampleConfig(randomInterval());
+        final DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         final SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -897,7 +897,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testResumeDownsample() throws IOException {
         // create downsample config and index documents into source index
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -973,7 +973,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testResumeDownsamplePartial() throws IOException {
         // create downsample config and index documents into source index
-        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -1620,7 +1620,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testConcurrentDownsample() throws Exception {
-        final DownsampleConfig config = new DownsampleConfig(randomInterval());
+        final DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
@@ -1699,7 +1699,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDuplicateDownsampleRequest() throws Exception {
-        final DownsampleConfig config = new DownsampleConfig(randomInterval());
+        final DownsampleConfig config = new DownsampleConfig(randomInterval(), null);
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
             double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);

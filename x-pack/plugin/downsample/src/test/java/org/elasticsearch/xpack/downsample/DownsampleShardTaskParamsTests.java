@@ -29,7 +29,7 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
         long endTime = startTime + randomLongBetween(1000, 10_000);
         String[] dimensions = randomBoolean() ? generateRandomStringArray(5, 5, false, true) : new String[] {};
         return new DownsampleShardTaskParams(
-            new DownsampleConfig(randomFrom(DateHistogramInterval.HOUR, DateHistogramInterval.DAY)),
+            new DownsampleConfig(randomFrom(DateHistogramInterval.HOUR, DateHistogramInterval.DAY), null),
             randomAlphaOfLength(5),
             startTime,
             endTime,
@@ -44,7 +44,7 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
     protected DownsampleShardTaskParams mutateInstance(DownsampleShardTaskParams in) throws IOException {
         return switch (between(0, 7)) {
             case 0 -> new DownsampleShardTaskParams(
-                new DownsampleConfig(randomFrom(DateHistogramInterval.WEEK, DateHistogramInterval.MONTH)),
+                new DownsampleConfig(randomFrom(DateHistogramInterval.WEEK, DateHistogramInterval.MONTH), null),
                 in.downsampleIndex(),
                 in.indexStartTimeMillis(),
                 in.indexEndTimeMillis(),

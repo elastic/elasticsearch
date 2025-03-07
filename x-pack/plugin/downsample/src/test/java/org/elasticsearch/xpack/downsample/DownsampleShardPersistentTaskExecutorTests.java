@@ -78,7 +78,7 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
             .build();
 
         var params = new DownsampleShardTaskParams(
-            new DownsampleConfig(new DateHistogramInterval("1h")),
+            new DownsampleConfig(new DateHistogramInterval("1h"), null),
             shardId.getIndexName(),
             1,
             1,
@@ -110,7 +110,7 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
 
         var missingShardId = new ShardId(new Index("another_index", "uid"), 0);
         var params = new DownsampleShardTaskParams(
-            new DownsampleConfig(new DateHistogramInterval("1h")),
+            new DownsampleConfig(new DateHistogramInterval("1h"), null),
             missingShardId.getIndexName(),
             1,
             1,

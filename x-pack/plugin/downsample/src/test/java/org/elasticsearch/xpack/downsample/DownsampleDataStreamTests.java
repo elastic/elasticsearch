@@ -102,7 +102,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
             rolloverResponse.getOldIndex(),
             downsampleTargetIndex,
             TIMEOUT,
-            new DownsampleConfig(DateHistogramInterval.HOUR)
+            new DownsampleConfig(DateHistogramInterval.HOUR, null)
         );
         final AcknowledgedResponse downsampleResponse = indicesAdmin().execute(DownsampleAction.INSTANCE, downsampleRequest).actionGet();
 

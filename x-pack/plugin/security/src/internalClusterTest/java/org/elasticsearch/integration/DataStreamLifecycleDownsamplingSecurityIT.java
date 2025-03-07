@@ -125,11 +125,11 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
                     List.of(
                         new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueMillis(0),
-                            new DownsampleConfig(new DateHistogramInterval("5m"))
+                            new DownsampleConfig(new DateHistogramInterval("5m"), null)
                         ),
                         new DataStreamLifecycle.Downsampling.Round(
                             TimeValue.timeValueSeconds(10),
-                            new DownsampleConfig(new DateHistogramInterval("10m"))
+                            new DownsampleConfig(new DateHistogramInterval("10m"), null)
                         )
                     )
                 )

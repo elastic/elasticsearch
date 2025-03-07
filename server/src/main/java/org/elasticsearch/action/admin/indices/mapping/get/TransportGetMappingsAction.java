@@ -93,6 +93,7 @@ public class TransportGetMappingsAction extends TransportLocalProjectMetadataAct
         final ProjectState state,
         final ActionListener<GetMappingsResponse> listener
     ) {
+        ((CancellableTask) task).ensureNotCancelled();
         logger.trace("serving getMapping request based on version {}", state.cluster().version());
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state.metadata(), request);
         final Map<String, MappingMetadata> mappings = state.metadata()

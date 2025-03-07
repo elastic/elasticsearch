@@ -304,9 +304,15 @@ public class InternalEngine extends Engine {
             // don't allow commits until we are done with recovering
             pendingTranslogRecovery.set(true);
             for (ReferenceManager.RefreshListener listener : engineConfig.getExternalRefreshListener()) {
+                if (listener instanceof EngineAwareRefreshListener engineListener) {
+                    engineListener.onNewEngine(this);
+                }
                 this.externalReaderManager.addListener(listener);
             }
             for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
+                if (listener instanceof EngineAwareRefreshListener engineListener) {
+                    engineListener.onNewEngine(this);
+                }
                 this.internalReaderManager.addListener(listener);
             }
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getProcessedCheckpoint());

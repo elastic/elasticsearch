@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.FailureCollector;
@@ -209,8 +210,9 @@ abstract class DataNodeRequestSender {
     private void trackShardLevelFailure(ShardId shardId, boolean fatal, Exception originalEx) {
         final Exception e = unwrapFailure(originalEx);
         final boolean isTaskCanceledException = ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null;
+        final boolean isCircuitBreakerException = ExceptionsHelper.unwrap(e, CircuitBreakingException.class) != null;
         shardFailures.compute(shardId, (k, current) -> {
-            boolean mergedFatal = fatal || isTaskCanceledException;
+            boolean mergedFatal = fatal || isTaskCanceledException || isCircuitBreakerException;
             return current == null
                 ? new ShardFailure(mergedFatal, e)
                 : new ShardFailure(

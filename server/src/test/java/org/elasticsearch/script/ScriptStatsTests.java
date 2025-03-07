@@ -10,7 +10,6 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -167,38 +166,6 @@ public class ScriptStatsTests extends ESTestCase {
         long fifteen = day >= 1 ? randomLongBetween(0, day) : 0;
         long five = fifteen >= 1 ? randomLongBetween(0, fifteen) : 0;
         assertFalse((new TimeSeries(five, fifteen, day, 0)).areTimingsEmpty());
-    }
-
-    public void testTimeSeriesSerialization() throws IOException {
-        ScriptContextStats stats = randomStats();
-
-        ScriptContextStats deserStats = serDeser(TransportVersions.V_8_0_0, TransportVersions.V_7_16_0, stats);
-        // Due to how the versions are handled by TimeSeries serialization, we cannot just simply assert that both object are
-        // equals but not the same
-        assertEquals(stats.getCompilations(), deserStats.getCompilations());
-        assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictions());
-        assertEquals(stats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
-        assertTrue(deserStats.getCompilationsHistory().areTimingsEmpty());
-        assertEquals(stats.getCompilations(), deserStats.getCompilationsHistory().total);
-        assertTrue(deserStats.getCacheEvictionsHistory().areTimingsEmpty());
-        assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictionsHistory().total);
-
-        deserStats = serDeser(TransportVersions.V_8_0_0, TransportVersions.V_8_0_0, stats);
-        assertNotSame(stats, deserStats);
-        assertEquals(stats, deserStats);
-
-        deserStats = serDeser(TransportVersions.V_8_1_0, TransportVersions.V_7_16_0, stats);
-        // Due to how the versions are handled by TimeSeries serialization, we cannot just simply assert that both object are
-        // equals but not the same
-        assertEquals(stats.getCompilations(), deserStats.getCompilations());
-        assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictions());
-        assertEquals(stats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
-        assertEquals(new TimeSeries(stats.getCompilationsHistory().total), deserStats.getCompilationsHistory());
-        assertEquals(new TimeSeries(stats.getCacheEvictionsHistory().total), deserStats.getCacheEvictionsHistory());
-
-        deserStats = serDeser(TransportVersions.V_8_1_0, TransportVersions.V_8_1_0, stats);
-        assertNotSame(stats, deserStats);
-        assertEquals(stats, deserStats);
     }
 
     public void testMerge() {

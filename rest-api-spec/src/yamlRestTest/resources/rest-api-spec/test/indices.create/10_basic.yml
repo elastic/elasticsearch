@@ -214,3 +214,68 @@
             index.mode: lookup
             index.number_of_shards: 2
 
+---
+"Poorly formatted request returns bad_request":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ poorly_formatted_bad_request ]
+      reason: "requires poorly_formatted_bad_request bug fix"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          mappings: "bad mappings"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties: "bad properties"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          settings: "bad settings"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          aliases: "bad alias"
+---
+"Create index with hunspell missing dict":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ hunspell_dict_400 ]
+      reason: "bugfix 'hunspell_dict_400' capability required"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: bad_hunspell_index
+        body:
+          settings:
+            analysis:
+              analyzer:
+                en:
+                  tokenizer: standard
+                  filter:
+                    - my_en_US_dict_stemmer
+                filter:
+                  my_en_US_dict_stemmer:
+                  type: hunspell
+                  locale: en_US
+                  dedup: false

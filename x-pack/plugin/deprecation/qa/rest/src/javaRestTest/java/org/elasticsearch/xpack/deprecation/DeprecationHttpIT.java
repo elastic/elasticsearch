@@ -130,7 +130,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
     }
 
     private Matcher<String> matchDeprecationWarning(Setting<?> setting) {
-        var format = "[%s] setting was deprecated in Elasticsearch and will be removed in a future release.";
+        var format = "[%s] setting was deprecated in Elasticsearch and will be removed in a future release. "
+            + "See the deprecation documentation for the next major version.";
         return equalTo(Strings.format(format, setting.getKey()));
     }
 

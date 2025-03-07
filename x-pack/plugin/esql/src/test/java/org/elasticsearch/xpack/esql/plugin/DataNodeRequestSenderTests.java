@@ -15,8 +15,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -251,7 +249,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var response = safeGet(sendRequests(targetShards, false, (node, shardIds, aliasFilters, listener) -> {
             sent.add(new NodeRequest(node, shardIds, aliasFilters));
             if (Objects.equals(node1, node)) {
-                runWithDelay(() -> listener.onFailure(new CircuitBreakingException("cbe", CircuitBreaker.Durability.TRANSIENT), false));
+                runWithDelay(() -> listener.onFailure(new RuntimeException("test request level non fatal failure"), false));
             } else {
                 runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
             }
@@ -267,9 +265,9 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
         var future = sendRequests(targetShards, false, (node, shardIds, aliasFilters, listener) -> {
             sent.add(new NodeRequest(node, shardIds, aliasFilters));
-            runWithDelay(() -> listener.onFailure(new CircuitBreakingException("cbe", CircuitBreaker.Durability.TRANSIENT), false));
+            runWithDelay(() -> listener.onFailure(new RuntimeException("test request level non fatal failure"), false));
         });
-        expectThrows(CircuitBreakingException.class, equalTo("cbe"), future::actionGet);
+        expectThrows(RuntimeException.class, equalTo("test request level non fatal failure"), future::actionGet);
         assertThat(sent.size(), equalTo(2));
     }
 

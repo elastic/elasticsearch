@@ -32,8 +32,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.ROLE_MONITOR_STATS;
-
 /**
  * Represents the set of permissions for remote clusters. This is intended to be the model for both the {@link RoleDescriptor}
  * and {@link Role}. This model is intended to be converted to local cluster permissions
@@ -71,6 +69,7 @@ import static org.elasticsearch.TransportVersions.ROLE_MONITOR_STATS;
 public class RemoteClusterPermissions implements NamedWriteable, ToXContentObject {
 
     public static final TransportVersion ROLE_REMOTE_CLUSTER_PRIVS = TransportVersions.V_8_15_0;
+    public static final TransportVersion ROLE_MONITOR_STATS = TransportVersions.V_8_17_0;
 
     public static final String NAME = "remote_cluster_permissions";
     private static final Logger logger = LogManager.getLogger(RemoteClusterPermissions.class);

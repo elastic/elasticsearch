@@ -125,9 +125,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.rest.ShardChangesRestIT
   method: testShardChangesNoOperation
   issue: https://github.com/elastic/elasticsearch/issues/118800
-- class: org.elasticsearch.cluster.service.MasterServiceTests
-  method: testThreadContext
-  issue: https://github.com/elastic/elasticsearch/issues/118914
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
@@ -345,6 +342,12 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/start_data_frame_analytics/Test start classification analysis when the dependent variable is missing}
   issue: https://github.com/elastic/elasticsearch/issues/124168
+- class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
+  method: testRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/124227
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
+  issue: https://github.com/elastic/elasticsearch/issues/124315
 
 # Examples:
 #

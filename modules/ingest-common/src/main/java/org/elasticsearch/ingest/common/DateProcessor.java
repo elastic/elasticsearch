@@ -115,10 +115,9 @@ public final class DateProcessor extends AbstractProcessor {
         // extract the timezone and locale to use for date parsing
         final ZoneId documentTimezone;
         final Locale documentLocale;
-        final Map<String, Object> sourceAndMetadata = document.getSourceAndMetadata();
         try {
-            documentTimezone = newDateTimeZone(timezone == null ? null : timezone.newInstance(sourceAndMetadata).execute());
-            documentLocale = newLocale(locale == null ? null : locale.newInstance(sourceAndMetadata).execute());
+            documentTimezone = newDateTimeZone(timezone == null ? null : document.renderTemplate(timezone));
+            documentLocale = newLocale(locale == null ? null : document.renderTemplate(locale));
         } catch (Exception e) {
             throw new IllegalArgumentException("unable to parse date [" + value + "]", e);
         }

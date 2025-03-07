@@ -843,7 +843,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             opsListener = null;
         } finally {
             if (opsListener != null) {
-                opsListener.onPreFetchPhase(context);
+                opsListener.onFailedFetchPhase(context);
             }
         }
         // This will incRef the QuerySearchResult when it gets created

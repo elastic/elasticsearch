@@ -71,7 +71,7 @@ public class DebugUtils {
 
     private static void listFilesRecursively(Path directoryPath) {
         try (Stream<Path> paths = Files.walk(directoryPath)) {
-            paths.forEach(it -> LOGGER.warn("{}", it));
+            paths.forEach(it -> LOGGER.warn("FILE: {}", it));
         } catch (IOException e) {
             e.printStackTrace();
         }

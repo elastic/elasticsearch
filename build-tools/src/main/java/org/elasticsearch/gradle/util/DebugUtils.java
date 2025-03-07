@@ -28,16 +28,16 @@ public class DebugUtils {
 
             LOGGER.warn("Checking disk space and file permissions for directory: {}", directoryPath);
 
-            LOGGER.warn("=================");
-            LOGGER.warn("Listing all files");
-            listFilesRecursively(directoryPath);
-            LOGGER.warn("=================");
-
             // Check if the directory exists
             if (Files.exists(directoryPath) == false) {
                 LOGGER.error("Directory does not exist: {}", directoryPath);
                 return;
             }
+
+            LOGGER.warn("=================");
+            LOGGER.warn("Listing all files");
+            listFilesRecursively(directoryPath);
+            LOGGER.warn("=================");
 
             // Log disk space information
             long freeSpace = file.getFreeSpace();

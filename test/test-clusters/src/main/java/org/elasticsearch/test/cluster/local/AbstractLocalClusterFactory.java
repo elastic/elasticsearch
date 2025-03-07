@@ -94,7 +94,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         Path baseWorkingDir;
         try {
             baseWorkingDir = Files.createTempDirectory(spec.getName());
-            DebugUtils.watchDirectory(baseWorkingDir);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -364,6 +363,8 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
                     IOUtils.syncMaybeWithLinks(distributionDescriptor.getDistributionDir(), distributionDir);
                 }
+                LOGGER.warn("Logging disk space and file permissions for working dir after initialization: {}", workingDir);
+                DebugUtils.logDiskSpaceAndPrivileges(workingDir);
                 Files.createDirectories(repoDir);
                 Files.createDirectories(dataDir);
                 Files.createDirectories(logsDir);

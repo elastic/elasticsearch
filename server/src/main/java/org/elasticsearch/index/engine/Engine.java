@@ -377,12 +377,12 @@ public abstract class Engine implements Closeable {
          * {@link IndexCommitRef} prevents the {@link IndexCommitRef} files to be deleted from disk until the reference is closed. As such,
          * the listener must close the reference as soon as it is done with it.
          *
-         * @param shardId            the {@link ShardId} of shard
-         * @param store              the index shard store
-         * @param primaryTerm        the shard's primary term value
-         * @param indexCommitRef     a reference on the newly created index commit
-         * @param additionalFiles    the set of filenames that are added by the new commit
-         * @param extraTransientData extra transient data relevant to the new commit
+         * @param shardId             the {@link ShardId} of shard
+         * @param store               the index shard store
+         * @param primaryTerm         the shard's primary term value
+         * @param indexCommitRef      a reference on the newly created index commit
+         * @param additionalFiles     the set of filenames that are added by the new commit
+         * @param enginePreCommitData data extracted by the engine prior to the commit
          */
         void onNewCommit(
             ShardId shardId,
@@ -390,7 +390,7 @@ public abstract class Engine implements Closeable {
             long primaryTerm,
             IndexCommitRef indexCommitRef,
             Set<String> additionalFiles,
-            Map<String, String> extraTransientData
+            Object enginePreCommitData
         );
 
         /**

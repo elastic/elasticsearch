@@ -108,7 +108,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -401,7 +400,7 @@ public class InternalEngine extends Engine {
                         primaryTerm,
                         indexCommitRef,
                         additionalFiles,
-                        getCommitExtraTransientData()
+                        getPreCommitData(commit)
                     );
                 }
 
@@ -424,7 +423,7 @@ public class InternalEngine extends Engine {
                 long primaryTerm,
                 IndexCommitRef indexCommitRef,
                 Set<String> additionalFiles,
-                Map<String, String> extraTransientData
+                Object enginePreCommitData
             ) {
                 final long nextGen = indexCommitRef.getIndexCommit().getGeneration();
                 final long prevGen = generation.getAndSet(nextGen);
@@ -435,7 +434,7 @@ public class InternalEngine extends Engine {
                         + prevGen
                         + " for shard "
                         + shardId;
-                listener.onNewCommit(shardId, store, primaryTerm, indexCommitRef, additionalFiles, extraTransientData);
+                listener.onNewCommit(shardId, store, primaryTerm, indexCommitRef, additionalFiles, enginePreCommitData);
             }
 
             @Override
@@ -2933,9 +2932,7 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> extraCommitUserData = getCommitExtraUserData(localCheckpoint);
-                final Map<String, String> commitData = Maps.newMapWithExpectedSize(8 + extraCommitUserData.size());
-                commitData.putAll(extraCommitUserData);
+                final Map<String, String> commitData = Maps.newMapWithExpectedSize(8);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translog.getTranslogUUID());
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
@@ -2979,21 +2976,11 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Allows InternalEngine extenders to return custom key-value pairs which will be included in the Lucene commit user-data. Custom user
-     * data keys can be overwritten by if their keys conflict keys used by InternalEngine.
-     *
-     * @param localCheckpoint the local checkpoint of the commit
-     */
-    protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
-        return Collections.emptyMap();
-    }
-
-    /**
-     * Allows InternalEngine extenders to return custom key-value pairs for transient information, that is not stored in the commit, to be
+     * Allows InternalEngine extenders to return custom data for transient information, that is not stored in the commit, to be
      * included in the {@link org.elasticsearch.index.engine.Engine.IndexCommitListener}'s new commit invocation.
      */
-    protected Map<String, String> getCommitExtraTransientData() {
-        return Collections.emptyMap();
+    protected Object getPreCommitData(IndexCommit commit) {
+        return null;
     }
 
     final void ensureCanFlush() {

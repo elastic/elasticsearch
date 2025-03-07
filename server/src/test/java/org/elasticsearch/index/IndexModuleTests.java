@@ -687,7 +687,7 @@ public class IndexModuleTests extends ESTestCase {
                 long primaryTerm,
                 Engine.IndexCommitRef indexCommitRef,
                 Set<String> additionalFiles,
-                Map<String, String> extraTransientData
+                Object enginePreCommitData
             ) {
                 lastAcquiredPrimaryTerm.set(primaryTerm);
                 lastAcquiredCommit.set(indexCommitRef);

@@ -7323,12 +7323,66 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testExtraUserDataIsCommitted() throws IOException {
+    public void testEnginePreCommitData() throws IOException {
         engine.close();
-        engine = new InternalEngine(engine.config()) {
+        final var preCommitData = new AtomicReference<Object>();
+        final var indexCommitListener = new Engine.IndexCommitListener() {
             @Override
-            protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
-                return Map.of("userkey", "userdata", ES_VERSION, IndexVersions.ZERO.toString());
+            public void onNewCommit(
+                ShardId shardId,
+                Store store,
+                long primaryTerm,
+                Engine.IndexCommitRef indexCommitRef,
+                Set<String> additionalFiles,
+                Object enginePreCommitData
+            ) {
+                preCommitData.set(enginePreCommitData);
+                try {
+                    indexCommitRef.close();
+                } catch (IOException e) {
+                    assert false : e;
+                }
+            }
+
+            @Override
+            public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {
+                assert false : "no commit should be deleted in this test";
+            }
+        };
+        final var config = engine.config();
+        final var newConfig = new EngineConfig(
+            config.getShardId(),
+            config.getThreadPool(),
+            config.getIndexSettings(),
+            config.getWarmer(),
+            config.getStore(),
+            config.getMergePolicy(),
+            config.getAnalyzer(),
+            config.getSimilarity(),
+            config.getCodecProvider(),
+            config.getEventListener(),
+            config.getQueryCache(),
+            config.getQueryCachingPolicy(),
+            config.getTranslogConfig(),
+            config.getFlushMergesAfter(),
+            config.getExternalRefreshListener(),
+            config.getInternalRefreshListener(),
+            config.getIndexSort(),
+            config.getCircuitBreakerService(),
+            config.getGlobalCheckpointSupplier(),
+            config.retentionLeasesSupplier(),
+            config.getPrimaryTermSupplier(),
+            config.getSnapshotCommitSupplier(),
+            config.getLeafSorter(),
+            config.getRelativeTimeInNanosSupplier(),
+            indexCommitListener,
+            config.isPromotableToPrimary(),
+            config.getMapperService()
+        );
+        engine = new InternalEngine(newConfig) {
+            @Override
+            protected Object getPreCommitData(IndexCommit commit) {
+                return Map.of("userkey", "userdata");
             }
         };
         engine.skipTranslogRecovery();
@@ -7337,9 +7391,9 @@ public class InternalEngineTests extends EngineTestCase {
         engine.index(indexForDoc(doc));
         engine.flush();
 
-        Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
-        assertThat(userData, hasEntry("userkey", "userdata"));
-        assertThat(userData, hasEntry(ES_VERSION, IndexVersion.current().toString()));
+        @SuppressWarnings("unchecked")
+        final var commitData = (Map<String, String>) preCommitData.get();
+        assertThat(commitData, hasEntry("userkey", "userdata"));
     }
 
     public void testTrimUnsafeCommitHasESVersionInUserData() throws IOException {
@@ -7420,7 +7474,7 @@ public class InternalEngineTests extends EngineTestCase {
                 long primaryTerm,
                 Engine.IndexCommitRef indexCommitRef,
                 Set<String> additionalFiles,
-                Map<String, String> extraTransientData
+                Object enginePreCommitData
             ) {
                 assertNotNull(store);
                 assertTrue(store.hasReferences());

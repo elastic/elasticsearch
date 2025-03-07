@@ -590,7 +590,7 @@ GET index1/_search
 }
 ```
 %  TESTRESPONSE[s/.../"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
-::::::
+
 ::::::
 
 ::::::{tab-item} FVH
@@ -850,7 +850,7 @@ to
     }
 ```
 %  NOTCONSOLE
-::::::
+
 ::::::
 
 :::::::

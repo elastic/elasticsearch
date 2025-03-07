@@ -344,7 +344,6 @@ $$$es-connectors-servicenow-client-sync-rules-author-administrator-knowledge-ser
 ]
 ```
 %  NOTCONSOLE
-%  NOTCONSOLE
 
 
 ### End-to-end Testing [es-connectors-servicenow-client-connector-client-operations-testing]

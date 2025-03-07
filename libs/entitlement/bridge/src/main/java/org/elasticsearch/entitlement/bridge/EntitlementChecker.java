@@ -510,10 +510,11 @@ public interface EntitlementChecker {
         Class<?>[] classes
     );
 
-    void check$sun_net_www_protocol_https_AbstractDelegateHttpsURLConnection$connect(
-        Class<?> callerClass,
-        javax.net.ssl.HttpsURLConnection that
-    );
+    void check$sun_net_www_protocol_https_AbstractDelegateHttpsURLConnection$connect(Class<?> callerClass, java.net.HttpURLConnection that);
+
+    void check$sun_net_www_protocol_mailto_MailToURLConnection$connect(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$sun_net_www_protocol_mailto_MailToURLConnection$getOutputStream(Class<?> callerClass, java.net.URLConnection that);
 
     // Network miscellanea
 

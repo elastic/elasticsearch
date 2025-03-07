@@ -49,7 +49,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -747,9 +746,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndexShard shard
     ) {
         Runnable r = ActionRunnable.supplyAndDecRef(listener, executable);
-        if (executor instanceof TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor perIndexExecutor) {
-            perIndexExecutor.registerIndexNameForRunnable(shard.shardId().getIndexName(), r);
-        }
+       //if (executor instanceof TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor perIndexExecutor) {
+       //     perIndexExecutor.registerIndexNameForRunnable(shard.shardId().getIndexName(), r);
+       // }
         executor.execute(r);
     }
 

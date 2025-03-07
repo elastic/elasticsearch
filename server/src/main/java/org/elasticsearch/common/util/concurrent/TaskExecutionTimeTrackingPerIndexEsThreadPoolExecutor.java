@@ -112,7 +112,6 @@ public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor extends TaskE
                 );
                 t.v1().add(taskTime);
                 t.v2().addValue(taskTime);
-                logger.info("Task execution time for index [{}] is [{}] [{}]", indexName, taskTime, Thread.currentThread().getName());
             }
             super.trackExecutionTime(r, taskTime);
         } finally {

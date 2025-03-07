@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class BoundedDelimitedStringCollectorTests extends ESTestCase {
 
     private interface TestHarness {
-        String getResult(Iterable<?> collection, String prefix, String delimiter, String suffix, int appendLimit);
+        String getResult(Iterable<?> collection, String delimiter, int appendLimit);
 
         enum Type {
             COLLECTING,
@@ -45,16 +45,16 @@ public class BoundedDelimitedStringCollectorTests extends ESTestCase {
 
     public BoundedDelimitedStringCollectorTests(@Name("type") TestHarness.Type testHarnessType) {
         testHarness = switch (testHarnessType) {
-            case COLLECTING -> (collection, prefix, delimiter, suffix, appendLimit) -> {
+            case COLLECTING -> (collection, delimiter, appendLimit) -> {
                 final var stringBuilder = new StringBuilder();
-                final var collector = new Strings.BoundedDelimitedStringCollector(stringBuilder, prefix, delimiter, suffix, appendLimit);
+                final var collector = new Strings.BoundedDelimitedStringCollector(stringBuilder, delimiter, appendLimit);
                 collection.forEach(collector::appendItem);
                 collector.finish();
                 return stringBuilder.toString();
             };
-            case ITERATING -> (collection, prefix, delimiter, suffix, appendLimit) -> {
+            case ITERATING -> (collection, delimiter, appendLimit) -> {
                 final var stringBuilder = new StringBuilder();
-                Strings.collectionToDelimitedStringWithLimit(collection, delimiter, prefix, suffix, appendLimit, stringBuilder);
+                Strings.collectionToDelimitedStringWithLimit(collection, delimiter, appendLimit, stringBuilder);
                 return stringBuilder.toString();
             };
         };
@@ -62,62 +62,56 @@ public class BoundedDelimitedStringCollectorTests extends ESTestCase {
 
     public void testCollectionToDelimitedStringWithLimitZero() {
         final String delimiter = randomFrom("", ",", ", ", "/");
-        final String prefix = randomFrom("", "[");
-        final String suffix = randomFrom("", "]");
 
         final int count = between(0, 100);
         final List<String> strings = new ArrayList<>(count);
         while (strings.size() < count) {
             // avoid starting with a sequence of empty appends, it makes the assertions much messier
-            final int minLength = strings.isEmpty() && delimiter.isEmpty() && prefix.isEmpty() && suffix.isEmpty() ? 1 : 0;
+            final int minLength = strings.isEmpty() && delimiter.isEmpty() ? 1 : 0;
             strings.add(randomAlphaOfLength(between(minLength, 10)));
         }
 
-        final String completelyTruncatedDescription = testHarness.getResult(strings, prefix, delimiter, suffix, 0);
+        final String completelyTruncatedDescription = testHarness.getResult(strings, delimiter, 0);
 
         if (count == 0) {
             assertThat(completelyTruncatedDescription, equalTo(""));
         } else if (count == 1) {
-            assertThat(completelyTruncatedDescription, equalTo(prefix + strings.get(0) + suffix));
+            assertThat(completelyTruncatedDescription, equalTo(strings.get(0)));
         } else {
             assertThat(
                 completelyTruncatedDescription,
-                equalTo(prefix + strings.get(0) + suffix + delimiter + "... (" + count + " in total, " + (count - 1) + " omitted)")
+                equalTo(strings.get(0) + delimiter + "... (" + count + " in total, " + (count - 1) + " omitted)")
             );
         }
     }
 
     public void testCollectionToDelimitedStringWithLimitTruncation() {
         final String delimiter = randomFrom("", ",", ", ", "/");
-        final String prefix = randomFrom("", "[");
-        final String suffix = randomFrom("", "]");
 
         final int count = between(2, 100);
         final List<String> strings = new ArrayList<>(count);
         while (strings.size() < count) {
             // avoid empty appends, it makes the assertions much messier
-            final int minLength = delimiter.isEmpty() && prefix.isEmpty() && suffix.isEmpty() ? 1 : 0;
+            final int minLength = delimiter.isEmpty() ? 1 : 0;
             strings.add(randomAlphaOfLength(between(minLength, 10)));
         }
 
-        final int fullDescriptionLength = collectionToDelimitedString(strings, delimiter, prefix, suffix).length();
-        final int lastItemSize = prefix.length() + strings.get(count - 1).length() + suffix.length();
+        final int fullDescriptionLength = collectionToDelimitedString(strings, delimiter).length();
+        final int lastItemSize = strings.get(count - 1).length();
         final int truncatedLength = between(0, fullDescriptionLength - lastItemSize - 1);
-        final String truncatedDescription = testHarness.getResult(strings, prefix, delimiter, suffix, truncatedLength);
+        final String truncatedDescription = testHarness.getResult(strings, delimiter, truncatedLength);
 
         assertThat(truncatedDescription, allOf(containsString("... (" + count + " in total,"), endsWith(" omitted)")));
 
         assertThat(
             truncatedDescription,
             truncatedDescription.length(),
-            lessThanOrEqualTo(truncatedLength + (prefix + "0123456789" + suffix + delimiter + "... (999 in total, 999 omitted)").length())
+            lessThanOrEqualTo(truncatedLength + ("0123456789" + delimiter + "... (999 in total, 999 omitted)").length())
         );
     }
 
     public void testCollectionToDelimitedStringWithLimitNoTruncation() {
         final String delimiter = randomFrom("", ",", ", ", "/");
-        final String prefix = randomFrom("", "[");
-        final String suffix = randomFrom("", "]");
 
         final int count = between(1, 100);
         final List<String> strings = new ArrayList<>(count);
@@ -125,16 +119,16 @@ public class BoundedDelimitedStringCollectorTests extends ESTestCase {
             strings.add(randomAlphaOfLength(between(0, 10)));
         }
 
-        final String fullDescription = collectionToDelimitedString(strings, delimiter, prefix, suffix);
+        final String fullDescription = collectionToDelimitedString(strings, delimiter);
         for (String string : strings) {
-            assertThat(fullDescription, containsString(prefix + string + suffix));
+            assertThat(fullDescription, containsString(string));
         }
 
-        final int lastItemSize = prefix.length() + strings.get(count - 1).length() + suffix.length();
+        final int lastItemSize = strings.get(count - 1).length();
         final int minLimit = fullDescription.length() - lastItemSize;
         final int limit = randomFrom(between(minLimit, fullDescription.length()), between(minLimit, Integer.MAX_VALUE), Integer.MAX_VALUE);
 
-        assertThat(testHarness.getResult(strings, prefix, delimiter, suffix, limit), equalTo(fullDescription));
+        assertThat(testHarness.getResult(strings, delimiter, limit), equalTo(fullDescription));
     }
 
 }

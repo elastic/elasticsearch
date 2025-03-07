@@ -188,8 +188,8 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
         @Override
         public ClusterState execute(BatchExecutionContext<LazyRolloverTask> batchExecutionContext) {
             final var listener = new AllocationActionMultiListener<RolloverResponse>(threadPool.getThreadContext());
-            final var reasonBuilder = new StringBuilder();
-            final var resultsCollector = new Strings.BoundedDelimitedStringCollector(reasonBuilder, "lazy bulk rollover [", ",", "]", 1024);
+            var reasonBuilder = new StringBuilder("lazy bulk rollover [");
+            final var resultsCollector = new Strings.BoundedDelimitedStringCollector(reasonBuilder, ",", 1024);
             var state = batchExecutionContext.initialState();
             Map<ProjectId, Map<RolloverRequest, List<TaskContext<LazyRolloverTask>>>> groupedRequests = new HashMap<>();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -214,6 +214,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
 
             if (state != batchExecutionContext.initialState()) {
                 resultsCollector.finish();
+                reasonBuilder.append(']');
                 try (var ignored = batchExecutionContext.dropHeadersContext()) {
                     state = allocationService.reroute(state, reasonBuilder.toString(), listener.reroute());
                 }

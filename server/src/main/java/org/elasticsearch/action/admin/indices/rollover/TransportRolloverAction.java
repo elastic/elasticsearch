@@ -517,8 +517,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         @Override
         public ClusterState execute(BatchExecutionContext<RolloverTask> batchExecutionContext) {
             final var listener = new AllocationActionMultiListener<RolloverResponse>(threadPool.getThreadContext());
-            final var reasonBuilder = new StringBuilder();
-            final var resultsCollector = new Strings.BoundedDelimitedStringCollector(reasonBuilder, "bulk rollover [", ",", "]", 1024);
+            final var reasonBuilder = new StringBuilder("bulk rollover [");
+            final var resultsCollector = new Strings.BoundedDelimitedStringCollector(reasonBuilder, ",", 1024);
             var state = batchExecutionContext.initialState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 try (var ignored = taskContext.captureResponseHeaders()) {
@@ -530,6 +530,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
             if (state != batchExecutionContext.initialState()) {
                 resultsCollector.finish();
+                reasonBuilder.append(']');
                 try (var ignored = batchExecutionContext.dropHeadersContext()) {
                     state = allocationService.reroute(state, reasonBuilder.toString(), listener.reroute());
                 }

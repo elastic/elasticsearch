@@ -166,17 +166,6 @@ public interface InferenceService extends Closeable {
     }
 
     /**
-     * Optionally test the new model configuration in the inference service.
-     * This function should be called when the model is first created, the
-     * default action is to do nothing.
-     * @param model The new model
-     * @param listener The listener
-     */
-    default void checkModelConfig(Model model, ActionListener<Model> listener) {
-        listener.onResponse(model);
-    };
-
-    /**
      * Update a text embedding model's dimensions based on a provided embedding
      * size and set the default similarity if required. The default behaviour is to just return the model.
      * @param model The original model without updated embedding details

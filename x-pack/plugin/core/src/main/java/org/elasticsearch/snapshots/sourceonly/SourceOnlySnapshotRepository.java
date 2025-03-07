@@ -20,6 +20,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -110,9 +111,13 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     private static Metadata metadataToSnapshot(Collection<IndexId> indices, Metadata metadata) {
-        Metadata.Builder builder = Metadata.builder(metadata);
+        return Metadata.builder(metadata).put(projectMetadataToSnapshot(indices, metadata.getProject())).build();
+    }
+
+    private static ProjectMetadata projectMetadataToSnapshot(Collection<IndexId> indices, ProjectMetadata projectMetadata) {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectMetadata);
         for (IndexId indexId : indices) {
-            IndexMetadata index = metadata.getProject().index(indexId.getName());
+            IndexMetadata index = projectMetadata.index(indexId.getName());
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index);
             // for a minimal restore we basically disable indexing on all fields and only create an index
             // that is valid from an operational perspective. ie. it will have all metadata fields like version/

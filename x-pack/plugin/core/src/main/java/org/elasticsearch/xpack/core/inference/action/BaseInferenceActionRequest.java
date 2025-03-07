@@ -21,7 +21,6 @@ import java.util.Objects;
  * Base class for inference action requests. Tracks request routing state to prevent potential routing loops
  * and supports both streaming and non-streaming inference operations.
  */
-// TODO: BWC tests?
 public abstract class BaseInferenceActionRequest extends ActionRequest {
 
     private boolean hasBeenRerouted;

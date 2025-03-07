@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.getInputTypeToWrite;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 
@@ -368,6 +369,18 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                             InferenceAction.Request.DEFAULT_TIMEOUT,
                             false
                         );
+                    } else if (version.before(TransportVersions.INFERENCE_CONTEXT)) {
+                        return new InferenceAction.Request(
+                            instance.getTaskType(),
+                            instance.getInferenceEntityId(),
+                            instance.getQuery(),
+                            instance.getInput(),
+                            instance.getTaskSettings(),
+                            instance.getInputType(),
+                            instance.getInferenceTimeout(),
+                            false,
+                            InferenceContext.empty()
+                        );
                     }
 
         return instance;
@@ -432,6 +445,30 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
 
         // Verify that hasBeenRerouted is true after deserializing a request coming from an older transport version
         assertTrue(deserializedInstance.hasBeenRerouted());
+    }
+
+    public void testWriteTo_WhenVersionIsBeforeInferenceContext_ShouldSetContextToEmptyContext() throws IOException {
+        var instance = new InferenceAction.Request(
+            TaskType.TEXT_EMBEDDING,
+            "model",
+            null,
+            List.of("input"),
+            Map.of(),
+            InputType.UNSPECIFIED,
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            false,
+            new InferenceContext(randomAlphaOfLength(10))
+        );
+
+        InferenceAction.Request deserializedInstance = copyWriteable(
+            instance,
+            getNamedWriteableRegistry(),
+            instanceReader(),
+            TransportVersions.V_8_15_0
+        );
+
+        // Verify that context is empty after deserializing a request coming from an older transport version
+        assertThat(deserializedInstance.getContext(), equalTo(InferenceContext.empty()));
     }
 
     public void testGetInputTypeToWrite_ReturnsIngest_WhenInputTypeIsUnspecified_VersionBeforeUnspecifiedIntroduced() {

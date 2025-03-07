@@ -5,5 +5,8 @@
 Groups text messages into categories of similarly formatted text values.
 
 `CATEGORIZE` has the following limitations:
-* can’t be used within other expressions * can’t be used with multiple groupings * can’t be used or referenced within aggregate functions
+
+* can’t be used within other expressions
+* can’t be used with multiple groupings
+* can’t be used or referenced within aggregate functions
 

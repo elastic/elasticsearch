@@ -1135,7 +1135,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     private static String reformatDescription(String description) {
         // The new markdown does not reformat paragraphs, so we need to put consecutive lines on one line
-        return description.replaceAll("\n\n", "NEWLINE").replaceAll("\n", " ").replaceAll("NEWLINE", "\n");
+        //return description.replaceAll("\n\n", "NEWLINE").replaceAll("\n", " ").replaceAll("NEWLINE", "\n");
+        // TODO some formatting is being relied on, we need a better solution
+        return description;
     }
 
     private static boolean renderExamples(String name, FunctionInfo info) throws IOException {

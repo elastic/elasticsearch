@@ -40,6 +40,8 @@ import java.util.Objects;
  *     ]
  * }
  */
+// Note: inheriting from TextEmbeddingByteResults gives a bad implementation of the
+// Embedding.merge method for bits. TODO: implement a proper merge method
 public record TextEmbeddingBitResults(List<TextEmbeddingByteResults.Embedding> embeddings)
     implements
         TextEmbeddingResults<TextEmbeddingByteResults.Embedding> {

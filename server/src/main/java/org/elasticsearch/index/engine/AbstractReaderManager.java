@@ -26,7 +26,6 @@ public abstract class AbstractReaderManager extends ReferenceManager<Elasticsear
     @Nullable // if assertions are disabled
     private final Map<RefreshListener, AssertingRefreshListener> assertingListeners = Assertions.ENABLED ? new ConcurrentHashMap<>() : null;
 
-
     @Override
     protected boolean tryIncRef(ElasticsearchDirectoryReader reference) {
         return reference.tryIncRef();

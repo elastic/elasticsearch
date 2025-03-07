@@ -452,7 +452,7 @@ public class InternalEngine extends Engine {
      * this specialized implementation an external refresh will immediately be reflected on the internal reader
      * and old segments can be released in the same way previous version did this (as a side-effect of _refresh)
      */
-    private static final class ExternalReaderManager  extends AbstractReaderManager {
+    private static final class ExternalReaderManager extends AbstractReaderManager {
         private final BiConsumer<ElasticsearchDirectoryReader, ElasticsearchDirectoryReader> refreshListener;
         private final ElasticsearchReaderManager internalReaderManager;
         private boolean isWarmedUp; // guarded by refreshLock

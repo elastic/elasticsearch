@@ -30,8 +30,9 @@ public interface SearchOperationListener {
     /**
      * Executed if a query phased failed.
      * @param searchContext the current search context
+     * @param tookInNanos the number of nanoseconds the query execution took
      */
-    default void onFailedQueryPhase(SearchContext searchContext) {}
+    default void onFailedQueryPhase(SearchContext searchContext, long tookInNanos) {}
 
     /**
      * Executed after the query phase successfully finished.
@@ -39,7 +40,7 @@ public interface SearchOperationListener {
      * @param searchContext the current search context
      * @param tookInNanos the number of nanoseconds the query execution took
      *
-     * @see #onFailedQueryPhase(SearchContext)
+     * @see #onFailedQueryPhase(SearchContext, long)
      */
     default void onQueryPhase(SearchContext searchContext, long tookInNanos) {}
 
@@ -52,8 +53,9 @@ public interface SearchOperationListener {
     /**
      * Executed if a fetch phased failed.
      * @param searchContext the current search context
+     * @param tookInNanos the number of nanoseconds the query execution took
      */
-    default void onFailedFetchPhase(SearchContext searchContext) {}
+    default void onFailedFetchPhase(SearchContext searchContext,  long tookInNanos) {}
 
     /**
      * Executed after the fetch phase successfully finished.
@@ -128,10 +130,10 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void onFailedQueryPhase(SearchContext searchContext) {
+        public void onFailedQueryPhase(SearchContext searchContext, long tookInNanos) {
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.onFailedQueryPhase(searchContext);
+                    listener.onFailedQueryPhase(searchContext, tookInNanos);
                 } catch (Exception e) {
                     logger.warn(() -> "onFailedQueryPhase listener [" + listener + "] failed", e);
                 }
@@ -161,10 +163,10 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void onFailedFetchPhase(SearchContext searchContext) {
+        public void onFailedFetchPhase(SearchContext searchContext, long tookInNanos) {
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.onFailedFetchPhase(searchContext);
+                    listener.onFailedFetchPhase(searchContext, tookInNanos);
                 } catch (Exception e) {
                     logger.warn(() -> "onFailedFetchPhase listener [" + listener + "] failed", e);
                 }

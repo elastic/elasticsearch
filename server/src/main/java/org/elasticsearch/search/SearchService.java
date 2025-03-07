@@ -933,6 +933,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private Executor getExecutor(IndexShard indexShard) {
+        return threadPool.executor(getExecutorName(indexShard));
+    }
+
+    public String getExecutorName(IndexShard indexShard) {
         assert indexShard != null;
         final String executorName;
         if (indexShard.isSystem()) {
@@ -942,7 +946,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } else {
             executorName = Names.SEARCH;
         }
-        return threadPool.executor(executorName);
+        return executorName;
     }
 
     public void executeFetchPhase(
@@ -2026,9 +2030,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                 } else {
                     if (fetch) {
-                        listener.onFailedFetchPhase(context);
+                        listener.onFailedFetchPhase(context, System.nanoTime() - time);
                     } else {
-                        listener.onFailedQueryPhase(context);
+                        listener.onFailedQueryPhase(context, System.nanoTime() - time);
                     }
                 }
             }

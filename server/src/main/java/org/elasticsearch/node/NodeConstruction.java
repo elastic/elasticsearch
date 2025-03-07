@@ -822,7 +822,7 @@ class NodeConstruction {
         );
         MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics);
 
-        ShardSearchPerIndexTimeTrackingMetrics listener = new ShardSearchPerIndexTimeTrackingMetrics();
+        ShardSearchPerIndexTimeTrackingMetrics listener = new ShardSearchPerIndexTimeTrackingMetrics(0.3);
         final List<SearchOperationListener> searchOperationListeners = List.of(
             new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry()), listener);
 

@@ -64,7 +64,7 @@ public final class ShardSearchStats implements SearchOperationListener {
     }
 
     @Override
-    public void onFailedQueryPhase(SearchContext searchContext) {
+    public void onFailedQueryPhase(SearchContext searchContext, long tookInNanos) {
         computeStats(searchContext, statsHolder -> {
             if (searchContext.hasOnlySuggest()) {
                 statsHolder.suggestCurrent.dec();
@@ -92,7 +92,7 @@ public final class ShardSearchStats implements SearchOperationListener {
     }
 
     @Override
-    public void onFailedFetchPhase(SearchContext searchContext) {
+    public void onFailedFetchPhase(SearchContext searchContext, long tookInNanos) {
         computeStats(searchContext, statsHolder -> {
             statsHolder.fetchCurrent.dec();
             statsHolder.fetchFailure.inc();

@@ -13,43 +13,113 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 
-
+/**
+ * This class implements the {@link SearchOperationListener} interface to track the execution time of search operations
+ * on a per-index basis. It uses a {@link ConcurrentHashMap} to store the execution times and an
+ * {@link ExponentiallyWeightedMovingAverage} to calculate the exponentially weighted moving average (EWMA) of the
+ * execution times.
+ */
 public final class ShardSearchPerIndexTimeTrackingMetrics implements SearchOperationListener {
 
     private static final Logger logger = LogManager.getLogger(ShardSearchPerIndexTimeTrackingMetrics.class);
 
     private final ConcurrentHashMap<String, Tuple<LongAdder, ExponentiallyWeightedMovingAverage>> indexExecutionTime;
 
-    public ShardSearchPerIndexTimeTrackingMetrics() {
+    private final double ewmaAlpha;
+
+    /**
+     * Constructs a new ShardSearchPerIndexTimeTrackingMetrics instance with the specified EWMA alpha value.
+     *
+     * @param ewmaAlpha the alpha value for the EWMA calculation
+     */
+    public ShardSearchPerIndexTimeTrackingMetrics(double ewmaAlpha) {
         this.indexExecutionTime = new ConcurrentHashMap<>();
+        this.ewmaAlpha = ewmaAlpha;
+
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+        Runnable task = () -> {
+            logger.info("--------------------------------------------------------------------------------");
+            indexExecutionTime.forEach((indexName, tuple) -> {
+                logger.info("Listener : Task execution time for index [{}] is [{}], average [{}}",
+                    indexName, tuple.v1().sum(),tuple.v2().getAverage());
+            });
+            logger.info("--------------------------------------------------------------------------------");
+        };
+        scheduler.scheduleAtFixedRate(task, 2, 5, TimeUnit.SECONDS);
     }
 
+    /**
+     * Tracks the execution time of the query phase of a search operation.
+     *
+     * @param searchContext the search context
+     * @param tookInNanos the time taken in nanoseconds
+     */
     @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
         trackExecutionTime(searchContext, tookInNanos);
     }
 
+    /**
+     * Tracks the execution time of a failed query phase of a search operation.
+     *
+     * @param searchContext the search context
+     * @param tookInNanos the time taken in nanoseconds
+     */
+    @Override
+    public void onFailedQueryPhase(SearchContext searchContext, long tookInNanos) {
+        trackExecutionTime(searchContext, tookInNanos);
+    }
+
+    /**
+     * Tracks the execution time of the fetch phase of a search operation.
+     *
+     * @param searchContext the search context
+     * @param tookInNanos the time taken in nanoseconds
+     */
     @Override
     public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
         trackExecutionTime(searchContext, tookInNanos);
     }
 
+    /**
+     * Tracks the execution time of a failed fetch phase of a search operation.
+     *
+     * @param searchContext the search context
+     * @param tookInNanos the time taken in nanoseconds
+     */
+    @Override
+    public void onFailedFetchPhase(SearchContext searchContext, long tookInNanos) {
+        trackExecutionTime(searchContext, tookInNanos);
+    }
+
+    /**
+     * Tracks the execution time of a search operation.
+     *
+     * @param searchContext the search context
+     * @param tookInNanos the time taken in nanoseconds
+     */
     private void trackExecutionTime(SearchContext searchContext, long tookInNanos) {
-        String indexName = searchContext.indexShard().shardId().getIndexName();
-        if(indexName != null) {
-            Tuple<LongAdder, ExponentiallyWeightedMovingAverage> t = indexExecutionTime.computeIfAbsent(
+        IndexShard indexShard = searchContext.indexShard();
+        if (indexShard != null && indexShard.isSystem() == false) {
+            String indexName = indexShard.shardId().getIndexName();
+            if (indexName != null) {
+                Tuple<LongAdder, ExponentiallyWeightedMovingAverage> t = indexExecutionTime.computeIfAbsent(
                     indexName,
-                    k -> new Tuple<>(new LongAdder(), new ExponentiallyWeightedMovingAverage(0.3, 0)) // TODO pass trakcing config
-            );
-            t.v1().add(tookInNanos);
-            t.v2().addValue(tookInNanos);
-            //logger.info("Listener : Task execution time for index [{}] is [{}] [{}]", indexName, tookInNanos, Thread.currentThread().getName());
+                    k -> new Tuple<>(new LongAdder(), new ExponentiallyWeightedMovingAverage(ewmaAlpha, 0))
+                );
+                t.v1().add(tookInNanos);
+                t.v2().addValue(tookInNanos);
+            }
         }
     }
 
@@ -81,9 +151,9 @@ public final class ShardSearchPerIndexTimeTrackingMetrics implements SearchOpera
      * @param indexName the name of the index
      */
     public void stopTrackingIndex(String indexName) {
-        try {
+        if (indexExecutionTime.containsKey(indexName)) {
             indexExecutionTime.remove(indexName);
-        } catch (NullPointerException e) {
+        } else {
             logger.debug("Trying to stop tracking index [{}] that was never tracked", indexName);
         }
     }

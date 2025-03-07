@@ -75,7 +75,7 @@ ROW date="1985-01-01T00:00:00Z"::datetime, zero=0::datetime
 ;
 
 convertToDate
-required_capability: casting_operator
+required_capability: casting_operator_for_date
 ROW date="1985-01-01T00:00:00Z"::date, zero=0::date
 ;
 

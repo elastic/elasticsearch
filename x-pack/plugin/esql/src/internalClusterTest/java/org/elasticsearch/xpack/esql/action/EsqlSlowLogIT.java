@@ -58,14 +58,6 @@ public class EsqlSlowLogIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testSetLevel() throws Exception {
-        final String node1;
-        if (randomBoolean()) {
-            internalCluster().ensureAtLeastNumDataNodes(2);
-            node1 = randomDataNode().getName();
-        } else {
-            node1 = randomDataNode().getName();
-        }
-
         int numDocs1 = randomIntBetween(1, 15);
         assertAcked(client().admin().indices().prepareCreate("index-1").setMapping("host", "type=keyword"));
         for (int i = 0; i < numDocs1; i++) {

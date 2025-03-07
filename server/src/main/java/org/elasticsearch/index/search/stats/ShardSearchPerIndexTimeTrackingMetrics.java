@@ -55,11 +55,11 @@ public final class ShardSearchPerIndexTimeTrackingMetrics implements SearchOpera
                 return;
             } else {
                 indexExecutionTime.forEach((indexName, tuple) -> {
-                    logger.info("Listener : Task execution time for index [{}] is [{}], average [{}}",
+                    logger.info("Listener : Task execution time for index [{}] is [{}], average [{}]",
                         indexName, tuple.v1().sum(), tuple.v2().getAverage());
                 });
                 double[] values = normalize(getIndexTrackingTimeList());
-                logger.info("Listener : Normalized task execution time for indexes [{}]",
+                logger.info("Listener : Normalized task execution time per indexx [{}]",
                     Arrays.stream(values).mapToObj(Double::toString).collect(Collectors.joining(", ")));
                 logger.info("\n");
             }

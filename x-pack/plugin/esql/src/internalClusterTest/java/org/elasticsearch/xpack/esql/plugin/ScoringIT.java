@@ -16,11 +16,14 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.junit.Before;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class ScoringIT extends AbstractEsqlIntegTestCase {
@@ -188,16 +191,123 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
             FROM test
             METADATA _score
             | KEEP id, _score
+            """;
+
+        assertZeroScore(query);
+    }
+
+    public void testNonPushableFunctionsScoring() {
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE length(content) < 20
+            | KEEP id, _score
+            """;
+
+        assertZeroScore(query);
+
+        query = """
+            FROM test
+            METADATA _score
+            | WHERE length(content) < 20 OR id > 4
+            | KEEP id, _score
+            """;
+
+        assertZeroScore(query);
+
+        query = """
+            FROM test
+            METADATA _score
+            | WHERE length(content) < 20 AND id < 4
+            | KEEP id, _score
+            """;
+
+        assertZeroScore(query);
+    }
+
+    public void testPushableFunctionsScoring() {
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE id > 4
+            | KEEP id, _score
             | SORT id ASC
             """;
 
+        assertZeroScore(query);
+
+        query = """
+            FROM test
+            METADATA _score
+            | WHERE id > 4 AND id < 7
+            | KEEP id, _score
+            | SORT id ASC
+            """;
+
+        assertZeroScore(query);
+    }
+
+    private void assertZeroScore(String query) {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp.values());
-            assertThat(values.size(), equalTo(6));
             for (List<Object> value : values) {
                 assertThat((Double) value.get(1), equalTo(0.0));
+            }
+        }
+    }
+
+    public void testPushableAndFullTextFunctionsConjunctionScoring() {
+        var queryWithoutFilter = """
+            FROM test
+            METADATA _score
+            | WHERE content:"fox"
+            | KEEP id, _score
+            | SORT id ASC
+            """;
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE content:"fox" AND id > 4
+            | KEEP id, _score
+            | SORT id ASC
+            """;
+        checkSameScores(queryWithoutFilter, query);
+
+        query= """
+            FROM test
+            METADATA _score
+            | WHERE content:"fox" AND (id > 4 or id < 2)
+            | KEEP id, _score
+            | SORT id ASC
+            """;
+        queryWithoutFilter = """
+            FROM test
+            METADATA _score
+            | WHERE content:"fox"
+            | KEEP id, _score
+            | SORT id ASC
+            """;
+        checkSameScores(queryWithoutFilter, query);
+    }
+
+    private void checkSameScores(String queryWithoutFilter, String query) {
+        Map<Integer, Double> expectedScores = new HashMap<>();
+        try (var respWithoutFilter = run(queryWithoutFilter)) {
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(respWithoutFilter);
+            for (List<Object> result : valuesList) {
+                expectedScores.put((Integer) result.get(0), (Double) result.get(1));
+            }
+        }
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp.values());
+            for (List<Object> value : values) {
+                Double score = (Double) value.get(1);
+                assertThat(score, greaterThan(0.0));
+                assertThat(expectedScores.get((Integer)value.get(0)), equalTo(score));
             }
         }
     }

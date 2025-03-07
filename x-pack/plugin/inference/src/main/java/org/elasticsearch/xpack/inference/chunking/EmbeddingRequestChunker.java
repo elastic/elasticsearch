@@ -62,7 +62,6 @@ public class EmbeddingRequestChunker<C extends EmbeddingResults.Chunk, E extends
     // are merged so that only this maximum number of chunks is stored.
     private static final int MAX_CHUNKS = 512;
 
-    private final List<String> inputs;
     private final List<BatchRequest> batchRequests;
     private final AtomicInteger resultCount = new AtomicInteger();
 
@@ -81,7 +80,6 @@ public class EmbeddingRequestChunker<C extends EmbeddingResults.Chunk, E extends
     }
 
     public EmbeddingRequestChunker(List<String> inputs, int maxNumberOfInputsPerBatch, ChunkingSettings chunkingSettings) {
-        this.inputs = inputs;
         this.resultEmbeddings = new ArrayList<>(inputs.size());
         this.resultOffsetStarts = new ArrayList<>(inputs.size());
         this.resultOffsetEnds = new ArrayList<>(inputs.size());
@@ -204,8 +202,8 @@ public class EmbeddingRequestChunker<C extends EmbeddingResults.Chunk, E extends
     }
 
     private void sendFinalResponse() {
-        var response = new ArrayList<ChunkedInference>(inputs.size());
-        for (int i = 0; i < inputs.size(); i++) {
+        var response = new ArrayList<ChunkedInference>(resultEmbeddings.size());
+        for (int i = 0; i < resultEmbeddings.size(); i++) {
             if (resultsErrors.get(i) != null) {
                 response.add(new ChunkedInferenceError(resultsErrors.get(i)));
             } else {
@@ -216,7 +214,6 @@ public class EmbeddingRequestChunker<C extends EmbeddingResults.Chunk, E extends
     }
 
     private ChunkedInference mergeResultsWithInputs(int inputIndex) {
-        String input = inputs.get(inputIndex);
         List<Integer> startOffsets = resultOffsetStarts.get(inputIndex);
         List<Integer> endOffsets = resultOffsetEnds.get(inputIndex);
         AtomicReferenceArray<E> embeddings = resultEmbeddings.get(inputIndex);

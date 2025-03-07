@@ -257,6 +257,11 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
 
             final var rolloverIndexName = rolloverResult.rolloverIndexName();
             final var sourceIndexName = rolloverResult.sourceIndexName();
+            logger.info(
+                "rolling over data stream [{}] to index [{}] because it was marked for lazy rollover",
+                dataStream.getName(),
+                rolloverIndexName
+            );
 
             final var waitForActiveShardsTimeout = rolloverRequest.masterNodeTimeout().millis() < 0
                 ? null

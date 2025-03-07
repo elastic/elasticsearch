@@ -17,11 +17,14 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.stream.Collectors;
 
 /**
  * This class implements the {@link SearchOperationListener} interface to track the execution time of search operations
@@ -48,14 +51,33 @@ public final class ShardSearchPerIndexTimeTrackingMetrics implements SearchOpera
 
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
         Runnable task = () -> {
-            logger.info("--------------------------------------------------------------------------------");
             indexExecutionTime.forEach((indexName, tuple) -> {
                 logger.info("Listener : Task execution time for index [{}] is [{}], average [{}}",
                     indexName, tuple.v1().sum(),tuple.v2().getAverage());
             });
-            logger.info("--------------------------------------------------------------------------------");
+            double[] values = normalize(getIndexTrackingTimeList());
+            logger.info("Listener : Normalized task execution time for indexes [{}]",
+                Arrays.stream(values).mapToObj(Double::toString).collect(Collectors.joining(", ")));
         };
         scheduler.scheduleAtFixedRate(task, 2, 5, TimeUnit.SECONDS);
+    }
+
+    private double[] getIndexTrackingTimeList() {
+        return indexExecutionTime.values().stream()
+            .map(Tuple::v1)
+            .map(LongAdder::sum)
+            .map(Long::doubleValue)
+            .mapToDouble(Double::doubleValue)
+            .toArray();
+    }
+
+    private double[] normalize(double[] values) {
+        double sum = Arrays.stream(values).sum();
+        if (sum == 0) throw new IllegalArgumentException("Sum of elements cannot be zero.");
+
+        return Arrays.stream(values)
+            .map(v -> v / sum)
+            .toArray();
     }
 
     /**

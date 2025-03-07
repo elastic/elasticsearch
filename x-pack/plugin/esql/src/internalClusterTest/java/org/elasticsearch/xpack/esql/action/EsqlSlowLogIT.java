@@ -18,6 +18,7 @@ import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog;
 import org.junit.AfterClass;
@@ -28,10 +29,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlSlowLogIT extends AbstractEsqlIntegTestCase {
     static MockAppender appender;
@@ -87,14 +90,53 @@ public class EsqlSlowLogIT extends AbstractEsqlIntegTestCase {
             Level.TRACE,
             EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey()
         );
-        testAllLevels(levels, coordinator, 0);
+        testAllLevels(
+            levels,
+            coordinator,
+            0,
+            "FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100",
+            null,
+            null
+        );
         for (int i = 0; i < 10; i++) {
-            testAllLevels(levels, coordinator, randomIntBetween(0, 10_000));
+            testAllLevels(
+                levels,
+                coordinator,
+                randomIntBetween(0, 10_000),
+                "FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100",
+                null,
+                null
+            );
+        }
+
+        testAllLevels(
+            levels,
+            coordinator,
+            0,
+            "FROM index-* | EVAL a = count(*) | LIMIT 100",
+            "aggregate function [count(*)] not allowed outside STATS command",
+            VerificationException.class.getName()
+        );
+        for (int i = 0; i < 10; i++) {
+            testAllLevels(
+                levels,
+                coordinator,
+                randomIntBetween(0, 10_000),
+                "FROM index-* | EVAL a = count(*) | LIMIT 100",
+                "aggregate function [count(*)] not allowed outside STATS command",
+                VerificationException.class.getName()
+            );
         }
     }
 
-    private static void testAllLevels(Map<Level, String> levels, DiscoveryNode coordinator, long timeoutMillis) throws InterruptedException,
-        ExecutionException {
+    private static void testAllLevels(
+        Map<Level, String> levels,
+        DiscoveryNode coordinator,
+        long timeoutMillis,
+        String query,
+        String expectedErrorMsg,
+        String expectedException
+    ) throws InterruptedException, ExecutionException {
         for (Map.Entry<Level, String> logLevel : levels.entrySet()) {
 
             client().execute(
@@ -105,8 +147,7 @@ public class EsqlSlowLogIT extends AbstractEsqlIntegTestCase {
             ).get();
 
             EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-            var querySource = "FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100";
-            request.query(querySource);
+            request.query(query);
             request.pragmas(randomPragmas());
             CountDownLatch latch = new CountDownLatch(1);
             client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
@@ -125,17 +166,31 @@ public class EsqlSlowLogIT extends AbstractEsqlIntegTestCase {
                     assertThat(tookMillis, greaterThanOrEqualTo(timeoutMillis));
                     assertThat(tookMillis, is(tookMillisExpected));
 
-                    long planningTook = Long.valueOf(msg.get("elasticsearch.slowlog.planning.took"));
-                    long planningTookMillisExpected = planningTook / 1_000_000;
-                    long planningTookMillis = Long.valueOf(msg.get("elasticsearch.slowlog.planning.took_millis"));
-                    assertThat(planningTook, greaterThanOrEqualTo(0L));
-                    assertThat(planningTookMillis, greaterThanOrEqualTo(timeoutMillis));
-                    assertThat(planningTookMillis, is(planningTookMillisExpected));
+                    if (expectedException == null) {
+                        long planningTook = Long.valueOf(msg.get("elasticsearch.slowlog.planning.took"));
+                        long planningTookMillisExpected = planningTook / 1_000_000;
+                        long planningTookMillis = Long.valueOf(msg.get("elasticsearch.slowlog.planning.took_millis"));
+                        assertThat(planningTook, greaterThanOrEqualTo(0L));
+                        assertThat(planningTookMillis, greaterThanOrEqualTo(timeoutMillis));
+                        assertThat(planningTookMillis, is(planningTookMillisExpected));
+                        assertThat(took, greaterThan(planningTook));
+                    }
 
-                    assertThat(took, greaterThan(planningTook));
-
-                    assertThat(msg.get("elasticsearch.slowlog.query"), is(querySource));
+                    assertThat(msg.get("elasticsearch.slowlog.query"), is(query));
                     assertThat(appender.getLastEventAndReset().getLevel(), equalTo(logLevel.getKey()));
+
+                    boolean success = Boolean.valueOf(msg.get("elasticsearch.slowlog.success"));
+                    assertThat(success, is(expectedException == null));
+                    if (expectedErrorMsg == null) {
+                        assertThat(msg.get("elasticsearch.slowlog.error.message"), is(nullValue()));
+                    } else {
+                        assertThat(msg.get("elasticsearch.slowlog.error.message"), containsString(expectedErrorMsg));
+                    }
+                    if (expectedException == null) {
+                        assertThat(msg.get("elasticsearch.slowlog.error.type"), is(nullValue()));
+                    } else {
+                        assertThat(msg.get("elasticsearch.slowlog.error.type"), is(expectedException));
+                    }
                 } finally {
                     latch.countDown();
                 }

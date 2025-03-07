@@ -86,6 +86,7 @@ public class PlanExecutor {
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);
 
+        var begin = System.nanoTime();
         ActionListener<Result> executeListener = wrap(x -> {
             planTelemetryManager.publish(planTelemetry, true);
             slowLog.onQueryPhase(x, request.query());
@@ -94,6 +95,7 @@ public class PlanExecutor {
             // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
             metrics.failed(clientId);
             planTelemetryManager.publish(planTelemetry, false);
+            slowLog.onQueryFailure(request.query(), ex, System.nanoTime() - begin);
             listener.onFailure(ex);
         });
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up

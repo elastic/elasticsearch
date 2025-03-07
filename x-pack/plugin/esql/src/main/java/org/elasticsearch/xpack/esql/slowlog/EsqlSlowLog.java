@@ -64,6 +64,18 @@ public final class EsqlSlowLog {
         }
     }
 
+    public void onQueryFailure(String query, Exception ex, long tookInNanos) {
+        if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
+            queryLogger.warn(Message.of(query, tookInNanos, ex));
+        } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
+            queryLogger.info(Message.of(query, tookInNanos, ex));
+        } else if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold) {
+            queryLogger.debug(Message.of(query, tookInNanos, ex));
+        } else if (queryTraceThreshold >= 0 && tookInNanos > queryTraceThreshold) {
+            queryLogger.trace(Message.of(query, tookInNanos, ex));
+        }
+    }
+
     public void setQueryWarnThreshold(TimeValue queryWarnThreshold) {
         this.queryWarnThreshold = queryWarnThreshold.nanos();
     }
@@ -88,19 +100,31 @@ public final class EsqlSlowLog {
         }
 
         public static ESLogMessage of(Result esqlResult, String query) {
-            Map<String, Object> jsonFields = prepareMap(esqlResult, query);
+            Map<String, Object> jsonFields = prepareMap(esqlResult, query, true);
 
             return new ESLogMessage().withFields(jsonFields);
         }
 
-        private static Map<String, Object> prepareMap(Result esqlResult, String query) {
+        public static ESLogMessage of(String query, long took, Exception exception) {
+            Map<String, Object> jsonFields = prepareMap(null, query, false);
+            jsonFields.put("elasticsearch.slowlog.error.message", exception.getMessage() == null ? "" : exception.getMessage());
+            jsonFields.put("elasticsearch.slowlog.error.type", exception.getClass().getName());
+            jsonFields.put("elasticsearch.slowlog.took", took);
+            jsonFields.put("elasticsearch.slowlog.took_millis", took / 1_000_000);
+            return new ESLogMessage().withFields(jsonFields);
+        }
+
+        private static Map<String, Object> prepareMap(Result esqlResult, String query, boolean success) {
             Map<String, Object> messageFields = new HashMap<>();
-            messageFields.put("elasticsearch.slowlog.took", esqlResult.executionInfo().overallTook().nanos());
-            messageFields.put("elasticsearch.slowlog.took_millis", esqlResult.executionInfo().overallTook().millis());
-            messageFields.put("elasticsearch.slowlog.planning.took", esqlResult.executionInfo().planningTookTime().nanos());
-            messageFields.put("elasticsearch.slowlog.planning.took_millis", esqlResult.executionInfo().planningTookTime().millis());
-            messageFields.put("elasticsearch.slowlog.search_type", "ESQL");
+            if (esqlResult != null) {
+                messageFields.put("elasticsearch.slowlog.took", esqlResult.executionInfo().overallTook().nanos());
+                messageFields.put("elasticsearch.slowlog.took_millis", esqlResult.executionInfo().overallTook().millis());
+                messageFields.put("elasticsearch.slowlog.planning.took", esqlResult.executionInfo().planningTookTime().nanos());
+                messageFields.put("elasticsearch.slowlog.planning.took_millis", esqlResult.executionInfo().planningTookTime().millis());
+            }
             String source = escapeJson(query);
+            messageFields.put("elasticsearch.slowlog.success", success);
+            messageFields.put("elasticsearch.slowlog.search_type", "ESQL");
             messageFields.put("elasticsearch.slowlog.query", source);
             return messageFields;
         }

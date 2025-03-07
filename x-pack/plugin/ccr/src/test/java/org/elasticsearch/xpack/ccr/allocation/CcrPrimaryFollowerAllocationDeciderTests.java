@@ -58,7 +58,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         if (extraProjectCount == 0) {
             projectId = Metadata.DEFAULT_PROJECT_ID;
         } else {
-            projectId = new ProjectId(randomUUID());
+            projectId = randomUniqueProjectId();
         }
     }
 
@@ -117,7 +117,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         final Metadata.Builder metadataBuilder = Metadata.builder();
         metadataBuilder.put(projectMetadata);
         for (int i = 0; i < extraProjectCount; i++) {
-            metadataBuilder.put(ProjectMetadata.builder(new ProjectId(randomUUID())).build());
+            metadataBuilder.put(ProjectMetadata.builder(randomUniqueProjectId()).build());
         }
         return metadataBuilder.build();
     }

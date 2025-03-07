@@ -205,9 +205,12 @@ The ServiceNow connector supports roles for access control lists (ACLs) to enabl
 
 For services other than these defaults, the connector iterates over access controls with `read` operations and finds the respective roles for those services.
 
+:::{important}
+The ServiceNow connector applies access control at the service (table) level. This means documents within a given ServiceNow table share the same access control settings. Users with permission to a table can access all documents from that table in Elasticsearch.
+:::
+
 ::::{note}
 The ServiceNow connector does not support scripted and conditional permissions.
-
 ::::
 
 

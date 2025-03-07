@@ -1811,9 +1811,13 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         refresh();
 
         assertAcked(
-            indicesAdmin().prepareAliases().addAlias("my-index", "filter1", hasChildQuery("child", matchAllQuery(), ScoreMode.None))
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAlias("my-index", "filter1", hasChildQuery("child", matchAllQuery(), ScoreMode.None))
         );
-        assertAcked(indicesAdmin().prepareAliases().addAlias("my-index", "filter2", hasParentQuery("parent", matchAllQuery(), false)));
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAlias("my-index", "filter2", hasParentQuery("parent", matchAllQuery(), false))
+        );
 
         assertResponse(prepareSearch("filter1"), response -> {
             assertHitCount(response, 1L);

@@ -184,7 +184,7 @@ public class LocalExecutionPlanner {
     /**
      * turn the given plan into a list of drivers to execute
      */
-    public LocalExecutionPlan plan(String taskDescription, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
+    public LocalExecutionPlan plan(String description, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
@@ -206,7 +206,7 @@ public class LocalExecutionPlanner {
         context.addDriverFactory(
             new DriverFactory(
                 new DriverSupplier(
-                    taskDescription,
+                    description,
                     ClusterName.CLUSTER_NAME_SETTING.get(settings).value(),
                     Node.NODE_NAME_SETTING.get(settings),
                     context.bigArrays,
@@ -594,10 +594,11 @@ public class LocalExecutionPlanner {
         source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
 
         // Load the "values" from each match
+        var joinDataOutput = join.joinData().output();
         for (Attribute f : join.addedFields()) {
             Block localField = null;
-            for (int l = 0; l < join.joinData().output().size(); l++) {
-                if (join.joinData().output().get(l).name().equals(f.name())) {
+            for (int l = 0; l < joinDataOutput.size(); l++) {
+                if (joinDataOutput.get(l).name().equals(f.name())) {
                     localField = localData[l];
                 }
             }
@@ -911,7 +912,7 @@ public class LocalExecutionPlanner {
     }
 
     record DriverSupplier(
-        String taskDescription,
+        String description,
         String clusterName,
         String nodeName,
         BigArrays bigArrays,
@@ -940,7 +941,7 @@ public class LocalExecutionPlanner {
                 success = true;
                 return new Driver(
                     sessionId,
-                    taskDescription,
+                    description,
                     clusterName,
                     nodeName,
                     System.currentTimeMillis(),

@@ -364,7 +364,6 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             | KEEP id, content, _score, _fork
             """;
         try (var resp = run(query)) {
-            System.out.println("response=" + resp);
             assertColumnNames(resp.columns(), List.of("id", "content", "_score", "_fork"));
             assertColumnTypes(resp.columns(), List.of("integer", "keyword", "double", "keyword"));
             assertThat(getValuesList(resp.values()).size(), equalTo(3));

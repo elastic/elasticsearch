@@ -232,16 +232,16 @@ public final class IndicesPermission {
 
         // TODO remove me (this has >700 usages in tests which would make for a horrible diff; will remove this once the main PR is merged)
         public boolean test(IndexAbstraction indexAbstraction) {
-            return test(indexAbstraction.getName(), null, indexAbstraction);
+            return test(indexAbstraction.getName(), indexAbstraction, null);
         }
 
         /**
          * Verifies if access is authorized to the given {@param indexAbstraction} resource.
-         * The resource must exist. Otherwise, use the {@link #test(String, IndexComponentSelector, IndexAbstraction)} method.
+         * The resource must exist. Otherwise, use the {@link #test(String, IndexAbstraction, IndexComponentSelector)} method.
          * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
          */
         public boolean test(IndexAbstraction indexAbstraction, @Nullable IndexComponentSelector selector) {
-            return test(indexAbstraction.getName(), selector, indexAbstraction);
+            return test(indexAbstraction.getName(), indexAbstraction, selector);
         }
 
         /**
@@ -250,7 +250,7 @@ public final class IndicesPermission {
          * if it doesn't.
          * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
          */
-        public boolean test(String name, @Nullable IndexComponentSelector selector, @Nullable IndexAbstraction indexAbstraction) {
+        public boolean test(String name, @Nullable IndexAbstraction indexAbstraction, @Nullable IndexComponentSelector selector) {
             return IndexComponentSelector.FAILURES.equals(selector)
                 ? isAuthorizedForFailureStore.test(name, indexAbstraction)
                 : isAuthorizedForData.test(name, indexAbstraction);

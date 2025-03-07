@@ -245,7 +245,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return e;
             }
 
-            if (taskType.equals(TaskType.RERANK)) {
+            if (taskType.equals(TaskType.RERANK) || taskType.equals(TaskType.CUSTOM)) {
                 if (query == null) {
                     var e = new ActionRequestValidationException();
                     e.addValidationError(format("Field [query] cannot be null for task type [%s]", TaskType.RERANK));

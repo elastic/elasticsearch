@@ -11,6 +11,7 @@
          <trust group="org.elasticsearch.distribution.zip" name="elasticsearch"/>
          <trust group="org.elasticsearch.ml"/>
          <trust group="org.elasticsearch.plugin"/>
+         <trust group="com.jayway.jsonpath"/>
          <trust file=".*-javadoc[.]jar" regex="true"/>
          <trust file=".*-sources[.]jar" regex="true"/>
       </trusted-artifacts>

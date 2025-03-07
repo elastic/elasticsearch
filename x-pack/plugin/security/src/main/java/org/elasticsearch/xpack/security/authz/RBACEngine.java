@@ -885,11 +885,11 @@ public class RBACEngine implements AuthorizationEngine {
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    // urgh
+                    // TODO clean this up
                     if (indexAbstraction.isFailureIndexOfDataStream()
                         && predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES)) {
                         indicesAndAliases.add(indexAbstraction.getName());
-                        // we know this is failure index and it's authorized so no need to check further
+                        // we know this is a failure index, and it's authorized so no need to check further
                         continue;
                     }
                     if (predicate.test(indexAbstraction, IndexComponentSelector.DATA)) {

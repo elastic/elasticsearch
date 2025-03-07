@@ -2233,14 +2233,14 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         List<String> dataStreams = List.of("logs-foo", "logs-foobar");
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
         for (String dsName : dataStreams) {
-            assertThat(authorizedIndices.all().get(), hasItem(dsName));
-            assertThat(authorizedIndices.check(dsName), is(true));
+            assertThat(authorizedIndices.all(null).get(), hasItem(dsName));
+            assertThat(authorizedIndices.check(dsName, null), is(true));
             DataStream dataStream = projectMetadata.dataStreams().get(dsName);
-            assertThat(authorizedIndices.all().get(), hasItem(dsName));
-            assertThat(authorizedIndices.check(dsName), is(true));
+            assertThat(authorizedIndices.all(null).get(), hasItem(dsName));
+            assertThat(authorizedIndices.check(dsName, null), is(true));
             for (Index i : dataStream.getIndices()) {
-                assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
-                assertThat(authorizedIndices.check(i.getName()), is(true));
+                assertThat(authorizedIndices.all(null).get(), hasItem(i.getName()));
+                assertThat(authorizedIndices.check(i.getName(), null), is(true));
             }
         }
 
@@ -2272,14 +2272,14 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // data streams and their backing indices should _not_ be in the authorized list since the backing indices
         // do not match the requested name
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
-        assertThat(authorizedIndices.all().get(), hasItem(dataStreamName));
-        assertThat(authorizedIndices.check(dataStreamName), is(true));
+        assertThat(authorizedIndices.all(null).get(), hasItem(dataStreamName));
+        assertThat(authorizedIndices.check(dataStreamName, null), is(true));
         DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
-        assertThat(authorizedIndices.all().get(), hasItem(dataStreamName));
-        assertThat(authorizedIndices.check(dataStreamName), is(true));
+        assertThat(authorizedIndices.all(null).get(), hasItem(dataStreamName));
+        assertThat(authorizedIndices.check(dataStreamName, null), is(true));
         for (Index i : dataStream.getIndices()) {
-            assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
-            assertThat(authorizedIndices.check(i.getName()), is(true));
+            assertThat(authorizedIndices.all(null).get(), hasItem(i.getName()));
+            assertThat(authorizedIndices.check(i.getName(), null), is(true));
         }
 
         // neither data streams nor their backing indices will be in the resolved list since the backing indices do not match the
@@ -2307,11 +2307,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportSearchAction.TYPE.name(), request);
         for (String dsName : expectedDataStreams) {
             DataStream dataStream = projectMetadata.dataStreams().get(dsName);
-            assertThat(authorizedIndices.all().get(), hasItem(dsName));
-            assertThat(authorizedIndices.check(dsName), is(true));
+            assertThat(authorizedIndices.all(null).get(), hasItem(dsName));
+            assertThat(authorizedIndices.check(dsName, null), is(true));
             for (Index i : dataStream.getIndices()) {
-                assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
-                assertThat(authorizedIndices.check(i.getName()), is(true));
+                assertThat(authorizedIndices.all(null).get(), hasItem(i.getName()));
+                assertThat(authorizedIndices.check(i.getName(), null), is(true));
             }
         }
 
@@ -2348,11 +2348,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportSearchAction.TYPE.name(), request);
         // data streams and their backing indices should be in the authorized list
-        assertThat(authorizedIndices.all().get(), hasItem(dataStreamName));
-        assertThat(authorizedIndices.check(dataStreamName), is(true));
+        assertThat(authorizedIndices.all(null).get(), hasItem(dataStreamName));
+        assertThat(authorizedIndices.check(dataStreamName, null), is(true));
         for (Index i : dataStream.getIndices()) {
-            assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
-            assertThat(authorizedIndices.check(i.getName()), is(true));
+            assertThat(authorizedIndices.all(null).get(), hasItem(i.getName()));
+            assertThat(authorizedIndices.check(i.getName(), null), is(true));
         }
 
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
@@ -2381,15 +2381,15 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportSearchAction.TYPE.name(), request);
         for (String dsName : expectedDataStreams) {
             DataStream dataStream = projectMetadata.dataStreams().get(dsName);
-            assertThat(authorizedIndices.all().get(), hasItem(dsName));
-            assertThat(authorizedIndices.check(dsName), is(true));
+            assertThat(authorizedIndices.all(null).get(), hasItem(dsName));
+            assertThat(authorizedIndices.check(dsName, null), is(true));
             for (Index i : dataStream.getIndices()) {
-                assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
-                assertThat(authorizedIndices.check(i.getName()), is(true));
+                assertThat(authorizedIndices.all(null).get(), hasItem(i.getName()));
+                assertThat(authorizedIndices.check(i.getName(), null), is(true));
             }
             for (Index i : dataStream.getFailureIndices()) {
-                assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
-                assertThat(authorizedIndices.check(i.getName()), is(true));
+                assertThat(authorizedIndices.all(null).get(), hasItem(i.getName()));
+                assertThat(authorizedIndices.check(i.getName(), null), is(true));
             }
         }
 
@@ -2420,16 +2420,16 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // data streams and their backing indices should _not_ be in the authorized list since the backing indices
         // did not match the requested pattern and the request does not support data streams
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
-        assertThat(authorizedIndices.all().get(), hasItem(dataStreamName));
-        assertThat(authorizedIndices.check(dataStreamName), is(true));
+        assertThat(authorizedIndices.all(null).get(), hasItem(dataStreamName));
+        assertThat(authorizedIndices.check(dataStreamName, null), is(true));
         DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
         for (Index i : dataStream.getIndices()) {
-            assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
-            assertThat(authorizedIndices.check(i.getName()), is(true));
+            assertThat(authorizedIndices.all(null).get(), hasItem(i.getName()));
+            assertThat(authorizedIndices.check(i.getName(), null), is(true));
         }
         for (Index i : dataStream.getFailureIndices()) {
-            assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
-            assertThat(authorizedIndices.check(i.getName()), is(true));
+            assertThat(authorizedIndices.all(null).get(), hasItem(i.getName()));
+            assertThat(authorizedIndices.check(i.getName(), null), is(true));
         }
 
         // neither data streams nor their backing indices will be in the resolved list since the request does not support data streams
@@ -2460,19 +2460,19 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // data streams should _not_ be in the authorized list but their backing indices that matched both the requested pattern
         // and the authorized pattern should be in the list
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
-        assertThat(authorizedIndices.all().get(), not(hasItem("logs-foobar")));
-        assertThat(authorizedIndices.check("logs-foobar"), is(false));
+        assertThat(authorizedIndices.all(null).get(), not(hasItem("logs-foobar")));
+        assertThat(authorizedIndices.check("logs-foobar", null), is(false));
         DataStream dataStream = projectMetadata.dataStreams().get("logs-foobar");
-        assertThat(authorizedIndices.all().get(), not(hasItem(indexName)));
+        assertThat(authorizedIndices.all(null).get(), not(hasItem(indexName)));
         // request pattern is subset of the authorized pattern, but be aware that patterns are never passed to #check in main code
-        assertThat(authorizedIndices.check(indexName), is(true));
+        assertThat(authorizedIndices.check(indexName, null), is(true));
         for (Index i : dataStream.getIndices()) {
-            assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
-            assertThat(authorizedIndices.check(i.getName()), is(true));
+            assertThat(authorizedIndices.all(null).get(), hasItem(i.getName()));
+            assertThat(authorizedIndices.check(i.getName(), null), is(true));
         }
         for (Index i : dataStream.getFailureIndices()) {
-            assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
-            assertThat(authorizedIndices.check(i.getName()), is(true));
+            assertThat(authorizedIndices.all(null).get(), hasItem(i.getName()));
+            assertThat(authorizedIndices.check(i.getName(), null), is(true));
         }
 
         // only the backing indices will be in the resolved list since the request does not support data streams
@@ -2500,14 +2500,14 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // data streams should _not_ be in the authorized list but a single backing index that matched the requested pattern
         // and the authorized name should be in the list
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
-        assertThat(authorizedIndices.all().get(), not(hasItem("logs-foobar")));
-        assertThat(authorizedIndices.check("logs-foobar"), is(false));
+        assertThat(authorizedIndices.all(null).get(), not(hasItem("logs-foobar")));
+        assertThat(authorizedIndices.check("logs-foobar", null), is(false));
 
         String expectedIndex = failureStore
             ? DataStream.getDefaultFailureStoreName("logs-foobar", 1, System.currentTimeMillis())
             : DataStream.getDefaultBackingIndexName("logs-foobar", 1);
-        assertThat(authorizedIndices.all().get(), hasItem(expectedIndex));
-        assertThat(authorizedIndices.check(expectedIndex), is(true));
+        assertThat(authorizedIndices.all(null).get(), hasItem(expectedIndex));
+        assertThat(authorizedIndices.check(expectedIndex, null), is(true));
 
         // only the single backing index will be in the resolved list since the request does not support data streams
         // but one of the backing indices matched the requested pattern
@@ -2532,19 +2532,19 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // data streams should _not_ be in the authorized list but their backing indices that matched both the requested pattern
         // and the authorized pattern should be in the list
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
-        assertThat(authorizedIndices.all().get(), not(hasItem("logs-foobar")));
-        assertThat(authorizedIndices.check("logs-foobar"), is(false));
+        assertThat(authorizedIndices.all(null).get(), not(hasItem("logs-foobar")));
+        assertThat(authorizedIndices.check("logs-foobar", null), is(false));
         DataStream dataStream = projectMetadata.dataStreams().get("logs-foobar");
-        assertThat(authorizedIndices.all().get(), not(hasItem(indexName)));
+        assertThat(authorizedIndices.all(null).get(), not(hasItem(indexName)));
         // request pattern is subset of the authorized pattern, but be aware that patterns are never passed to #check in main code
-        assertThat(authorizedIndices.check(indexName), is(true));
+        assertThat(authorizedIndices.check(indexName, null), is(true));
         for (Index i : dataStream.getIndices()) {
-            assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
-            assertThat(authorizedIndices.check(i.getName()), is(true));
+            assertThat(authorizedIndices.all(null).get(), hasItem(i.getName()));
+            assertThat(authorizedIndices.check(i.getName(), null), is(true));
         }
         for (Index i : dataStream.getFailureIndices()) {
-            assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
-            assertThat(authorizedIndices.check(i.getName()), is(true));
+            assertThat(authorizedIndices.all(null).get(), hasItem(i.getName()));
+            assertThat(authorizedIndices.check(i.getName(), null), is(true));
         }
 
         // only the backing indices will be in the resolved list since the request does not support data streams
@@ -2575,10 +2575,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             ? DataStream.getDefaultFailureStoreName("logs-foobar", 1, System.currentTimeMillis())
             : DataStream.getDefaultBackingIndexName("logs-foobar", 1);
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
-        assertThat(authorizedIndices.all().get(), not(hasItem("logs-foobar")));
-        assertThat(authorizedIndices.check("logs-foobar"), is(false));
-        assertThat(authorizedIndices.all().get(), hasItem(expectedIndex));
-        assertThat(authorizedIndices.check(expectedIndex), is(true));
+        assertThat(authorizedIndices.all(null).get(), not(hasItem("logs-foobar")));
+        assertThat(authorizedIndices.check("logs-foobar", null), is(false));
+        assertThat(authorizedIndices.all(null).get(), hasItem(expectedIndex));
+        assertThat(authorizedIndices.check(expectedIndex, null), is(true));
 
         // only the single backing index will be in the resolved list since the request does not support data streams
         // but one of the backing indices matched the requested pattern

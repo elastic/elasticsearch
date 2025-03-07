@@ -20,7 +20,7 @@ import java.io.IOException;
  * This is mainly used to pass along inference context on the transport layer without relying on {@link org.elasticsearch.common.util.concurrent.ThreadContext},
  * which depending on the internal {@link org.elasticsearch.client.internal.Client} throws away parts of the context, when passed along the transport layer.
  *
- * @param productUseCase - metadata for now mainly interesting for the Elastic Inference Service
+ * @param productUseCase - for now mainly interesting to Elastic Inference Service
  */
 public record InferenceContext(String productUseCase) implements Writeable, ToXContent {
 

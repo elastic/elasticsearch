@@ -94,7 +94,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         private final InputType inputType;
         private final TimeValue inferenceTimeout;
         private final boolean stream;
-        private final InferenceContext context;
 
         public Request(
             TaskType taskType,
@@ -129,7 +128,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.inputType = inputType;
             this.inferenceTimeout = inferenceTimeout;
             this.stream = stream;
-            this.context = context;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -158,12 +156,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
             // streaming is not supported yet for transport traffic
             this.stream = false;
-
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)) {
-                this.context = new InferenceContext(in);
-            } else {
-                this.context = InferenceContext.empty();
-            }
         }
 
         public TaskType getTaskType() {
@@ -196,10 +188,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public boolean isStreaming() {
             return stream;
-        }
-
-        public InferenceContext getContext() {
-            return context;
         }
 
         @Override
@@ -252,10 +240,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeOptionalString(query);
                 out.writeTimeValue(inferenceTimeout);
             }
-
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)) {
-                context.writeTo(out);
-            }
         }
 
         // default for easier testing
@@ -275,20 +259,31 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
+            if (super.equals(o) == false) return false;
             Request request = (Request) o;
-            return taskType == request.taskType
+            return stream == request.stream
+                && taskType == request.taskType
                 && Objects.equals(inferenceEntityId, request.inferenceEntityId)
+                && Objects.equals(query, request.query)
                 && Objects.equals(input, request.input)
                 && Objects.equals(taskSettings, request.taskSettings)
-                && Objects.equals(inputType, request.inputType)
-                && Objects.equals(query, request.query)
-                && Objects.equals(inferenceTimeout, request.inferenceTimeout)
-                && Objects.equals(context, request.context);
+                && inputType == request.inputType
+                && Objects.equals(inferenceTimeout, request.inferenceTimeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskType, inferenceEntityId, input, taskSettings, inputType, query, inferenceTimeout, context);
+            return Objects.hash(
+                super.hashCode(),
+                taskType,
+                inferenceEntityId,
+                query,
+                input,
+                taskSettings,
+                inputType,
+                inferenceTimeout,
+                stream
+            );
         }
 
         public static class Builder {

@@ -15,6 +15,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Base class for inference action requests. Tracks request routing state to prevent potential routing loops
@@ -79,5 +80,16 @@ public abstract class BaseInferenceActionRequest extends ActionRequest {
         }
     }
 
-    // TODO: equals/hashcode?
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        BaseInferenceActionRequest that = (BaseInferenceActionRequest) o;
+        return hasBeenRerouted == that.hasBeenRerouted && Objects.equals(context, that.context);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(hasBeenRerouted, context);
+    }
 }

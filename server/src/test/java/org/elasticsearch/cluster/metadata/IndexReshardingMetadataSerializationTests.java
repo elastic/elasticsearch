@@ -12,8 +12,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -30,6 +28,14 @@ public class IndexReshardingMetadataSerializationTests extends AbstractXContentS
 
     @Override
     protected IndexReshardingMetadata createTestInstance() {
+        if (randomBoolean()) {
+            return new IndexReshardingMetadata(createTestSplit());
+        } else {
+            return new IndexReshardingMetadata(new IndexReshardingState.Noop());
+        }
+    }
+
+    private IndexReshardingState.Split createTestSplit() {
         final int oldShards = randomIntBetween(1, 100);
         final int newShards = randomIntBetween(2, 5) * oldShards;
         final var sourceShardStates = new IndexReshardingState.Split.SourceShardState[oldShards];
@@ -44,23 +50,27 @@ public class IndexReshardingMetadataSerializationTests extends AbstractXContentS
             targetShardStates[i] = randomFrom(IndexReshardingState.Split.TargetShardState.values());
         }
 
-        return new IndexReshardingMetadata(
-            IndexReshardingMetadata.Operation.SPLIT,
-            new IndexReshardingState.Split(sourceShardStates, targetShardStates)
-        );
+        return new IndexReshardingState.Split(sourceShardStates, targetShardStates);
+    }
+
+    @Override
+    protected IndexReshardingMetadata mutateInstance(IndexReshardingMetadata instance) throws IOException {
+        var state = switch (instance.getState()) {
+            case IndexReshardingState.Noop ignored -> createTestSplit();
+            case IndexReshardingState.Split split -> mutateSplit(split);
+        };
+        return new IndexReshardingMetadata(state);
     }
 
     // To exercise equals() we want to mutate exactly one thing randomly so we know that each component
     // is contributing to equality testing. Some of these mutations are semantically illegal but we ignore
     // that here.
-    @Override
-    protected IndexReshardingMetadata mutateInstance(IndexReshardingMetadata instance) throws IOException {
+    private IndexReshardingState.Split mutateSplit(IndexReshardingState.Split split) {
         enum Mutation {
             SOURCE_SHARD_STATES,
             TARGET_SHARD_STATES
         }
 
-        var split = instance.getSplit();
         var sourceShardStates = split.sourceShards().clone();
         var targetShardStates = split.targetShards().clone();
 
@@ -76,20 +86,6 @@ public class IndexReshardingMetadataSerializationTests extends AbstractXContentS
                     % IndexReshardingState.Split.TargetShardState.values().length];
         }
 
-        return new IndexReshardingMetadata(instance.operation, new IndexReshardingState.Split(sourceShardStates, targetShardStates));
-    }
-
-    public void testInvalidSerializedState() throws IOException {
-        // the parser does an unchecked cast on shards so it gets a little extra sanity check
-        String json = """
-            {
-                "operation": "SPLIT",
-                "source_shards": [1],
-                "target_shards": [2]
-            }
-            """;
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
-            assertThrows(IllegalArgumentException.class, () -> IndexReshardingMetadata.fromXContent(parser));
-        }
+        return new IndexReshardingState.Split(sourceShardStates, targetShardStates);
     }
 }

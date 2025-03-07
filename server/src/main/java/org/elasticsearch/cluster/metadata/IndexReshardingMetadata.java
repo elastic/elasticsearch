@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -86,78 +87,89 @@ import java.util.Objects;
  * to beginning another resharding operation.
  */
 public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
-    /**
-     * To be able to support persistent state for more than one kind or version of a resharding operation, the actual state is stored
-     * in an abstract IndexReshardingState state field, which has concrete subclasses for the operations that are defined.
-     * The metadata is labelled with an Operation that identifies the subclass so that deserialization and serialization can choose
-     * the correct implementation.
-     */
-    public enum Operation implements Writeable {
-        SPLIT;
+    // ideally this would be final but the parser can't currently set it at construction time
+    private IndexReshardingState state;
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeEnum(this);
-        }
+    private static final ParseField SPLIT_FIELD = new ParseField("split");
+    // This exists only so that tests can verify that IndexReshardingMetadata supports more than one kind of operation.
+    // It can be removed when we have defined a second real operation, such as shrink.
+    private static final ParseField NOOP_FIELD = new ParseField("noop");
+
+    private static final ObjectParser<IndexReshardingMetadata, Void> PARSER = new ObjectParser<>(
+        "index_resharding_metadata",
+        IndexReshardingMetadata::new
+    );
+
+    static {
+        PARSER.declareObjectOrNull(
+            IndexReshardingMetadata::setState,
+            (parser, c) -> IndexReshardingState.Split.fromXContent(parser),
+            null,
+            SPLIT_FIELD
+        );
+        PARSER.declareObjectOrNull(
+            IndexReshardingMetadata::setState,
+            (parser, c) -> IndexReshardingState.Noop.fromXContent(parser),
+            null,
+            NOOP_FIELD
+        );
+        PARSER.declareExclusiveFieldSet(SPLIT_FIELD.getPreferredName(), NOOP_FIELD.getPreferredName());
+        PARSER.declareRequiredFieldSet(SPLIT_FIELD.getPreferredName(), NOOP_FIELD.getPreferredName());
     }
 
-    final Operation operation;
-    final IndexReshardingState state;
+    private IndexReshardingMetadata() {}
 
-    public IndexReshardingMetadata(Operation operation, IndexReshardingState state) {
-        this.operation = operation;
+    private void setState(IndexReshardingState state) {
         this.state = state;
     }
 
-    public static final ParseField OPERATION = new ParseField("operation");
+    // for testing
+    IndexReshardingState getState() {
+        return state;
+    }
+
+    // visible for testing
+    IndexReshardingMetadata(IndexReshardingState state) {
+        this.state = state;
+    }
 
     static IndexReshardingMetadata fromXContent(XContentParser parser) throws IOException {
-        // in testing, it doesn't appear that field order is reliable, so we parse to a map first, then delegate
-        // state parsing according to the operation field.
-        var fields = parser.map();
-        var operationName = fields.get(OPERATION.getPreferredName());
-        if (operationName == null) {
-            throw new IllegalArgumentException("operation missing");
-        }
-        var operation = Operation.valueOf(operationName.toString());
-        IndexReshardingState state = null;
-        switch (operation) {
-            case SPLIT:
-                state = IndexReshardingState.Split.fromMap(fields);
-        }
-        if (state == null) {
-            throw new IllegalArgumentException("failed to parse state for operation [" + operation + "]");
-        }
-
-        return new IndexReshardingMetadata(operation, state);
+        return PARSER.parse(parser, null);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(OPERATION.getPreferredName(), operation);
+        String name = switch (state) {
+            case IndexReshardingState.Noop ignored -> NOOP_FIELD.getPreferredName();
+            case IndexReshardingState.Split ignored -> SPLIT_FIELD.getPreferredName();
+        };
+        builder.startObject(name);
         state.toXContent(builder, params);
+        builder.endObject();
+
         return builder;
     }
 
     public IndexReshardingMetadata(StreamInput in) throws IOException {
-        this(in.readEnum(Operation.class), in);
-    }
+        this();
+        var stateName = in.readString();
 
-    IndexReshardingMetadata(Operation operation, StreamInput in) throws IOException {
-        this(operation, readIndexReshardingState(operation, in));
-    }
-
-    static IndexReshardingState readIndexReshardingState(Operation operation, StreamInput in) throws IOException {
-        switch (operation) {
-            case SPLIT:
-                return new IndexReshardingState.Split(in);
+        if (stateName.equals(SPLIT_FIELD.getPreferredName())) {
+            this.state = new IndexReshardingState.Split(in);
+        } else if (stateName.equals(NOOP_FIELD.getPreferredName())) {
+            this.state = new IndexReshardingState.Noop(in);
+        } else {
+            throw new IllegalArgumentException("unknown operation [" + stateName + "]");
         }
-        throw new IllegalArgumentException("unsupported operation [" + operation + "]");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(operation);
+        String name = switch (state) {
+            case IndexReshardingState.Noop ignored -> NOOP_FIELD.getPreferredName();
+            case IndexReshardingState.Split ignored -> SPLIT_FIELD.getPreferredName();
+        };
+        out.writeString(name);
         state.writeTo(out);
     }
 
@@ -170,12 +182,17 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
             return false;
         }
         IndexReshardingMetadata otherMetadata = (IndexReshardingMetadata) other;
-        return operation == otherMetadata.operation && Objects.equals(state, otherMetadata.state);
+
+        return Objects.equals(state, otherMetadata.state);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(operation, state);
+        return Objects.hash(state);
+    }
+
+    public String toString() {
+        return "IndexReshardingMetadata [state=" + state + "]";
     }
 
     /**
@@ -186,12 +203,13 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
      * @return resharding metadata representing the start of the requested split
      */
     public static IndexReshardingMetadata newSplitByMultiple(int shardCount, int multiple) {
-        return new IndexReshardingMetadata(Operation.SPLIT, IndexReshardingState.Split.newSplitByMultiple(shardCount, multiple));
+        return new IndexReshardingMetadata(IndexReshardingState.Split.newSplitByMultiple(shardCount, multiple));
     }
 
     public IndexReshardingState.Split getSplit() {
         return switch (state) {
             case IndexReshardingState.Split s -> s;
+            case IndexReshardingState.Noop ignored -> throw new IllegalArgumentException("resharding metadata is not a split");
         };
     }
 }

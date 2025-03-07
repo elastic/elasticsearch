@@ -12,14 +12,16 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -27,11 +29,44 @@ import java.util.Objects;
  * concrete subclasses for the operations that are currently defined (which is only split for now).
  */
 public abstract sealed class IndexReshardingState implements Writeable, ToXContentFragment {
+    // This class exists only so that tests can check that IndexReshardingMetadata can support more than one kind of operation.
+    // When we have another real operation such as Shrink this can be removed.
+    public static final class Noop extends IndexReshardingState {
+        private static final ObjectParser<Noop, Void> NOOP_PARSER = new ObjectParser<>("noop", Noop::new);
+
+        Noop() {}
+
+        Noop(StreamInput in) throws IOException {
+            this();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder;
+        }
+
+        static IndexReshardingState fromXContent(XContentParser parser) throws IOException {
+            return NOOP_PARSER.parse(parser, null);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            return other != null && getClass() == other.getClass();
+        }
+
+        @Override
+        public int hashCode() {
+            return 0;
+        }
+    }
+
     public static final class Split extends IndexReshardingState {
-
-        public static final ParseField SOURCE_SHARDS_FIELD = new ParseField("source_shards");
-        public static final ParseField TARGET_SHARDS_FIELD = new ParseField("target_shards");
-
         public enum SourceShardState implements Writeable {
             SOURCE,
             DONE;
@@ -52,6 +87,31 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeEnum(this);
             }
+        }
+
+        private static final ParseField SOURCE_SHARDS_FIELD = new ParseField("source_shards");
+        private static final ParseField TARGET_SHARDS_FIELD = new ParseField("target_shards");
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<Split, Void> SPLIT_PARSER = new ConstructingObjectParser<>(
+            "split",
+            args -> new Split(
+                ((List<SourceShardState>) args[0]).toArray(new SourceShardState[0]),
+                ((List<TargetShardState>) args[1]).toArray(new TargetShardState[0])
+            )
+        );
+
+        static {
+            SPLIT_PARSER.declareObjectArray(
+                ConstructingObjectParser.constructorArg(),
+                (parser, c) -> SourceShardState.valueOf(parser.text()),
+                SOURCE_SHARDS_FIELD
+            );
+            SPLIT_PARSER.declareObjectArray(
+                ConstructingObjectParser.constructorArg(),
+                (parser, c) -> TargetShardState.valueOf(parser.text()),
+                TARGET_SHARDS_FIELD
+            );
         }
 
         private final int oldShardCount;
@@ -80,43 +140,15 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             out.writeArray(targetShards);
         }
 
+        static Split fromXContent(XContentParser parser) throws IOException {
+            return SPLIT_PARSER.parse(parser, null);
+        }
+
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(SOURCE_SHARDS_FIELD.getPreferredName(), sourceShards);
             builder.field(TARGET_SHARDS_FIELD.getPreferredName(), targetShards);
+
             return builder;
-        }
-
-        public static IndexReshardingState fromMap(Map<String, Object> map) {
-            var sourceShardField = map.get(SOURCE_SHARDS_FIELD.getPreferredName());
-            if (sourceShardField == null) {
-                throw new IllegalArgumentException("missing [" + SOURCE_SHARDS_FIELD.getPreferredName() + "] field");
-            }
-            if (sourceShardField instanceof List == false) {
-                throw new IllegalArgumentException("[" + SOURCE_SHARDS_FIELD.getPreferredName() + "] is not a list");
-            }
-            // there must be a nicer way
-            @SuppressWarnings("unchecked")
-            List<String> sourceShardStrings = (List<String>) sourceShardField;
-
-            var targetShardField = map.get(TARGET_SHARDS_FIELD.getPreferredName());
-            if (targetShardField == null) {
-                throw new IllegalArgumentException("missing [" + TARGET_SHARDS_FIELD.getPreferredName() + "] field");
-            }
-            @SuppressWarnings("unchecked")
-            List<String> targetShardStrings = (List<String>) targetShardField;
-
-            try {
-                SourceShardState[] sourceShards = sourceShardStrings.stream()
-                    .map(SourceShardState::valueOf)
-                    .toArray(SourceShardState[]::new);
-                TargetShardState[] targetShards = targetShardStrings.stream()
-                    .map(TargetShardState::valueOf)
-                    .toArray(TargetShardState[]::new);
-
-                return new Split(sourceShards, targetShards);
-            } catch (ClassCastException e) {
-                throw new IllegalArgumentException("invalid shard state:" + e.getMessage());
-            }
         }
 
         @Override

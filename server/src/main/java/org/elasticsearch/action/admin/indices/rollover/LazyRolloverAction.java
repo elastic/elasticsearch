@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -189,7 +188,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
         @Override
         public ClusterState execute(BatchExecutionContext<LazyRolloverTask> batchExecutionContext) {
             final var listener = new AllocationActionMultiListener<RolloverResponse>(threadPool.getThreadContext());
-            final var results = new ArrayList<MetadataRolloverService.RolloverResult>(batchExecutionContext.taskContexts().size());
+            final var results = new ArrayList<String>(batchExecutionContext.taskContexts().size());
             var state = batchExecutionContext.initialState();
             Map<ProjectId, Map<RolloverRequest, List<TaskContext<LazyRolloverTask>>>> groupedRequests = new HashMap<>();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -213,15 +212,9 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             }
 
             if (state != batchExecutionContext.initialState()) {
-                var reason = new StringBuilder();
-                Strings.collectionToDelimitedStringWithLimit(
-                    (Iterable<String>) () -> Iterators.map(results.iterator(), t -> t.sourceIndexName() + "->" + t.rolloverIndexName()),
-                    ",",
-                    "lazy bulk rollover [",
-                    "]",
-                    1024,
-                    reason
-                );
+                var reason = new StringBuilder("lazy bulk rollover [");
+                Strings.collectionToDelimitedStringWithLimit(results, ",", 1024, reason);
+                reason.append(']');
                 try (var ignored = batchExecutionContext.dropHeadersContext()) {
                     state = allocationService.reroute(state, reason.toString(), listener.reroute());
                 }
@@ -234,7 +227,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
         public ClusterState executeTask(
             ProjectState currentState,
             RolloverRequest rolloverRequest,
-            List<MetadataRolloverService.RolloverResult> results,
+            ArrayList<String> results,
             List<TaskContext<LazyRolloverTask>> rolloverTaskContexts,
             AllocationActionMultiListener<RolloverResponse> allocationActionMultiListener
         ) throws Exception {
@@ -271,11 +264,16 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 null,
                 isFailureStoreRollover
             );
-            results.add(rolloverResult);
+            results.add(rolloverResult.sourceIndexName() + "->" + rolloverResult.rolloverIndexName());
             logger.trace("lazy rollover result [{}]", rolloverResult);
 
             final var rolloverIndexName = rolloverResult.rolloverIndexName();
             final var sourceIndexName = rolloverResult.sourceIndexName();
+            logger.info(
+                "rolling over data stream [{}] to index [{}] because it was marked for lazy rollover",
+                dataStream.getName(),
+                rolloverIndexName
+            );
 
             final var waitForActiveShardsTimeout = rolloverRequest.masterNodeTimeout().millis() < 0
                 ? null

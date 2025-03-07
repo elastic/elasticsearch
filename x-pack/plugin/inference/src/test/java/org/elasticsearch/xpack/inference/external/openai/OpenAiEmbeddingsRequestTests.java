@@ -21,8 +21,8 @@ import java.net.URISyntaxException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
-import static org.elasticsearch.xpack.inference.external.openai.OpenAiEmbeddingsRequest.buildDefaultUri;
 import static org.elasticsearch.xpack.inference.external.openai.OpenAiUtils.ORGANIZATION_HEADER;
+import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel.buildDefaultUri;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;

@@ -15,7 +15,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -927,10 +926,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private Executor getExecutor(IndexShard indexShard) {
-        return threadPool.executor(getExecutorName(indexShard));
-    }
-
-    public String getExecutorName(IndexShard indexShard) {
         assert indexShard != null;
         final String executorName;
         if (indexShard.isSystem()) {
@@ -940,7 +935,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } else {
             executorName = Names.SEARCH;
         }
-        return executorName;
+        return threadPool.executor(executorName);
     }
 
     public void executeFetchPhase(
@@ -1997,7 +1992,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchOperationListenerExecutor(SearchContext context, boolean fetch, long startTime) {
             this.listener = context.indexShard().getSearchOperationListener();
             this.context = context;
-            TaskExecutor executor = context.searcher().getTaskExecutor();
             time = startTime;
             this.fetch = fetch;
             if (fetch) {

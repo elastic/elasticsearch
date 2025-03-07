@@ -822,10 +822,13 @@ class NodeConstruction {
         );
         MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics);
 
-        ShardSearchPerIndexTimeTrackingMetrics listener =
-            new ShardSearchPerIndexTimeTrackingMetrics(EsExecutors.TaskTrackingConfig.DEFAULT.getEwmaAlpha());
+        ShardSearchPerIndexTimeTrackingMetrics listener = new ShardSearchPerIndexTimeTrackingMetrics(
+            EsExecutors.TaskTrackingConfig.DEFAULT.getEwmaAlpha()
+        );
         final List<SearchOperationListener> searchOperationListeners = List.of(
-            new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry()), listener);
+            new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry()),
+            listener
+        );
 
         clusterService.addListener(new SearchIndexTimeTrackingCleanupService(listener));
 

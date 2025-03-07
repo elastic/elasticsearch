@@ -55,7 +55,6 @@ public class ShardSearchPerIndexTimeTrackingMetricsTests extends ESTestCase {
         IndexShard is = mock(IndexShard.class);
         ShardId sid = mock(ShardId.class);
 
-
         when(sc.indexShard()).thenReturn(is);
         when(is.isSystem()).thenReturn(false);
         when(is.shardId()).thenReturn(sid);
@@ -70,7 +69,6 @@ public class ShardSearchPerIndexTimeTrackingMetricsTests extends ESTestCase {
         SearchContext sc = mock(SearchContext.class);
         IndexShard is = mock(IndexShard.class);
         ShardId sid = mock(ShardId.class);
-
 
         when(sc.indexShard()).thenReturn(is);
         when(is.isSystem()).thenReturn(false);

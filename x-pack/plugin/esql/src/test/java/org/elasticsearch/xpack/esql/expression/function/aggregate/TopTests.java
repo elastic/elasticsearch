@@ -126,7 +126,7 @@ public class TopTests extends AbstractAggregationTestCase {
                     )
                 ),
                 new TestCaseSupplier(
-                    List.of(DataType.IP),
+                    List.of(DataType.IP, DataType.INTEGER, DataType.KEYWORD),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
                             TestCaseSupplier.TypedData.multiRow(
@@ -215,7 +215,7 @@ public class TopTests extends AbstractAggregationTestCase {
                     )
                 ),
                 new TestCaseSupplier(
-                    List.of(DataType.IP),
+                    List.of(DataType.IP, DataType.INTEGER, DataType.KEYWORD),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
                             TestCaseSupplier.TypedData.multiRow(

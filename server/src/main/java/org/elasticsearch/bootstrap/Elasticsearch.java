@@ -29,9 +29,11 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
@@ -46,6 +48,7 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.rest.MethodHandlers;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -54,6 +57,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.lang.invoke.MethodHandles;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
@@ -67,6 +71,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
@@ -117,9 +122,9 @@ class Elasticsearch {
         final PrintStream out = getStdout();
         final PrintStream err = getStderr();
         final ServerArgs args;
-        final boolean entitlementsExplicitlyEnabled = Booleans.parseBoolean(System.getProperty("es.entitlements.enabled", "false"));
+        final boolean entitlementsEnabled = Booleans.parseBoolean(System.getProperty("es.entitlements.enabled", "true"));
         // java 24+ only supports entitlements, but it may be enabled on earlier versions explicitly
-        final boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsExplicitlyEnabled;
+        final boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsEnabled;
         try {
             initSecurityProperties();
 
@@ -242,16 +247,24 @@ class Elasticsearch {
             pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
             var pluginsResolver = PluginsResolver.create(pluginsLoader);
+            Map<String, Path> sourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
+                .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), PluginBundle::getDir));
             EntitlementBootstrap.bootstrap(
                 pluginPolicies,
                 pluginsResolver::resolveClassToPluginName,
-                nodeEnv.settings()::get,
-                nodeEnv.settings()::getGlobValues,
+                nodeEnv.settings()::getValues,
                 nodeEnv.dataDirs(),
+                nodeEnv.repoDirs(),
                 nodeEnv.configDir(),
+                nodeEnv.libDir(),
+                nodeEnv.pluginsDir(),
+                sourcePaths,
                 nodeEnv.logsDir(),
-                nodeEnv.tmpDir()
+                nodeEnv.tmpDir(),
+                args.pidFile(),
+                Set.of(EntitlementSelfTester.class)
             );
+            EntitlementSelfTester.entitlementSelfTest();
         } else {
             assert RuntimeVersionFeature.isSecurityManagerAvailable();
             // no need to explicitly enable native access for legacy code
@@ -266,6 +279,36 @@ class Elasticsearch {
         }
 
         bootstrap.setPluginsLoader(pluginsLoader);
+    }
+
+    private static class EntitlementSelfTester {
+        // check entitlements were loaded correctly. note this must be outside the entitlements lib.
+        private static void entitlementSelfTest() {
+            ensureCannotStartProcess(ProcessBuilder::start);
+            // Try again with reflection
+            ensureCannotStartProcess(EntitlementSelfTester::reflectiveStartProcess);
+        }
+
+        private static void ensureCannotStartProcess(CheckedConsumer<ProcessBuilder, ?> startProcess) {
+            try {
+                // The command doesn't matter; it doesn't even need to exist
+                startProcess.accept(new ProcessBuilder(""));
+            } catch (NotEntitledException e) {
+                return;
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed entitlement protection self-test", e);
+            }
+            throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
+        }
+
+        private static void reflectiveStartProcess(ProcessBuilder pb) throws Exception {
+            try {
+                var start = ProcessBuilder.class.getMethod("start");
+                start.invoke(pb);
+            } catch (InvocationTargetException e) {
+                throw (Exception) e.getCause();
+            }
+        }
     }
 
     private static void ensureInitialized(Class<?>... classes) {

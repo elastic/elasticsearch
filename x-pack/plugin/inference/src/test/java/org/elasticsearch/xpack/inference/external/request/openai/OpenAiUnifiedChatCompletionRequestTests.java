@@ -21,8 +21,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
-import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUnifiedChatCompletionRequest.buildDefaultUri;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
+import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel.buildDefaultUri;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -85,7 +85,7 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        assertThat(httpPost.getURI().toString(), is(OpenAiUnifiedChatCompletionRequest.buildDefaultUri().toString()));
+        assertThat(httpPost.getURI().toString(), is(buildDefaultUri().toString()));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         assertNull(httpPost.getLastHeader(ORGANIZATION_HEADER));
@@ -108,7 +108,7 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
     public void testTruncate_DoesNotReduceInputTextSize() throws URISyntaxException, IOException {
         var request = createRequest(null, null, "secret", "abcd", "model", null, true);
         var truncatedRequest = request.truncate();
-        assertThat(request.getURI().toString(), is(OpenAiUnifiedChatCompletionRequest.buildDefaultUri().toString()));
+        assertThat(request.getURI().toString(), is(buildDefaultUri().toString()));
 
         var httpRequest = truncatedRequest.createHttpRequest();
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));

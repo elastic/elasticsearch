@@ -14,13 +14,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.indices.IndicesService;
@@ -32,7 +32,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 
-public class TransportGetMappingsAction extends TransportLocalClusterStateAction<GetMappingsRequest, GetMappingsResponse> {
+public class TransportGetMappingsAction extends TransportLocalProjectMetadataAction<GetMappingsRequest, GetMappingsResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportGetMappingsAction.class);
 
@@ -52,14 +52,16 @@ public class TransportGetMappingsAction extends TransportLocalClusterStateAction
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        IndicesService indicesService
+        IndicesService indicesService,
+        ProjectResolver projectResolver
     ) {
         super(
             GetMappingsAction.NAME,
             actionFilters,
             transportService.getTaskManager(),
             clusterService,
-            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            threadPool.executor(ThreadPool.Names.MANAGEMENT),
+            projectResolver
         );
         this.indicesService = indicesService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -75,26 +77,26 @@ public class TransportGetMappingsAction extends TransportLocalClusterStateAction
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetMappingsRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetMappingsRequest request, ProjectState state) {
         return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
+            .indicesBlockedException(
+                state.projectId(),
+                ClusterBlockLevel.METADATA_READ,
+                indexNameExpressionResolver.concreteIndexNames(state.metadata(), request)
+            );
     }
 
     @Override
     protected void localClusterStateOperation(
         Task task,
         final GetMappingsRequest request,
-        final ClusterState state,
+        final ProjectState state,
         final ActionListener<GetMappingsResponse> listener
     ) {
-        logger.trace("serving getMapping request based on version {}", state.version());
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        final Metadata metadata = state.metadata();
-        final Map<String, MappingMetadata> mappings = metadata.findMappings(
-            concreteIndices,
-            indicesService.getFieldFilter(),
-            () -> checkCancellation(task)
-        );
+        logger.trace("serving getMapping request based on version {}", state.cluster().version());
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state.metadata(), request);
+        final Map<String, MappingMetadata> mappings = state.metadata()
+            .findMappings(concreteIndices, indicesService.getFieldFilter(), () -> checkCancellation(task));
         listener.onResponse(new GetMappingsResponse(mappings));
     }
 

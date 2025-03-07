@@ -529,7 +529,10 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     }
 
     private void setAliasAndRemoveOldIndex(SystemIndexMigrationInfo migrationInfo, ActionListener<IndicesAliasesResponse> listener) {
-        final IndicesAliasesRequestBuilder aliasesRequest = migrationInfo.createClient(baseClient).admin().indices().prepareAliases();
+        final IndicesAliasesRequestBuilder aliasesRequest = migrationInfo.createClient(baseClient)
+            .admin()
+            .indices()
+            .prepareAliases(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS); // TODO should these be longer?
         aliasesRequest.removeIndex(migrationInfo.getCurrentIndexName());
         aliasesRequest.addAlias(migrationInfo.getNextIndexName(), migrationInfo.getCurrentIndexName());
 

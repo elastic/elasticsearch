@@ -168,7 +168,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
     public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
         final String id = in.readString();
         final Map<String, Object> config;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_PIPELINE_CONFIGURATION_AS_MAP)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
             config = in.readGenericMap();
         } else {
             final BytesReference bytes = in.readSlicedBytesReference();
@@ -190,7 +190,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_PIPELINE_CONFIGURATION_AS_MAP)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
             out.writeGenericMap(config);
         } else {
             XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).prettyPrint();

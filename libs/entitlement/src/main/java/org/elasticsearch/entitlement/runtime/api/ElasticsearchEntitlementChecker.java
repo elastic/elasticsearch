@@ -49,6 +49,7 @@ import java.net.Socket;
 import java.net.SocketAddress;
 import java.net.SocketImplFactory;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
@@ -74,6 +75,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchService;
@@ -644,6 +646,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$java_net_URL$openConnection(Class<?> callerClass, java.net.URL that) {
         if (isNetworkUrl(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrl(that)) {
+            checkURLFileRead(callerClass, that);
         }
     }
 
@@ -651,6 +655,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$java_net_URL$openConnection(Class<?> callerClass, URL that, Proxy proxy) {
         if (proxy.type() != Proxy.Type.DIRECT || isNetworkUrl(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrl(that)) {
+            checkURLFileRead(callerClass, that);
         }
     }
 
@@ -658,6 +664,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$java_net_URL$openStream(Class<?> callerClass, java.net.URL that) {
         if (isNetworkUrl(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrl(that)) {
+            checkURLFileRead(callerClass, that);
         }
     }
 
@@ -665,6 +673,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$java_net_URL$getContent(Class<?> callerClass, java.net.URL that) {
         if (isNetworkUrl(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrl(that)) {
+            checkURLFileRead(callerClass, that);
         }
     }
 
@@ -672,6 +682,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$java_net_URL$getContent(Class<?> callerClass, java.net.URL that, Class<?>[] classes) {
         if (isNetworkUrl(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrl(that)) {
+            checkURLFileRead(callerClass, that);
         }
     }
 
@@ -681,10 +693,18 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         "sun.net.www.protocol.mailto.MailToURLConnection"
     );
 
+    private static final List<String> FILE_URL_CONNECT_CLASS_NAMES = List.of("sun.net.www.protocol.file.FileURLConnection");
+
     private static final Set<String> NETWORK_PROTOCOLS = Set.of("http", "https", "ftp", "mailto");
+
+    private static final Set<String> FILE_PROTOCOLS = Set.of("file");
 
     private static boolean isNetworkUrl(java.net.URL url) {
         return NETWORK_PROTOCOLS.contains(url.getProtocol());
+    }
+
+    private static boolean isFileUrl(java.net.URL url) {
+        return FILE_PROTOCOLS.contains(url.getProtocol());
     }
 
     private static boolean isNetworkUrlConnection(java.net.URLConnection urlConnection) {
@@ -693,10 +713,17 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
             || ADDITIONAL_NETWORK_URL_CONNECT_CLASS_NAMES.contains(connectionClass.getName());
     }
 
+    private static boolean isFileUrlConnection(java.net.URLConnection urlConnection) {
+        var connectionClass = urlConnection.getClass();
+        return FILE_URL_CONNECT_CLASS_NAMES.contains(connectionClass.getName());
+    }
+
     @Override
     public void check$java_net_URLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -704,6 +731,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$java_net_URLConnection$getContentLengthLong(Class<?> callerClass, java.net.URLConnection that) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -711,6 +740,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$java_net_URLConnection$getContentType(Class<?> callerClass, java.net.URLConnection that) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -718,6 +749,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$java_net_URLConnection$getContentEncoding(Class<?> callerClass, java.net.URLConnection that) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -725,6 +758,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$java_net_URLConnection$getExpiration(Class<?> callerClass, java.net.URLConnection that) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -732,6 +767,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$java_net_URLConnection$getDate(Class<?> callerClass, java.net.URLConnection that) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -739,6 +776,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$java_net_URLConnection$getLastModified(Class<?> callerClass, java.net.URLConnection that) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -751,6 +790,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     ) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -763,6 +804,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     ) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -775,6 +818,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     ) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -782,6 +827,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$java_net_URLConnection$getContent(Class<?> callerClass, java.net.URLConnection that) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -789,6 +836,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$java_net_URLConnection$getContent(Class<?> callerClass, java.net.URLConnection that, Class<?>[] classes) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -817,6 +866,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$sun_net_www_URLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, String name) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -824,6 +875,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$sun_net_www_URLConnection$getHeaderFields(Class<?> callerClass, java.net.URLConnection that) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -831,6 +884,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$sun_net_www_URLConnection$getHeaderFieldKey(Class<?> callerClass, java.net.URLConnection that, int n) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -838,6 +893,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$sun_net_www_URLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, int n) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -845,6 +902,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$sun_net_www_URLConnection$getContentType(Class<?> callerClass, java.net.URLConnection that) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -852,6 +911,8 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$sun_net_www_URLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that) {
         if (isNetworkUrlConnection(that)) {
             policyManager.checkOutboundNetworkAccess(callerClass);
+        } else if (isFileUrlConnection(that)) {
+            checkURLFileRead(callerClass, that.getURL());
         }
     }
 
@@ -1119,8 +1180,18 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$sun_net_www_protocol_https_AbstractDelegateHttpsURLConnection$connect(
         Class<?> callerClass,
-        javax.net.ssl.HttpsURLConnection that
+        java.net.HttpURLConnection that
     ) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_mailto_MailToURLConnection$connect(Class<?> callerClass, java.net.URLConnection that) {
+        policyManager.checkOutboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_mailto_MailToURLConnection$getOutputStream(Class<?> callerClass, java.net.URLConnection that) {
         policyManager.checkOutboundNetworkAccess(callerClass);
     }
 
@@ -2723,5 +2794,67 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         WatchEvent.Modifier... modifiers
     ) {
         policyManager.checkFileRead(callerClass, that);
+    }
+
+    private void checkURLFileRead(Class<?> callerClass, URL url) {
+        try {
+            policyManager.checkFileRead(callerClass, Paths.get(url.toURI()));
+        } catch (URISyntaxException e) {
+            // We expect this method to be called only on File URLs; otherwise the underlying method would fail anyway
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$connect(Class<?> callerClass, java.net.URLConnection that) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$getHeaderFields(Class<?> callerClass, java.net.URLConnection that) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$getHeaderField(
+        Class<?> callerClass,
+        java.net.URLConnection that,
+        String name
+    ) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$getHeaderField(Class<?> callerClass, java.net.URLConnection that, int n) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$getContentLength(Class<?> callerClass, java.net.URLConnection that) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$getContentLengthLong(Class<?> callerClass, java.net.URLConnection that) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$getHeaderFieldKey(
+        Class<?> callerClass,
+        java.net.URLConnection that,
+        int n
+    ) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$getLastModified(Class<?> callerClass, java.net.URLConnection that) {
+        checkURLFileRead(callerClass, that.getURL());
+    }
+
+    @Override
+    public void check$sun_net_www_protocol_file_FileURLConnection$getInputStream(Class<?> callerClass, java.net.URLConnection that) {
+        checkURLFileRead(callerClass, that.getURL());
     }
 }

@@ -119,7 +119,7 @@ ext.expansions = { Architecture architecture, DockerBase base ->
   // the image. When developing the Docker images, it's very tedious to completely rebuild
   // an image for every single change. Therefore, outside of CI, we fix the
   // build time to midnight so that the Docker build cache is usable.
-  def buildDate = buildParams.isCi() ? buildParams.buildDate : buildParams.buildDate.truncatedTo(ChronoUnit.DAYS).toString()
+  def buildDate = buildParams.ci ? buildParams.buildDate : buildParams.buildDate.truncatedTo(ChronoUnit.DAYS).toString()
 
   return [
     'arch'               : architecture.classifier,
@@ -389,7 +389,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
       dockerContext.fileProvider(transformTask.map { Sync task -> task.getDestinationDir() })
 
-      noCache = buildParams.isCi()
+      noCache = buildParams.ci
       tags = generateTags(base, architecture)
       platforms.add(architecture.dockerPlatform)
 
@@ -484,7 +484,7 @@ void addBuildEssDockerImageTask(Architecture architecture) {
 
       dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
 
-      noCache = buildParams.isCi()
+      noCache = buildParams.ci
       baseImages = []
       tags = generateTags(dockerBase, architecture)
       platforms.add(architecture.dockerPlatform)

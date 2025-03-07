@@ -399,7 +399,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         IndexingPressure primaryPressure = internalCluster().getInstance(IndexingPressure.class, node);
         long memoryLimit = primaryPressure.stats().getMemoryLimit();
         long primaryRejections = primaryPressure.stats().getPrimaryRejections();
-        try (Releasable releasable = primaryPressure.markPrimaryOperationStarted(10, memoryLimit, false)) {
+        try (Releasable releasable = primaryPressure.validateAndMarkPrimaryOperationStarted(10, memoryLimit, 0, false, false)) {
             while (primaryPressure.stats().getPrimaryRejections() == primaryRejections) {
                 while (nextRequested.get()) {
                     nextRequested.set(false);
@@ -497,7 +497,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         assertThat(node, equalTo(dataOnlyNode));
         IndexingPressure primaryPressure = internalCluster().getInstance(IndexingPressure.class, node);
         long memoryLimit = primaryPressure.stats().getMemoryLimit();
-        try (Releasable releasable = primaryPressure.markPrimaryOperationStarted(10, memoryLimit, false)) {
+        try (Releasable releasable = primaryPressure.validateAndMarkPrimaryOperationStarted(10, memoryLimit, 0, false, false)) {
             while (nextRequested.get()) {
                 nextRequested.set(false);
                 refCounted.incRef();

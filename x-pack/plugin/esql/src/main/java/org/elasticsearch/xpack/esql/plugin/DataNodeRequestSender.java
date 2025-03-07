@@ -81,15 +81,13 @@ abstract class DataNodeRequestSender {
         final long startTimeInNanos = System.nanoTime();
         searchShards(rootTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(targetShards -> {
             try (var computeListener = new ComputeListener(transportService.getThreadPool(), runOnTaskFailure, listener.map(profiles -> {
-                TimeValue took = TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos);
-                final int failedShards = shardFailures.size();
                 return new ComputeResponse(
                     profiles,
-                    took,
+                    TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos),
                     targetShards.totalShards(),
-                    targetShards.totalShards() - failedShards,
+                    targetShards.totalShards() - shardFailures.size(),
                     targetShards.skippedShards(),
-                    failedShards
+                    shardFailures.size()
                 );
             }))) {
                 for (TargetShard shard : targetShards.shards.values()) {
@@ -128,8 +126,7 @@ abstract class DataNodeRequestSender {
                         reportedFailure = true;
                         reportFailures(computeListener);
                     } else {
-                        var nodeRequests = selectNodeRequests(targetShards);
-                        for (NodeRequest request : nodeRequests) {
+                        for (NodeRequest request : selectNodeRequests(targetShards)) {
                             sendOneNodeRequest(targetShards, computeListener, request);
                         }
                     }
@@ -211,18 +208,17 @@ abstract class DataNodeRequestSender {
 
     private void trackShardLevelFailure(ShardId shardId, boolean fatal, Exception originalEx) {
         final Exception e = unwrapFailure(originalEx);
-        // Retain only one meaningful exception and avoid suppressing previous failures to minimize memory usage, especially when handling
-        // many shards.
+        final boolean isTaskCanceledException = ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null;
         shardFailures.compute(shardId, (k, current) -> {
-            boolean mergedFatal = fatal || ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null;
-            if (current == null) {
-                return new ShardFailure(mergedFatal, e);
-            }
-            mergedFatal |= current.fatal;
-            if (e instanceof NoShardAvailableActionException || ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
-                return new ShardFailure(mergedFatal, current.failure);
-            }
-            return new ShardFailure(mergedFatal, e);
+            boolean mergedFatal = fatal || isTaskCanceledException;
+            return current == null
+                ? new ShardFailure(mergedFatal, e)
+                : new ShardFailure(
+                    mergedFatal || current.fatal,
+                    // Retain only one meaningful exception and avoid suppressing previous failures to minimize memory usage,
+                    // especially when handling many shards.
+                    isTaskCanceledException || e instanceof NoShardAvailableActionException ? current.failure : e
+                );
         });
     }
 
@@ -243,17 +239,11 @@ abstract class DataNodeRequestSender {
     /**
      * (Remaining) allocated nodes of a given shard id and its alias filter
      */
-    record TargetShard(ShardId shardId, List<DiscoveryNode> remainingNodes, AliasFilter aliasFilter) {
+    record TargetShard(ShardId shardId, List<DiscoveryNode> remainingNodes, AliasFilter aliasFilter) {}
 
-    }
+    record NodeRequest(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {}
 
-    record NodeRequest(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {
-
-    }
-
-    private record ShardFailure(boolean fatal, Exception failure) {
-
-    }
+    private record ShardFailure(boolean fatal, Exception failure) {}
 
     /**
      * Selects the next nodes to send requests to. Limits to at most one outstanding request per node.

@@ -188,7 +188,7 @@ public class TransportExplainLifecycleAction extends TransportLocalClusterStateA
 
         final IndexLifecycleExplainResponse indexResponse;
         if (project.isIndexManagedByILM(indexMetadata)) {
-            final IndexLifecycleMetadata indexLifecycleMetadata = project.custom(IndexLifecycleMetadata.TYPE);
+            final IndexLifecycleMetadata indexLifecycleMetadata = project.custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
             final boolean policyExists = indexLifecycleMetadata.getPolicies().containsKey(policyName);
             // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy
             if (onlyErrors == false || (ErrorStep.NAME.equals(lifecycleState.step()) || policyExists == false)) {

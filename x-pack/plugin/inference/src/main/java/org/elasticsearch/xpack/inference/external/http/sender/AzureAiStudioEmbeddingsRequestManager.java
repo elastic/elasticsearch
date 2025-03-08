@@ -46,7 +46,7 @@ public class AzureAiStudioEmbeddingsRequestManager extends AzureAiStudioRequestM
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        List<String> docsInput = EmbeddingsInput.of(inferenceInputs).getInputs();
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
         AzureAiStudioEmbeddingsRequest request = new AzureAiStudioEmbeddingsRequest(truncator, truncatedInput, model);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));

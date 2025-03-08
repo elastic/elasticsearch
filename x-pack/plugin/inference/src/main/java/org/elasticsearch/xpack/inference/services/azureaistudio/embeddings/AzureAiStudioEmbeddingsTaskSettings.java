@@ -13,7 +13,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,10 +50,8 @@ public class AzureAiStudioEmbeddingsTaskSettings implements TaskSettings {
      */
     public static AzureAiStudioEmbeddingsTaskSettings of(
         AzureAiStudioEmbeddingsTaskSettings originalSettings,
-        AzureAiStudioEmbeddingsRequestTaskSettings requestSettings,
-        InputType requestInputType
+        AzureAiStudioEmbeddingsRequestTaskSettings requestSettings
     ) {
-        var inputTypeToUse = getValidInputType(originalSettings, requestSettings, requestInputType);
         var userToUse = requestSettings.user() == null ? originalSettings.user : requestSettings.user();
         return new AzureAiStudioEmbeddingsTaskSettings(userToUse);
     }

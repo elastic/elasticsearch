@@ -7,17 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.embeddings;
 
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -25,15 +22,6 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.util.Map;
 
 public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
-    public static HuggingFaceEmbeddingsModel of(HuggingFaceEmbeddingsModel model, InputType inputType) {
-        ValidationException validationException = new ValidationException();
-        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return model;
-    }
 
     public HuggingFaceEmbeddingsModel(
         String inferenceEntityId,
@@ -98,7 +86,7 @@ public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
     }
 
     @Override
-    public ExecutableAction accept(HuggingFaceActionVisitor creator, InputType inputType) {
-        return creator.create(this, inputType);
+    public ExecutableAction accept(HuggingFaceActionVisitor creator) {
+        return creator.create(this);
     }
 }

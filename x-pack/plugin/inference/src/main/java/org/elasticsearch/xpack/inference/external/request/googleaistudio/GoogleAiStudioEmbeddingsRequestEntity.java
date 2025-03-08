@@ -19,12 +19,9 @@ import java.util.Objects;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings.invalidInputTypeMessage;
 
-public record GoogleAiStudioEmbeddingsRequestEntity(
-    List<String> inputs,
-    String model,
-    @Nullable Integer dimensions,
-    @Nullable InputType inputType
-) implements ToXContentObject {
+public record GoogleAiStudioEmbeddingsRequestEntity(List<String> inputs, InputType inputType, String model, @Nullable Integer dimensions)
+    implements
+        ToXContentObject {
 
     private static final String REQUESTS_FIELD = "requests";
     private static final String MODEL_FIELD = "model";

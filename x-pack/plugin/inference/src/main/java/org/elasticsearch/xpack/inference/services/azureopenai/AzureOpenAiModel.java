@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
 import org.apache.http.client.utils.URIBuilder;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -57,7 +56,7 @@ public abstract class AzureOpenAiModel extends Model {
         rateLimitServiceSettings = model.rateLimitServiceSettings();
     }
 
-    public abstract ExecutableAction accept(AzureOpenAiActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
+    public abstract ExecutableAction accept(AzureOpenAiActionVisitor creator, Map<String, Object> taskSettings);
 
     public final URI buildUriString() throws URISyntaxException {
         return AzureOpenAiModel.buildUri(resourceName(), deploymentId(), apiVersion(), operationPathSegments());

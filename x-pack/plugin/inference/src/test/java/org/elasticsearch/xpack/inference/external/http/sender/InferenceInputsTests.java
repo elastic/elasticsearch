@@ -16,8 +16,8 @@ import java.util.List;
 
 public class InferenceInputsTests extends ESTestCase {
     public void testCastToSucceeds() {
-        InferenceInputs inputs = new DocumentsOnlyInput(List.of(), false);
-        assertThat(inputs.castTo(DocumentsOnlyInput.class), Matchers.instanceOf(DocumentsOnlyInput.class));
+        InferenceInputs inputs = new EmbeddingsInput(List.of(), false);
+        assertThat(inputs.castTo(EmbeddingsInput.class), Matchers.instanceOf(EmbeddingsInput.class));
 
         var emptyRequest = new UnifiedCompletionRequest(List.of(), null, null, null, null, null, null, null);
         assertThat(new UnifiedChatInput(emptyRequest, false).castTo(UnifiedChatInput.class), Matchers.instanceOf(UnifiedChatInput.class));
@@ -28,12 +28,12 @@ public class InferenceInputsTests extends ESTestCase {
     }
 
     public void testCastToFails() {
-        InferenceInputs inputs = new DocumentsOnlyInput(List.of(), false);
+        InferenceInputs inputs = new EmbeddingsInput(List.of(), false);
         var exception = expectThrows(IllegalArgumentException.class, () -> inputs.castTo(QueryAndDocsInputs.class));
         assertThat(
             exception.getMessage(),
             Matchers.containsString(
-                Strings.format("Unable to convert inference inputs type: [%s] to [%s]", DocumentsOnlyInput.class, QueryAndDocsInputs.class)
+                Strings.format("Unable to convert inference inputs type: [%s] to [%s]", EmbeddingsInput.class, QueryAndDocsInputs.class)
             )
         );
     }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.openai.completion;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -123,7 +122,7 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
     }
 
     @Override
-    public ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings, InputType inputType) {
+    public ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this, taskSettings);
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -32,7 +33,7 @@ import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.amazonbedrock.AmazonBedrockActionCreator;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -52,9 +53,11 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.VALID_INTERNAL_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
@@ -78,6 +81,17 @@ public class AmazonBedrockService extends SenderService {
     private final Sender amazonBedrockSender;
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
+
+    private static final AmazonBedrockProvider PROVIDER_WITH_TASK_TYPE = AmazonBedrockProvider.COHERE;
+
+    private static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
+        InputType.INGEST,
+        InputType.SEARCH,
+        InputType.CLASSIFICATION,
+        InputType.CLUSTERING,
+        InputType.INTERNAL_INGEST,
+        InputType.INTERNAL_SEARCH
+    );
 
     public AmazonBedrockService(
         HttpRequestSender.Factory httpSenderFactory,
@@ -103,13 +117,12 @@ public class AmazonBedrockService extends SenderService {
         Model model,
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
-        InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         var actionCreator = new AmazonBedrockActionCreator(amazonBedrockSender, this.getServiceComponents(), timeout);
         if (model instanceof AmazonBedrockModel baseAmazonBedrockModel) {
-            var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings, inputType);
+            var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings);
             action.execute(inputs, timeout, listener);
         } else {
             listener.onFailure(createInvalidModelException(model));
@@ -117,9 +130,40 @@ public class AmazonBedrockService extends SenderService {
     }
 
     @Override
+    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
+        if (model instanceof AmazonBedrockModel baseAmazonBedrockModel) {
+            // InputType is only respected when provider=cohere for text embeddings
+            var provider = baseAmazonBedrockModel.provider();
+
+            if (Objects.equals(provider, PROVIDER_WITH_TASK_TYPE) == false) {
+                // this model does not accept input type parameter so throw validation error if it is specified and not internal
+                if (inputType != null
+                    && inputType != InputType.UNSPECIFIED
+                    && VALID_INTERNAL_INPUT_TYPE_VALUES.contains(inputType) == false) {
+                    validationException.addValidationError(
+                        Strings.format(
+                            "Invalid value [%s] received. [%s] is not allowed for provider [%s]",
+                            inputType,
+                            "input_type",
+                            provider
+                        )
+                    );
+                }
+            } else {
+                // this model does accept input type parameter, so verify it is valid if specified
+                if (inputType != null && inputType != InputType.UNSPECIFIED && VALID_INPUT_TYPE_VALUES.contains(inputType) == false) {
+                    validationException.addValidationError(
+                        Strings.format("Input type [%s] is not supported for [%s]", inputType, SERVICE_NAME)
+                    );
+                }
+            }
+        }
+    }
+
+    @Override
     protected void doChunkedInfer(
         Model model,
-        DocumentsOnlyInput inputs,
+        EmbeddingsInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -136,8 +180,8 @@ public class AmazonBedrockService extends SenderService {
             ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {
-                var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings, inputType);
-                action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
+                var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings);
+                action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
             }
         } else {
             listener.onFailure(createInvalidModelException(model));

@@ -18,9 +18,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings.invalidInputTypeMessage;
 
-public record GoogleVertexAiEmbeddingsRequestEntity(List<String> inputs, GoogleVertexAiEmbeddingsTaskSettings taskSettings)
-    implements
-        ToXContentObject {
+public record GoogleVertexAiEmbeddingsRequestEntity(
+    List<String> inputs,
+    InputType inputType,
+    GoogleVertexAiEmbeddingsTaskSettings taskSettings
+) implements ToXContentObject {
 
     private static final String INSTANCES_FIELD = "instances";
     private static final String CONTENT_FIELD = "content";
@@ -48,7 +50,10 @@ public record GoogleVertexAiEmbeddingsRequestEntity(List<String> inputs, GoogleV
             {
                 builder.field(CONTENT_FIELD, input);
 
-                if (taskSettings.getInputType() != null) {
+                // prefer the root level inputType over task settings input type
+                if (inputType != null) {
+                    builder.field(TASK_TYPE_FIELD, convertToString(inputType));
+                } else if (taskSettings.getInputType() != null) {
                     builder.field(TASK_TYPE_FIELD, convertToString(taskSettings.getInputType()));
                 }
             }

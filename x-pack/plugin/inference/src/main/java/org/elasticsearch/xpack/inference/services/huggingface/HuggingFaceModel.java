@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.huggingface;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -45,6 +44,6 @@ public abstract class HuggingFaceModel extends Model {
 
     public abstract Integer getTokenLimit();
 
-    public abstract ExecutableAction accept(HuggingFaceActionVisitor creator, InputType inputType);
+    public abstract ExecutableAction accept(HuggingFaceActionVisitor creator);
 
 }

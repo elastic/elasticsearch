@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.action.huggingface;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.HuggingFaceRequestManager;
@@ -36,14 +35,13 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(HuggingFaceEmbeddingsModel model, InputType inputType) {
+    public ExecutableAction create(HuggingFaceEmbeddingsModel model) {
         var responseHandler = new HuggingFaceResponseHandler(
             "hugging face text embeddings",
             HuggingFaceEmbeddingsResponseEntity::fromResponse
         );
-        var overriddenModel = HuggingFaceEmbeddingsModel.of(model, inputType);
         var requestCreator = HuggingFaceRequestManager.of(
-            overriddenModel,
+            model,
             responseHandler,
             serviceComponents.truncator(),
             serviceComponents.threadPool()

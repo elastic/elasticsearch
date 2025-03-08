@@ -15,7 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -76,7 +76,7 @@ public class AmazonBedrockMockRequestSender implements Sender {
         ActionListener<InferenceServiceResults> listener
     ) {
         sendCounter++;
-        if (inferenceInputs instanceof DocumentsOnlyInput docsInput) {
+        if (inferenceInputs instanceof EmbeddingsInput docsInput) {
             inputs.add(docsInput.getInputs());
         } else if (inferenceInputs instanceof ChatCompletionInput chatCompletionInput) {
             inputs.add(chatCompletionInput.getInputs());

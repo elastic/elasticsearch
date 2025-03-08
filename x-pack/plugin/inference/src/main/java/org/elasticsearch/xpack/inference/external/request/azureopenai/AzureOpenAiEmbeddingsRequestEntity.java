@@ -18,10 +18,10 @@ import java.util.Objects;
 
 public record AzureOpenAiEmbeddingsRequestEntity(
     List<String> input,
+    InputType inputType,
     @Nullable String user,
     @Nullable Integer dimensions,
-    boolean dimensionsSetByUser,
-    InputType inputType
+    boolean dimensionsSetByUser
 ) implements ToXContentObject {
 
     private static final String INPUT_FIELD = "input";

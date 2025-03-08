@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -101,5 +100,5 @@ public abstract class AzureAiStudioModel extends Model {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
 
-    public abstract ExecutableAction accept(AzureAiStudioActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
+    public abstract ExecutableAction accept(AzureAiStudioActionVisitor creator, Map<String, Object> taskSettings);
 }

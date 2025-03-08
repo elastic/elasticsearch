@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.openai;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
@@ -69,7 +68,7 @@ public abstract class OpenAiModel extends RateLimitGroupingModel {
         return rateLimitServiceSettings;
     }
 
-    public abstract ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
+    public abstract ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings);
 
     public int rateLimitGroupingHash() {
         return Objects.hash(rateLimitServiceSettings.modelId(), apiKey, uri);

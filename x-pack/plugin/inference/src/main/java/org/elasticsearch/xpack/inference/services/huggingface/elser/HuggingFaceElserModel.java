@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.huggingface.elser;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -64,7 +63,7 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
     }
 
     @Override
-    public ExecutableAction accept(HuggingFaceActionVisitor creator, InputType inputType) {
+    public ExecutableAction accept(HuggingFaceActionVisitor creator) {
         return creator.create(this);
     }
 

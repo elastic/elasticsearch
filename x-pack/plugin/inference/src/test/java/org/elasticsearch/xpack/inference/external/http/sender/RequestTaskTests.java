@@ -60,7 +60,7 @@ public class RequestTaskTests extends ESTestCase {
 
         var requestTask = new RequestTask(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
-            new DocumentsOnlyInput(List.of("abc")),
+            new EmbeddingsInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             mockThreadPool,
             listener
@@ -80,7 +80,7 @@ public class RequestTaskTests extends ESTestCase {
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var requestTask = new RequestTask(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
-            new DocumentsOnlyInput(List.of("abc")),
+            new EmbeddingsInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             threadPool,
             listener
@@ -104,7 +104,7 @@ public class RequestTaskTests extends ESTestCase {
 
         var requestTask = new RequestTask(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
-            new DocumentsOnlyInput(List.of("abc")),
+            new EmbeddingsInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             threadPool,
             listener
@@ -133,7 +133,7 @@ public class RequestTaskTests extends ESTestCase {
 
         var requestTask = new RequestTask(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
-            new DocumentsOnlyInput(List.of("abc")),
+            new EmbeddingsInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             threadPool,
             listener
@@ -160,7 +160,7 @@ public class RequestTaskTests extends ESTestCase {
 
         var requestTask = new RequestTask(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
-            new DocumentsOnlyInput(List.of("abc")),
+            new EmbeddingsInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             mockThreadPool,
             listener

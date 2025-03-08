@@ -21,6 +21,7 @@ import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.Voy
 
 public record VoyageAIEmbeddingsRequestEntity(
     List<String> input,
+    InputType inputType,
     VoyageAIEmbeddingsServiceSettings serviceSettings,
     VoyageAIEmbeddingsTaskSettings taskSettings,
     String model
@@ -48,9 +49,11 @@ public record VoyageAIEmbeddingsRequestEntity(
         builder.field(INPUT_FIELD, input);
         builder.field(MODEL_FIELD, model);
 
-        var inputType = convertToString(taskSettings.getInputType());
+        // prefer the root level inputType over task settings input type
         if (inputType != null) {
-            builder.field(INPUT_TYPE_FIELD, inputType);
+            builder.field(INPUT_TYPE_FIELD, convertToString(inputType));
+        } else if (taskSettings.getInputType() != null) {
+            builder.field(INPUT_TYPE_FIELD, convertToString(taskSettings.getInputType()));
         }
 
         if (taskSettings.getTruncation() != null) {

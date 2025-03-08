@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.action.ibmwatsonx;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
@@ -15,7 +14,7 @@ import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRe
 import java.util.Map;
 
 public interface IbmWatsonxActionVisitor {
-    ExecutableAction create(IbmWatsonxEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType);
+    ExecutableAction create(IbmWatsonxEmbeddingsModel model, Map<String, Object> taskSettings);
 
     ExecutableAction create(IbmWatsonxRerankModel model, Map<String, Object> taskSettings);
 }

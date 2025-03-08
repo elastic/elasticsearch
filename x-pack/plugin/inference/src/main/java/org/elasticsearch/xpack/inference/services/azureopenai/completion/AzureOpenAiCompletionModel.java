@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.azureopenai.completion;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -97,7 +96,7 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
     }
 
     @Override
-    public ExecutableAction accept(AzureOpenAiActionVisitor creator, Map<String, Object> taskSettings, InputType inputType) {
+    public ExecutableAction accept(AzureOpenAiActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this, taskSettings);
     }
 

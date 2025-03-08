@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
-import org.elasticsearch.common.ValidationException;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -19,7 +17,6 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiModel;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -32,13 +29,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bu
 
 public class OpenAiEmbeddingsModel extends OpenAiModel {
 
-    public static OpenAiEmbeddingsModel of(OpenAiEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
-        ValidationException validationException = new ValidationException();
-        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
+    public static OpenAiEmbeddingsModel of(OpenAiEmbeddingsModel model, Map<String, Object> taskSettings) {
         if (taskSettings == null || taskSettings.isEmpty()) {
             return model;
         }
@@ -118,7 +109,7 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
     }
 
     @Override
-    public ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings, InputType inputType) {
-        return creator.create(this, taskSettings, inputType);
+    public ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings) {
+        return creator.create(this, taskSettings);
     }
 }

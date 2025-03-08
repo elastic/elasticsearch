@@ -11,6 +11,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -31,7 +33,7 @@ import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GoogleAiStudioCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.GoogleAiStudioEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -52,10 +54,12 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.VALID_INTERNAL_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
@@ -71,6 +75,16 @@ public class GoogleAiStudioService extends SenderService {
 
     private static final String SERVICE_NAME = "Google AI Studio";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
+
+    private static final String MODEL_ID_WITH_TASK_TYPE = "embedding-001";
+    private static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
+        InputType.INGEST,
+        InputType.SEARCH,
+        InputType.CLASSIFICATION,
+        InputType.CLUSTERING,
+        InputType.INTERNAL_INGEST,
+        InputType.INTERNAL_SEARCH
+    );
 
     public GoogleAiStudioService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -276,7 +290,6 @@ public class GoogleAiStudioService extends SenderService {
         Model model,
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
-        InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
@@ -291,9 +304,8 @@ public class GoogleAiStudioService extends SenderService {
             );
             action.execute(inputs, timeout, listener);
         } else if (model instanceof GoogleAiStudioEmbeddingsModel embeddingsModel) {
-            var overriddenModel = GoogleAiStudioEmbeddingsModel.of(embeddingsModel, inputType);
             var requestManager = new GoogleAiStudioEmbeddingsRequestManager(
-                overriddenModel,
+                embeddingsModel,
                 getServiceComponents().truncator(),
                 getServiceComponents().threadPool()
             );
@@ -302,6 +314,32 @@ public class GoogleAiStudioService extends SenderService {
             action.execute(inputs, timeout, listener);
         } else {
             listener.onFailure(createInvalidModelException(model));
+        }
+    }
+
+    @Override
+    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
+        if (model instanceof GoogleAiStudioEmbeddingsModel embeddingsModel) {
+            // InputType is only respected when model=embedding-001 https://ai.google.dev/api/embeddings?authuser=5#EmbedContentRequest
+            var modelId = embeddingsModel.getServiceSettings().modelId();
+
+            if (Objects.equals(modelId, MODEL_ID_WITH_TASK_TYPE) == false) {
+                // this model does not accept input type parameter so throw validation error if it is specified and not internal
+                if (inputType != null
+                    && inputType != InputType.UNSPECIFIED
+                    && VALID_INTERNAL_INPUT_TYPE_VALUES.contains(inputType) == false) {
+                    // throw validation exception if ingest type is specified
+                    validationException.addValidationError(
+                        Strings.format("Invalid value [%s] received. [%s] is not allowed for model [%s]", inputType, "input_type", modelId)
+                    );
+                }
+            } else {
+                if (inputType != null && inputType != InputType.UNSPECIFIED && VALID_INPUT_TYPE_VALUES.contains(inputType) == false) {
+                    validationException.addValidationError(
+                        Strings.format("Input type [%s] is not supported for [%s]", inputType, SERVICE_NAME)
+                    );
+                }
+            }
         }
     }
 
@@ -318,7 +356,7 @@ public class GoogleAiStudioService extends SenderService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        DocumentsOnlyInput inputs,
+        EmbeddingsInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -333,7 +371,7 @@ public class GoogleAiStudioService extends SenderService {
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
-            doInfer(model, new DocumentsOnlyInput(request.batch().inputs()), taskSettings, inputType, timeout, request.listener());
+            doInfer(model, new EmbeddingsInput(request.batch().inputs(), inputType), taskSettings, timeout, request.listener());
         }
     }
 

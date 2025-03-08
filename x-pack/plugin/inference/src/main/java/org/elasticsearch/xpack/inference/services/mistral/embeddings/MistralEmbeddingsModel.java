@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.mistral.embeddings;
 
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -20,7 +18,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.mistral.MistralActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -31,16 +28,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.API_EMBEDDINGS_PATH;
 
 public class MistralEmbeddingsModel extends Model {
-
-    public static MistralEmbeddingsModel of(MistralEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
-        ValidationException validationException = new ValidationException();
-        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return model;
-    }
 
     protected String model;
     protected URI uri;
@@ -133,7 +120,7 @@ public class MistralEmbeddingsModel extends Model {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
 
-    public ExecutableAction accept(MistralActionVisitor creator, Map<String, Object> taskSettings, InputType inputType) {
-        return creator.create(this, taskSettings, inputType);
+    public ExecutableAction accept(MistralActionVisitor creator, Map<String, Object> taskSettings) {
+        return creator.create(this, taskSettings);
     }
 }

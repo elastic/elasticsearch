@@ -18,9 +18,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsTaskSettings.invalidInputTypeMessage;
 
-public record AlibabaCloudSearchEmbeddingsRequestEntity(List<String> input, AlibabaCloudSearchEmbeddingsTaskSettings taskSettings)
-    implements
-        ToXContentObject {
+public record AlibabaCloudSearchEmbeddingsRequestEntity(
+    List<String> input,
+    InputType inputType,
+    AlibabaCloudSearchEmbeddingsTaskSettings taskSettings
+) implements ToXContentObject {
 
     private static final String SEARCH_DOCUMENT = "document";
     private static final String SEARCH_QUERY = "query";
@@ -39,9 +41,11 @@ public record AlibabaCloudSearchEmbeddingsRequestEntity(List<String> input, Alib
         builder.startObject();
         builder.field(TEXTS_FIELD, input);
 
-        String inputType = convertToString(taskSettings.getInputType());
+        // prefer the root level inputType over task settings input type
         if (inputType != null) {
-            builder.field(INPUT_TYPE_FIELD, inputType);
+            builder.field(INPUT_TYPE_FIELD, convertToString(inputType));
+        } else if (taskSettings.getInputType() != null) {
+            builder.field(INPUT_TYPE_FIELD, convertToString(taskSettings.getInputType()));
         }
 
         builder.endObject();

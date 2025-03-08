@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -25,20 +24,14 @@ import java.util.Map;
 
 public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
 
-    public static AzureOpenAiEmbeddingsModel of(AzureOpenAiEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
+    public static AzureOpenAiEmbeddingsModel of(AzureOpenAiEmbeddingsModel model, Map<String, Object> taskSettings) {
         if (taskSettings == null || taskSettings.isEmpty()) {
-            return inputType == null ? model : new AzureOpenAiEmbeddingsModel(model, model.getTaskSettings(), inputType);
+            return model;
         }
 
         var requestTaskSettings = AzureOpenAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
-        return new AzureOpenAiEmbeddingsModel(
-            model,
-            AzureOpenAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings),
-            inputType
-        );
+        return new AzureOpenAiEmbeddingsModel(model, AzureOpenAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
-
-    private InputType inputType;
 
     public AzureOpenAiEmbeddingsModel(
         String inferenceEntityId,
@@ -57,8 +50,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
             AzureOpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             AzureOpenAiEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            AzureOpenAiSecretSettings.fromMap(secrets),
-            null
+            AzureOpenAiSecretSettings.fromMap(secrets)
         );
     }
 
@@ -70,15 +62,13 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         AzureOpenAiEmbeddingsServiceSettings serviceSettings,
         AzureOpenAiEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable AzureOpenAiSecretSettings secrets,
-        @Nullable InputType inputType
+        @Nullable AzureOpenAiSecretSettings secrets
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets),
             serviceSettings
         );
-        this.inputType = inputType;
         try {
             this.uri = buildUriString();
         } catch (URISyntaxException e) {
@@ -86,13 +76,8 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         }
     }
 
-    private AzureOpenAiEmbeddingsModel(
-        AzureOpenAiEmbeddingsModel originalModel,
-        AzureOpenAiEmbeddingsTaskSettings taskSettings,
-        InputType inputType
-    ) {
+    private AzureOpenAiEmbeddingsModel(AzureOpenAiEmbeddingsModel originalModel, AzureOpenAiEmbeddingsTaskSettings taskSettings) {
         super(originalModel, taskSettings);
-        this.inputType = inputType;
     }
 
     public AzureOpenAiEmbeddingsModel(AzureOpenAiEmbeddingsModel originalModel, AzureOpenAiEmbeddingsServiceSettings serviceSettings) {
@@ -114,13 +99,9 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         return (AzureOpenAiSecretSettings) super.getSecretSettings();
     }
 
-    public InputType inputType() {
-        return inputType;
-    }
-
     @Override
-    public ExecutableAction accept(AzureOpenAiActionVisitor creator, Map<String, Object> taskSettings, InputType inputType) {
-        return creator.create(this, taskSettings, inputType);
+    public ExecutableAction accept(AzureOpenAiActionVisitor creator, Map<String, Object> taskSettings) {
+        return creator.create(this, taskSettings);
     }
 
     @Override

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.action.openai;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
@@ -58,8 +57,8 @@ public class OpenAiActionCreator implements OpenAiActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(OpenAiEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
-        var overriddenModel = OpenAiEmbeddingsModel.of(model, taskSettings, inputType);
+    public ExecutableAction create(OpenAiEmbeddingsModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = OpenAiEmbeddingsModel.of(model, taskSettings);
         var manager = new TruncatingRequestManager(
             serviceComponents.threadPool(),
             overriddenModel,

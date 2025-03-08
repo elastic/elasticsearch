@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.inference.external.http.sender.OpenAiCompletionRequestManager.USER_ROLE;
+import static org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator.USER_ROLE;
 
 /**
  * This class uses the unified chat completion method to perform validation.

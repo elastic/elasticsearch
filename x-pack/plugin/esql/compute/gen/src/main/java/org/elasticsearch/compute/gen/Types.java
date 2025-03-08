@@ -120,7 +120,6 @@ public class Types {
     static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.esql.core.tree", "Source");
 
     static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
-
     static final ClassName RELEASABLE = ClassName.get("org.elasticsearch.core", "Releasable");
     static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
 
@@ -137,8 +136,14 @@ public class Types {
         TypeDef.of(TypeName.LONG, "LONG", "LongBlock", "LongVector"),
         TypeDef.of(TypeName.FLOAT, "FLOAT", "FloatBlock", "FloatVector"),
         TypeDef.of(TypeName.DOUBLE, "DOUBLE", "DoubleBlock", "DoubleVector"),
-        TypeDef.of(BYTES_REF, "BYTES_REF", "BytesRefBlock", "BytesRefVector")
-    )
+        TypeDef.of(BYTES_REF, "BYTES_REF", "BytesRefBlock", "BytesRefVector"),
+        TypeDef.of(BOOLEAN_BLOCK, "BOOLEAN_BLOCK", "BooleanBlock", "BooleanVector"),
+        TypeDef.of(INT_BLOCK, "INT_BLOCK", "IntBlock", "IntVector"),
+        TypeDef.of(LONG_BLOCK, "LONG_BLOCK", "LongBlock", "LongVector"),
+        TypeDef.of(FLOAT_BLOCK, "FLOAT_BLOCK", "FloatBlock", "FloatVector"),
+        TypeDef.of(DOUBLE_BLOCK, "DOUBLE_BLOCK", "DoubleBlock", "DoubleVector"),
+        TypeDef.of(BYTES_REF_BLOCK, "BYTES_REF_BLOCK", "BytesRefBlock", "BytesRefVector")
+        )
         .flatMap(def -> Stream.of(def.type.toString(), def.type + "[]", def.alias).map(alias -> Map.entry(alias, def)))
         .collect(toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
 

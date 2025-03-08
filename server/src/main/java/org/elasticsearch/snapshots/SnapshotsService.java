@@ -1403,6 +1403,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new SnapshotFinalization(snapshot, metadata, repositoryData));
     }
 
+    /**
+     * Implements the finalization process for a snapshot: does some preparatory calculations, builds a {@link SnapshotInfo} and a
+     * {@link FinalizeSnapshotContext}, calls {@link Repository#finalizeSnapshot} and handles the outcome by notifying waiting listeners
+     * and triggering the next snapshot-related activity.
+     */
+    // This only really makes sense to run against a BlobStoreRepository, and the division of work between this class and
+    // BlobStoreRepository#finalizeSnapshot is kind of awkward and artificial; TODO consolidate all this stuff into one place and simplify
     private class SnapshotFinalization extends AbstractRunnable {
 
         private final Snapshot snapshot;
@@ -1448,6 +1455,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final ListenableFuture<Metadata> metadataListener = new ListenableFuture<>();
             final Repository repo = repositoriesService.repository(snapshot.getRepository());
             if (entry.isClone()) {
+                // TODO no need to fork here any more, we're already on a SNAPSHOT thread
                 threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(metadataListener, () -> {
                     final Metadata existing = repo.getSnapshotGlobalMetadata(entry.source());
                     final Metadata.Builder metaBuilder = Metadata.builder(existing);

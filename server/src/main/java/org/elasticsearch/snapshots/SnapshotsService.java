@@ -2517,8 +2517,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             Strings.collectionToDelimitedStringWithLimit(
                                 deleteEntry.snapshots().stream().map(SnapshotId::getName).toList(),
                                 ",",
-                                "",
-                                "",
                                 1024,
                                 sb
                             );

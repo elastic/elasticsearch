@@ -204,8 +204,9 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             }
 
             if (state != batchExecutionContext.initialState()) {
-                var reason = new StringBuilder();
-                Strings.collectionToDelimitedStringWithLimit(results, ",", "lazy bulk rollover [", "]", 1024, reason);
+                var reason = new StringBuilder("lazy bulk rollover [");
+                Strings.collectionToDelimitedStringWithLimit(results, ",", 1024, reason);
+                reason.append(']');
                 try (var ignored = batchExecutionContext.dropHeadersContext()) {
                     state = allocationService.reroute(state, reason.toString(), listener.reroute());
                 }

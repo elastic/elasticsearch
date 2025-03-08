@@ -284,6 +284,11 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot currently handle the _source field mapping directives",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING.capabilityName())
             );
+            assumeFalse(
+                "CSV tests cannot currently handle scoring that depends on Lucene",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SCORE.capabilityName())
+            );
+
             if (Build.current().isSnapshot()) {
                 assertThat(
                     "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",

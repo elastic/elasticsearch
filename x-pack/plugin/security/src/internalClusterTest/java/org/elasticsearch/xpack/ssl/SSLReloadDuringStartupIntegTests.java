@@ -55,7 +55,7 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
         Environment tmpEnv = TestEnvironment.newEnvironment(settings);
 
         // For each node, copy the original testnode.jks into each node's config directory.
-        Path nodeKeystorePath = tmpEnv.configFile().resolve("testnode.jks");
+        Path nodeKeystorePath = tmpEnv.configDir().resolve("testnode.jks");
         try {
             Path goodKeystorePath = getDataPath(goodKeyStoreFilePath);
             Files.copy(goodKeystorePath, nodeKeystorePath, StandardCopyOption.REPLACE_EXISTING);
@@ -93,7 +93,7 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
         final Environment env = internalCluster().getInstance(Environment.class, nodeName);
         final CountDownLatch beforeKeystoreFix = new CountDownLatch(2); // SYNC: Cert update & ES restart
         final CountDownLatch afterKeystoreFix = new CountDownLatch(1); // SYNC: Verify cluster after cert update
-        final Path nodeKeystorePath = env.configFile().resolve("testnode.jks"); // all nodes have good keystore
+        final Path nodeKeystorePath = env.configDir().resolve("testnode.jks"); // all nodes have good keystore
         final Path badKeystorePath = getDataPath(badKeyStoreFilePath); // stop a node, and apply this bad keystore
         final Path goodKeystorePath = getDataPath(goodKeyStoreFilePath); // start the node, and apply this good keystore
         assertTrue(Files.exists(nodeKeystorePath));

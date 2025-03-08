@@ -16,6 +16,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
@@ -25,6 +28,7 @@ import org.elasticsearch.transport.TransportService;
 public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse> extends
     TransportMasterNodeReadAction<Request, Response> {
 
+    protected final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     public TransportClusterInfoAction(
@@ -35,7 +39,8 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Writeable.Reader<Response> response
+        Writeable.Reader<Response> response,
+        ProjectResolver projectResolver
     ) {
         super(
             actionName,
@@ -47,13 +52,19 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
             response,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+        final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
         return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
+            .indicesBlockedException(
+                projectMetadata.id(),
+                ClusterBlockLevel.METADATA_READ,
+                indexNameExpressionResolver.concreteIndexNames(projectMetadata, request)
+            );
     }
 
     @Override
@@ -63,7 +74,8 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
         final ClusterState state,
         final ActionListener<Response> listener
     ) {
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
+        ProjectId projectId = projectResolver.getProjectId();
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state.metadata().getProject(projectId), request);
         doMasterOperation(task, request, concreteIndices, state, listener);
     }
 

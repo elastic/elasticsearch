@@ -34,6 +34,7 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsActi
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceServicesAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
@@ -67,6 +69,7 @@ import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnostics
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceServicesAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
+import org.elasticsearch.xpack.inference.action.TransportInferenceActionProxy;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInferenceAction;
@@ -104,7 +107,6 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceServicesAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestStreamInferenceAction;
-import org.elasticsearch.xpack.inference.rest.RestUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService;
@@ -116,7 +118,7 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandler;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
@@ -126,6 +128,7 @@ import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
+import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.util.ArrayList;
@@ -145,7 +148,8 @@ public class InferencePlugin extends Plugin
         SystemIndexPlugin,
         MapperPlugin,
         SearchPlugin,
-        InternalSearchPlugin {
+        InternalSearchPlugin,
+        ClusterPlugin {
 
     /**
      * When this setting is true the verification check that
@@ -195,6 +199,7 @@ public class InferencePlugin extends Plugin
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionHandler<>(InferenceAction.INSTANCE, TransportInferenceAction.class),
+            new ActionHandler<>(InferenceActionProxy.INSTANCE, TransportInferenceActionProxy.class),
             new ActionHandler<>(GetInferenceModelAction.INSTANCE, TransportGetInferenceModelAction.class),
             new ActionHandler<>(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
             new ActionHandler<>(UpdateInferenceModelAction.INSTANCE, TransportUpdateInferenceModelAction.class),
@@ -226,8 +231,7 @@ public class InferencePlugin extends Plugin
             new RestUpdateInferenceModelAction(),
             new RestDeleteInferenceEndpointAction(),
             new RestGetInferenceDiagnosticsAction(),
-            new RestGetInferenceServicesAction(),
-            new RestUnifiedCompletionInferenceAction(threadPoolSetOnce)
+            new RestGetInferenceServicesAction()
         );
     }
 
@@ -270,14 +274,11 @@ public class InferencePlugin extends Plugin
         );
         elasicInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
 
-        ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
-        String elasticInferenceUrl = inferenceServiceSettings.getElasticInferenceServiceUrl();
+        var inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
+        inferenceServiceSettings.init(services.clusterService());
 
-        var elasticInferenceServiceComponentsInstance = new ElasticInferenceServiceComponents(elasticInferenceUrl);
-        elasticInferenceServiceComponents.set(elasticInferenceServiceComponentsInstance);
-
-        var authorizationHandler = new ElasticInferenceServiceAuthorizationHandler(
-            elasticInferenceServiceComponentsInstance.elasticInferenceServiceUrl(),
+        var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
+            inferenceServiceSettings.getElasticInferenceServiceUrl(),
             services.threadPool()
         );
 
@@ -286,7 +287,7 @@ public class InferencePlugin extends Plugin
                 context -> new ElasticInferenceService(
                     elasicInferenceServiceFactory.get(),
                     serviceComponents.get(),
-                    elasticInferenceServiceComponentsInstance,
+                    inferenceServiceSettings,
                     modelRegistry,
                     authorizationHandler
                 )
@@ -309,7 +310,7 @@ public class InferencePlugin extends Plugin
         }
         inferenceServiceRegistry.set(serviceRegistry);
 
-        var actionFilter = new ShardBulkInferenceActionFilter(services.clusterService(), serviceRegistry, modelRegistry);
+        var actionFilter = new ShardBulkInferenceActionFilter(services.clusterService(), serviceRegistry, modelRegistry, getLicenseState());
         shardBulkInferenceActionFilter.set(actionFilter);
 
         var meterRegistry = services.telemetryProvider().getMeterRegistry();
@@ -331,7 +332,6 @@ public class InferencePlugin extends Plugin
 
         // Add binding for interface -> implementation
         components.add(new PluginComponentBinding<>(InferenceServiceRateLimitCalculator.class, calculator));
-        components.add(calculator);
 
         return components;
     }
@@ -357,6 +357,7 @@ public class InferencePlugin extends Plugin
             context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get()),
             context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get()),
             context -> new JinaAIService(httpFactory.get(), serviceComponents.get()),
+            context -> new VoyageAIService(httpFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new
         );
     }
@@ -505,6 +506,15 @@ public class InferencePlugin extends Plugin
     @Override
     public Map<String, Highlighter> getHighlighters() {
         return Map.of(SemanticTextHighlighter.NAME, new SemanticTextHighlighter());
+    }
+
+    @Override
+    public void onNodeStarted() {
+        var registry = inferenceServiceRegistry.get();
+
+        if (registry != null) {
+            registry.onNodeStarted();
+        }
     }
 
     protected SSLService getSslService() {

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.ShardConfig;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -110,11 +110,7 @@ public abstract class FullTextFunction extends Function implements TranslationAw
      */
     public Object queryAsObject() {
         Object queryAsObject = query().fold(FoldContext.small() /* TODO remove me */);
-        if (queryAsObject instanceof BytesRef bytesRef) {
-            return bytesRef.utf8ToString();
-        }
-
-        return queryAsObject;
+        return BytesRefs.toString(queryAsObject);
     }
 
     @Override

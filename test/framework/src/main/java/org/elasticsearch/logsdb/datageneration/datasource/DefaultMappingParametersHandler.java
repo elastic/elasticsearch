@@ -11,9 +11,15 @@ package org.elasticsearch.logsdb.datageneration.datasource;
 
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -31,13 +37,40 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
         return new DataSourceResponse.LeafMappingParametersGenerator(switch (request.fieldType()) {
             case KEYWORD -> keywordMapping(request, map);
-            case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> plain(map);
+            case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> numberMapping(map, request.fieldType());
             case SCALED_FLOAT -> scaledFloatMapping(map);
+            case COUNTED_KEYWORD -> plain(Map.of("index", ESTestCase.randomBoolean()));
+            case BOOLEAN -> booleanMapping(map);
+            case DATE -> dateMapping(map);
         });
     }
 
     private Supplier<Map<String, Object>> plain(Map<String, Object> injected) {
         return () -> injected;
+    }
+
+    private Supplier<Map<String, Object>> numberMapping(Map<String, Object> injected, FieldType fieldType) {
+        return () -> {
+            if (ESTestCase.randomBoolean()) {
+                injected.put("ignore_malformed", ESTestCase.randomBoolean());
+            }
+            if (ESTestCase.randomDouble() <= 0.2) {
+                Number value = switch (fieldType) {
+                    case LONG -> ESTestCase.randomLong();
+                    case UNSIGNED_LONG -> ESTestCase.randomNonNegativeLong();
+                    case INTEGER -> ESTestCase.randomInt();
+                    case SHORT -> ESTestCase.randomShort();
+                    case BYTE -> ESTestCase.randomByte();
+                    case DOUBLE -> ESTestCase.randomDouble();
+                    case FLOAT, HALF_FLOAT -> ESTestCase.randomFloat();
+                    default -> throw new IllegalStateException("Unexpected field type");
+                };
+
+                injected.put("null_value", value);
+            }
+
+            return injected;
+        };
     }
 
     private Supplier<Map<String, Object>> keywordMapping(
@@ -63,6 +96,9 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             if (ESTestCase.randomDouble() <= 0.2) {
                 injected.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
             }
+            if (ESTestCase.randomDouble() <= 0.2) {
+                injected.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
+            }
 
             return injected;
         };
@@ -71,6 +107,61 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
     private Supplier<Map<String, Object>> scaledFloatMapping(Map<String, Object> injected) {
         return () -> {
             injected.put("scaling_factor", ESTestCase.randomFrom(10, 1000, 100000, 100.5));
+
+            if (ESTestCase.randomDouble() <= 0.2) {
+                injected.put("null_value", ESTestCase.randomDouble());
+            }
+
+            if (ESTestCase.randomBoolean()) {
+                injected.put("ignore_malformed", ESTestCase.randomBoolean());
+            }
+
+            return injected;
+        };
+    }
+
+    private Supplier<Map<String, Object>> booleanMapping(Map<String, Object> injected) {
+        return () -> {
+            if (ESTestCase.randomDouble() <= 0.2) {
+                injected.put("null_value", ESTestCase.randomFrom(true, false, "true", "false"));
+            }
+
+            if (ESTestCase.randomBoolean()) {
+                injected.put("ignore_malformed", ESTestCase.randomBoolean());
+            }
+
+            return injected;
+        };
+    }
+
+    // just a custom format, specific format does not matter
+    private static final String FORMAT = "yyyy_MM_dd_HH_mm_ss_n";
+
+    private Supplier<Map<String, Object>> dateMapping(Map<String, Object> injected) {
+        return () -> {
+            String format = null;
+            if (ESTestCase.randomBoolean()) {
+                format = FORMAT;
+                injected.put("format", format);
+            }
+
+            if (ESTestCase.randomDouble() <= 0.2) {
+                var instant = ESTestCase.randomInstantBetween(Instant.parse("2300-01-01T00:00:00Z"), Instant.parse("2350-01-01T00:00:00Z"));
+
+                if (format == null) {
+                    injected.put("null_value", instant.toEpochMilli());
+                } else {
+                    injected.put(
+                        "null_value",
+                        DateTimeFormatter.ofPattern(format, Locale.ROOT).withZone(ZoneId.from(ZoneOffset.UTC)).format(instant)
+                    );
+                }
+            }
+
+            if (ESTestCase.randomBoolean()) {
+                injected.put("ignore_malformed", ESTestCase.randomBoolean());
+            }
+
             return injected;
         };
     }

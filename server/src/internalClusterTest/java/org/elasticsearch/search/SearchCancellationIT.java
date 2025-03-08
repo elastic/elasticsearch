@@ -238,7 +238,6 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99929")
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
         // Have at least two nodes so that we have parallel execution of two request guaranteed even if max concurrent requests per node
         // are limited to 1
@@ -249,6 +248,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
         // Define (but don't run) the search request, expecting a partial shard failure. We will run it later.
         Thread searchThread = new Thread(() -> {
+            logger.info("Executing search");
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
                 prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
@@ -268,7 +268,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
                 if (letOneShardProceed.compareAndSet(false, true)) {
                     // Let one shard continue.
                 } else {
-                    safeAwait(shardTaskLatch); // Block the other shards.
+                    safeAwait(shardTaskLatch, TimeValue.timeValueSeconds(30)); // Block the other shards.
                 }
             });
         }
@@ -286,11 +286,13 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         }
 
         // Now run the search request.
+        logger.info("Starting search thread");
         searchThread.start();
 
         try {
             assertBusy(() -> {
                 final List<SearchTask> coordinatorSearchTask = getCoordinatorSearchTasks();
+                logger.info("Checking tasks: {}", coordinatorSearchTask);
                 assertThat("The Coordinator should have one SearchTask.", coordinatorSearchTask, hasSize(1));
                 assertTrue("The SearchTask should be cancelled.", coordinatorSearchTask.get(0).isCancelled());
                 for (var shardQueryTask : getShardQueryTasks()) {

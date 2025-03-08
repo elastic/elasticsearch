@@ -33,7 +33,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -128,6 +127,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private Boolean includeCCSMetadata = null;
 
         private CheckedConsumer<XContentBuilder, IOException> filter;
+        private Boolean allPartialResults = null;
 
         public RequestObjectBuilder() throws IOException {
             this(randomFrom(XContentType.values()));
@@ -202,6 +202,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder filter(CheckedConsumer<XContentBuilder, IOException> filter) {
             this.filter = filter;
+            return this;
+        }
+
+        public RequestObjectBuilder allPartialResults(boolean allPartialResults) {
+            this.allPartialResults = allPartialResults;
             return this;
         }
 
@@ -660,10 +665,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testNamedParamsForIdentifierAndIdentifierPatterns() throws IOException {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         bulkLoadTestData(10);
         // positive
         var query = requestObjectBuilder().query(
@@ -769,8 +770,36 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             );
             error = re.getMessage();
             assertThat(error, containsString("ParsingException"));
-            assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {'dissect', 'drop'"));
+            assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {"));
+            assertThat(error, containsString("'dissect', 'eval', 'grok', 'limit', 'sort'"));
         }
+    }
+
+    public void testErrorMessageForMissingParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(requestObjectBuilder().query("from idx | where x == ?n1").params("[]"))
+        );
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", ""),
+            containsString("line 1:23: Unknown query parameter [n1]")
+        );
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(requestObjectBuilder().query("from idx | where x == ?n1 and y == ?n2").params("[{\"n\" : \"v\"}]"))
+        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", ""), containsString("""
+            line 1:23: Unknown query parameter [n1], did you mean [n]?; line 1:36: Unknown query parameter [n2], did you mean [n]?"""));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(requestObjectBuilder().query("from idx | where x == ?n1 and y == ?n2").params("[{\"n1\" : \"v1\"}]"))
+        );
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", ""),
+            containsString("line 1:36: Unknown query parameter [n2], did you mean [n1]")
+        );
     }
 
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {
@@ -1128,6 +1157,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         requestObject.build();
         Request request = prepareRequest(mode);
         String mediaType = attachBody(requestObject, request);
+        if (requestObject.allPartialResults != null) {
+            request.addParameter("allow_partial_results", String.valueOf(requestObject.allPartialResults));
+        }
 
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves

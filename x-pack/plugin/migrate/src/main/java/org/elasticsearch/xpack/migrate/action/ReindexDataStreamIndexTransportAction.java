@@ -24,7 +24,9 @@ import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -44,6 +46,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -51,12 +54,15 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
+import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
 
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.METADATA;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.READ_ONLY;
 
 public class ReindexDataStreamIndexTransportAction extends HandledTransportAction<
     ReindexDataStreamIndexAction.Request,
@@ -121,10 +127,11 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         ReindexDataStreamIndexAction.Request request,
         ActionListener<ReindexDataStreamIndexAction.Response> listener
     ) {
+        var project = clusterService.state().projectState();
         var sourceIndexName = request.getSourceIndex();
         var destIndexName = generateDestIndexName(sourceIndexName);
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        IndexMetadata sourceIndex = clusterService.state().getMetadata().index(sourceIndexName);
+        IndexMetadata sourceIndex = project.metadata().index(sourceIndexName);
         if (sourceIndex == null) {
             listener.onFailure(new ResourceNotFoundException("source index [{}] does not exist", sourceIndexName));
             return;
@@ -132,7 +139,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
 
         Settings settingsBefore = sourceIndex.getSettings();
 
-        var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterService.state().metadata(), false);
+        var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(project.metadata(), false);
         if (hasOldVersion.test(sourceIndex.getIndex()) == false) {
             logger.warn(
                 "Migrating index [{}] with version [{}] is unnecessary as its version is not before [{}]",
@@ -142,26 +149,19 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             );
         }
 
-        if (settingsBefore.getAsBoolean(IndexMetadata.SETTING_BLOCKS_READ, false)) {
-            var errorMessage = String.format(Locale.ROOT, "Cannot reindex index [%s] which has a read block.", destIndexName);
-            listener.onFailure(new ElasticsearchException(errorMessage));
-            return;
-        }
-        if (settingsBefore.getAsBoolean(IndexMetadata.SETTING_BLOCKS_METADATA, false)) {
-            var errorMessage = String.format(Locale.ROOT, "Cannot reindex index [%s] which has a metadata block.", destIndexName);
-            listener.onFailure(new ElasticsearchException(errorMessage));
-            return;
-        }
         final boolean wasClosed = isClosed(sourceIndex);
-        SubscribableListener.<AcknowledgedResponse>newForked(l -> setBlockWrites(sourceIndexName, l, taskId))
+        SubscribableListener.<AcknowledgedResponse>newForked(l -> removeMetadataBlocks(sourceIndexName, taskId, l))
             .<OpenIndexResponse>andThen(l -> openIndexIfClosed(sourceIndexName, wasClosed, l, taskId))
+            .<AcknowledgedResponse>andThen(l -> setReadOnly(sourceIndexName, l, taskId))
             .<BroadcastResponse>andThen(l -> refresh(sourceIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l, taskId))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> copyOldSourceSettingsToDest(settingsBefore, destIndexName, l, taskId))
+            .<AcknowledgedResponse>andThen(l -> copyIndexMetadataToDest(sourceIndexName, destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> sanityCheck(sourceIndexName, destIndexName, l, taskId))
             .<CloseIndexResponse>andThen(l -> closeIndexIfWasClosed(destIndexName, wasClosed, l, taskId))
+            .<AcknowledgedResponse>andThen(l -> removeAPIBlocks(sourceIndexName, taskId, l, READ_ONLY))
             .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName))
             .addListener(listener);
     }
@@ -197,9 +197,9 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         return indexMetadata.getState().equals(IndexMetadata.State.CLOSE);
     }
 
-    private void setBlockWrites(String sourceIndexName, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
-        logger.debug("Setting write block on source index [{}]", sourceIndexName);
-        addBlockToIndex(WRITE, sourceIndexName, new ActionListener<>() {
+    private void setReadOnly(String sourceIndexName, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
+        logger.debug("Setting read-only on source index [{}]", sourceIndexName);
+        addBlockToIndex(READ_ONLY, sourceIndexName, new ActionListener<>() {
             @Override
             public void onResponse(AddIndexBlockResponse response) {
                 if (response.isAcknowledged()) {
@@ -250,6 +250,8 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         var settingsOverride = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+            // remove lifecycle so that ILM does not start processing before the index is added to data stream
+            .putNull(IndexMetadata.LIFECYCLE_NAME)
             .build();
 
         var request = new CreateIndexFromSourceAction.Request(
@@ -269,13 +271,41 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         logger.debug("Reindex to destination index [{}] from source index [{}]", destIndexName, sourceIndexName);
         var reindexRequest = new ReindexRequest();
         reindexRequest.setSourceIndices(sourceIndexName);
+        reindexRequest.setDestPipeline(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME);
         reindexRequest.getSearchRequest().allowPartialSearchResults(false);
         reindexRequest.getSearchRequest().source().fetchSource(true);
         reindexRequest.setDestIndex(destIndexName);
         reindexRequest.setParentTask(parentTaskId);
         reindexRequest.setRequestsPerSecond(clusterService.getClusterSettings().get(REINDEX_MAX_REQUESTS_PER_SECOND_SETTING));
         reindexRequest.setSlices(0); // equivalent to slices=auto in rest api
-        client.execute(ReindexAction.INSTANCE, reindexRequest, listener);
+        // Since we delete the source index on success, we want to fail the whole job if there are _any_ documents that fail to reindex:
+        ActionListener<BulkByScrollResponse> checkForFailuresListener = ActionListener.wrap(bulkByScrollResponse -> {
+            if (bulkByScrollResponse.getSearchFailures().isEmpty() == false) {
+                ScrollableHitSource.SearchFailure firstSearchFailure = bulkByScrollResponse.getSearchFailures().get(0);
+                listener.onFailure(
+                    new ElasticsearchException(
+                        "Failure reading data from {} caused by {}",
+                        firstSearchFailure.getReason(),
+                        sourceIndexName,
+                        firstSearchFailure.getReason().getMessage()
+                    )
+                );
+            } else if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
+                BulkItemResponse.Failure firstBulkFailure = bulkByScrollResponse.getBulkFailures().get(0);
+                listener.onFailure(
+                    new ElasticsearchException(
+                        "Failure loading data from {} into {} caused by {}",
+                        firstBulkFailure.getCause(),
+                        sourceIndexName,
+                        destIndexName,
+                        firstBulkFailure.getCause().getMessage()
+                    )
+                );
+            } else {
+                listener.onResponse(bulkByScrollResponse);
+            }
+        }, listener::onFailure);
+        client.execute(ReindexAction.INSTANCE, reindexRequest, checkForFailuresListener);
     }
 
     private void updateSettings(
@@ -301,6 +331,24 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         copySettingOrUnset(settingsBefore, settings, IndexMetadata.SETTING_NUMBER_OF_REPLICAS);
         copySettingOrUnset(settingsBefore, settings, IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey());
         updateSettings(destIndexName, settings, listener, parentTaskId);
+    }
+
+    private void copyIndexMetadataToDest(
+        String sourceIndexName,
+        String destIndexName,
+        ActionListener<AcknowledgedResponse> listener,
+        TaskId parentTaskId
+    ) {
+        logger.debug("Copying index metadata to destination index [{}] from source index [{}]", destIndexName, sourceIndexName);
+        var request = new CopyLifecycleIndexMetadataAction.Request(TimeValue.MAX_VALUE, sourceIndexName, destIndexName);
+        request.setParentTask(parentTaskId);
+        var errorMessage = String.format(
+            Locale.ROOT,
+            "Failed to acknowledge copying index metadata from source [%s] to dest [%s]",
+            sourceIndexName,
+            destIndexName
+        );
+        client.execute(CopyLifecycleIndexMetadataAction.INSTANCE, request, failIfNotAcknowledged(listener, errorMessage));
     }
 
     private static void copySettingOrUnset(Settings settingsBefore, Settings.Builder builder, String setting) {
@@ -342,8 +390,32 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         TaskId parentTaskId
     ) {
         AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(block, index);
+        addIndexBlockRequest.markVerified(false);
         addIndexBlockRequest.setParentTask(parentTaskId);
         client.admin().indices().execute(TransportAddIndexBlockAction.TYPE, addIndexBlockRequest, listener);
+    }
+
+    /**
+     * All metadata blocks need to be removed at the start for the following reasons:
+     * 1) If the source index has a metadata only block, the read-only block can't be added.
+     * 2) If the source index is read-only and closed, it can't be opened.
+     */
+    private void removeMetadataBlocks(String indexName, TaskId parentTaskId, ActionListener<AcknowledgedResponse> listener) {
+        logger.debug("Removing metadata blocks from index [{}]", indexName);
+        removeAPIBlocks(indexName, parentTaskId, listener, METADATA, READ_ONLY);
+    }
+
+    private void removeAPIBlocks(
+        String indexName,
+        TaskId parentTaskId,
+        ActionListener<AcknowledgedResponse> listener,
+        IndexMetadata.APIBlock... blocks
+    ) {
+        Settings.Builder settings = Settings.builder();
+        Arrays.stream(blocks).forEach(b -> settings.putNull(b.settingName()));
+        var updateSettingsRequest = new UpdateSettingsRequest(settings.build(), indexName);
+        updateSettingsRequest.setParentTask(parentTaskId);
+        client.execute(TransportUpdateSettingsAction.TYPE, updateSettingsRequest, listener);
     }
 
     private void getIndexDocCount(String index, TaskId parentTaskId, ActionListener<Long> listener) {
@@ -367,26 +439,24 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     ) {
         if (Assertions.ENABLED) {
             logger.debug("Comparing source [{}] and dest [{}] doc counts", sourceIndexName, destIndexName);
-            client.execute(
-                RefreshAction.INSTANCE,
-                new RefreshRequest(destIndexName),
-                listener.delegateFailureAndWrap((delegate, ignored) -> {
-                    getIndexDocCount(sourceIndexName, parentTaskId, delegate.delegateFailureAndWrap((delegate1, sourceCount) -> {
-                        getIndexDocCount(destIndexName, parentTaskId, delegate1.delegateFailureAndWrap((delegate2, destCount) -> {
-                            assert Objects.equals(sourceCount, destCount)
-                                : String.format(
-                                    Locale.ROOT,
-                                    "source index [%s] has %d docs and dest [%s] has %d docs",
-                                    sourceIndexName,
-                                    sourceCount,
-                                    destIndexName,
-                                    destCount
-                                );
-                            delegate2.onResponse(null);
-                        }));
+            RefreshRequest refreshRequest = new RefreshRequest(destIndexName);
+            refreshRequest.setParentTask(parentTaskId);
+            client.execute(RefreshAction.INSTANCE, refreshRequest, listener.delegateFailureAndWrap((delegate, ignored) -> {
+                getIndexDocCount(sourceIndexName, parentTaskId, delegate.delegateFailureAndWrap((delegate1, sourceCount) -> {
+                    getIndexDocCount(destIndexName, parentTaskId, delegate1.delegateFailureAndWrap((delegate2, destCount) -> {
+                        assert Objects.equals(sourceCount, destCount)
+                            : String.format(
+                                Locale.ROOT,
+                                "source index [%s] has %d docs and dest [%s] has %d docs",
+                                sourceIndexName,
+                                sourceCount,
+                                destIndexName,
+                                destCount
+                            );
+                        delegate2.onResponse(null);
                     }));
-                })
-            );
+                }));
+            }));
         } else {
             listener.onResponse(null);
         }

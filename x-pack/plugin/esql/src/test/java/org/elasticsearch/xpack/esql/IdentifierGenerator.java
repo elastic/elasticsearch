@@ -78,14 +78,15 @@ public class IdentifierGenerator {
             index.insert(0, "-");
         }
 
-        var pattern = maybeQuote(index.toString());
-        if (canAdd(Features.CROSS_CLUSTER, features)) {
-            var cluster = randomIdentifier();
-            pattern = maybeQuote(cluster + ":" + pattern);
-        }
-
-        if (pattern.contains("|") && pattern.contains("\"") == false) {
+        var pattern = index.toString();
+        if (pattern.contains("|")) {
             pattern = quote(pattern);
+        }
+        pattern = maybeQuote(pattern);
+
+        if (canAdd(Features.CROSS_CLUSTER, features)) {
+            var cluster = maybeQuote(randomIdentifier());
+            pattern = maybeQuote(cluster + ":" + pattern);
         }
 
         return pattern;

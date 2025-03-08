@@ -65,31 +65,31 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
                 .parse(parser);
 
             // Assertions to verify the parsed object
-            assertEquals("example_id", chunk.getId());
-            assertEquals("example_model", chunk.getModel());
-            assertEquals("chat.completion.chunk", chunk.getObject());
-            assertNotNull(chunk.getUsage());
-            assertEquals(50, chunk.getUsage().completionTokens());
-            assertEquals(20, chunk.getUsage().promptTokens());
-            assertEquals(70, chunk.getUsage().totalTokens());
+            assertEquals("example_id", chunk.id());
+            assertEquals("example_model", chunk.model());
+            assertEquals("chat.completion.chunk", chunk.object());
+            assertNotNull(chunk.usage());
+            assertEquals(50, chunk.usage().completionTokens());
+            assertEquals(20, chunk.usage().promptTokens());
+            assertEquals(70, chunk.usage().totalTokens());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.getChoices();
+            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.choices();
             assertEquals(1, choices.size());
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice choice = choices.get(0);
-            assertEquals("example_content", choice.delta().getContent());
-            assertNull(choice.delta().getRefusal());
-            assertEquals("assistant", choice.delta().getRole());
+            assertEquals("example_content", choice.delta().content());
+            assertNull(choice.delta().refusal());
+            assertEquals("assistant", choice.delta().role());
             assertEquals("stop", choice.finishReason());
             assertEquals(0, choice.index());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = choice.delta().getToolCalls();
+            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = choice.delta().toolCalls();
             assertEquals(1, toolCalls.size());
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall toolCall = toolCalls.get(0);
-            assertEquals(1, toolCall.getIndex());
-            assertEquals("tool_call_id", toolCall.getId());
-            assertEquals("example_function_name", toolCall.getFunction().getName());
-            assertEquals("example_arguments", toolCall.getFunction().getArguments());
-            assertEquals("function", toolCall.getType());
+            assertEquals(1, toolCall.index());
+            assertEquals("tool_call_id", toolCall.id());
+            assertEquals("example_function_name", toolCall.function().name());
+            assertEquals("example_arguments", toolCall.function().arguments());
+            assertEquals("function", toolCall.type());
         } catch (IOException e) {
             fail();
         }
@@ -143,40 +143,40 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
                 .parse(parser);
 
             // Assertions to verify the parsed object
-            assertEquals("example_id", chunk.getId());
-            assertEquals("example_model", chunk.getModel());
-            assertEquals("chat.completion.chunk", chunk.getObject());
-            assertNull(chunk.getUsage());
+            assertEquals("example_id", chunk.id());
+            assertEquals("example_model", chunk.model());
+            assertEquals("chat.completion.chunk", chunk.object());
+            assertNull(chunk.usage());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.getChoices();
+            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.choices();
             assertEquals(2, choices.size());
 
             // First choice assertions
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice firstChoice = choices.get(0);
-            assertNull(firstChoice.delta().getContent());
-            assertNull(firstChoice.delta().getRefusal());
-            assertEquals("assistant", firstChoice.delta().getRole());
-            assertTrue(firstChoice.delta().getToolCalls().isEmpty());
+            assertNull(firstChoice.delta().content());
+            assertNull(firstChoice.delta().refusal());
+            assertEquals("assistant", firstChoice.delta().role());
+            assertTrue(firstChoice.delta().toolCalls().isEmpty());
             assertNull(firstChoice.finishReason());
             assertEquals(0, firstChoice.index());
 
             // Second choice assertions
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice secondChoice = choices.get(1);
-            assertEquals("example_content", secondChoice.delta().getContent());
-            assertEquals("example_refusal", secondChoice.delta().getRefusal());
-            assertEquals("user", secondChoice.delta().getRole());
+            assertEquals("example_content", secondChoice.delta().content());
+            assertEquals("example_refusal", secondChoice.delta().refusal());
+            assertEquals("user", secondChoice.delta().role());
             assertEquals("stop", secondChoice.finishReason());
             assertEquals(1, secondChoice.index());
 
             List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = secondChoice.delta()
-                .getToolCalls();
+                .toolCalls();
             assertEquals(1, toolCalls.size());
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall toolCall = toolCalls.get(0);
-            assertEquals(1, toolCall.getIndex());
-            assertNull(toolCall.getId());
-            assertEquals("example_function_name", toolCall.getFunction().getName());
-            assertNull(toolCall.getFunction().getArguments());
-            assertEquals("function", toolCall.getType());
+            assertEquals(1, toolCall.index());
+            assertNull(toolCall.id());
+            assertEquals("example_function_name", toolCall.function().name());
+            assertNull(toolCall.function().arguments());
+            assertEquals("function", toolCall.type());
         } catch (IOException e) {
             fail();
         }
@@ -221,31 +221,31 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
                 .parse(parser);
 
             // Assertions to verify the parsed object
-            assertEquals(chatCompletionChunkId, chunk.getId());
-            assertEquals(chatCompletionChunkModel, chunk.getModel());
-            assertEquals("chat.completion.chunk", chunk.getObject());
-            assertNotNull(chunk.getUsage());
-            assertEquals(usageCompletionTokens, chunk.getUsage().completionTokens());
-            assertEquals(usagePromptTokens, chunk.getUsage().promptTokens());
-            assertEquals(usageTotalTokens, chunk.getUsage().totalTokens());
+            assertEquals(chatCompletionChunkId, chunk.id());
+            assertEquals(chatCompletionChunkModel, chunk.model());
+            assertEquals("chat.completion.chunk", chunk.object());
+            assertNotNull(chunk.usage());
+            assertEquals(usageCompletionTokens, chunk.usage().completionTokens());
+            assertEquals(usagePromptTokens, chunk.usage().promptTokens());
+            assertEquals(usageTotalTokens, chunk.usage().totalTokens());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.getChoices();
+            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.choices();
             assertEquals(1, choices.size());
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice choice = choices.get(0);
-            assertEquals(choiceContent, choice.delta().getContent());
-            assertNull(choice.delta().getRefusal());
-            assertEquals(choiceRole, choice.delta().getRole());
+            assertEquals(choiceContent, choice.delta().content());
+            assertNull(choice.delta().refusal());
+            assertEquals(choiceRole, choice.delta().role());
             assertEquals(choiceFinishReason, choice.finishReason());
             assertEquals(choiceIndex, choice.index());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = choice.delta().getToolCalls();
+            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall> toolCalls = choice.delta().toolCalls();
             assertEquals(1, toolCalls.size());
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall toolCall = toolCalls.get(0);
-            assertEquals(toolCallIndex, toolCall.getIndex());
-            assertEquals(toolCallId, toolCall.getId());
-            assertEquals(toolCallFunctionName, toolCall.getFunction().getName());
-            assertEquals(toolCallFunctionArguments, toolCall.getFunction().getArguments());
-            assertEquals(toolCallType, toolCall.getType());
+            assertEquals(toolCallIndex, toolCall.index());
+            assertEquals(toolCallId, toolCall.id());
+            assertEquals(toolCallFunctionName, toolCall.function().name());
+            assertEquals(toolCallFunctionArguments, toolCall.function().arguments());
+            assertEquals(toolCallType, toolCall.type());
         }
     }
 
@@ -273,20 +273,20 @@ public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
                 .parse(parser);
 
             // Assertions to verify the parsed object
-            assertEquals(chatCompletionChunkId, chunk.getId());
-            assertEquals(chatCompletionChunkModel, chunk.getModel());
-            assertEquals("chat.completion.chunk", chunk.getObject());
-            assertNull(chunk.getUsage());
+            assertEquals(chatCompletionChunkId, chunk.id());
+            assertEquals(chatCompletionChunkModel, chunk.model());
+            assertEquals("chat.completion.chunk", chunk.object());
+            assertNull(chunk.usage());
 
-            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.getChoices();
+            List<StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice> choices = chunk.choices();
             assertEquals(1, choices.size());
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice choice = choices.get(0);
-            assertNull(choice.delta().getContent());
-            assertNull(choice.delta().getRefusal());
-            assertNull(choice.delta().getRole());
+            assertNull(choice.delta().content());
+            assertNull(choice.delta().refusal());
+            assertNull(choice.delta().role());
             assertNull(choice.finishReason());
             assertEquals(choiceIndex, choice.index());
-            assertTrue(choice.delta().getToolCalls().isEmpty());
+            assertTrue(choice.delta().toolCalls().isEmpty());
         }
     }
 

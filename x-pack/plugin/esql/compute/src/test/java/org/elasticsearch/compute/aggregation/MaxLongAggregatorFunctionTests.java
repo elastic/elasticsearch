@@ -26,8 +26,8 @@ public class MaxLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MaxLongAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MaxLongAggregatorFunctionSupplier();
     }
 
     @Override

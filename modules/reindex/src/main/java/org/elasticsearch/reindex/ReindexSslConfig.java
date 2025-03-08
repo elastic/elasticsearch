@@ -106,7 +106,7 @@ public class ReindexSslConfig {
                 return settings.getAsList(key);
             }
         };
-        configuration = loader.load(environment.configFile());
+        configuration = loader.load(environment.configDir());
         reload();
 
         final FileChangesListener listener = new FileChangesListener() {

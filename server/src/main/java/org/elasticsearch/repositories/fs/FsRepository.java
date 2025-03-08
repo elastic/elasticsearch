@@ -92,13 +92,13 @@ public class FsRepository extends BlobStoreRepository {
             );
             throw new RepositoryException(metadata.name(), "missing location");
         }
-        Path locationFile = environment.resolveRepoFile(location);
+        Path locationFile = environment.resolveRepoDir(location);
         if (locationFile == null) {
-            if (environment.repoFiles().length > 0) {
+            if (environment.repoDirs().length > 0) {
                 logger.warn(
                     "The specified location [{}] doesn't start with any " + "repository paths specified by the path.repo setting: [{}] ",
                     location,
-                    environment.repoFiles()
+                    environment.repoDirs()
                 );
                 throw new RepositoryException(
                     metadata.name(),
@@ -127,7 +127,7 @@ public class FsRepository extends BlobStoreRepository {
     @Override
     protected BlobStore createBlobStore() throws Exception {
         final String location = REPOSITORIES_LOCATION_SETTING.get(getMetadata().settings());
-        final Path locationFile = environment.resolveRepoFile(location);
+        final Path locationFile = environment.resolveRepoDir(location);
         return new FsBlobStore(bufferSize, locationFile, isReadOnly());
     }
 

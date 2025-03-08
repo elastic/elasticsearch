@@ -28,8 +28,8 @@ public class ValuesLongAggregatorFunctionTests extends AggregatorFunctionTestCas
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new ValuesLongAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new ValuesLongAggregatorFunctionSupplier();
     }
 
     @Override

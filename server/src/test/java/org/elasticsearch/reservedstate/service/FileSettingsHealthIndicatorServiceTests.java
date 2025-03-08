@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
@@ -21,6 +22,7 @@ import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
+import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.DESCRIPTION_LENGTH_LIMIT_KEY;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.FAILURE_SYMPTOM;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.INACTIVE_SYMPTOM;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.NO_CHANGES_SYMPTOM;
@@ -37,7 +39,7 @@ public class FileSettingsHealthIndicatorServiceTests extends ESTestCase {
 
     @Before
     public void initialize() {
-        healthIndicatorService = new FileSettingsHealthIndicatorService();
+        healthIndicatorService = new FileSettingsHealthIndicatorService(Settings.EMPTY);
     }
 
     public void testInitiallyGreen() {}
@@ -99,6 +101,30 @@ public class FileSettingsHealthIndicatorServiceTests extends ESTestCase {
         assertEquals(
             new HealthIndicatorResult("file_settings", GREEN, SUCCESS_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
             healthIndicatorService.calculate(false, null)
+        );
+    }
+
+    public void testDescriptionIsTruncated() {
+        checkTruncatedDescription(9, "123456789", "123456789");
+        checkTruncatedDescription(8, "123456789", "1234567…");
+        checkTruncatedDescription(1, "12", "…");
+    }
+
+    private void checkTruncatedDescription(int lengthLimit, String description, String expectedTruncatedDescription) {
+        var service = new FileSettingsHealthIndicatorService(Settings.builder().put(DESCRIPTION_LENGTH_LIMIT_KEY, lengthLimit).build());
+        service.startOccurred();
+        service.changeOccurred();
+        service.failureOccurred(description);
+        assertEquals(
+            new HealthIndicatorResult(
+                "file_settings",
+                YELLOW,
+                FAILURE_SYMPTOM,
+                new SimpleHealthIndicatorDetails(Map.of("failure_streak", 1L, "most_recent_failure", expectedTruncatedDescription)),
+                STALE_SETTINGS_IMPACT,
+                List.of()
+            ),
+            service.calculate(false, null)
         );
     }
 }

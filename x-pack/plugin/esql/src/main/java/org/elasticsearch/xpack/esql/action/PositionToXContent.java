@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -25,6 +26,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
@@ -148,8 +150,14 @@ abstract class PositionToXContent {
                     return builder.value(versionToString(val));
                 }
             };
-            // TODO: Add implementation for aggregate_metric_double
-            case NULL, AGGREGATE_METRIC_DOUBLE -> new PositionToXContent(block) {
+            case AGGREGATE_METRIC_DOUBLE -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    return builder.value(aggregateMetricDoubleBlockToString((CompositeBlock) block, valueIndex));
+                }
+            };
+            case NULL -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {

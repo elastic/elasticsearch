@@ -42,7 +42,6 @@ import java.net.URISyntaxException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -149,8 +148,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[1];
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(3);
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
@@ -163,15 +161,14 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is(format("Failed to send Azure OpenAI embeddings request to [%s]", getUrl(webServer))));
+        assertThat(thrownException.getMessage(), is("Failed to send Azure OpenAI embeddings request. Cause: failed"));
     }
 
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled_WhenUrlIsNull() {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[1];
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(3);
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
@@ -184,7 +181,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is(format("Failed to send Azure OpenAI embeddings request to [%s]", getUrl(webServer))));
+        assertThat(thrownException.getMessage(), is("Failed to send Azure OpenAI embeddings request. Cause: failed"));
     }
 
     public void testExecute_ThrowsException() {
@@ -198,7 +195,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is(format("Failed to send Azure OpenAI embeddings request to [%s]", getUrl(webServer))));
+        assertThat(thrownException.getMessage(), is("Failed to send Azure OpenAI embeddings request. Cause: failed"));
     }
 
     private ExecutableAction createAction(
@@ -215,7 +212,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
             model = createModel(resourceName, deploymentId, apiVersion, user, apiKey, null, inferenceEntityId);
             model.setUri(new URI(getUrl(webServer)));
             var requestCreator = new AzureOpenAiEmbeddingsRequestManager(model, TruncatorTests.createTruncator(), threadPool);
-            var errorMessage = constructFailedToSendRequestMessage(model.getUri(), "Azure OpenAI embeddings");
+            var errorMessage = constructFailedToSendRequestMessage("Azure OpenAI embeddings");
             return new SenderExecutableAction(sender, requestCreator, errorMessage);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);

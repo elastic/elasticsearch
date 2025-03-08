@@ -27,7 +27,7 @@ import org.elasticsearch.action.search.CanMatchNodeResponse;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -126,6 +126,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
@@ -273,6 +274,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    /**
+     * The size of the buffer used for memory accounting.
+     * This buffer is used to locally track the memory accummulated during the execution of
+     * a search request before submitting the accumulated value to the circuit breaker.
+     */
+    public static final Setting<ByteSizeValue> MEMORY_ACCOUNTING_BUFFER_SIZE = Setting.byteSizeSetting(
+        "search.memory_accounting_buffer_size",
+        ByteSizeValue.of(1, ByteSizeUnit.MB),
+        ByteSizeValue.of(1, ByteSizeUnit.MB),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
     private static final StackTraceElement[] EMPTY_STACK_TRACE_ARRAY = new StackTraceElement[0];
@@ -290,6 +305,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final BigArrays bigArrays;
 
     private final FetchPhase fetchPhase;
+    private final CircuitBreaker circuitBreaker;
     private volatile Executor searchExecutor;
     private volatile boolean enableQueryPhaseParallelCollection;
 
@@ -308,6 +324,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile int maxOpenScrollContext;
 
     private volatile boolean enableRewriteAggsToFilterByFilter;
+
+    private volatile long memoryAccountingBufferSize;
 
     private final Cancellable keepAliveReaper;
 
@@ -340,11 +358,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.scriptService = scriptService;
         this.bigArrays = bigArrays;
         this.fetchPhase = fetchPhase;
-        this.multiBucketConsumerService = new MultiBucketConsumerService(
-            clusterService,
-            settings,
-            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
-        );
+        circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+        this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings, circuitBreaker);
         this.executorSelector = executorSelector;
         this.tracer = tracer;
 
@@ -389,6 +404,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
+
+        memoryAccountingBufferSize = MEMORY_ACCOUNTING_BUFFER_SIZE.get(settings).getBytes();
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, newValue -> this.memoryAccountingBufferSize = newValue.getBytes());
     }
 
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
@@ -581,33 +600,36 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public void executeQueryPhase(ShardSearchRequest request, SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
-        ActionListener<SearchPhaseResult> finalListener = maybeWrapListenerForStackTrace(listener, request.getChannelVersion(), threadPool);
+    public void executeQueryPhase(ShardSearchRequest request, CancellableTask task, ActionListener<SearchPhaseResult> listener) {
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
-        rewriteAndFetchShardRequest(shard, request, finalListener.delegateFailure((l, orig) -> {
-            // check if we can shortcut the query phase entirely.
-            if (orig.canReturnNullResponseIfMatchNoDocs()) {
-                assert orig.scroll() == null;
-                ShardSearchRequest clone = new ShardSearchRequest(orig);
-                CanMatchContext canMatchContext = new CanMatchContext(
-                    clone,
-                    indicesService::indexServiceSafe,
-                    this::findReaderContext,
-                    defaultKeepAlive,
-                    maxKeepAlive
-                );
-                CanMatchShardResponse canMatchResp = canMatch(canMatchContext, false);
-                if (canMatchResp.canMatch() == false) {
-                    finalListener.onResponse(QuerySearchResult.nullInstance());
-                    return;
+        rewriteAndFetchShardRequest(
+            shard,
+            request,
+            maybeWrapListenerForStackTrace(listener, request.getChannelVersion(), threadPool).delegateFailure((l, orig) -> {
+                // check if we can shortcut the query phase entirely.
+                if (orig.canReturnNullResponseIfMatchNoDocs()) {
+                    assert orig.scroll() == null;
+                    ShardSearchRequest clone = new ShardSearchRequest(orig);
+                    CanMatchContext canMatchContext = new CanMatchContext(
+                        clone,
+                        indicesService::indexServiceSafe,
+                        this::findReaderContext,
+                        defaultKeepAlive,
+                        maxKeepAlive
+                    );
+                    CanMatchShardResponse canMatchResp = canMatch(canMatchContext, false);
+                    if (canMatchResp.canMatch() == false) {
+                        l.onResponse(QuerySearchResult.nullInstance());
+                        return;
+                    }
                 }
-            }
-            // TODO: i think it makes sense to always do a canMatch here and
-            // return an empty response (not null response) in case canMatch is false?
-            ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task), l);
-        }));
+                // TODO: i think it makes sense to always do a canMatch here and
+                // return an empty response (not null response) in case canMatch is false?
+                ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task), l);
+            })
+        );
     }
 
     private <T extends RefCounted> void ensureAfterSeqNoRefreshed(
@@ -729,7 +751,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * It is the responsibility of the caller to ensure that the ref count is correctly decremented
      * when the object is no longer needed.
      */
-    private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchShardTask task) throws Exception {
+    private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, CancellableTask task) throws Exception {
         final ReaderContext readerContext = createOrGetReaderContext(request);
         try (
             Releasable scope = tracer.withScope(task);
@@ -953,7 +975,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
-    public void executeFetchPhase(ShardFetchRequest request, SearchShardTask task, ActionListener<FetchSearchResult> listener) {
+    public void executeFetchPhase(ShardFetchRequest request, CancellableTask task, ActionListener<FetchSearchResult> listener) {
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
@@ -991,7 +1013,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }));
     }
 
-    protected void checkCancelled(SearchShardTask task) {
+    protected void checkCancelled(CancellableTask task) {
         // check cancellation as early as possible, as it avoids opening up a Lucene reader on FrozenEngine
         try {
             task.ensureNotCancelled();
@@ -1122,7 +1144,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     protected SearchContext createContext(
         ReaderContext readerContext,
         ShardSearchRequest request,
-        SearchShardTask task,
+        CancellableTask task,
         ResultsType resultsType,
         boolean includeAggregations
     ) throws IOException {
@@ -1191,7 +1213,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searchExecutor,
                 resultsType,
                 enableQueryPhaseParallelCollection,
-                minimumDocsPerSlice
+                minimumDocsPerSlice,
+                memoryAccountingBufferSize
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
@@ -1680,7 +1703,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public AliasFilter buildAliasFilter(ClusterState state, String index, Set<ResolvedExpression> resolvedExpressions) {
+    public AliasFilter buildAliasFilter(ProjectState state, String index, Set<ResolvedExpression> resolvedExpressions) {
         return indicesService.buildAliasFilter(state, index, resolvedExpressions);
     }
 

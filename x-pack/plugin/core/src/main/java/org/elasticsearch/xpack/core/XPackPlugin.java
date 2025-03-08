@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -296,11 +297,15 @@ public class XPackPlugin extends XPackClientPlugin
     private static boolean alreadyContainsXPackCustomMetadata(ClusterState clusterState) {
         final Metadata metadata = clusterState.metadata();
         return metadata.custom(LicensesMetadata.TYPE) != null
-            || metadata.custom(MlMetadata.TYPE) != null
-            || metadata.custom(WatcherMetadata.TYPE) != null
-            || RoleMappingMetadata.getFromClusterState(clusterState).isEmpty() == false
             || clusterState.custom(TokenMetadata.TYPE) != null
-            || metadata.custom(TransformMetadata.TYPE) != null;
+            || metadata.projects().values().stream().anyMatch(XPackPlugin::alreadyContainsXPackCustomMetadata);
+    }
+
+    private static boolean alreadyContainsXPackCustomMetadata(ProjectMetadata project) {
+        return project.custom(MlMetadata.TYPE) != null
+            || project.custom(WatcherMetadata.TYPE) != null
+            || RoleMappingMetadata.getFromProject(project).isEmpty() == false
+            || project.custom(TransformMetadata.TYPE) != null;
     }
 
     @Override
@@ -411,9 +416,9 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     public static Path resolveConfigFile(Environment env, String name) {
-        Path config = env.configFile().resolve(name);
+        Path config = env.configDir().resolve(name);
         if (Files.exists(config) == false) {
-            Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
+            Path legacyConfig = env.configDir().resolve("x-pack").resolve(name);
             if (Files.exists(legacyConfig)) {
                 deprecationLogger.warn(
                     DeprecationCategory.OTHER,

@@ -1455,6 +1455,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final ListenableFuture<Metadata> metadataListener = new ListenableFuture<>();
             final Repository repo = repositoriesService.repository(snapshot.getRepository());
             if (entry.isClone()) {
+                // This listener is kinda unnecessary since we now always complete it synchronously. It's only here to catch exceptions.
+                // TODO simplify this.
                 ActionListener.completeWith(metadataListener, () -> {
                     final Metadata existing = repo.getSnapshotGlobalMetadata(entry.source());
                     final Metadata.Builder metaBuilder = Metadata.builder(existing);

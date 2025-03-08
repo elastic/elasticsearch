@@ -429,7 +429,7 @@ public class EntitlementInitialization {
     }
 
     private static void ensureInitialized(String... classNames) {
-        for (String className: classNames) {
+        for (String className : classNames) {
             try {
                 Class.forName(className);
             } catch (ClassNotFoundException unexpected) {

@@ -118,10 +118,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
 
     public void testOf_KeepsOriginalValuesWhenRequestSettingsAreNull_AndRequestInputTypeIsInvalid() {
         var taskSettings = new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, false);
-        var overriddenTaskSettings = VoyageAIEmbeddingsTaskSettings.of(
-            taskSettings,
-            VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS
-        );
+        var overriddenTaskSettings = VoyageAIEmbeddingsTaskSettings.of(taskSettings, VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS);
         MatcherAssert.assertThat(overriddenTaskSettings, is(taskSettings));
     }
 

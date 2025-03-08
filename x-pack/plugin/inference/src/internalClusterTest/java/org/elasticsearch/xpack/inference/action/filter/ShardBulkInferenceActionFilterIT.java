@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -35,7 +36,6 @@ import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -71,15 +71,16 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
     @Before
     public void setup() throws Exception {
-        Utils.storeSparseModel(client());
-        Utils.storeDenseModel(
-            client(),
-            randomIntBetween(1, 100),
-            // dot product means that we need normalized vectors; it's not worth doing that in this test
-            randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values())),
-            // TODO: Allow element type BIT once TestDenseInferenceServiceExtension supports it
-            randomValueOtherThan(DenseVectorFieldMapper.ElementType.BIT, () -> randomFrom(DenseVectorFieldMapper.ElementType.values()))
+        DenseVectorFieldMapper.ElementType elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+        // dot product means that we need normalized vectors; it's not worth doing that in this test
+        SimilarityMeasure similarity = randomValueOtherThan(
+            SimilarityMeasure.DOT_PRODUCT,
+            () -> randomFrom(DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType))
         );
+        int dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 100);
+
+        Utils.storeSparseModel(client());
+        Utils.storeDenseModel(client(), dimensions, similarity, elementType);
     }
 
     @Override
@@ -89,7 +90,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateInferencePlugin.class);
+        return List.of(LocalStateInferencePlugin.class);
     }
 
     @Override

@@ -55,7 +55,7 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
 
         /**
          * Mark output as handled like a filetree meaning that
-         * each file will be part of the output and not the singular ouptut directory.
+         * each file will be part of the output and not the singular output directory.
          * */
         @Input
         boolean getAsFiletreeOutput();

@@ -7,22 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings;
 
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
-import org.hamcrest.CoreMatchers;
-import org.hamcrest.MatcherAssert;
-import org.hamcrest.Matchers;
 
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Map;
 
 public class IbmWatsonxEmbeddingsModelTests extends ESTestCase {
     public static IbmWatsonxEmbeddingsModel createModel(
@@ -92,30 +85,5 @@ public class IbmWatsonxEmbeddingsModelTests extends ESTestCase {
             null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
-    }
-
-    public void testThrowsError_WhenInputTypeSpecified() throws URISyntaxException {
-        var model = createModel("url", "projectId", new URI("http"), "api_version", "api_key", "url");
-
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> IbmWatsonxEmbeddingsModel.of(model, Map.of(), InputType.SEARCH)
-        );
-        assertThat(
-            thrownException.getMessage(),
-            CoreMatchers.is("Validation Failed: 1: Invalid value [search] received. [input_type] is not allowed;")
-        );
-    }
-
-    public void testAcceptsInternalInputType() throws URISyntaxException {
-        var model = createModel("url", "projectId", new URI("http"), "api_version", "api_key", "url");
-        var overriddenModel = IbmWatsonxEmbeddingsModel.of(model, Map.of(), InputType.INTERNAL_SEARCH);
-        MatcherAssert.assertThat(overriddenModel, Matchers.is(model));
-    }
-
-    public void testAcceptsNullInputType() throws URISyntaxException {
-        var model = createModel("url", "projectId", new URI("http"), "api_version", "api_key", "url");
-        var overriddenModel = IbmWatsonxEmbeddingsModel.of(model, Map.of(), null);
-        MatcherAssert.assertThat(overriddenModel, Matchers.is(model));
     }
 }

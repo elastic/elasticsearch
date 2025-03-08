@@ -229,6 +229,6 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
     }
 
     public static JinaAIEmbeddingsRequest createRequest(List<String> input, JinaAIEmbeddingsModel model) {
-        return new JinaAIEmbeddingsRequest(input, model);
+        return new JinaAIEmbeddingsRequest(input, InputType.SEARCH, model);
     }
 }

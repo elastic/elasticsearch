@@ -111,14 +111,14 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createModel("resource", "deployment", "apiversion", "orig_user", "apikey", null, "id", null);
+            var model = createModel("resource", "deployment", "apiversion", "orig_user", "apikey", null, "id");
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
-            var action = actionCreator.create(model, overriddenTaskSettings, null);
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -161,15 +161,15 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createModel("resource", "deployment", "apiversion", null, "apikey", null, "id", null);
+            var model = createModel("resource", "deployment", "apiversion", null, "apikey", null, "id");
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap(null);
             var inputType = InputTypeTests.randomWithoutUnspecified();
-            var action = actionCreator.create(model, overriddenTaskSettings, inputType);
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -213,15 +213,15 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createModel("resource", "deployment", "apiversion", null, "apikey", null, "id", null);
+            var model = createModel("resource", "deployment", "apiversion", null, "apikey", null, "id");
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
             var inputType = InputTypeTests.randomWithoutUnspecified();
-            var action = actionCreator.create(model, overriddenTaskSettings, inputType);
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var failureCauseMessage = "Failed to find required field [data] in OpenAI embeddings response";
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
@@ -287,15 +287,15 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(413).setBody(responseJsonContentTooLarge));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createModel("resource", "deployment", "apiversion", null, "apikey", null, "id", null);
+            var model = createModel("resource", "deployment", "apiversion", null, "apikey", null, "id");
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
             var inputType = InputTypeTests.randomWithoutUnspecified();
-            var action = actionCreator.create(model, overriddenTaskSettings, inputType);
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abcd")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abcd"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -364,14 +364,14 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(400).setBody(responseJsonContentTooLarge));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = createModel("resource", "deployment", "apiversion", null, "apikey", null, "id", null);
+            var model = createModel("resource", "deployment", "apiversion", null, "apikey", null, "id");
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
-            var action = actionCreator.create(model, overriddenTaskSettings, null);
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abcd")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abcd"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -423,15 +423,15 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             // truncated to 1 token = 3 characters
-            var model = createModel("resource", "deployment", "apiversion", null, false, 1, null, null, "apikey", null, "id", null);
+            var model = createModel("resource", "deployment", "apiversion", null, false, 1, null, null, "apikey", null, "id");
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
             var inputType = InputTypeTests.randomWithoutUnspecified();
-            var action = actionCreator.create(model, overriddenTaskSettings, inputType);
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("super long input")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("super long input"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 

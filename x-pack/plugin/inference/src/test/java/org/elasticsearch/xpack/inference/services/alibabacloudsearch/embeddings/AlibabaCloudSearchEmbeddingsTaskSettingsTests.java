@@ -72,8 +72,7 @@ public class AlibabaCloudSearchEmbeddingsTaskSettingsTests extends AbstractWireS
         var taskSettings = new AlibabaCloudSearchEmbeddingsTaskSettings(InputType.SEARCH);
         var overriddenTaskSettings = AlibabaCloudSearchEmbeddingsTaskSettings.of(
             taskSettings,
-            new AlibabaCloudSearchEmbeddingsTaskSettings((InputType) null),
-            InputType.INTERNAL_INGEST
+            new AlibabaCloudSearchEmbeddingsTaskSettings((InputType) null)
         );
 
         MatcherAssert.assertThat(overriddenTaskSettings, is(new AlibabaCloudSearchEmbeddingsTaskSettings(InputType.INTERNAL_INGEST)));

@@ -25,7 +25,6 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithIngestAndSearch;
-import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings.VALID_REQUEST_VALUES;
 import static org.hamcrest.Matchers.is;
 
 public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<VoyageAIEmbeddingsTaskSettings> {
@@ -89,25 +88,6 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
         );
     }
 
-    public void testFromMap_ReturnsFailure_WhenInputTypeIsInvalid() {
-        var exception = expectThrows(
-            ValidationException.class,
-            () -> VoyageAIEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE, "abc", VoyageAIServiceFields.TRUNCATION, false))
-            )
-        );
-
-        MatcherAssert.assertThat(
-            exception.getMessage(),
-            is(
-                Strings.format(
-                    "Validation Failed: 1: [task_settings] Invalid value [abc] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_REQUEST_VALUES)
-                )
-            )
-        );
-    }
-
     public void testFromMap_ReturnsFailure_WhenTruncationIsInvalid() {
         var exception = expectThrows(
             ValidationException.class,
@@ -121,25 +101,6 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
         MatcherAssert.assertThat(
             exception.getMessage(),
             is("Validation Failed: 1: field [truncation] is not of the expected type. The value [abc] cannot be converted to a [Boolean];")
-        );
-    }
-
-    public void testFromMap_ReturnsFailure_WhenInputTypeIsUnspecified() {
-        var exception = expectThrows(
-            ValidationException.class,
-            () -> VoyageAIEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE, InputType.UNSPECIFIED.toString()))
-            )
-        );
-
-        MatcherAssert.assertThat(
-            exception.getMessage(),
-            is(
-                Strings.format(
-                    "Validation Failed: 1: [task_settings] Invalid value [unspecified] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_REQUEST_VALUES)
-                )
-            )
         );
     }
 
@@ -159,8 +120,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
         var taskSettings = new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, false);
         var overriddenTaskSettings = VoyageAIEmbeddingsTaskSettings.of(
             taskSettings,
-            VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-            InputType.UNSPECIFIED
+            VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS
         );
         MatcherAssert.assertThat(overriddenTaskSettings, is(taskSettings));
     }
@@ -169,8 +129,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
         var taskSettings = new VoyageAIEmbeddingsTaskSettings((InputType) null, null);
         var overriddenTaskSettings = VoyageAIEmbeddingsTaskSettings.of(
             taskSettings,
-            new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, true),
-            InputType.UNSPECIFIED
+            new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, true)
         );
 
         MatcherAssert.assertThat(overriddenTaskSettings, is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, true)));
@@ -180,8 +139,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
         var taskSettings = new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, true);
         var overriddenTaskSettings = VoyageAIEmbeddingsTaskSettings.of(
             taskSettings,
-            new VoyageAIEmbeddingsTaskSettings((InputType) null, null),
-            InputType.INTERNAL_INGEST
+            new VoyageAIEmbeddingsTaskSettings((InputType) null, null)
         );
 
         MatcherAssert.assertThat(overriddenTaskSettings, is(new VoyageAIEmbeddingsTaskSettings(InputType.INTERNAL_INGEST, true)));

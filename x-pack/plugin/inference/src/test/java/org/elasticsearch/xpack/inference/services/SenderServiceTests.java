@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -110,12 +111,14 @@ public class SenderServiceTests extends ESTestCase {
             Model model,
             InferenceInputs inputs,
             Map<String, Object> taskSettings,
-            InputType inputType,
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
 
         }
+
+        @Override
+        protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {}
 
         @Override
         protected void doUnifiedCompletionInfer(

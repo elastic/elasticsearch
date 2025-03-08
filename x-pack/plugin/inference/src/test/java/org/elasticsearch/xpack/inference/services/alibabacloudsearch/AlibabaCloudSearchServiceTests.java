@@ -267,7 +267,6 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                 Model model,
                 InferenceInputs inputs,
                 Map<String, Object> taskSettings,
-                InputType inputType,
                 TimeValue timeout,
                 ActionListener<InferenceServiceResults> listener
             ) {

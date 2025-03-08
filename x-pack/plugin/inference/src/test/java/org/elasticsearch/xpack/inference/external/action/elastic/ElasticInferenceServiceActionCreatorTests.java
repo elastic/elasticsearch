@@ -91,16 +91,15 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
-            var actionCreator = new ElasticInferenceServiceActionCreator(
-                sender,
-                createWithEmptySettings(threadPool),
-                createTraceContext(),
-                InputType.UNSPECIFIED
-            );
+            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("hello world")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -153,16 +152,15 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
-            var actionCreator = new ElasticInferenceServiceActionCreator(
-                sender,
-                createWithEmptySettings(threadPool),
-                createTraceContext(),
-                InputType.UNSPECIFIED
-            );
+            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("hello world")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -211,16 +209,15 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
-            var actionCreator = new ElasticInferenceServiceActionCreator(
-                sender,
-                createWithEmptySettings(threadPool),
-                createTraceContext(),
-                InputType.UNSPECIFIED
-            );
+            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("hello world")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -276,16 +273,15 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             // truncated to 1 token = 3 characters
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id", 1);
-            var actionCreator = new ElasticInferenceServiceActionCreator(
-                sender,
-                createWithEmptySettings(threadPool),
-                createTraceContext(),
-                InputType.UNSPECIFIED
-            );
+            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("hello world")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of("hello world"), InputType.UNSPECIFIED),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 

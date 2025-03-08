@@ -27,14 +27,14 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
     public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty_AndInputTypeIsInvalid() {
         var model = createModel("url", "api_key", null, null, "model", JinaAIEmbeddingType.FLOAT);
 
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, Map.of(), InputType.UNSPECIFIED);
+        var overriddenModel = JinaAIEmbeddingsModel.of(model, Map.of());
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 
     public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreNull_AndInputTypeIsInvalid() {
         var model = createModel("url", "api_key", null, null, "model", JinaAIEmbeddingType.FLOAT);
 
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, null, InputType.UNSPECIFIED);
+        var overriddenModel = JinaAIEmbeddingsModel.of(model, null);
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 
@@ -49,7 +49,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
             JinaAIEmbeddingType.FLOAT
         );
 
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(null), InputType.INGEST);
+        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(null));
         var expectedModel = createModel(
             "url",
             "api_key",
@@ -73,7 +73,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
             JinaAIEmbeddingType.FLOAT
         );
 
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(null), InputType.SEARCH);
+        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(null));
         var expectedModel = createModel(
             "url",
             "api_key",
@@ -97,7 +97,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
             JinaAIEmbeddingType.FLOAT
         );
 
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(InputType.INGEST), InputType.SEARCH);
+        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(InputType.INGEST));
         var expectedModel = createModel(
             "url",
             "api_key",
@@ -121,7 +121,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
             JinaAIEmbeddingType.FLOAT
         );
 
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(InputType.SEARCH), InputType.UNSPECIFIED);
+        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(InputType.SEARCH));
         var expectedModel = createModel(
             "url",
             "api_key",
@@ -145,7 +145,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
             JinaAIEmbeddingType.FLOAT
         );
 
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(null), InputType.UNSPECIFIED);
+        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(null));
         var expectedModel = createModel(
             "url",
             "api_key",
@@ -169,7 +169,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
             JinaAIEmbeddingType.FLOAT
         );
 
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(null), InputType.UNSPECIFIED);
+        var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(null));
         var expectedModel = createModel(
             "url",
             "api_key",

@@ -292,6 +292,6 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
     }
 
     public static CohereEmbeddingsRequest createRequest(List<String> input, CohereEmbeddingsModel model) {
-        return new CohereEmbeddingsRequest(input, model);
+        return new CohereEmbeddingsRequest(input, InputType.SEARCH, model);
     }
 }

@@ -176,11 +176,12 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
         @Nullable Integer dimensions,
         @Nullable InputType inputType
     ) {
-        var embeddingsModel = GoogleAiStudioEmbeddingsModelTests.createModel(model, apiKey, maxTokens, dimensions, inputType);
+        var embeddingsModel = GoogleAiStudioEmbeddingsModelTests.createModel(model, apiKey, maxTokens, dimensions);
 
         return new GoogleAiStudioEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
+            InputType.SEARCH,
             embeddingsModel
         );
     }

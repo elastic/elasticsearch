@@ -243,6 +243,6 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
     }
 
     public static VoyageAIEmbeddingsRequest createRequest(List<String> input, VoyageAIEmbeddingsModel model) {
-        return new VoyageAIEmbeddingsRequest(input, model);
+        return new VoyageAIEmbeddingsRequest(input, InputType.SEARCH, model);
     }
 }

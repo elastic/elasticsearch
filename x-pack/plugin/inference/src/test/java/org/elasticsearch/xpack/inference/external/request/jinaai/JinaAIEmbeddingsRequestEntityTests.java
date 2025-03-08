@@ -26,6 +26,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_WritesAllFields_WhenTheyAreDefined() throws IOException {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of("abc"),
+            InputType.INGEST,
             new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
             "model",
             JinaAIEmbeddingType.FLOAT
@@ -42,6 +43,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of("abc"),
+            null,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
             JinaAIEmbeddingType.FLOAT
@@ -58,6 +60,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_EmbeddingTypesBit() throws IOException {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of("abc"),
+            null,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
             JinaAIEmbeddingType.BIT
@@ -74,6 +77,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_EmbeddingTypesBinary() throws IOException {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of("abc"),
+            InputType.SEARCH,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
             JinaAIEmbeddingType.BINARY
@@ -90,6 +94,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_InputType_InternalSearch() throws IOException {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of("abc"),
+            InputType.INTERNAL_INGEST,
             new JinaAIEmbeddingsTaskSettings(InputType.INTERNAL_SEARCH),
             "model",
             JinaAIEmbeddingType.BINARY
@@ -106,6 +111,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_InputType_InternalIngest() throws IOException {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of("abc"),
+            InputType.INTERNAL_INGEST,
             new JinaAIEmbeddingsTaskSettings(InputType.INTERNAL_INGEST),
             "model",
             JinaAIEmbeddingType.BINARY

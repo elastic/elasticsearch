@@ -37,7 +37,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -817,16 +816,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = AzureOpenAiEmbeddingsModelTests.createModel(
-                "resource",
-                "deployment",
-                "apiversion",
-                "user",
-                "apikey",
-                null,
-                "id",
-                null
-            );
+            var model = AzureOpenAiEmbeddingsModelTests.createModel("resource", "deployment", "apiversion", "user", "apikey", null, "id");
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -894,8 +884,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "user",
                 "apikey",
                 null,
-                "id",
-                null
+                "id"
             );
             model.setUri(new URI(getUrl(webServer)));
 
@@ -917,8 +906,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                         "user",
                         "apikey",
                         null,
-                        "id",
-                        null
+                        "id"
                     )
                 )
             );
@@ -972,8 +960,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "user",
                 "apikey",
                 null,
-                "id",
-                null
+                "id"
             );
             model.setUri(new URI(getUrl(webServer)));
 
@@ -995,8 +982,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                         "user",
                         "apikey",
                         null,
-                        "id",
-                        null
+                        "id"
                     )
                 )
             );
@@ -1050,8 +1036,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "user",
                 "apikey",
                 null,
-                "id",
-                null
+                "id"
             );
             model.setUri(new URI(getUrl(webServer)));
 
@@ -1073,8 +1058,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                         "user",
                         "apikey",
                         null,
-                        "id",
-                        null
+                        "id"
                     )
                 )
             );
@@ -1128,8 +1112,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "user",
                 "apikey",
                 null,
-                "id",
-                null
+                "id"
             );
             model.setUri(new URI(getUrl(webServer)));
 
@@ -1195,8 +1178,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "user",
                 "apikey",
                 null,
-                "id",
-                null
+                "id"
             );
             model.setUri(new URI(getUrl(webServer)));
 
@@ -1218,8 +1200,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                         "user",
                         "apikey",
                         null,
-                        "id",
-                        null
+                        "id"
                     )
                 )
             );
@@ -1271,8 +1252,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                InputTypeTests.randomWithoutUnspecified()
+                randomAlphaOfLength(10)
             );
 
             Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
@@ -1300,16 +1280,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
-            var model = AzureOpenAiEmbeddingsModelTests.createModel(
-                "resource",
-                "deployment",
-                "apiversion",
-                "user",
-                "apikey",
-                null,
-                "id",
-                null
-            );
+            var model = AzureOpenAiEmbeddingsModelTests.createModel("resource", "deployment", "apiversion", "user", "apikey", null, "id");
             model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(

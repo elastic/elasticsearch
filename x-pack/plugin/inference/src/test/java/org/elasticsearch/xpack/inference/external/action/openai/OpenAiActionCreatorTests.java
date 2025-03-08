@@ -105,10 +105,14 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             var model = createModel(getUrl(webServer), "org", "secret", "model", "user");
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
-            var action = actionCreator.create(model, overriddenTaskSettings, InputTypeTests.randomWithInternalAndUnspecified());
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithInternalAndUnspecified()),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -158,10 +162,14 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             var model = createModel(getUrl(webServer), "org", "secret", "model", null);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap(null);
-            var action = actionCreator.create(model, overriddenTaskSettings, InputTypeTests.randomWithInternalAndUnspecified());
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithInternalAndUnspecified()),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -210,10 +218,14 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             var model = createModel(getUrl(webServer), null, "secret", "model", null);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
-            var action = actionCreator.create(model, overriddenTaskSettings, InputTypeTests.randomWithInternalAndUnspecified());
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithInternalAndUnspecified()),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -269,10 +281,14 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             var model = createModel(getUrl(webServer), null, "secret", "model", null);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
-            var action = actionCreator.create(model, overriddenTaskSettings, InputTypeTests.randomWithInternalAndUnspecified());
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithInternalAndUnspecified()),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var failureCauseMessage = "Failed to find required field [data] in OpenAI embeddings response";
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
@@ -605,10 +621,14 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             var model = createModel(getUrl(webServer), "org", "secret", "model", "user");
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
-            var action = actionCreator.create(model, overriddenTaskSettings, InputTypeTests.randomWithInternalAndUnspecified());
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abcd")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of("abcd"), InputTypeTests.randomWithInternalAndUnspecified()),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -688,10 +708,14 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             var model = createModel(getUrl(webServer), "org", "secret", "model", "user");
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
-            var action = actionCreator.create(model, overriddenTaskSettings, InputTypeTests.randomWithInternalAndUnspecified());
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abcd")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of("abcd"), InputTypeTests.randomWithInternalAndUnspecified()),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -756,10 +780,14 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             var model = createModel(getUrl(webServer), "org", "secret", "model", "user", 1);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
-            var action = actionCreator.create(model, overriddenTaskSettings, InputTypeTests.randomWithInternalAndUnspecified());
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("super long input")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of("super long input"), InputTypeTests.randomWithInternalAndUnspecified()),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 

@@ -15,12 +15,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
@@ -104,7 +106,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
             var action = createAction(getUrl(webServer), apiKey, model, sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of(input)), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of(input), InputType.SEARCH), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -138,7 +140,11 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "api_key", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithoutUnspecified()),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            listener
+        );
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -158,7 +164,11 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "api_key", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithoutUnspecified()),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            listener
+        );
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -172,7 +182,11 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "api_key", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithoutUnspecified()),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            listener
+        );
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

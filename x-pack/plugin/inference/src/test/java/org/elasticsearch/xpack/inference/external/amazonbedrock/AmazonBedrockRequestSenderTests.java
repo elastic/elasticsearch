@@ -83,7 +83,7 @@ public class AmazonBedrockRequestSenderTests extends ESTestCase {
                 threadPool,
                 new TimeValue(30, TimeUnit.SECONDS)
             );
-            sender.send(requestManager, new EmbeddingsInput(List.of("abc")), null, listener);
+            sender.send(requestManager, new EmbeddingsInput(List.of("abc"), null), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.123F, 0.456F, 0.678F, 0.789F }))));

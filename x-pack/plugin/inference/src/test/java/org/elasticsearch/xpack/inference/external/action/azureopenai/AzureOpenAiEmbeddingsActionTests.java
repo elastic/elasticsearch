@@ -113,7 +113,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
             var action = createAction("resource", "deployment", "apiVersion", "user", "apikey", sender, "id");
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -137,7 +137,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
         var action = createAction("resource", "deployment", "apiVersion", "user", "apikey", sender, "id");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -157,7 +157,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
         var action = createAction("resource", "deployment", "apiVersion", "user", "apikey", sender, "id");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -177,7 +177,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
         var action = createAction("resource", "deployment", "apiVersion", "user", "apikey", sender, "id");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -191,7 +191,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
         var action = createAction("resource", "deployment", "apiVersion", "user", "apikey", sender, "id");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -209,7 +209,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
     ) {
         AzureOpenAiEmbeddingsModel model = null;
         try {
-            model = createModel(resourceName, deploymentId, apiVersion, user, apiKey, null, inferenceEntityId, null);
+            model = createModel(resourceName, deploymentId, apiVersion, user, apiKey, null, inferenceEntityId);
             model.setUri(new URI(getUrl(webServer)));
             var requestCreator = new AzureOpenAiEmbeddingsRequestManager(model, TruncatorTests.createTruncator(), threadPool);
             var errorMessage = constructFailedToSendRequestMessage("Azure OpenAI embeddings");

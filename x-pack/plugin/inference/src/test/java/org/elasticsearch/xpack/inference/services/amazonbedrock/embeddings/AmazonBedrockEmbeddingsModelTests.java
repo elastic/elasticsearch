@@ -33,21 +33,21 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
         var baseModel = createModel("id", "region", "model", AmazonBedrockProvider.AMAZONTITAN, "accesskey", "secretkey");
         var thrownException = assertThrows(
             ValidationException.class,
-            () -> AmazonBedrockEmbeddingsModel.of(baseModel, Map.of("testkey", "testvalue"), null)
+            () -> AmazonBedrockEmbeddingsModel.of(baseModel, Map.of("testkey", "testvalue"))
         );
         assertThat(thrownException.getMessage(), containsString("Amazon Bedrock embeddings model cannot have task settings"));
     }
 
     public void testInputTypeValid_WhenProviderAllowsTaskType() {
         var model = createModel("id", "region", "model", AmazonBedrockProvider.COHERE, "accesskey", "secretkey");
-        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of(), InputType.SEARCH);
+        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of());
         var expectedModel = createModel("id", "region", "model", AmazonBedrockProvider.COHERE, "accesskey", "secretkey", InputType.SEARCH);
         MatcherAssert.assertThat(overriddenModel, Matchers.is(expectedModel));
     }
 
     public void testInputTypeInternal_WhenProviderAllowsTaskType() {
         var model = createModel("id", "region", "model", AmazonBedrockProvider.COHERE, "accesskey", "secretkey");
-        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of(), InputType.INTERNAL_SEARCH);
+        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of());
         var expectedModel = createModel(
             "id",
             "region",
@@ -62,23 +62,20 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
 
     public void testInputTypeNull_WhenProviderAllowsTaskType() {
         var model = createModel("id", "region", "model", AmazonBedrockProvider.COHERE, "accesskey", "secretkey");
-        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of(), null);
+        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of());
         MatcherAssert.assertThat(overriddenModel, Matchers.is(model));
     }
 
     public void testInputTypeUnspecified_WhenProviderAllowsTaskType() {
         var model = createModel("id", "region", "model", AmazonBedrockProvider.COHERE, "accesskey", "secretkey");
-        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of(), InputType.UNSPECIFIED);
+        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of());
         MatcherAssert.assertThat(overriddenModel, Matchers.is(model));
     }
 
     public void testThrowsError_WhenInputTypeSpecified_WhenProviderDoesNotAllowTaskType() {
         var model = createModel("id", "region", "model", AmazonBedrockProvider.AMAZONTITAN, "accesskey", "secretkey");
 
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> AmazonBedrockEmbeddingsModel.of(model, Map.of(), InputType.SEARCH)
-        );
+        var thrownException = expectThrows(ValidationException.class, () -> AmazonBedrockEmbeddingsModel.of(model, Map.of()));
         assertThat(
             thrownException.getMessage(),
             CoreMatchers.is(
@@ -89,7 +86,7 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
 
     public void testInputTypeInternal_WhenProviderDoesNotAllowTaskType() {
         var model = createModel("id", "region", "model", AmazonBedrockProvider.AMAZONTITAN, "accesskey", "secretkey");
-        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of(), InputType.INTERNAL_SEARCH);
+        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of());
         var expectedModel = createModel(
             "id",
             "region",
@@ -104,13 +101,13 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
 
     public void testInputTypeNull_WhenProviderDoesNotAllowTaskType() {
         var model = createModel("id", "region", "model", AmazonBedrockProvider.AMAZONTITAN, "accesskey", "secretkey");
-        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of(), null);
+        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of());
         MatcherAssert.assertThat(overriddenModel, Matchers.is(model));
     }
 
     public void testInputTypeUnspecified_WhenModelIdDoesNotAllowTaskType() {
         var model = createModel("id", "region", "model", AmazonBedrockProvider.AMAZONTITAN, "accesskey", "secretkey");
-        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of(), InputType.UNSPECIFIED);
+        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of());
         MatcherAssert.assertThat(overriddenModel, Matchers.is(model));
     }
 
@@ -137,20 +134,7 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
         String secretKey,
         InputType inputType
     ) {
-        return createModel(
-            inferenceId,
-            region,
-            model,
-            provider,
-            null,
-            false,
-            null,
-            null,
-            new RateLimitSettings(240),
-            accessKey,
-            secretKey,
-            inputType
-        );
+        return createModel(inferenceId, region, model, provider, null, false, null, null, new RateLimitSettings(240), accessKey, secretKey);
     }
 
     public static AmazonBedrockEmbeddingsModel createModel(
@@ -208,8 +192,7 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
             ),
             new EmptyTaskSettings(),
             chunkingSettings,
-            new AmazonBedrockSecretSettings(new SecureString(accessKey), new SecureString(secretKey)),
-            null
+            new AmazonBedrockSecretSettings(new SecureString(accessKey), new SecureString(secretKey))
         );
     }
 
@@ -242,43 +225,7 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
             ),
             new EmptyTaskSettings(),
             null,
-            new AmazonBedrockSecretSettings(new SecureString(accessKey), new SecureString(secretKey)),
-            null
-        );
-    }
-
-    public static AmazonBedrockEmbeddingsModel createModel(
-        String inferenceId,
-        String region,
-        String model,
-        AmazonBedrockProvider provider,
-        @Nullable Integer dimensions,
-        boolean dimensionsSetByUser,
-        @Nullable Integer maxTokens,
-        @Nullable SimilarityMeasure similarity,
-        RateLimitSettings rateLimitSettings,
-        String accessKey,
-        String secretKey,
-        @Nullable InputType inputType
-    ) {
-        return new AmazonBedrockEmbeddingsModel(
-            inferenceId,
-            TaskType.TEXT_EMBEDDING,
-            "amazonbedrock",
-            new AmazonBedrockEmbeddingsServiceSettings(
-                region,
-                model,
-                provider,
-                dimensions,
-                dimensionsSetByUser,
-                maxTokens,
-                similarity,
-                rateLimitSettings
-            ),
-            new EmptyTaskSettings(),
-            null,
-            new AmazonBedrockSecretSettings(new SecureString(accessKey), new SecureString(secretKey)),
-            inputType
+            new AmazonBedrockSecretSettings(new SecureString(accessKey), new SecureString(secretKey))
         );
     }
 }

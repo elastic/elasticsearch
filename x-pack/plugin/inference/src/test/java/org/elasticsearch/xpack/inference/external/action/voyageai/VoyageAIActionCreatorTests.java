@@ -104,10 +104,10 @@ public class VoyageAIActionCreatorTests extends ESTestCase {
             );
             var actionCreator = new VoyageAIActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH);
-            var action = actionCreator.create(model, overriddenTaskSettings, InputType.UNSPECIFIED);
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), InputType.UNSPECIFIED), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 

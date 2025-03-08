@@ -16,7 +16,7 @@ import java.util.List;
 
 public class InferenceInputsTests extends ESTestCase {
     public void testCastToSucceeds() {
-        InferenceInputs inputs = new EmbeddingsInput(List.of(), false);
+        InferenceInputs inputs = new EmbeddingsInput(List.of(), null, false);
         assertThat(inputs.castTo(EmbeddingsInput.class), Matchers.instanceOf(EmbeddingsInput.class));
 
         var emptyRequest = new UnifiedCompletionRequest(List.of(), null, null, null, null, null, null, null);
@@ -28,7 +28,7 @@ public class InferenceInputsTests extends ESTestCase {
     }
 
     public void testCastToFails() {
-        InferenceInputs inputs = new EmbeddingsInput(List.of(), false);
+        InferenceInputs inputs = new EmbeddingsInput(List.of(), null, false);
         var exception = expectThrows(IllegalArgumentException.class, () -> inputs.castTo(QueryAndDocsInputs.class));
         assertThat(
             exception.getMessage(),

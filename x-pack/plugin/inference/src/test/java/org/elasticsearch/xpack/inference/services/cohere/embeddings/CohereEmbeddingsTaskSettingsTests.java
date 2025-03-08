@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
@@ -26,7 +25,6 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
-import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings.VALID_REQUEST_VALUES;
 import static org.hamcrest.Matchers.is;
 
 public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<CohereEmbeddingsTaskSettings> {
@@ -96,42 +94,6 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         );
     }
 
-    public void testFromMap_ReturnsFailure_WhenInputTypeIsInvalid() {
-        var exception = expectThrows(
-            ValidationException.class,
-            () -> CohereEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(CohereEmbeddingsTaskSettings.INPUT_TYPE, "abc")))
-        );
-
-        MatcherAssert.assertThat(
-            exception.getMessage(),
-            is(
-                Strings.format(
-                    "Validation Failed: 1: [task_settings] Invalid value [abc] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_REQUEST_VALUES)
-                )
-            )
-        );
-    }
-
-    public void testFromMap_ReturnsFailure_WhenInputTypeIsUnspecified() {
-        var exception = expectThrows(
-            ValidationException.class,
-            () -> CohereEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(CohereEmbeddingsTaskSettings.INPUT_TYPE, InputType.UNSPECIFIED.toString()))
-            )
-        );
-
-        MatcherAssert.assertThat(
-            exception.getMessage(),
-            is(
-                Strings.format(
-                    "Validation Failed: 1: [task_settings] Invalid value [unspecified] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_REQUEST_VALUES)
-                )
-            )
-        );
-    }
-
     private static <E extends Enum<E>> String getValidValuesSortedAndCombined(EnumSet<E> validValues) {
         var validValuesAsStrings = validValues.stream().map(value -> value.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
         Arrays.sort(validValuesAsStrings);
@@ -146,11 +108,7 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testOf_KeepsOriginalValuesWhenRequestSettingsAreNull_AndRequestInputTypeIsInvalid() {
         var taskSettings = new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.NONE);
-        var overriddenTaskSettings = CohereEmbeddingsTaskSettings.of(
-            taskSettings,
-            CohereEmbeddingsTaskSettings.EMPTY_SETTINGS,
-            InputType.UNSPECIFIED
-        );
+        var overriddenTaskSettings = CohereEmbeddingsTaskSettings.of(taskSettings, CohereEmbeddingsTaskSettings.EMPTY_SETTINGS);
         MatcherAssert.assertThat(overriddenTaskSettings, is(taskSettings));
     }
 
@@ -158,8 +116,7 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         var taskSettings = new CohereEmbeddingsTaskSettings(null, CohereTruncation.NONE);
         var overriddenTaskSettings = CohereEmbeddingsTaskSettings.of(
             taskSettings,
-            new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.END),
-            InputType.UNSPECIFIED
+            new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.END)
         );
 
         MatcherAssert.assertThat(overriddenTaskSettings, is(new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.END)));
@@ -169,8 +126,7 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         var taskSettings = new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE);
         var overriddenTaskSettings = CohereEmbeddingsTaskSettings.of(
             taskSettings,
-            new CohereEmbeddingsTaskSettings(null, CohereTruncation.END),
-            InputType.INTERNAL_INGEST
+            new CohereEmbeddingsTaskSettings(null, CohereTruncation.END)
         );
 
         MatcherAssert.assertThat(

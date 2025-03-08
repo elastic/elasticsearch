@@ -113,6 +113,6 @@ public class AlibabaCloudSearchEmbeddingsRequestTests extends ESTestCase {
 
     public static AlibabaCloudSearchEmbeddingsRequest createRequest(List<String> input, AlibabaCloudSearchEmbeddingsModel model) {
         var account = new AlibabaCloudSearchAccount(model.getSecretSettings().apiKey());
-        return new AlibabaCloudSearchEmbeddingsRequest(account, input, model);
+        return new AlibabaCloudSearchEmbeddingsRequest(account, input, InputType.SEARCH, model);
     }
 }

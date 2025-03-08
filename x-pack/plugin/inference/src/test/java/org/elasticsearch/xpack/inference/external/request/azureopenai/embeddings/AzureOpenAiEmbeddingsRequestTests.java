@@ -36,7 +36,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         var user = "user";
         var apiKey = randomAlphaOfLength(10);
 
-        var request = createRequest("resource", "deployment", "2024", apiKey, null, input, user, null);
+        var request = createRequest("resource", "deployment", "2024", apiKey, null, input, user);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -62,7 +62,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         var apiKey = randomAlphaOfLength(10);
         var inputType = InputTypeTests.randomWithoutUnspecified();
 
-        var request = createRequest("resource", "deployment", "2024", apiKey, null, input, user, inputType);
+        var request = createRequest("resource", "deployment", "2024", apiKey, null, input, user);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -88,7 +88,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         var user = "user";
         var entraId = randomAlphaOfLength(10);
 
-        var request = createRequest("resource", "deployment", "2024", null, entraId, input, user, null);
+        var request = createRequest("resource", "deployment", "2024", null, entraId, input, user);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -109,7 +109,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
     }
 
     public void testTruncate_ReducesInputTextSizeByHalf() throws IOException {
-        var request = createRequest("resource", "deployment", "apiVersion", "apikey", null, "abcd", null, null);
+        var request = createRequest("resource", "deployment", "apiVersion", "apikey", null, "abcd", null);
         var truncatedRequest = request.truncate();
 
         var httpRequest = truncatedRequest.createHttpRequest();
@@ -122,7 +122,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
     }
 
     public void testIsTruncated_ReturnsTrue() {
-        var request = createRequest("resource", "deployment", "apiVersion", "apikey", null, "abcd", null, null);
+        var request = createRequest("resource", "deployment", "apiVersion", "apikey", null, "abcd", null);
         assertFalse(request.getTruncationInfo()[0]);
 
         var truncatedRequest = request.truncate();
@@ -136,8 +136,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         @Nullable String apiKey,
         @Nullable String entraId,
         String input,
-        @Nullable String user,
-        @Nullable InputType inputType
+        @Nullable String user
     ) {
         var embeddingsModel = AzureOpenAiEmbeddingsModelTests.createModel(
             resourceName,
@@ -146,12 +145,12 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
             user,
             apiKey,
             entraId,
-            "id",
-            inputType
+            "id"
         );
         return new AzureOpenAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
+            InputType.SEARCH,
             embeddingsModel
         );
     }

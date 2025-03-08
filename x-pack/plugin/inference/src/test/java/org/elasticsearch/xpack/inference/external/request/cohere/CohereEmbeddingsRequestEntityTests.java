@@ -27,6 +27,7 @@ public class CohereEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_WritesAllFields_WhenTheyAreDefined() throws IOException {
         var entity = new CohereEmbeddingsRequestEntity(
             List.of("abc"),
+            InputType.INGEST,
             new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START),
             "model",
             CohereEmbeddingType.FLOAT
@@ -43,6 +44,7 @@ public class CohereEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_InputTypeSearch_EmbeddingTypesInt8_TruncateNone() throws IOException {
         var entity = new CohereEmbeddingsRequestEntity(
             List.of("abc"),
+            null,
             new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE),
             "model",
             CohereEmbeddingType.INT8
@@ -59,6 +61,7 @@ public class CohereEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_InputTypeSearch_EmbeddingTypesByte_TruncateNone() throws IOException {
         var entity = new CohereEmbeddingsRequestEntity(
             List.of("abc"),
+            null,
             new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE),
             "model",
             CohereEmbeddingType.BYTE
@@ -75,6 +78,7 @@ public class CohereEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_InputTypeSearch_EmbeddingTypesBinary_TruncateNone() throws IOException {
         var entity = new CohereEmbeddingsRequestEntity(
             List.of("abc"),
+            null,
             new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE),
             "model",
             CohereEmbeddingType.BINARY
@@ -91,6 +95,7 @@ public class CohereEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_InputTypeSearch_EmbeddingTypesBit_TruncateNone() throws IOException {
         var entity = new CohereEmbeddingsRequestEntity(
             List.of("abc"),
+            null,
             new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE),
             "model",
             CohereEmbeddingType.BIT
@@ -105,7 +110,7 @@ public class CohereEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
-        var entity = new CohereEmbeddingsRequestEntity(List.of("abc"), CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null);
+        var entity = new CohereEmbeddingsRequestEntity(List.of("abc"), null, CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -118,6 +123,7 @@ public class CohereEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_InputTypeInternalSearch() throws IOException {
         var entity = new CohereEmbeddingsRequestEntity(
             List.of("abc"),
+            null,
             new CohereEmbeddingsTaskSettings(InputType.INTERNAL_SEARCH, CohereTruncation.NONE),
             "model",
             CohereEmbeddingType.INT8
@@ -134,6 +140,7 @@ public class CohereEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_InputTypeInternalIngest() throws IOException {
         var entity = new CohereEmbeddingsRequestEntity(
             List.of("abc"),
+            null,
             new CohereEmbeddingsTaskSettings(InputType.INTERNAL_INGEST, CohereTruncation.NONE),
             "model",
             CohereEmbeddingType.INT8

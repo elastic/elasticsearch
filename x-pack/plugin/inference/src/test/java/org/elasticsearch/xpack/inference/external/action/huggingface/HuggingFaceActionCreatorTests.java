@@ -93,7 +93,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -160,7 +160,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -205,10 +205,10 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
             var actionCreator = new HuggingFaceActionCreator(sender, createWithEmptySettings(threadPool));
-            var action = actionCreator.create(model, null);
+            var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -263,10 +263,10 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
                 sender,
                 new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
             );
-            var action = actionCreator.create(model, null);
+            var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -318,10 +318,10 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
             var actionCreator = new HuggingFaceActionCreator(sender, createWithEmptySettings(threadPool));
-            var action = actionCreator.create(model, null);
+            var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abcd")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abcd"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -376,10 +376,10 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             // truncated to 1 token = 3 characters
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1);
             var actionCreator = new HuggingFaceActionCreator(sender, createWithEmptySettings(threadPool));
-            var action = actionCreator.create(model, null);
+            var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("123456")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("123456"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 

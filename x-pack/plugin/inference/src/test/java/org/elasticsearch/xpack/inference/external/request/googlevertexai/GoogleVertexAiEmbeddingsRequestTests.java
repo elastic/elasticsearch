@@ -149,7 +149,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
             Truncator.TruncationResult input,
             GoogleVertexAiEmbeddingsModel model
         ) {
-            super(truncator, input, model);
+            super(truncator, input, InputType.SEARCH, model);
         }
 
         @Override

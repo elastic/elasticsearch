@@ -32,6 +32,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_WritesAllFields_ServiceSettingsDefined() throws IOException {
         var entity = new VoyageAIEmbeddingsRequestEntity(
             List.of("abc"),
+            InputType.SEARCH,
             VoyageAIEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(
                     Map.of(
@@ -66,6 +67,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_WritesAllFields_ServiceSettingsDefined_Int8() throws IOException {
         var entity = new VoyageAIEmbeddingsRequestEntity(
             List.of("abc"),
+            InputType.INGEST,
             VoyageAIEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(
                     Map.of(
@@ -100,6 +102,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_WritesAllFields_ServiceSettingsDefined_Binary() throws IOException {
         var entity = new VoyageAIEmbeddingsRequestEntity(
             List.of("abc"),
+            InputType.INTERNAL_SEARCH,
             VoyageAIEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(
                     Map.of(
@@ -134,6 +137,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_WritesAllFields_WhenTheyAreDefined() throws IOException {
         var entity = new VoyageAIEmbeddingsRequestEntity(
             List.of("abc"),
+            InputType.INTERNAL_SEARCH,
             VoyageAIEmbeddingsServiceSettings.EMPTY_SETTINGS,
             new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null),
             "model"
@@ -150,6 +154,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
         var entity = new VoyageAIEmbeddingsRequestEntity(
             List.of("abc"),
+            InputType.SEARCH,
             VoyageAIEmbeddingsServiceSettings.EMPTY_SETTINGS,
             VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model"
@@ -166,6 +171,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_InputTypeInternalSearch() throws IOException {
         var entity = new VoyageAIEmbeddingsRequestEntity(
             List.of("abc"),
+            InputType.INTERNAL_SEARCH,
             VoyageAIEmbeddingsServiceSettings.EMPTY_SETTINGS,
             new VoyageAIEmbeddingsTaskSettings(InputType.INTERNAL_SEARCH, null),
             "model"
@@ -182,6 +188,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_InputTypeInternalIngest() throws IOException {
         var entity = new VoyageAIEmbeddingsRequestEntity(
             List.of("abc"),
+            InputType.INTERNAL_INGEST,
             VoyageAIEmbeddingsServiceSettings.EMPTY_SETTINGS,
             new VoyageAIEmbeddingsTaskSettings(InputType.INTERNAL_INGEST, null),
             "model"

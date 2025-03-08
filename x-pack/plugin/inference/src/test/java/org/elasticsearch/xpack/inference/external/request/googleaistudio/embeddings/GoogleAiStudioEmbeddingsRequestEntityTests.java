@@ -23,7 +23,7 @@ import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhi
 public class GoogleAiStudioEmbeddingsRequestEntityTests extends ESTestCase {
 
     public void testXContent_SingleRequest_WritesDimensionsIfDefined() throws IOException {
-        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc"), "model", 8, null);
+        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc"), InputType.SEARCH, "model", 8);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -49,7 +49,7 @@ public class GoogleAiStudioEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_SingleRequest_DoesNotWriteDimensionsIfNull() throws IOException {
-        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc"), "model", null, null);
+        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc"), null, "model", null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -74,7 +74,7 @@ public class GoogleAiStudioEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_MultipleRequests_WritesDimensionsIfDefined() throws IOException {
-        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc", "def"), "model", 8, null);
+        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc", "def"), null, "model", 8);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -111,7 +111,7 @@ public class GoogleAiStudioEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_MultipleRequests_DoesNotWriteDimensionsIfNull() throws IOException {
-        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc", "def"), "model", null, null);
+        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc", "def"), null, "model", null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -146,7 +146,7 @@ public class GoogleAiStudioEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_SingleRequest_WritesInputTypeIfDefined() throws IOException {
-        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc"), "model", null, InputType.INTERNAL_INGEST);
+        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc"), InputType.INTERNAL_INGEST, "model", null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);

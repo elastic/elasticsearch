@@ -27,21 +27,21 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
     public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty_AndInputTypeIsInvalid() {
         var model = createModel("url", "api_key", null, null, "model");
 
-        var overriddenModel = VoyageAIEmbeddingsModel.of(model, Map.of(), InputType.UNSPECIFIED);
+        var overriddenModel = VoyageAIEmbeddingsModel.of(model, Map.of());
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 
     public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreNull_AndInputTypeIsInvalid() {
         var model = createModel("url", "api_key", null, null, "model");
 
-        var overriddenModel = VoyageAIEmbeddingsModel.of(model, null, InputType.UNSPECIFIED);
+        var overriddenModel = VoyageAIEmbeddingsModel.of(model, null);
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 
     public void testOverrideWith_SetsInputTypeToIngest_WhenTheFieldIsNullInModelTaskSettings_AndNullInRequestTaskSettings() {
         var model = createModel("url", "api_key", new VoyageAIEmbeddingsTaskSettings((InputType) null, null), null, null, "model");
 
-        var overriddenModel = VoyageAIEmbeddingsModel.of(model, getTaskSettingsMap(null), InputType.INGEST);
+        var overriddenModel = VoyageAIEmbeddingsModel.of(model, getTaskSettingsMap(null));
         var expectedModel = createModel("url", "api_key", new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null), null, null, "model");
         MatcherAssert.assertThat(overriddenModel, is(expectedModel));
     }
@@ -49,7 +49,7 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
     public void testOverrideWith_SetsInputType_FromRequest_IfValid_OverridingStoredTaskSettings() {
         var model = createModel("url", "api_key", new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null), null, null, "model");
 
-        var overriddenModel = VoyageAIEmbeddingsModel.of(model, getTaskSettingsMap(null), InputType.SEARCH);
+        var overriddenModel = VoyageAIEmbeddingsModel.of(model, getTaskSettingsMap(null));
         var expectedModel = createModel("url", "api_key", new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null), null, null, "model");
         MatcherAssert.assertThat(overriddenModel, is(expectedModel));
     }
@@ -57,7 +57,7 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
     public void testOverrideWith_SetsInputType_FromRequest_IfValid_OverridingRequestTaskSettings() {
         var model = createModel("url", "api_key", new VoyageAIEmbeddingsTaskSettings((InputType) null, null), null, null, "model");
 
-        var overriddenModel = VoyageAIEmbeddingsModel.of(model, getTaskSettingsMap(InputType.INGEST), InputType.SEARCH);
+        var overriddenModel = VoyageAIEmbeddingsModel.of(model, getTaskSettingsMap(InputType.INGEST));
         var expectedModel = createModel("url", "api_key", new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null), null, null, "model");
         MatcherAssert.assertThat(overriddenModel, is(expectedModel));
     }
@@ -65,7 +65,7 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
     public void testOverrideWith_OverridesInputType_WithRequestTaskSettingsSearch_WhenRequestInputTypeIsInvalid() {
         var model = createModel("url", "api_key", new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null), null, null, "model");
 
-        var overriddenModel = VoyageAIEmbeddingsModel.of(model, getTaskSettingsMap(InputType.SEARCH), InputType.UNSPECIFIED);
+        var overriddenModel = VoyageAIEmbeddingsModel.of(model, getTaskSettingsMap(InputType.SEARCH));
         var expectedModel = createModel("url", "api_key", new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null), null, null, "model");
         MatcherAssert.assertThat(overriddenModel, is(expectedModel));
     }
@@ -73,7 +73,7 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
     public void testOverrideWith_DoesNotSetInputType_FromRequest_IfInputTypeIsInvalid() {
         var model = createModel("url", "api_key", new VoyageAIEmbeddingsTaskSettings((InputType) null, null), null, null, "model");
 
-        var overriddenModel = VoyageAIEmbeddingsModel.of(model, getTaskSettingsMap(null), InputType.UNSPECIFIED);
+        var overriddenModel = VoyageAIEmbeddingsModel.of(model, getTaskSettingsMap(null));
         var expectedModel = createModel("url", "api_key", new VoyageAIEmbeddingsTaskSettings((InputType) null, null), null, null, "model");
         MatcherAssert.assertThat(overriddenModel, is(expectedModel));
     }
@@ -81,7 +81,7 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
     public void testOverrideWith_DoesNotSetInputType_WhenRequestTaskSettingsIsNull_AndRequestInputTypeIsInvalid() {
         var model = createModel("url", "api_key", new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null), null, null, "model");
 
-        var overriddenModel = VoyageAIEmbeddingsModel.of(model, getTaskSettingsMap(null), InputType.UNSPECIFIED);
+        var overriddenModel = VoyageAIEmbeddingsModel.of(model, getTaskSettingsMap(null));
         var expectedModel = createModel("url", "api_key", new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null), null, null, "model");
         MatcherAssert.assertThat(overriddenModel, is(expectedModel));
     }

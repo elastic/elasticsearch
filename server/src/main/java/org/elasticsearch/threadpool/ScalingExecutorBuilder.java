@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Arrays;
 import java.util.List;
@@ -126,7 +127,11 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         return new ScalingExecutorSettings(nodeName, coreThreads, maxThreads, keepAlive);
     }
 
-    ThreadPool.ExecutorHolder build(final ScalingExecutorSettings settings, final ThreadContext threadContext) {
+    ThreadPool.ExecutorHolder build(
+        final ScalingExecutorSettings settings,
+        final ThreadContext threadContext,
+        final MeterRegistry meterRegistry
+    ) {
         TimeValue keepAlive = settings.keepAlive;
         int core = settings.core;
         int max = settings.max;
@@ -134,7 +139,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings.nodeName, name());
         ExecutorService executor;
         executor = EsExecutors.newScaling(
-            settings.nodeName + "/" + name(),
+            new EsExecutors.QualifiedName(settings.nodeName, name()),
             core,
             max,
             keepAlive.millis(),
@@ -142,7 +147,8 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
             rejectAfterShutdown,
             threadFactory,
             threadContext,
-            trackingConfig
+            trackingConfig,
+            meterRegistry
         );
         return new ThreadPool.ExecutorHolder(executor, info);
     }

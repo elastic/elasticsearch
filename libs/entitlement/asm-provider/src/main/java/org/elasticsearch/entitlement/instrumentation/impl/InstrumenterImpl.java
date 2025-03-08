@@ -32,11 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.lang.reflect.InvocationTargetException;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
@@ -95,78 +91,23 @@ public class InstrumenterImpl implements Instrumenter {
         return new ClassFileInfo(fileName, originalBytecodes);
     }
 
-    private static class VerifierException extends Exception {
-        VerifierException(Throwable e) {
-            super(e);
-        }
-    }
-
     private enum VerificationPhase {
         BEFORE_INSTRUMENTATION,
         AFTER_INSTRUMENTATION
     }
 
-    private interface Verifier {
-        String verify(byte[] classfileBuffer) throws VerifierException;
-    }
-
-    private static final Verifier verifier;
-
-    static {
-        // Class-File API should be finalized in JDK 24, but the signature for verify has been stable since the JDK 22 preview
-        if (Runtime.version().feature() >= 22) {
-            var classFileVerifier = createClassFileVerifier();
-            verifier = Objects.requireNonNullElseGet(classFileVerifier, InstrumenterImpl::createASMVerifier);
-        } else {
-            verifier = createASMVerifier();
-        }
-    }
-
-    private static Verifier createASMVerifier() {
-        return classfileBuffer -> {
-            ClassReader reader = new ClassReader(classfileBuffer);
-            StringWriter stringWriter = new StringWriter();
-            PrintWriter printWriter = new PrintWriter(stringWriter);
-            CheckClassAdapter.verify(reader, false, printWriter);
-            return stringWriter.toString();
-        };
-    }
-
-    private static Verifier createClassFileVerifier() {
-        try {
-            // var cf = java.lang.classfile.ClassFile.of();
-            var classFileClass = Class.forName("java.lang.classfile.ClassFile");
-            var factoryMethod = classFileClass.getMethod("of");
-            var verifyMethod = classFileClass.getMethod("verify", byte[].class);
-            var cf = factoryMethod.invoke(null);
-
-            return classfileBuffer -> {
-                // List<VerifyError> errors = cf.verify(outBytes);
-                var args = new Object[] { classfileBuffer };
-                List<?> results = null;
-                try {
-                    results = (List<?>) verifyMethod.invoke(cf, args);
-                } catch (IllegalAccessException e) {
-                    throw new VerifierException(e);
-                } catch (InvocationTargetException e) {
-                    throw new VerifierException(e.getTargetException());
-                }
-
-                if (results.isEmpty()) {
-                    return "";
-                }
-                return results.stream().map(Object::toString).collect(Collectors.joining("; "));
-            };
-
-        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
-            return null;
-        }
+    private static String verify(byte[] classfileBuffer) {
+        ClassReader reader = new ClassReader(classfileBuffer);
+        StringWriter stringWriter = new StringWriter();
+        PrintWriter printWriter = new PrintWriter(stringWriter);
+        CheckClassAdapter.verify(reader, false, printWriter);
+        return stringWriter.toString();
     }
 
     private static void verifyAndLog(byte[] classfileBuffer, String className, VerificationPhase phase) {
         var failureLogLevel = (phase == VerificationPhase.BEFORE_INSTRUMENTATION ? Level.WARN : Level.ERROR);
         try {
-            String result = verifier.verify(classfileBuffer);
+            String result = verify(classfileBuffer);
             if (result.isEmpty() == false) {
                 logger.log(
                     failureLogLevel,

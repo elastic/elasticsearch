@@ -464,3 +464,6 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=data_stream/140_data_stream_aliases/Fix IndexNotFoundException error when handling remove alias action}
+  issue: https://github.com/elastic/elasticsearch/issues/121501

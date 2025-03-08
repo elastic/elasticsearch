@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.watcher.FileWatcher;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,6 +33,15 @@ public class PrivilegedFileWatcher extends FileWatcher {
 
     public PrivilegedFileWatcher(Path path) {
         super(path);
+    }
+
+    public PrivilegedFileWatcher(Path path, boolean checkFileContents) {
+        super(path, checkFileContents);
+    }
+
+    @Override
+    protected InputStream newInputStream(Path path) throws IOException {
+        return Files.newInputStream(path);
     }
 
     @Override

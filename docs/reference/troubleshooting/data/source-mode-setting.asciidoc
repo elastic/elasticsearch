@@ -21,7 +21,7 @@ Index <<mapping-source-field,source>> mode was previously configured in mappings
 
 Starting with version 8.18, this method for configuring the source mode is considered
 deprecated and replaced by index setting `index.mapping.source.mode` that accepts the
-same values: `stored` (default), `synthetic` and `disabled`. The index setting can be
+same values: `stored`, `synthetic` and `disabled`. The index setting can be
 used as follows:
 
 [source,js]

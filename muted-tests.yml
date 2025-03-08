@@ -470,3 +470,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
   method: testSnapshotRecovery {p0=false p1=false}
   issue: https://github.com/elastic/elasticsearch/issues/124385
+- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
+  method: testSnapshotRecovery {p0=false p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/124383

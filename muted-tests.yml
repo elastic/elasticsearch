@@ -476,3 +476,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
   method: testSnapshotRecovery {p0=true p1=false}
   issue: https://github.com/elastic/elasticsearch/issues/124384
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/cat/nodes/line_361}
+  issue: https://github.com/elastic/elasticsearch/issues/124103

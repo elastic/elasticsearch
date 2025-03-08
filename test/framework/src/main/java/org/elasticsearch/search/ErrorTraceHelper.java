@@ -11,6 +11,7 @@ package org.elasticsearch.search;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 
@@ -26,16 +27,20 @@ public enum ErrorTraceHelper {
 
     public static BooleanSupplier setupErrorTraceListener(InternalTestCluster internalCluster) {
         final AtomicBoolean transportMessageHasStackTrace = new AtomicBoolean(false);
-        internalCluster.getDataNodeInstances(TransportService.class).forEach(ts -> ts.addMessageListener(new TransportMessageListener() {
-            @Override
-            public void onResponseSent(long requestId, String action, Exception error) {
-                TransportMessageListener.super.onResponseSent(requestId, action, error);
-                if (action.startsWith("indices:data/read/search")) {
-                    Optional<Throwable> throwable = ExceptionsHelper.unwrapCausesAndSuppressed(error, t -> t.getStackTrace().length > 0);
-                    transportMessageHasStackTrace.set(throwable.isPresent());
+        internalCluster.getDataNodeInstances(TransportService.class)
+            .forEach(ts -> ((MockTransportService) ts).addMessageListener(new TransportMessageListener() {
+                @Override
+                public void onResponseSent(long requestId, String action, Exception error) {
+                    TransportMessageListener.super.onResponseSent(requestId, action, error);
+                    if (action.startsWith("indices:data/read/search")) {
+                        Optional<Throwable> throwable = ExceptionsHelper.unwrapCausesAndSuppressed(
+                            error,
+                            t -> t.getStackTrace().length > 0
+                        );
+                        transportMessageHasStackTrace.set(throwable.isPresent());
+                    }
                 }
-            }
-        }));
+            }));
         return transportMessageHasStackTrace::get;
     }
 }

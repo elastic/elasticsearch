@@ -35,11 +35,7 @@ class URLConnectionFileActions {
         var conn = EntitledActions.createJarURLConnection();
         // Be sure we got the connection implementation we want
         assert JarURLConnection.class.isAssignableFrom(conn.getClass());
-        try {
-            connectionConsumer.accept((JarURLConnection) conn);
-        } catch (IOException e) {
-            // It's OK, it means we passed entitlement checks, and we tried to perform some operation
-        }
+        connectionConsumer.accept((JarURLConnection) conn);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)

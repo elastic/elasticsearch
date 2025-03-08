@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.initialization;
 
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
@@ -100,6 +101,7 @@ public class EntitlementInitialization {
         manager = initChecker();
 
         var latestCheckerInterface = getVersionSpecificCheckerClass(EntitlementChecker.class);
+        var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
 
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(latestCheckerInterface));
         Stream.of(
@@ -121,7 +123,7 @@ public class EntitlementInitialization {
 
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
-        Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(latestCheckerInterface, checkMethods);
+        Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(latestCheckerInterface, checkMethods, verifyBytecode);
         inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
         inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
     }

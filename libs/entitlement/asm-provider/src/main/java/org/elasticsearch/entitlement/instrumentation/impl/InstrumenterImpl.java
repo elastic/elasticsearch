@@ -24,9 +24,12 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.RecordComponentVisitor;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.util.CheckClassAdapter;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -43,6 +46,7 @@ public class InstrumenterImpl implements Instrumenter {
 
     private final String getCheckerClassMethodDescriptor;
     private final String handleClass;
+    private final boolean verifyBytecode;
 
     /**
      * To avoid class name collisions during testing without an agent to replace classes in-place.
@@ -54,19 +58,22 @@ public class InstrumenterImpl implements Instrumenter {
         String handleClass,
         String getCheckerClassMethodDescriptor,
         String classNameSuffix,
-        Map<MethodKey, CheckMethod> checkMethods
+        Map<MethodKey, CheckMethod> checkMethods,
+        boolean verifyBytecode
     ) {
         this.handleClass = handleClass;
         this.getCheckerClassMethodDescriptor = getCheckerClassMethodDescriptor;
         this.classNameSuffix = classNameSuffix;
         this.checkMethods = checkMethods;
+        this.verifyBytecode = verifyBytecode;
     }
 
-    public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, CheckMethod> checkMethods) {
+    public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, CheckMethod> checkMethods, boolean verifyBytecode) {
+
         Type checkerClassType = Type.getType(checkerClass);
         String handleClass = checkerClassType.getInternalName() + "Handle";
         String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(checkerClassType);
-        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods);
+        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods, verifyBytecode);
     }
 
     static ClassFileInfo getClassFileInfo(Class<?> clazz) throws IOException {
@@ -82,13 +89,49 @@ public class InstrumenterImpl implements Instrumenter {
         return new ClassFileInfo(fileName, originalBytecodes);
     }
 
+    private static void verifyAndLog(byte[] classfileBuffer, String className, String phase) {
+        try {
+            ClassReader reader = new ClassReader(classfileBuffer);
+            StringWriter stringWriter = new StringWriter();
+            PrintWriter printWriter = new PrintWriter(stringWriter);
+            CheckClassAdapter.verify(reader, false, printWriter);
+            var result = stringWriter.toString();
+
+            if (result.isEmpty() == false) {
+                logger.error("Bytecode verification ({} instrumentation) for class [{}] failed: {}", phase, className, result);
+            } else {
+                logger.info("Bytecode verification ({} instrumentation) for class [{}] passed", phase, className);
+            }
+        } catch (Throwable e) {
+            // There are some cases not supported by the ASM CheckClassAdapter -- print them at a lower log level, as they are probably
+            // a shortcoming of the ASM implementation
+            logger.info(
+                "Bytecode verification ({} instrumentation) for class [{}] inconclusive: {}: {}",
+                phase,
+                className,
+                e.getClass().getName(),
+                e.getMessage()
+            );
+        }
+    }
+
     @Override
     public byte[] instrumentClass(String className, byte[] classfileBuffer) {
+        if (verifyBytecode) {
+            verifyAndLog(classfileBuffer, className, "before");
+        }
+
         ClassReader reader = new ClassReader(classfileBuffer);
         ClassWriter writer = new ClassWriter(reader, COMPUTE_FRAMES | COMPUTE_MAXS);
         ClassVisitor visitor = new EntitlementClassVisitor(Opcodes.ASM9, writer, className);
         reader.accept(visitor, 0);
-        return writer.toByteArray();
+        var outBytes = writer.toByteArray();
+
+        if (verifyBytecode) {
+            verifyAndLog(outBytes, className, "after");
+        }
+
+        return outBytes;
     }
 
     class EntitlementClassVisitor extends ClassVisitor {

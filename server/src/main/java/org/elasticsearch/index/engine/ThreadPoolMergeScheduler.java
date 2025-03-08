@@ -341,7 +341,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         /**
          * Executes the merge associated to this task. MUST be invoked after {@link #runNowOrBacklog()} returned {@code true},
-         * to confirm that the associated {@link MergeScheduler} assents to running the merge right now.
+         * to confirm that the associated {@link MergeScheduler} assents to executing the merge.
+         * Either one of {@link #run()} or {@link #abort()} MUST be invoked exactly once for evey {@link MergeTask}.
+         * After the merge is finished, this will also submit any follow-up merges from the task's merge source.
          */
         @Override
         public void run() {
@@ -352,7 +354,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 beforeMerge(onGoingMerge);
                 try {
                     if (mergeStartTimeNS.compareAndSet(0L, System.nanoTime()) == false) {
-                        throw new IllegalStateException("The merge task is already started");
+                        throw new IllegalStateException("The merge task is already started or aborted");
                     }
                     mergeTracking.mergeStarted(onGoingMerge);
                     if (verbose()) {
@@ -421,11 +423,11 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             onGoingMerge.getMerge().setAborted();
             try {
                 if (verbose()) {
-                    message(String.format(Locale.ROOT, "aborted merge task %s start", this));
+                    message(String.format(Locale.ROOT, "merge task %s start abort", this));
                 }
                 // mark the merge task as running, even though the merge itself is aborted and the task will run for a brief time only
                 if (mergeStartTimeNS.compareAndSet(0L, System.nanoTime()) == false) {
-                    throw new IllegalStateException("The merge task is already started");
+                    throw new IllegalStateException("The merge task is already started or aborted");
                 }
                 // This ensures {@code OneMerge#close} gets invoked.
                 // {@code IndexWriter} considers a merge as "running" once it has been pulled from the {@code MergeSource#getNextMerge},
@@ -433,7 +435,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 doMerge(mergeSource, onGoingMerge.getMerge());
             } finally {
                 if (verbose()) {
-                    message(String.format(Locale.ROOT, "aborted merge task %s end", this));
+                    message(String.format(Locale.ROOT, "merge task %s end abort", this));
                 }
                 mergeTaskDone();
             }

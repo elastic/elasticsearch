@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
 import org.apache.http.client.utils.URIBuilder;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;

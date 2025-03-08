@@ -1455,8 +1455,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final ListenableFuture<Metadata> metadataListener = new ListenableFuture<>();
             final Repository repo = repositoriesService.repository(snapshot.getRepository());
             if (entry.isClone()) {
-                // TODO no need to fork here any more, we're already on a SNAPSHOT thread
-                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(metadataListener, () -> {
+                ActionListener.completeWith(metadataListener, () -> {
                     final Metadata existing = repo.getSnapshotGlobalMetadata(entry.source());
                     final Metadata.Builder metaBuilder = Metadata.builder(existing);
                     final Set<Index> existingIndices = new HashSet<>();
@@ -1478,7 +1477,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     );
                     metaBuilder.dataStreams(dataStreamsToCopy, dataStreamAliasesToCopy);
                     return metaBuilder.build();
-                }));
+                });
             } else {
                 metadataListener.onResponse(metadata);
             }

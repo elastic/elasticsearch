@@ -15,6 +15,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
@@ -26,20 +27,30 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
 
     private static final TemporaryFolder repoDirectory = new TemporaryFolder();
 
-    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
-        .nodes(NODE_NUM)
-        .setting("path.repo", new Supplier<>() {
-            @Override
-            @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
-            public String get() {
-                return repoDirectory.getRoot().getPath();
-            }
-        })
-        .setting("xpack.security.enabled", "false")
-        .feature(FeatureFlag.TIME_SERIES_MODE)
-        .build();
+    private static final ElasticsearchCluster cluster = buildCluster();
+
+    private static ElasticsearchCluster buildCluster() {
+        Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
+        var cluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .version(getOldClusterTestVersion())
+            .nodes(NODE_NUM)
+            .setting("path.repo", new Supplier<>() {
+                @Override
+                @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
+                public String get() {
+                    return repoDirectory.getRoot().getPath();
+                }
+            })
+            .setting("xpack.security.enabled", "false")
+            .feature(FeatureFlag.TIME_SERIES_MODE);
+
+        if (oldVersion.before(Version.fromString("8.18.0"))) {
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+        return cluster.build();
+    }
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);

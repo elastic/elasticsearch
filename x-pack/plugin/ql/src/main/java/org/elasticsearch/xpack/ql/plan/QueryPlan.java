@@ -122,7 +122,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
             List<Object> transformed = null;
             boolean hasChanged = false;
             int i = 0;
-            for (Object e: c) {
+            for (Object e : c) {
                 Object next = doTransformExpression(e, traversal);
                 if (e.equals(next) == false) {
                     if (hasChanged == false) {

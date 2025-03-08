@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -145,7 +144,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
             List<Object> transformed = null;
             boolean hasChanged = false;
             int i = 0;
-            for (Object e: c) {
+            for (Object e : c) {
                 Object next = doTransformExpression(e, traversal);
                 if (e.equals(next) == false) {
                     if (hasChanged == false) {

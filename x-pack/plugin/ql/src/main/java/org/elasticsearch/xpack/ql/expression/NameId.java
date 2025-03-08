@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ql.expression;
 
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**

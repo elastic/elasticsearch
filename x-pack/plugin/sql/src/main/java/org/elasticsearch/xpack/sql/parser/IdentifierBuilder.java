@@ -29,7 +29,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         ParseTree tree = ctx.name != null ? ctx.name : ctx.TABLE_IDENTIFIER();
         String index = tree.getText();
 
-        return new TableIdentifier(source, visitIdentifier(ctx.catalog), unquoteIdentifier(index));
+        return new TableIdentifier(source, visitIdentifier(ctx.catalog), unquoteIdentifier(index), visitIdentifier(ctx.selector));
     }
 
     @Override

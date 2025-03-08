@@ -1,5 +1,5 @@
 grant {
-  permission java.lang.RuntimePermission "setFactory";
+  //permission java.lang.RuntimePermission "setFactory";
 
   // ApacheXMLSecurityInitializer
   permission java.util.PropertyPermission "org.apache.xml.security.ignoreLineBreaks", "read,write";

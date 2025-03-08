@@ -718,7 +718,7 @@ public class ShardStateAction {
                                 matched
                             );
                             tasksToBeApplied.add(taskContext);
-                        } else if (validShardSplit(startedShardEntry, projectId, initialState) == false) {
+                        } else if (invalidShardSplit(startedShardEntry, projectId, initialState)) {
                             logger.debug("{} failing shard started task because split validation failed", startedShardEntry.shardId);
 
                         } else {
@@ -836,21 +836,23 @@ public class ShardStateAction {
             return maybeUpdatedState;
         }
 
-        private static boolean validShardSplit(StartedShardEntry startedShardEntry, ProjectId projectId, ClusterState clusterState) {
+        private static boolean invalidShardSplit(StartedShardEntry startedShardEntry, ProjectId projectId, ClusterState clusterState) {
             ShardSplit shardSplit = startedShardEntry.shardSplit;
             if (shardSplit == null) {
-                return true;
+                return false;
             }
-            // TODO: Fetch the actual source shard id from the IndexMetadata reshard object
-            ShardId sourceShardId = startedShardEntry.shardId;
+            IndexRoutingTable routingTable = clusterState.routingTable(projectId).index(startedShardEntry.shardId.getIndex());
+            // TODO: Splits only double atm. However, eventually there will be a reshard object in the index metadatata indicate the
+            // split specifics
+            int preSplitSize = routingTable.size() / 2;
+            int sourceShardId = startedShardEntry.shardId.getId() % preSplitSize;
             final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).index(startedShardEntry.shardId.getIndex());
             assert indexMetadata != null;
-            final long currentPrimaryTerm = indexMetadata.primaryTerm(sourceShardId.id());
-            if (currentPrimaryTerm != shardSplit.sourcePrimaryTerm()
-                || clusterState.routingTable(projectId).shardRoutingTable(sourceShardId).primaryShard().relocating()) {
-                return false;
-            } else {
+            final long currentPrimaryTerm = indexMetadata.primaryTerm(sourceShardId);
+            if (currentPrimaryTerm != shardSplit.sourcePrimaryTerm() || routingTable.shard(sourceShardId).primaryShard().relocating()) {
                 return true;
+            } else {
+                return false;
             }
         }
 
@@ -895,12 +897,12 @@ public class ShardStateAction {
     record ShardSplit(long sourcePrimaryTerm) implements Writeable {
 
         ShardSplit(StreamInput in) throws IOException {
-            this(in.readLong());
+            this(in.readVLong());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(sourcePrimaryTerm);
+            out.writeVLong(sourcePrimaryTerm);
         }
     }
 
@@ -925,8 +927,11 @@ public class ShardStateAction {
             } else {
                 this.eventIngestedRange = ShardLongFieldRange.UNKNOWN;
             }
-            // TODO: BWC + Transport
-            this.shardSplit = new ShardSplit(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.SOURCE_PRIMARY_TERM_IN_START_SHARD)) {
+                this.shardSplit = in.readOptionalWriteable(ShardSplit::new);
+            } else {
+                this.shardSplit = null;
+            }
         }
 
         public StartedShardEntry(

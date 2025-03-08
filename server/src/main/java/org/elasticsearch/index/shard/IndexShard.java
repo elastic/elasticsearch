@@ -582,6 +582,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final CountDownLatch shardStateUpdated = new CountDownLatch(1);
 
             if (newRouting.primary()) {
+                // TODO: FIx
+                if (recoveryState != null
+                    && recoveryState.getRecoverySource() != null
+                    && recoveryState.getRecoverySource().getType() == RecoverySource.Type.SPLIT) {
+                    pendingPrimaryTerm = newPrimaryTerm;
+                }
                 if (newPrimaryTerm == pendingPrimaryTerm) {
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
                         // the master started a recovering primary, activate primary mode.
@@ -3328,7 +3334,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // }
         assert recoveryState.getRecoverySource().equals(shardRouting.recoverySource());
         switch (recoveryState.getRecoverySource().getType()) {
-            case EMPTY_STORE, EXISTING_STORE -> executeRecovery("from store", recoveryState, recoveryListener, this::recoverFromStore);
+            case EMPTY_STORE, EXISTING_STORE, SPLIT -> executeRecovery(
+                "from store",
+                recoveryState,
+                recoveryListener,
+                this::recoverFromStore
+            );
             case PEER -> {
                 try {
                     markAsRecovering("from " + recoveryState.getSourceNode(), recoveryState);

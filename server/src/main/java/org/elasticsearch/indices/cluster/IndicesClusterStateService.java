@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.Type;
@@ -772,8 +773,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             long sourcePrimaryTerm;
             if (shardRouting.recoverySource().getType() == Type.SPLIT) {
                 IndexMetadata indexMetadata = project.index(shardRouting.index());
-                // TODO: Resolve the source primary term from the source
-                sourcePrimaryTerm = -1;
+                IndexRoutingTable routingTable = originalState.routingTable(project.id()).index(shardRouting.index());
+                // TODO: Splits only double atm. However, eventually there will be a reshard object in the index metadatata indicate the
+                // split specifics
+                int preSplitSize = routingTable.size() / 2;
+                int sourceShardId = shardRouting.id() % preSplitSize;
+                sourcePrimaryTerm = indexMetadata.primaryTerm(sourceShardId);
             } else {
                 sourcePrimaryTerm = -1;
             }

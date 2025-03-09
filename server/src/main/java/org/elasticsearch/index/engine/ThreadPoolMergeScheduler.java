@@ -519,7 +519,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
     }
 
-    static enum Schedule {
+    enum Schedule {
         ABORT,
         RUN,
         BACKLOG

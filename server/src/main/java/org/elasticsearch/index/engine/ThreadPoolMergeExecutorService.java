@@ -102,23 +102,27 @@ public class ThreadPoolMergeExecutorService {
             if (mergeTask.supportsIOThrottling()) {
                 // count enqueued merge tasks that support IO auto throttling, and maybe adjust IO rate for all
                 int currentTaskCount = ioThrottledMergeTasksCount.incrementAndGet();
-                targetIORateBytesPerSec.update(currentTargetIORateBytesPerSec -> newTargetIORateBytesPerSec(
+                targetIORateBytesPerSec.update(
+                    currentTargetIORateBytesPerSec -> newTargetIORateBytesPerSec(
                         currentTargetIORateBytesPerSec,
                         currentTaskCount,
                         concurrentMergesFloorLimitForThrottling,
                         concurrentMergesCeilLimitForThrottling
-                ), (prevTargetIORateBytesPerSec, newTargetIORateBytesPerSec) -> {
-                    // it's OK to have this method update merge tasks concurrently, with different targetMBPerSec values,
-                    // as it's not important that all merge tasks are throttled to the same IO rate at all time.
-                    // For performance reasons, we don't synchronize the updates to targetMBPerSec values with the update of running merges.
-                    if (prevTargetIORateBytesPerSec != newTargetIORateBytesPerSec) {
-                        runningMergeTasks.forEach(runningMergeTask -> {
-                            if (runningMergeTask.supportsIOThrottling()) {
-                                runningMergeTask.setIORateLimit(newTargetIORateBytesPerSec);
-                            }
-                        });
+                    ),
+                    (prevTargetIORateBytesPerSec, newTargetIORateBytesPerSec) -> {
+                        // it's OK to have this method update merge tasks concurrently, with different targetMBPerSec values,
+                        // as it's not important that all merge tasks are throttled to the same IO rate at all time.
+                        // For performance reasons, we don't synchronize the updates to targetMBPerSec values with the update of running
+                        // merges.
+                        if (prevTargetIORateBytesPerSec != newTargetIORateBytesPerSec) {
+                            runningMergeTasks.forEach(runningMergeTask -> {
+                                if (runningMergeTask.supportsIOThrottling()) {
+                                    runningMergeTask.setIORateLimit(newTargetIORateBytesPerSec);
+                                }
+                            });
+                        }
                     }
-                });
+                );
             }
             // then enqueue the merge task proper
             queuedMergeTasks.add(mergeTask);
@@ -251,8 +255,7 @@ public class ThreadPoolMergeExecutorService {
         void update(LongUnaryOperator updateFunction, UpdateConsumer updateConsumer) {
             long prev = get(), next = 0L;
             for (boolean haveNext = false;;) {
-                if (!haveNext)
-                    next = updateFunction.applyAsLong(prev);
+                if (!haveNext) next = updateFunction.applyAsLong(prev);
                 if (weakCompareAndSetVolatile(prev, next)) {
                     updateConsumer.accept(prev, next);
                     return;

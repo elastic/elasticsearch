@@ -111,20 +111,6 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     /**
-     * Create a {@link SubscribableListener} which has already succeeded with the given result.
-     */
-    public static <T> SubscribableListener<T> newSucceeded(T result) {
-        return new SubscribableListener<>(new SuccessResult<>(result));
-    }
-
-    /**
-     * Create a {@link SubscribableListener} which has already failed with the given exception.
-     */
-    public static <T> SubscribableListener<T> newFailed(Exception exception) {
-        return new SubscribableListener<>(new FailureResult(exception, exception));
-    }
-
-    /**
      * Create a {@link SubscribableListener}, fork a computation to complete it, and return the listener. If the forking itself throws an
      * exception then the exception is caught and fed to the returned listener.
      */
@@ -585,5 +571,34 @@ public class SubscribableListener<T> implements ActionListener<T> {
 
     private Object compareAndExchangeState(Object expectedValue, Object newValue) {
         return VH_STATE_FIELD.compareAndExchange(this, expectedValue, newValue);
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static final SubscribableListener NULL_SUCCESS = newSucceeded(null);
+
+    /**
+     * Same as {@link #newSucceeded(Object)} but always returns the same instance with result value {@code null}.
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> SubscribableListener<T> nullSuccess() {
+        return NULL_SUCCESS;
+    }
+
+    /**
+     * Create a {@link SubscribableListener} which has already succeeded with the given result.
+     */
+    public static <T> SubscribableListener<T> newSucceeded(T result) {
+        var res = new SubscribableListener<T>();
+        VH_STATE_FIELD.setRelease(res, new SuccessResult<>(result));
+        return res;
+    }
+
+    /**
+     * Create a {@link SubscribableListener} which has already failed with the given exception.
+     */
+    public static <T> SubscribableListener<T> newFailed(Exception exception) {
+        var res = new SubscribableListener<T>();
+        VH_STATE_FIELD.setRelease(res, new FailureResult(exception, exception));
+        return res;
     }
 }

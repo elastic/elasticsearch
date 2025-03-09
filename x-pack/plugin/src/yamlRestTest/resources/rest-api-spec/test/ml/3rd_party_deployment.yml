@@ -271,8 +271,6 @@ setup:
   - match: { assignment.task_parameters.cache_size: 10kb }
 
   - do:
-      allowed_warnings:
-        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
       ml.infer_trained_model:
         model_id: "test_model"
         body: >
@@ -283,8 +281,6 @@ setup:
           }
 
   - do:
-      allowed_warnings:
-        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
       ml.infer_trained_model:
         model_id: "test_model"
         body: >
@@ -295,8 +291,6 @@ setup:
           }
 
   - do:
-      allowed_warnings:
-        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
       ml.infer_trained_model:
         model_id: "test_model"
         body: >
@@ -426,8 +420,6 @@ setup:
   - match: { assignment.task_parameters.cache_size: 10kb }
 
   - do:
-      allowed_warnings:
-        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
       ml.infer_trained_model:
         model_id: "test_model"
         body: >
@@ -438,8 +430,6 @@ setup:
           }
 
   - do:
-      allowed_warnings:
-        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
       ml.infer_trained_model:
         model_id: "test_model"
         body: >
@@ -450,8 +440,6 @@ setup:
           }
 
   - do:
-      allowed_warnings:
-        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
       ml.infer_trained_model:
         model_id: "test_model"
         body: >
@@ -475,8 +463,6 @@ setup:
   - match: { cleared: true }
 
   - do:
-      allowed_warnings:
-        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
       ml.infer_trained_model:
         model_id: "test_model"
         body: >
@@ -538,8 +524,6 @@ setup:
         model_id: "test_model"
 
   - do:
-      allowed_warnings:
-        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
       ml.infer_trained_model:
         model_id: "pytorch"
         body: >
@@ -610,8 +594,6 @@ setup:
   - match: { assignment.task_parameters.model_id: test_model }
   - match: { assignment.task_parameters.deployment_id: test_model_for_search }
   - do:
-      allowed_warnings:
-        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
       ml.infer_trained_model:
         model_id: "test_model_for_search"
         body: >
@@ -631,8 +613,6 @@ setup:
   - match: { assignment.task_parameters.model_id: test_model }
   - match: { assignment.task_parameters.deployment_id: test_model_for_ingest }
   - do:
-      allowed_warnings:
-        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
       ml.infer_trained_model:
         model_id: "test_model_for_ingest"
         body: >

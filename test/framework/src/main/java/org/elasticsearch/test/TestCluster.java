@@ -127,40 +127,45 @@ public abstract class TestCluster {
             l -> client().execute(GetComponentTemplateAction.INSTANCE, new GetComponentTemplateAction.Request(TEST_REQUEST_TIMEOUT, "*"), l)
         );
 
-        // dummy start step for symmetry
-        SubscribableListener.nullSuccess()
-        // delete composable templates
-        .<GetComposableIndexTemplateAction.Response>andThen(getComposableTemplates::addListener).<AcknowledgedResponse>andThen((l, r) -> {
-            var templates = r.indexTemplates()
-                .keySet()
-                .stream()
-                .filter(template -> excludeTemplates.contains(template) == false)
-                .toArray(String[]::new);
-            if (templates.length == 0) {
-                l.onResponse(AcknowledgedResponse.TRUE);
-            } else {
-                var request = new TransportDeleteComposableIndexTemplateAction.Request(templates);
-                client().execute(TransportDeleteComposableIndexTemplateAction.TYPE, request, l);
-            }
-        }).andThenAccept(ElasticsearchAssertions::assertAcked)
+        SubscribableListener
 
-        // then delete component templates
-        .<GetComponentTemplateAction.Response>andThen(getComponentTemplates::addListener).<AcknowledgedResponse>andThen((l, response) -> {
-            var componentTemplates = response.getComponentTemplates()
-                .keySet()
-                .stream()
-                .filter(template -> excludeTemplates.contains(template) == false)
-                .toArray(String[]::new);
-            if (componentTemplates.length == 0) {
-                l.onResponse(AcknowledgedResponse.TRUE);
-            } else {
-                client().execute(
-                    TransportDeleteComponentTemplateAction.TYPE,
-                    new TransportDeleteComponentTemplateAction.Request(componentTemplates),
-                    l
-                );
-            }
-        })
+            // dummy start step for symmetry
+            .nullSuccess()
+            // delete composable templates
+            .<GetComposableIndexTemplateAction.Response>andThen(getComposableTemplates::addListener)
+            .<AcknowledgedResponse>andThen((l, r) -> {
+                var templates = r.indexTemplates()
+                    .keySet()
+                    .stream()
+                    .filter(template -> excludeTemplates.contains(template) == false)
+                    .toArray(String[]::new);
+                if (templates.length == 0) {
+                    l.onResponse(AcknowledgedResponse.TRUE);
+                } else {
+                    var request = new TransportDeleteComposableIndexTemplateAction.Request(templates);
+                    client().execute(TransportDeleteComposableIndexTemplateAction.TYPE, request, l);
+                }
+            })
+            .andThenAccept(ElasticsearchAssertions::assertAcked)
+
+            // then delete component templates
+            .<GetComponentTemplateAction.Response>andThen(getComponentTemplates::addListener)
+            .<AcknowledgedResponse>andThen((l, response) -> {
+                var componentTemplates = response.getComponentTemplates()
+                    .keySet()
+                    .stream()
+                    .filter(template -> excludeTemplates.contains(template) == false)
+                    .toArray(String[]::new);
+                if (componentTemplates.length == 0) {
+                    l.onResponse(AcknowledgedResponse.TRUE);
+                } else {
+                    client().execute(
+                        TransportDeleteComponentTemplateAction.TYPE,
+                        new TransportDeleteComponentTemplateAction.Request(componentTemplates),
+                        l
+                    );
+                }
+            })
             .andThenAccept(ElasticsearchAssertions::assertAcked)
 
             // and finish

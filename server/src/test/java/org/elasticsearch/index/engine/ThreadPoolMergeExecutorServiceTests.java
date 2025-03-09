@@ -86,8 +86,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             Semaphore runMergeSemaphore = new Semaphore(0);
             AtomicInteger submittedIOThrottledMergeTasks = new AtomicInteger();
             while (mergesStillToComplete > 0) {
-                if (mergesStillToSubmit > 0
-                    && (threadPoolMergeExecutorService.getRunningMergeTasks().isEmpty() || randomBoolean())) {
+                if (mergesStillToSubmit > 0 && (threadPoolMergeExecutorService.getRunningMergeTasks().isEmpty() || randomBoolean())) {
                     // submit new merge task
                     MergeTask mergeTask = mock(MergeTask.class);
                     boolean supportsIOThrottling = randomBoolean();

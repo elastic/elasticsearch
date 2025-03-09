@@ -1120,7 +1120,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Engine.SearcherSupplier searcherSupplier = null;
             ReaderContext readerContext = null;
             try {
-                searcherSupplier = shard.acquireSearcherSupplier();
+                searcherSupplier = shard.acquireSearcherSupplier(); // TODO I think we need to fork here
                 final ShardSearchContextId id = new ShardSearchContextId(
                     sessionId,
                     idGenerator.incrementAndGet(),

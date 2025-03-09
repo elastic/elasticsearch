@@ -10,10 +10,8 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherManager;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 
@@ -25,8 +23,7 @@ import java.io.IOException;
  * @see SearcherManager
  *
  */
-@SuppressForbidden(reason = "reference counting is required here")
-public class ElasticsearchReaderManager extends ReferenceManager<ElasticsearchDirectoryReader> {
+public class ElasticsearchReaderManager extends AbstractReaderManager {
 
     /**
      * Creates and returns a new ElasticsearchReaderManager from the given
@@ -40,22 +37,7 @@ public class ElasticsearchReaderManager extends ReferenceManager<ElasticsearchDi
     }
 
     @Override
-    protected void decRef(ElasticsearchDirectoryReader reference) throws IOException {
-        reference.decRef();
-    }
-
-    @Override
     protected ElasticsearchDirectoryReader refreshIfNeeded(ElasticsearchDirectoryReader referenceToRefresh) throws IOException {
         return (ElasticsearchDirectoryReader) DirectoryReader.openIfChanged(referenceToRefresh);
-    }
-
-    @Override
-    protected boolean tryIncRef(ElasticsearchDirectoryReader reference) {
-        return reference.tryIncRef();
-    }
-
-    @Override
-    protected int getRefCount(ElasticsearchDirectoryReader reference) {
-        return reference.getRefCount();
     }
 }

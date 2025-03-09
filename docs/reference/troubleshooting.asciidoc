@@ -25,6 +25,7 @@ If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your c
 * <<allow-all-cluster-allocation,Allow Elasticsearch to allocate the data in the system>>
 * <<allow-all-index-allocation,Allow Elasticsearch to allocate the index>>
 * <<troubleshoot-migrate-to-tiers,Indices mix index allocation filters with data tiers node roles to move through data tiers>>
+* <<troubleshoot-migrate-source-mode,Configuring source mode in mappings is deprecated and replaced by an index setting>>
 * <<increase-tier-capacity,Not enough nodes to allocate all shard replicas>>
 * <<increase-shard-limit,Total number of shards for an index on a single node exceeded>>
 * <<increase-cluster-shard-limit,Total number of shards per node has been reached>>
@@ -108,6 +109,8 @@ include::troubleshooting/data/increase-tier-capacity.asciidoc[]
 include::troubleshooting/data/increase-shard-limit.asciidoc[]
 
 include::troubleshooting/data/increase-cluster-shard-limit.asciidoc[]
+
+include::troubleshooting/data/source-mode-setting.asciidoc[]
 
 include::troubleshooting/corruption-issues.asciidoc[]
 

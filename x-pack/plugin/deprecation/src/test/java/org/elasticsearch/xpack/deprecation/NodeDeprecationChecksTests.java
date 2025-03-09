@@ -591,8 +591,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         assertWarnings(
             "[script.context.field.max_compilations_rate] setting was deprecated in Elasticsearch and will be"
-                + " removed in a future release.",
-            "[script.context.score.max_compilations_rate] setting was deprecated in Elasticsearch and will be removed in a future release."
+                + " removed in a future release. See the deprecation documentation for the next major version.",
+            "[script.context.score.max_compilations_rate] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -628,8 +629,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         assertWarnings(
             "[script.context.update.max_compilations_rate] setting was deprecated in Elasticsearch and will be"
-                + " removed in a future release.",
-            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release."
+                + " removed in a future release. See the deprecation documentation for the next major version.",
+            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -665,8 +667,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         assertWarnings(
-            "[script.context.update.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release.",
-            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release."
+            "[script.context.update.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version.",
+            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -702,8 +706,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         assertWarnings(
-            "[script.context.interval.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future release.",
+            "[script.context.interval.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version.",
             "[script.context.moving-function.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future release."
+                + " See the deprecation documentation for the next major version."
         );
     }
 
@@ -760,7 +766,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             true,
             new DeprecationWarning(
                 Level.WARN,
-                "[indices.lifecycle.step.master_timeout] setting was deprecated in Elasticsearch and will be removed in a future release."
+                "[indices.lifecycle.step.master_timeout] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the deprecation documentation for the next major version."
             )
         );
     }
@@ -782,7 +789,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             true,
             new DeprecationWarning(
                 Level.WARN,
-                "[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
+                "[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the deprecation documentation for the next major version."
             )
         );
     }

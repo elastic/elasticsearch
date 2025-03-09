@@ -7,17 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.features;
+package org.elasticsearch.entitlement.instrumentation;
 
-import java.util.Set;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-/**
- * This class specifies features for the features functionality itself.
- */
-public class FeatureInfrastructureFeatures implements FeatureSpecification {
-
-    @Override
-    public Set<NodeFeature> getTestFeatures() {
-        return Set.of(FeatureService.TEST_FEATURES_ENABLED);
-    }
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface EntitlementInstrumented {
 }

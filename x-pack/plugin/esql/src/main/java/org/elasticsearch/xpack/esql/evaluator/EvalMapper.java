@@ -86,6 +86,36 @@ public final class EvalMapper {
                 public List<ShardContext> shardContexts() {
                     return shardContexts;
                 }
+
+                @Override
+                public Layout layout() {
+                    return layout;
+                }
+
+                @Override
+                public EvaluatorMapper.ToEvaluator withLayout(Layout layout) {
+                    return new EvaluatorMapper.ToEvaluator() {
+                        @Override
+                        public ExpressionEvaluator.Factory apply(Expression expression) {
+                            return toEvaluator(foldCtx, expression, layout, shardContexts);
+                        }
+
+                        @Override
+                        public FoldContext foldCtx() {
+                            return foldCtx;
+                        }
+
+                        @Override
+                        public List<ShardContext> shardContexts() {
+                            return shardContexts;
+                        }
+
+                        @Override
+                        public Layout layout() {
+                            return layout;
+                        }
+                    };
+                }
             });
         }
         for (ExpressionMapper em : MAPPERS) {

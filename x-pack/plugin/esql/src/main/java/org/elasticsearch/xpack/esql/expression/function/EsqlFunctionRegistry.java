@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -94,13 +95,16 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AnyMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMap;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedianAbsoluteDeviation;
@@ -397,13 +401,16 @@ public class EsqlFunctionRegistry {
                 def(ToVersion.class, ToVersion::new, "to_version", "to_ver"), },
             // multivalue functions
             new FunctionDefinition[] {
+                def(AnyMatch.class, bi(AnyMatch::new), new boolean[] { false, true }, "any_match"),
                 def(MvAppend.class, MvAppend::new, "mv_append"),
                 def(MvAvg.class, MvAvg::new, "mv_avg"),
                 def(MvConcat.class, MvConcat::new, "mv_concat"),
                 def(MvCount.class, MvCount::new, "mv_count"),
                 def(MvDedupe.class, MvDedupe::new, "mv_dedupe"),
+                def(MvFilter.class, bi(MvFilter::new), new boolean[] { false, true }, "mv_filter", "filter"),
                 def(MvFirst.class, MvFirst::new, "mv_first"),
                 def(MvLast.class, MvLast::new, "mv_last"),
+                def(MvMap.class, bi(MvMap::new), new boolean[] { false, true }, "mv_map", "map"),
                 def(MvMax.class, MvMax::new, "mv_max"),
                 def(MvMedian.class, MvMedian::new, "mv_median"),
                 def(MvMedianAbsoluteDeviation.class, MvMedianAbsoluteDeviation::new, "mv_median_absolute_deviation"),
@@ -870,6 +877,42 @@ public class EsqlFunctionRegistry {
                 throw new QlIllegalArgumentException("expects one or two arguments");
             } else if (isBinaryOptionalParamFunction == false && children.size() != 2) {
                 throw new QlIllegalArgumentException("expects exactly two arguments");
+            }
+
+            if (children.stream().anyMatch(x -> x instanceof Lambda)) {
+                throw new QlIllegalArgumentException("does not accept lambdas as parameters");
+            }
+            return ctorRef.build(source, children.get(0), children.size() == 2 ? children.get(1) : null);
+        };
+        return def(function, builder, names);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a binary function.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    public static <T extends Function> FunctionDefinition def(
+        Class<T> function,
+        BinaryBuilder<T> ctorRef,
+        boolean[] lambdas,
+        String... names
+    ) {
+        FunctionBuilder builder = (source, children, cfg) -> {
+            boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
+            if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
+                throw new QlIllegalArgumentException("expects one or two arguments");
+            } else if (isBinaryOptionalParamFunction == false && children.size() != 2) {
+                throw new QlIllegalArgumentException("expects exactly two arguments");
+            }
+
+            for (int i = 0; i < children.size(); i++) {
+                if (children.get(i) instanceof Lambda && lambdas[i] == false) {
+                    throw new QlIllegalArgumentException("does not accept lambdas as [{}] parameter", i);
+                }
+
+                if (children.get(i) instanceof Lambda == false && lambdas[i]) {
+                    throw new QlIllegalArgumentException("needs a lambda as [{}] parameter", i);
+                }
             }
 
             return ctorRef.build(source, children.get(0), children.size() == 2 ? children.get(1) : null);

@@ -14,6 +14,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.ErrorTraceHelper;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
@@ -32,7 +33,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(AsyncSearch.class);
+        return List.of(AsyncSearch.class, MockTransportService.TestPlugin.class);
     }
 
     private BooleanSupplier transportMessageHasStackTrace;

@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -83,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -501,6 +503,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveFork(f, context);
             }
 
+            if (plan instanceof Dedup dedup) {
+                return resolveDedup(dedup, childrenOutput);
+            }
+
+            if (plan instanceof RrfScoreEval rrf) {
+                return resolveRrfScoreEval(rrf, childrenOutput);
+            }
+
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
         }
 
@@ -751,6 +761,54 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static FieldAttribute insistKeyword(Attribute attribute) {
             return new FieldAttribute(attribute.source(), attribute.name(), new PotentiallyUnmappedKeywordEsField(attribute.name()));
+        }
+
+        private LogicalPlan resolveDedup(Dedup dedup, List<Attribute> childrenOutput) {
+            List<NamedExpression> aggregates = dedup.finalAggs();
+            List<Attribute> groupings = dedup.groupings();
+            List<NamedExpression> newAggs = new ArrayList<>();
+            List<Attribute> newGroupings = new ArrayList<>();
+
+            for (NamedExpression agg : aggregates) {
+                var newAgg = (NamedExpression) agg.transformUp(UnresolvedAttribute.class, ua -> {
+                    Expression ne = ua;
+                    Attribute maybeResolved = maybeResolveAttribute(ua, childrenOutput);
+                    if (maybeResolved != null) {
+                        ne = maybeResolved;
+                    }
+                    return ne;
+                });
+                newAggs.add(newAgg);
+            }
+
+            for (Attribute attr : groupings) {
+                if (attr instanceof UnresolvedAttribute ua) {
+                    newGroupings.add(resolveAttribute(ua, childrenOutput));
+                } else {
+                    newGroupings.add(attr);
+                }
+            }
+
+            return new Dedup(dedup.source(), dedup.child(), newAggs, newGroupings);
+        }
+
+        private LogicalPlan resolveRrfScoreEval(RrfScoreEval rrf, List<Attribute> childrenOutput) {
+            Attribute scoreAttr = rrf.scoreAttribute();
+            Attribute forkAttr = rrf.forkAttribute();
+
+            if (scoreAttr instanceof UnresolvedAttribute ua) {
+                scoreAttr = resolveAttribute(ua, childrenOutput);
+            }
+
+            if (forkAttr instanceof UnresolvedAttribute ua) {
+                forkAttr = resolveAttribute(ua, childrenOutput);
+            }
+
+            if (forkAttr != rrf.forkAttribute() || scoreAttr != rrf.scoreAttribute()) {
+                return new RrfScoreEval(rrf.source(), rrf.child(), scoreAttr, forkAttr);
+            }
+
+            return rrf;
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {

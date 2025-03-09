@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.type.EsFieldTests;
 import org.mockito.exceptions.base.MockitoException;
 
 import java.io.IOException;
@@ -502,6 +503,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
         if (argClass == Configuration.class) {
             return randomConfiguration();
+        }
+        if (argClass == EsField.class) {
+            return EsFieldTests.randomEsField(4);
         }
         if (argClass == EsIndex.class) {
             return randomEsIndex();

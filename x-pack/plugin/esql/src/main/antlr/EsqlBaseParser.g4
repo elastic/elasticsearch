@@ -61,6 +61,7 @@ processingCommand
     | {this.isDevVersion()}? changePointCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? forkCommand
+    | {this.isDevVersion()}? rrfCommand
     ;
 
 whereCommand
@@ -266,3 +267,7 @@ forkSubQueryProcessingCommand
     | sortCommand
     | limitCommand
     ;
+
+rrfCommand
+   : DEV_RRF
+   ;

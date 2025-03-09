@@ -23,6 +23,7 @@ import java.util.stream.Stream;
  * {@code FORK [WHERE content:"fox" ] [WHERE content:"dog"] }
  */
 public class Fork extends UnaryPlan implements SurrogateLogicalPlan {
+    public static final String FORK_FIELD = "_fork";
 
     private final List<LogicalPlan> subPlans;
     List<Attribute> lazyOutput;

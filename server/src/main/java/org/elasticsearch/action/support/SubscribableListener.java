@@ -101,59 +101,13 @@ import java.util.concurrent.Executor;
 public class SubscribableListener<T> implements ActionListener<T> {
 
     private static final Logger logger = LogManager.getLogger(SubscribableListener.class);
-
-    private static final VarHandle VH_STATE_FIELD;
-
-    static {
-        try {
-            VH_STATE_FIELD = MethodHandles.lookup()
-                .in(SubscribableListener.class)
-                .findVarHandle(SubscribableListener.class, "state", Object.class);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * If we are incomplete, {@code state} may be one of the following depending on how many waiting subscribers there are:
-     * <ul>
-     * <li>If there are no subscribers yet, {@code state} is {@code null}.
-     * <li>If there is one subscriber, {@code state} is that subscriber.
-     * <li>If there are multiple subscribers, {@code state} is the head of a linked list of subscribers in reverse order of their
-     * subscriptions.
-     * </ul>
-     * If we are complete, {@code state} is the {@code SuccessResult<T>} or {@code FailureResult} which will be used to complete any
-     * subsequent subscribers.
-     */
-    @SuppressWarnings("FieldMayBeFinal") // updated via VH_STATE_FIELD (and _only_ via VH_STATE_FIELD)
-    private volatile Object state;
-
-    private Object compareAndExchangeState(Object expectedValue, Object newValue) {
-        return VH_STATE_FIELD.compareAndExchange(this, expectedValue, newValue);
-    }
-
-    @SuppressWarnings("rawtypes")
-    private static final SubscribableListener NULL_SUCCESS = newSucceeded(null);
-
-    /**
-     * Same as {@link #newSucceeded(Object)} but always returns the same instance with result value {@code null}.
-     */
-    @SuppressWarnings("unchecked")
-    public static <T> SubscribableListener<T> nullSuccess() {
-        return NULL_SUCCESS;
-    }
+    private static final Object EMPTY = new Object();
 
     /**
      * Create a {@link SubscribableListener} which is incomplete.
      */
-    public SubscribableListener() {}
-
-    @SuppressWarnings("this-escape")
-    private SubscribableListener(Object initialState) {
-        // Final state so release semantics are safe enough since this is the only store we ever do to #state. There are no possible
-        // later stores that could be reordered in a way to override this store because subsequent stores are all done through CAS with
-        // volatile read semantics
-        VH_STATE_FIELD.setRelease(this, initialState);
+    public SubscribableListener() {
+        this(EMPTY);
     }
 
     /**
@@ -179,6 +133,24 @@ public class SubscribableListener<T> implements ActionListener<T> {
         ActionListener.run(listener, fork::accept);
         return listener;
     }
+
+    private SubscribableListener(Object initialState) {
+        state = initialState;
+    }
+
+    /**
+     * If we are incomplete, {@code state} may be one of the following depending on how many waiting subscribers there are:
+     * <ul>
+     * <li>If there are no subscribers yet, {@code state} is {@link #EMPTY}.
+     * <li>If there is one subscriber, {@code state} is that subscriber.
+     * <li>If there are multiple subscribers, {@code state} is the head of a linked list of subscribers in reverse order of their
+     * subscriptions.
+     * </ul>
+     * If we are complete, {@code state} is the {@code SuccessResult<T>} or {@code FailureResult} which will be used to complete any
+     * subsequent subscribers.
+     */
+    @SuppressWarnings("FieldMayBeFinal") // updated via VH_STATE_FIELD (and _only_ via VH_STATE_FIELD)
+    private volatile Object state;
 
     /**
      * Add a listener to this listener's collection of subscribers. If this listener is complete, this method completes the subscribing
@@ -240,8 +212,8 @@ public class SubscribableListener<T> implements ActionListener<T> {
         }
 
         final ActionListener<T> wrappedListener = fork(executor, preserveContext(threadContext, listener));
-        Object currentValue = compareAndExchangeState(null, wrappedListener);
-        if (currentValue == null) {
+        Object currentValue = compareAndExchangeState(EMPTY, wrappedListener);
+        if (currentValue == EMPTY) {
             return;
         }
         Cell newCell = null;
@@ -389,7 +361,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
                         currCell = currCell.next;
                     }
                 } else {
-                    assert currentState == null : "unexpected witness: " + currentState;
+                    assert currentState == EMPTY : "unexpected witness: " + currentState;
                 }
                 return;
             }
@@ -597,5 +569,32 @@ public class SubscribableListener<T> implements ActionListener<T> {
             onFailure(e);
             return () -> {};
         }
+    }
+
+    private static final VarHandle VH_STATE_FIELD;
+
+    static {
+        try {
+            VH_STATE_FIELD = MethodHandles.lookup()
+                .in(SubscribableListener.class)
+                .findVarHandle(SubscribableListener.class, "state", Object.class);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private Object compareAndExchangeState(Object expectedValue, Object newValue) {
+        return VH_STATE_FIELD.compareAndExchange(this, expectedValue, newValue);
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static final SubscribableListener NULL_SUCCESS = newSucceeded(null);
+
+    /**
+     * Same as {@link #newSucceeded(Object)} but always returns the same instance with result value {@code null}.
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> SubscribableListener<T> nullSuccess() {
+        return NULL_SUCCESS;
     }
 }

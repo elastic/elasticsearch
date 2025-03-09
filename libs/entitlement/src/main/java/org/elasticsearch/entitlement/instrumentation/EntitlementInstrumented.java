@@ -7,12 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.api;
+package org.elasticsearch.entitlement.instrumentation;
 
-import java.security.AccessControlException;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-public class NotEntitledException extends AccessControlException {
-    public NotEntitledException(String message) {
-        super(message);
-    }
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface EntitlementInstrumented {
 }

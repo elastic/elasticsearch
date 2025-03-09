@@ -23,6 +23,7 @@ import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongUnaryOperator;
 
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.ABORT;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.BACKLOG;
@@ -63,7 +64,7 @@ public class ThreadPoolMergeExecutorService {
      * Current IO write throttle rate, in bytes per sec, that's in effect for all currently running merge tasks,
      * across all {@link ThreadPoolMergeScheduler}s that use this instance of the queue.
      */
-    private final AtomicLong targetIORateBytesPerSec = new AtomicLong(START_IO_RATE.getBytes());
+    private final AtomicIORate targetIORateBytesPerSec = new AtomicIORate(START_IO_RATE.getBytes());
     private final ExecutorService executorService;
     /**
      * The maximum number of concurrently running merges, given the number of threads in the pool.
@@ -100,7 +101,24 @@ public class ThreadPoolMergeExecutorService {
         } else {
             if (mergeTask.supportsIOThrottling()) {
                 // count enqueued merge tasks that support IO auto throttling, and maybe adjust IO rate for all
-                maybeUpdateIORateBytesPerSec(ioThrottledMergeTasksCount.incrementAndGet());
+                int currentTaskCount = ioThrottledMergeTasksCount.incrementAndGet();
+                targetIORateBytesPerSec.update(currentTargetIORateBytesPerSec -> newTargetIORateBytesPerSec(
+                        currentTargetIORateBytesPerSec,
+                        currentTaskCount,
+                        concurrentMergesFloorLimitForThrottling,
+                        concurrentMergesCeilLimitForThrottling
+                ), (prevTargetIORateBytesPerSec, newTargetIORateBytesPerSec) -> {
+                    // it's OK to have this method update merge tasks concurrently, with different targetMBPerSec values,
+                    // as it's not important that all merge tasks are throttled to the same IO rate at all time.
+                    // For performance reasons, we don't synchronize the updates to targetMBPerSec values with the update of running merges.
+                    if (prevTargetIORateBytesPerSec != newTargetIORateBytesPerSec) {
+                        runningMergeTasks.forEach(runningMergeTask -> {
+                            if (runningMergeTask.supportsIOThrottling()) {
+                                runningMergeTask.setIORateLimit(newTargetIORateBytesPerSec);
+                            }
+                        });
+                    }
+                });
             }
             // then enqueue the merge task proper
             queuedMergeTasks.add(mergeTask);
@@ -195,36 +213,6 @@ public class ThreadPoolMergeExecutorService {
         }
     }
 
-    private void maybeUpdateIORateBytesPerSec(int currentlySubmittedIOThrottledMergeTasks) {
-        long currentTargetIORateBytesPerSec = targetIORateBytesPerSec.get(), newTargetIORateBytesPerSec = 0L;
-        for (boolean isNewComputed = false;;) {
-            if (isNewComputed == false) {
-                newTargetIORateBytesPerSec = newTargetIORateBytesPerSec(
-                    currentTargetIORateBytesPerSec,
-                    currentlySubmittedIOThrottledMergeTasks,
-                    concurrentMergesFloorLimitForThrottling,
-                    concurrentMergesCeilLimitForThrottling
-                );
-                if (newTargetIORateBytesPerSec == currentTargetIORateBytesPerSec) {
-                    break;
-                }
-            }
-            if (targetIORateBytesPerSec.weakCompareAndSetVolatile(currentTargetIORateBytesPerSec, newTargetIORateBytesPerSec)) {
-                // it's OK to have this method update merge tasks concurrently, with different targetMBPerSec values,
-                // as it's not important that all merge tasks are throttled to the same IO rate at all time.
-                // For performance reasons, we don't synchronize the updates to targetMBPerSec values with the update of running merges.
-                final long finalNewTargetIORateBytesPerSec = newTargetIORateBytesPerSec;
-                runningMergeTasks.forEach(runningMergeTask -> {
-                    if (runningMergeTask.supportsIOThrottling()) {
-                        runningMergeTask.setIORateLimit(finalNewTargetIORateBytesPerSec);
-                    }
-                });
-                break;
-            }
-            isNewComputed = (currentTargetIORateBytesPerSec == (currentTargetIORateBytesPerSec = targetIORateBytesPerSec.get()));
-        }
-    }
-
     private static long newTargetIORateBytesPerSec(
         long currentTargetIORateBytesPerSec,
         int currentlySubmittedIOThrottledMergeTasks,
@@ -250,6 +238,33 @@ public class ThreadPoolMergeExecutorService {
                 newTargetIORateBytesPerSec = currentTargetIORateBytesPerSec;
             }
         return newTargetIORateBytesPerSec;
+    }
+
+    static class AtomicIORate extends AtomicLong {
+
+        public AtomicIORate(long initialIORate) {
+            super(initialIORate);
+        }
+
+        // Exactly like {@link AtomicLong#updateAndGet} but calls the consumer rather than return the new (updated) value.
+        // The consumer receives both the previous and the updated values (which can be equal).
+        void update(LongUnaryOperator updateFunction, UpdateConsumer updateConsumer) {
+            long prev = get(), next = 0L;
+            for (boolean haveNext = false;;) {
+                if (!haveNext)
+                    next = updateFunction.applyAsLong(prev);
+                if (weakCompareAndSetVolatile(prev, next)) {
+                    updateConsumer.accept(prev, next);
+                    return;
+                }
+                haveNext = (prev == (prev = get()));
+            }
+        }
+
+        @FunctionalInterface
+        interface UpdateConsumer {
+            void accept(long prev, long next);
+        }
     }
 
     // exposed for tests

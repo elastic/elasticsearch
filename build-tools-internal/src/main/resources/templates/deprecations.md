@@ -16,9 +16,24 @@ To give you insight into what deprecated features you’re using, {{es}}:
 % ## Next version [elasticsearch-nextversion-deprecations]
 % **Release date:** Month day, year
 
-## 9.1.0 [elasticsearch-910-deprecations]
+## ${unqualifiedVersion} [elasticsearch-${versionWithoutSeparator}-deprecations]
 **Release date:** April 01, 2025
+<%
+    if (!changelogsByTypeByArea['deprecations']) {
+        print "\nNo deprecations in this version.\n"
+    } else {
+        for (team in (changelogsByTypeByArea['deprecations'] ?: [:]).keySet()) {
+            print "\n${team}:\n";
 
-No deprecations in this version.
-
-
+            for (change in changelogsByTypeByArea['deprecations'][team]) {
+                print "* ${change.summary} [#${change.pr}](https://github.com/elastic/elasticsearch/pull/${change.pr})"
+                if (change.issues != null && change.issues.empty == false) {
+                    print change.issues.size() == 1 ? " (issue: " : " (issues: "
+                    print change.issues.collect { "{es-issue}${it}[#${it}]" }.join(", ")
+                    print ")"
+                }
+                print "\n"
+            }
+        }
+        print "\n\n"
+    }

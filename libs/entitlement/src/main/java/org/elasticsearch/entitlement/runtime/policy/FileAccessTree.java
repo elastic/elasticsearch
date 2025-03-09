@@ -203,6 +203,15 @@ public final class FileAccessTree {
         return prunedReadPaths;
     }
 
+    public String toDebugString() {
+        return Strings.format(
+            "FileAccessTree[readPaths: [%s], writePaths: [%s], exclusivePaths: [%s]]",
+            String.join(",", readPaths),
+            String.join(",", writePaths),
+            String.join(",", exclusivePaths)
+        );
+    }
+
     public static FileAccessTree of(
         String componentName,
         String moduleName,

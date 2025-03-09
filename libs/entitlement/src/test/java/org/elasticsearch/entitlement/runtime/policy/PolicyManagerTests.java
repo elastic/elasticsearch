@@ -496,7 +496,9 @@ public class PolicyManagerTests extends ESTestCase {
         assertThat(
             iae.getMessage(),
             equalTo(
-                "Path [" + testPath1String + "] is already exclusive to [plugin1][test.module1],"
+                "Path ["
+                    + testPath1String
+                    + "] is already exclusive to [plugin1][test.module1],"
                     + " cannot add exclusive access for [plugin2][test.module2]"
             )
         );

@@ -58,7 +58,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         16,
         Comparator.comparingLong(MergeTask::estimatedMergeSize)
     );
-    private final Map<MergePolicy.OneMerge, MergeTask> currentlyRunningMergeTasks = new HashMap<>();
+    private final Map<MergePolicy.OneMerge, MergeTask> runningMergeTasks = new HashMap<>();
     // set when incoming merges should be throttled (i.e. restrict the indexing rate)
     private final AtomicBoolean shouldThrottleIncomingMerges = new AtomicBoolean();
     // how many {@link MergeTask}s have kicked off (this is used to name them).
@@ -188,7 +188,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private void checkMergeTaskThrottling() {
         long submittedMergesCount = submittedMergeTaskCount.get();
         long doneMergesCount = doneMergeTaskCount.get();
-        int executingMergesCount = currentlyRunningMergeTasks.size();
+        int runningMergesCount = runningMergeTasks.size();
         int configuredMaxMergeCount = config.getMaxMergeCount();
         // both currently running and enqueued merge tasks are considered "active" for throttling purposes
         int activeMerges = (int) (submittedMergesCount - doneMergesCount);
@@ -196,14 +196,14 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // maybe enable merge task throttling
             synchronized (shouldThrottleIncomingMerges) {
                 if (shouldThrottleIncomingMerges.getAndSet(true) == false) {
-                    enableIndexingThrottling(executingMergesCount, activeMerges - executingMergesCount, configuredMaxMergeCount);
+                    enableIndexingThrottling(runningMergesCount, activeMerges - runningMergesCount, configuredMaxMergeCount);
                 }
             }
         } else if (activeMerges <= configuredMaxMergeCount && shouldThrottleIncomingMerges.get()) {
             // maybe disable merge task throttling
             synchronized (shouldThrottleIncomingMerges) {
                 if (shouldThrottleIncomingMerges.getAndSet(false)) {
-                    disableIndexingThrottling(executingMergesCount, activeMerges - executingMergesCount, configuredMaxMergeCount);
+                    disableIndexingThrottling(runningMergesCount, activeMerges - runningMergesCount, configuredMaxMergeCount);
                 }
             }
         }
@@ -217,8 +217,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             mergeTask.abort();
             throw new ElasticsearchException("merge task aborted because scheduler is shutting down");
         }
-        if (currentlyRunningMergeTasks.size() < config.getMaxThreadCount()) {
-            boolean added = currentlyRunningMergeTasks.put(mergeTask.onGoingMerge.getMerge(), mergeTask) == null;
+        if (runningMergeTasks.size() < config.getMaxThreadCount()) {
+            boolean added = runningMergeTasks.put(mergeTask.onGoingMerge.getMerge(), mergeTask) == null;
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
             return true;
         } else {
@@ -228,7 +228,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     }
 
     private synchronized void mergeTaskFinishedRunning(MergeTask mergeTask) {
-        boolean removed = currentlyRunningMergeTasks.remove(mergeTask.onGoingMerge.getMerge()) != null;
+        boolean removed = runningMergeTasks.remove(mergeTask.onGoingMerge.getMerge()) != null;
         assert removed : "completed merge task [" + mergeTask + "] not registered as running";
         // when one merge is done, maybe a backlogged one can now execute
         enqueueBackloggedTasks();
@@ -242,13 +242,13 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     }
 
     private synchronized void maybeSignalAllMergesDoneAfterClose() {
-        if (closed && currentlyRunningMergeTasks.isEmpty()) {
+        if (closed && runningMergeTasks.isEmpty()) {
             closedWithNoCurrentlyRunningMerges.countDown();
         }
     }
 
     private synchronized void enqueueBackloggedTasks() {
-        int maxBackloggedTasksToEnqueue = config.getMaxThreadCount() - currentlyRunningMergeTasks.size();
+        int maxBackloggedTasksToEnqueue = config.getMaxThreadCount() - runningMergeTasks.size();
         // enqueue all backlogged tasks when closing, as the queue expects all backlogged tasks to always be enqueued back
         while (closed || maxBackloggedTasksToEnqueue-- > 0) {
             MergeTask backloggedMergeTask = backloggedMergeTasks.poll();
@@ -284,7 +284,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // merges can theoretically be aborted at any moment
             return in;
         }
-        MergeTask mergeTask = currentlyRunningMergeTasks.get(merge);
+        MergeTask mergeTask = runningMergeTasks.get(merge);
         if (mergeTask == null) {
             throw new IllegalStateException("associated merge task for executing merge not found");
         }
@@ -348,7 +348,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         @Override
         public void run() {
             assert isRunning() == false;
-            assert ThreadPoolMergeScheduler.this.currentlyRunningMergeTasks.containsKey(onGoingMerge.getMerge())
+            assert ThreadPoolMergeScheduler.this.runningMergeTasks.containsKey(onGoingMerge.getMerge())
                 : "runNowOrBacklog must be invoked before actually running the merge task";
             try {
                 beforeMerge(onGoingMerge);
@@ -413,7 +413,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
          */
         void abort() {
             assert isRunning() == false;
-            assert ThreadPoolMergeScheduler.this.currentlyRunningMergeTasks.containsKey(onGoingMerge.getMerge()) == false
+            assert ThreadPoolMergeScheduler.this.runningMergeTasks.containsKey(onGoingMerge.getMerge()) == false
                 : "cannot abort a merge task that's already running";
             if (verbose()) {
                 message(String.format(Locale.ROOT, "merge task %s aborted", this));
@@ -496,8 +496,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     }
 
     // exposed for tests
-    Map<MergePolicy.OneMerge, MergeTask> getCurrentlyRunningMergeTasks() {
-        return currentlyRunningMergeTasks;
+    Map<MergePolicy.OneMerge, MergeTask> getRunningMergeTasks() {
+        return runningMergeTasks;
     }
 
     private static double nsToSec(long ns) {

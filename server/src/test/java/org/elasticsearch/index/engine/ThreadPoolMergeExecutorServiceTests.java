@@ -87,7 +87,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             AtomicInteger submittedIOThrottledMergeTasks = new AtomicInteger();
             while (mergesStillToComplete > 0) {
                 if (mergesStillToSubmit > 0
-                    && (threadPoolMergeExecutorService.getCurrentlyRunningMergeTasks().isEmpty() || randomBoolean())) {
+                    && (threadPoolMergeExecutorService.getRunningMergeTasks().isEmpty() || randomBoolean())) {
                     // submit new merge task
                     MergeTask mergeTask = mock(MergeTask.class);
                     boolean supportsIOThrottling = randomBoolean();
@@ -359,7 +359,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 int finalCompletedTasksCount = completedTasksCount;
                 assertBusy(() -> {
                     // assert that there are merge tasks running concurrently at the max allowed concurrency rate
-                    assertThat(threadPoolMergeExecutorService.getCurrentlyRunningMergeTasks().size(), is(mergeExecutorThreadCount));
+                    assertThat(threadPoolMergeExecutorService.getRunningMergeTasks().size(), is(mergeExecutorThreadCount));
                     // with the other merge tasks enqueued
                     assertThat(
                         threadPoolMergeExecutorService.getQueuedMergeTasks().size(),
@@ -380,7 +380,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 int finalRemainingMergeTasksCount = remainingMergeTasksCount;
                 assertBusy(() -> {
                     // there are fewer available merges than available threads
-                    assertThat(threadPoolMergeExecutorService.getCurrentlyRunningMergeTasks().size(), is(finalRemainingMergeTasksCount));
+                    assertThat(threadPoolMergeExecutorService.getRunningMergeTasks().size(), is(finalRemainingMergeTasksCount));
                     // no more merges enqueued
                     assertThat(threadPoolMergeExecutorService.getQueuedMergeTasks().size(), is(0));
                     // also check thread-pool stats for the same

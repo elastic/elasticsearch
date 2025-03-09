@@ -54,7 +54,7 @@ public class ThreadPoolMergeExecutorService {
      * The set of all merge tasks currently being executed by merge threads from the pool.
      * These are tracked notably in order to be able to update their disk IO throttle rate, after they have started, while executing.
      */
-    private final Set<MergeTask> currentlyRunningMergeTasks = ConcurrentCollections.newConcurrentSet();
+    private final Set<MergeTask> runningMergeTasks = ConcurrentCollections.newConcurrentSet();
     /**
      * Current IO write throttle rate, in bytes per sec, that's in effect for all currently running merge tasks,
      * across all {@link ThreadPoolMergeScheduler}s that use this instance of the queue.
@@ -110,7 +110,7 @@ public class ThreadPoolMergeExecutorService {
 
     public boolean allDone() {
         return queuedMergeTasks.isEmpty()
-            && currentlyRunningMergeTasks.isEmpty()
+            && runningMergeTasks.isEmpty()
             && currentlySubmittedIOThrottledMergeTasksCount.get() == 0L;
     }
 
@@ -163,7 +163,7 @@ public class ThreadPoolMergeExecutorService {
 
     private void runMergeTask(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
-        boolean added = currentlyRunningMergeTasks.add(mergeTask);
+        boolean added = runningMergeTasks.add(mergeTask);
         assert added : "starting merge task [" + mergeTask + "] registered as already running";
         try {
             if (mergeTask.supportsIOThrottling()) {
@@ -171,7 +171,7 @@ public class ThreadPoolMergeExecutorService {
             }
             mergeTask.run();
         } finally {
-            boolean removed = currentlyRunningMergeTasks.remove(mergeTask);
+            boolean removed = runningMergeTasks.remove(mergeTask);
             assert removed : "completed merge task [" + mergeTask + "] not registered as running";
         }
     }
@@ -195,9 +195,9 @@ public class ThreadPoolMergeExecutorService {
                 // as it's not important that all merge tasks are throttled to the same IO rate at all time.
                 // For performance reasons, we don't synchronize the updates to targetMBPerSec values with the update of running merges.
                 final long finalNewTargetIORateBytesPerSec = newTargetIORateBytesPerSec;
-                currentlyRunningMergeTasks.forEach(mergeTask -> {
-                    if (mergeTask.supportsIOThrottling()) {
-                        mergeTask.setIORateLimit(finalNewTargetIORateBytesPerSec);
+                runningMergeTasks.forEach(runningMergeTask -> {
+                    if (runningMergeTask.supportsIOThrottling()) {
+                        runningMergeTask.setIORateLimit(finalNewTargetIORateBytesPerSec);
                     }
                 });
                 break;
@@ -234,8 +234,8 @@ public class ThreadPoolMergeExecutorService {
     }
 
     // exposed for tests
-    Set<MergeTask> getCurrentlyRunningMergeTasks() {
-        return currentlyRunningMergeTasks;
+    Set<MergeTask> getRunningMergeTasks() {
+        return runningMergeTasks;
     }
 
     // exposed for tests

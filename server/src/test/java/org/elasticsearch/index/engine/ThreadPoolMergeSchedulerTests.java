@@ -222,14 +222,14 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     int finalCompletedMergesCount = completedMergesCount;
                     assertBusy(() -> {
                         // assert that there are merges running concurrently at the max allowed concurrency rate
-                        assertThat(threadPoolMergeScheduler.getCurrentlyRunningMergeTasks().size(), is(mergeSchedulerMaxThreadCount));
+                        assertThat(threadPoolMergeScheduler.getRunningMergeTasks().size(), is(mergeSchedulerMaxThreadCount));
                         // with the other merges backlogged
                         assertThat(
                             threadPoolMergeScheduler.getBackloggedMergeTasks().size(),
                             is(mergeCount - mergeSchedulerMaxThreadCount - finalCompletedMergesCount)
                         );
                         // also check the same for the thread-pool executor
-                        assertThat(threadPoolMergeExecutorService.getCurrentlyRunningMergeTasks().size(), is(mergeSchedulerMaxThreadCount));
+                        assertThat(threadPoolMergeExecutorService.getRunningMergeTasks().size(), is(mergeSchedulerMaxThreadCount));
                         // queued merge tasks do not include backlogged merges
                         assertThat(threadPoolMergeExecutorService.getQueuedMergeTasks().size(), is(0));
                         // also check thread-pool stats for the same
@@ -246,11 +246,11 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     int finalRemainingMergesCount = remainingMergesCount;
                     assertBusy(() -> {
                         // there are fewer available merges than available threads
-                        assertThat(threadPoolMergeScheduler.getCurrentlyRunningMergeTasks().size(), is(finalRemainingMergesCount));
+                        assertThat(threadPoolMergeScheduler.getRunningMergeTasks().size(), is(finalRemainingMergesCount));
                         // no more backlogged merges
                         assertThat(threadPoolMergeScheduler.getBackloggedMergeTasks().size(), is(0));
                         // also check thread-pool executor for the same
-                        assertThat(threadPoolMergeExecutorService.getCurrentlyRunningMergeTasks().size(), is(finalRemainingMergesCount));
+                        assertThat(threadPoolMergeExecutorService.getRunningMergeTasks().size(), is(finalRemainingMergesCount));
                         // no more backlogged merges
                         assertThat(threadPoolMergeExecutorService.getQueuedMergeTasks().size(), is(0));
                         // also check thread-pool stats for the same
@@ -315,7 +315,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                     verifyNoInteractions(mergeSource2);
                 });
                 // assert the merge still shows up as "running"
-                assertThat(threadPoolMergeScheduler.getCurrentlyRunningMergeTasks().keySet(), contains(oneMerge));
+                assertThat(threadPoolMergeScheduler.getRunningMergeTasks().keySet(), contains(oneMerge));
                 assertThat(threadPoolMergeScheduler.getBackloggedMergeTasks().size(), is(0));
                 assertTrue(t.isAlive());
                 // signal the merge to finish
@@ -324,7 +324,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 t.join();
             }
             assertBusy(() -> {
-                assertThat(threadPoolMergeScheduler.getCurrentlyRunningMergeTasks().size(), is(0));
+                assertThat(threadPoolMergeScheduler.getRunningMergeTasks().size(), is(0));
                 assertThat(threadPoolMergeScheduler.getBackloggedMergeTasks().size(), is(0));
                 assertTrue(threadPoolMergeExecutorService.allDone());
             });

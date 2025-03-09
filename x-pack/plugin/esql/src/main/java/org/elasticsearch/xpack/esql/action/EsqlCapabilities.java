@@ -815,6 +815,11 @@ public class EsqlCapabilities {
         MATCH_FUNCTION_OPTIONS,
 
         /**
+         * Support options in the query string function.
+         */
+        QUERY_STRING_FUNCTION_OPTIONS,
+
+        /**
          * Support for aggregate_metric_double type
          */
         AGGREGATE_METRIC_DOUBLE(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
@@ -840,7 +845,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V3(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V4(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results

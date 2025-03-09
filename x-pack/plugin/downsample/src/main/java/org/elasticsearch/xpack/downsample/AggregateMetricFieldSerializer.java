@@ -39,9 +39,7 @@ public class AggregateMetricFieldSerializer implements DownsampleFieldSerializer
             if (fieldProducer.isEmpty() == false) {
                 if (fieldProducer instanceof MetricFieldProducer metricFieldProducer) {
                     for (MetricFieldProducer.Metric metric : metricFieldProducer.metrics()) {
-                        if (metric.get() != null) {
-                            builder.field(metric.name(), metric.get());
-                        }
+                        builder.field(metric.name(), metric.get());
                     }
                 } else if (fieldProducer instanceof LabelFieldProducer labelFieldProducer) {
                     LabelFieldProducer.Label label = labelFieldProducer.label();

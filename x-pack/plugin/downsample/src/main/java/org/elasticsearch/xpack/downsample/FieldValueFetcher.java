@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
@@ -48,6 +50,11 @@ class FieldValueFetcher {
     public FormattedDocValues getLeaf(LeafReaderContext context) {
         DocValueFormat format = fieldType.docValueFormat(null, null);
         return fieldData.load(context).getFormattedValues(format);
+    }
+
+    public SortedNumericDoubleValues getNumericLeaf(LeafReaderContext context) {
+        LeafNumericFieldData numericFieldData = (LeafNumericFieldData) fieldData.load(context);
+        return numericFieldData.getDoubleValues();
     }
 
     public AbstractDownsampleFieldProducer fieldProducer() {

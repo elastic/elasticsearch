@@ -34,6 +34,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -362,9 +363,14 @@ class DownsampleShardIndexer {
             // For each field, return a tuple with the downsample field producer and the field value leaf
             final AbstractDownsampleFieldProducer[] fieldProducers = new AbstractDownsampleFieldProducer[fieldValueFetchers.size()];
             final FormattedDocValues[] formattedDocValues = new FormattedDocValues[fieldValueFetchers.size()];
+            final SortedNumericDoubleValues[] numericDocValues = new SortedNumericDoubleValues[fieldValueFetchers.size()];
             for (int i = 0; i < fieldProducers.length; i++) {
                 fieldProducers[i] = fieldValueFetchers.get(i).fieldProducer();
-                formattedDocValues[i] = fieldValueFetchers.get(i).getLeaf(ctx);
+                if (fieldProducers[i] instanceof MetricFieldProducer) {
+                    numericDocValues[i] = fieldValueFetchers.get(i).getNumericLeaf(ctx);
+                } else {
+                    formattedDocValues[i] = fieldValueFetchers.get(i).getLeaf(ctx);
+                }
             }
 
             long timestampBoundStartTime = searchExecutionContext.getIndexSettings().getTimestampBounds().startTime();
@@ -459,7 +465,12 @@ class DownsampleShardIndexer {
                     for (int j = 0; j < fieldProducers.length; j++) {
                         AbstractDownsampleFieldProducer fieldProducer = fieldProducers[j];
                         FormattedDocValues docValues = formattedDocValues[j];
-                        fieldProducer.collect(docValues, buffer);
+                        if (docValues != null) {
+                            fieldProducer.collect(docValues, buffer);
+                        } else {
+                            SortedNumericDoubleValues numericDoubleValues = numericDocValues[j];
+                            ((MetricFieldProducer) fieldProducer).collect(numericDoubleValues, buffer);
+                        }
                     }
 
                     docsProcessed += buffer.size();

@@ -705,14 +705,15 @@ public class IndicesPermissionTests extends ESTestCase {
         );
         IndicesPermission.IsResourceAuthorizedPredicate predicate = new IndicesPermission.IsResourceAuthorizedPredicate(
             StringMatcher.of("other"),
+            StringMatcher.of(),
             StringMatcher.of(dataStreamName, backingIndex.getName(), concreteIndex.getName(), alias.getName())
         );
         assertThat(predicate.test(dataStream), is(false));
         // test authorization for a missing resource with the datastream's name
-        assertThat(predicate.test(dataStream.getName(), null), is(true));
+        assertThat(predicate.test(dataStream.getName(), null, null), is(true));
         assertThat(predicate.test(backingIndex), is(false));
         // test authorization for a missing resource with the backing index's name
-        assertThat(predicate.test(backingIndex.getName(), null), is(true));
+        assertThat(predicate.test(backingIndex.getName(), null, null), is(true));
         assertThat(predicate.test(concreteIndex), is(true));
         assertThat(predicate.test(alias), is(true));
     }
@@ -720,10 +721,12 @@ public class IndicesPermissionTests extends ESTestCase {
     public void testResourceAuthorizedPredicateAnd() {
         IndicesPermission.IsResourceAuthorizedPredicate predicate1 = new IndicesPermission.IsResourceAuthorizedPredicate(
             StringMatcher.of("c", "a"),
+            StringMatcher.of(),
             StringMatcher.of("b", "d")
         );
         IndicesPermission.IsResourceAuthorizedPredicate predicate2 = new IndicesPermission.IsResourceAuthorizedPredicate(
             StringMatcher.of("c", "b"),
+            StringMatcher.of(),
             StringMatcher.of("a", "d")
         );
         Metadata.Builder mb = Metadata.builder(

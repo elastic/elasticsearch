@@ -281,22 +281,22 @@ public interface AuthorizationEngine {
     }
 
     /**
-     * Used to retrieve index-like resources that the user has access to, for a specific access action type,
+     * Used to retrieve index-like resources that the user has access to, for a specific access action type and selector,
      * at a specific point in time (for a fixed cluster state view).
      * It can also be used to check if a specific resource name is authorized (access to the resource name
      * can be authorized even if it doesn't exist).
      */
     interface AuthorizedIndices {
         /**
-         * Returns all the index-like resource names that are available and accessible for an action type by a user,
+         * Returns all the index-like resource names that are available and accessible for an action type and selector by a user,
          * at a fixed point in time (for a single cluster state view).
          */
-        Supplier<Set<String>> all();
+        Supplier<Set<String>> all(@Nullable String selector);
 
         /**
          * Checks if an index-like resource name is authorized, for an action by a user. The resource might or might not exist.
          */
-        boolean check(String name);
+        boolean check(String name, @Nullable String selector);
     }
 
     /**

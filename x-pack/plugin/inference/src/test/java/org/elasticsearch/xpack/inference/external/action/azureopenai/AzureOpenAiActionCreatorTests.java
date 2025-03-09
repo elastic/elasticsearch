@@ -115,10 +115,11 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
+            var inputType = InputTypeTests.randomWithNull();
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -127,7 +128,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             validateRequestWithApiKey(webServer.requests().get(0), "apikey");
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            validateEmbeddingsRequestMapWithUser(requestMap, List.of("abc"), "overridden_user", null);
+            validateEmbeddingsRequestMapWithUser(requestMap, List.of("abc"), "overridden_user", inputType);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -165,7 +166,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap(null);
-            var inputType = InputTypeTests.randomWithoutUnspecified();
+            var inputType = InputTypeTests.randomWithNull();
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -368,10 +369,11 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
+            var inputType = InputTypeTests.randomWithNull();
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abcd"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abcd"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -381,13 +383,13 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
                 validateRequestWithApiKey(webServer.requests().get(0), "apikey");
 
                 var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-                validateEmbeddingsRequestMapWithUser(requestMap, List.of("abcd"), "overridden_user", null);
+                validateEmbeddingsRequestMapWithUser(requestMap, List.of("abcd"), "overridden_user", inputType);
             }
             {
                 validateRequestWithApiKey(webServer.requests().get(1), "apikey");
 
                 var requestMap = entityAsMap(webServer.requests().get(1).getBody());
-                validateEmbeddingsRequestMapWithUser(requestMap, List.of("ab"), "overridden_user", null);
+                validateEmbeddingsRequestMapWithUser(requestMap, List.of("ab"), "overridden_user", inputType);
             }
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);

@@ -71,7 +71,7 @@ public record CohereEmbeddingsRequestEntity(
     }
 
     // default for testing
-    static String convertToString(InputType inputType) {
+    public static String convertToString(InputType inputType) {
         return switch (inputType) {
             case INGEST, INTERNAL_INGEST -> SEARCH_DOCUMENT;
             case SEARCH, INTERNAL_SEARCH -> SEARCH_QUERY;

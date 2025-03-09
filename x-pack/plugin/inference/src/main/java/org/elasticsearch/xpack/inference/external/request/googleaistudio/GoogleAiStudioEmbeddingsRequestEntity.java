@@ -90,7 +90,7 @@ public record GoogleAiStudioEmbeddingsRequestEntity(List<String> inputs, InputTy
     }
 
     // default for testing
-    static String convertToString(InputType inputType) {
+    public static String convertToString(InputType inputType) {
         return switch (inputType) {
             case INGEST, INTERNAL_INGEST -> RETRIEVAL_DOCUMENT_TASK_TYPE;
             case SEARCH, INTERNAL_SEARCH -> RETRIEVAL_QUERY_TASK_TYPE;

@@ -72,7 +72,7 @@ public record VoyageAIEmbeddingsRequestEntity(
         return builder;
     }
 
-    static String convertToString(InputType inputType) {
+    public static String convertToString(InputType inputType) {
         return switch (inputType) {
             case null -> null;
             case INGEST, INTERNAL_INGEST -> DOCUMENT;

@@ -143,6 +143,7 @@ public class TimeSeriesIndexSearcher {
                 walker.collectCurrent();
                 if (walker.nextDoc() == DocIdSetIterator.NO_MORE_DOCS || walker.shouldPop()) {
                     queue.pop();
+                    walker.collector.finish();
                 } else {
                     queue.updateTop();
                 }
@@ -168,6 +169,7 @@ public class TimeSeriesIndexSearcher {
                 // If a walker is exhausted then we can remove it from consideration
                 // entirely
                 it.remove();
+                leafWalker.collector.finish();
                 continue;
             }
             BytesRef tsid = leafWalker.getTsid();

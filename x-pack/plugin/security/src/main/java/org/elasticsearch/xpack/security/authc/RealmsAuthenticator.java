@@ -254,7 +254,7 @@ public class RealmsAuthenticator implements Authenticator {
                     assert e instanceof AuthenticationTerminatedSuccessfullyException == false : e;
                     logger.debug(
                         () -> format(
-                            "An error occurred while attempting to authenticate [%s] with token [%s]",
+                            "An error occurred while attempting to authenticate [%s] with token of type [%s]",
                             authenticationToken.principal(),
                             authenticationToken.getClass().getName()
                         ),
@@ -272,7 +272,7 @@ public class RealmsAuthenticator implements Authenticator {
         } catch (Exception e) {
             logger.debug(
                 () -> format(
-                    "Authentication of [%s] with token [%s] failed",
+                    "Authentication of [%s] with token of type [%s] failed",
                     authenticationToken.principal(),
                     authenticationToken.getClass().getName()
                 ),

@@ -86,6 +86,65 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(zeroIndex.isSystem(), equalTo(false));
+        assertThat(zeroIndex.getAliases().size(), equalTo(0));
+    }
+
+    public void testAddBackingIndexToSystemDataStream() {
+        final long epochMillis = System.currentTimeMillis();
+        final int numBackingIndices = randomIntBetween(1, 4);
+        final String dataStreamName = randomAlphaOfLength(5);
+        IndexMetadata[] backingIndices = new IndexMetadata[numBackingIndices];
+        Metadata.Builder mb = Metadata.builder();
+        for (int k = 0; k < numBackingIndices; k++) {
+            backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putMapping(generateMapping("@timestamp"))
+                .system(true)
+                .build();
+            mb.put(backingIndices[k], false);
+        }
+
+        DataStream dataStream = DataStream.builder(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList())
+            .setSystem(true)
+            .setHidden(true)
+            .build();
+        mb.put(dataStream);
+
+        final IndexMetadata indexToAdd = IndexMetadata.builder(randomAlphaOfLength(5))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp"))
+            .system(false)
+            .build();
+        mb.put(indexToAdd, false);
+
+        ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
+        ClusterState newState = MetadataDataStreamsService.modifyDataStream(
+            originalState,
+            List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
+            this::getMapperService,
+            Settings.EMPTY
+        );
+
+        IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
+        assertThat(ds, notNullValue());
+        assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
+        List<String> backingIndexNames = ds.getIndices().stream().filter(x -> x.getName().startsWith(".ds-")).map(Index::getName).toList();
+        assertThat(
+            backingIndexNames,
+            containsInAnyOrder(
+                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).map(Index::getName).toList().toArray(Strings.EMPTY_ARRAY)
+            )
+        );
+        IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
+        assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
+        assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(zeroIndex.isSystem(), equalTo(true));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));
     }
 

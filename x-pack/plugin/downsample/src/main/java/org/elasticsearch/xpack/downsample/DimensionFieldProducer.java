@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -81,18 +82,23 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
     }
 
     @Override
-    public void collect(FormattedDocValues docValues, int docId) throws IOException {
+    public void collect(FormattedDocValues docValues, IntArrayList buffer) throws IOException {
         if (dimension.isEmpty == false) {
-            assert dimension.validate(docValues, docId);
             return;
         }
 
-        if (docValues.advanceExact(docId) == false) {
+        for (int i = 0; i < buffer.size(); i++) {
+            int docId = buffer.get(i);
+            if (docValues.advanceExact(docId) == false) {
+                continue;
+            }
+            int docValueCount = docValues.docValueCount();
+            for (int j = 0; j < docValueCount; j++) {
+                this.dimension.collectOnce(docValues.nextValue());
+            }
+            // Only need to record one dimension value from one document, within in the same tsid-and-time-interval bucket values are the
+            // same.
             return;
-        }
-        int docValueCount = docValues.docValueCount();
-        for (int i = 0; i < docValueCount; i++) {
-            this.dimension.collectOnce(docValues.nextValue());
         }
     }
 

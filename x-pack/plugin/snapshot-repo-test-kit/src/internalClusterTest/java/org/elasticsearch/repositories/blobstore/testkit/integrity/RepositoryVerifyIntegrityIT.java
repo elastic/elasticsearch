@@ -191,7 +191,7 @@ public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
                         assertEquals(0L, status.indexSnapshotsVerified());
                         assertEquals(0L, status.blobsVerified());
                         assertEquals(0L, status.blobBytesVerified());
-                        yield SubscribableListener.newSucceeded(null);
+                        yield SubscribableListener.nullSuccess();
                     }
                     case INDEX_RESTORABILITY -> {
                         // several of these chunks might arrive concurrently; we want to verify the task status before processing any of
@@ -210,7 +210,7 @@ public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
                             assertEquals(0L, status.indicesVerified());
                         });
                     }
-                    case SNAPSHOT_INFO -> SubscribableListener.newSucceeded(null);
+                    case SNAPSHOT_INFO -> SubscribableListener.nullSuccess();
                     case ANOMALY -> fail(null, "should not see anomalies");
                 };
 

@@ -9,10 +9,12 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.EntitlementInstrumented;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.objectweb.asm.AnnotationVisitor;
@@ -24,9 +26,12 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.RecordComponentVisitor;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.util.CheckClassAdapter;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -43,6 +48,7 @@ public class InstrumenterImpl implements Instrumenter {
 
     private final String getCheckerClassMethodDescriptor;
     private final String handleClass;
+    private final boolean verifyBytecode;
 
     /**
      * To avoid class name collisions during testing without an agent to replace classes in-place.
@@ -54,19 +60,22 @@ public class InstrumenterImpl implements Instrumenter {
         String handleClass,
         String getCheckerClassMethodDescriptor,
         String classNameSuffix,
-        Map<MethodKey, CheckMethod> checkMethods
+        Map<MethodKey, CheckMethod> checkMethods,
+        boolean verifyBytecode
     ) {
         this.handleClass = handleClass;
         this.getCheckerClassMethodDescriptor = getCheckerClassMethodDescriptor;
         this.classNameSuffix = classNameSuffix;
         this.checkMethods = checkMethods;
+        this.verifyBytecode = verifyBytecode;
     }
 
-    public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, CheckMethod> checkMethods) {
+    public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, CheckMethod> checkMethods, boolean verifyBytecode) {
+
         Type checkerClassType = Type.getType(checkerClass);
         String handleClass = checkerClassType.getInternalName() + "Handle";
         String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(checkerClassType);
-        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods);
+        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods, verifyBytecode);
     }
 
     static ClassFileInfo getClassFileInfo(Class<?> clazz) throws IOException {
@@ -82,13 +91,63 @@ public class InstrumenterImpl implements Instrumenter {
         return new ClassFileInfo(fileName, originalBytecodes);
     }
 
+    private enum VerificationPhase {
+        BEFORE_INSTRUMENTATION,
+        AFTER_INSTRUMENTATION
+    }
+
+    private static String verify(byte[] classfileBuffer) {
+        ClassReader reader = new ClassReader(classfileBuffer);
+        StringWriter stringWriter = new StringWriter();
+        PrintWriter printWriter = new PrintWriter(stringWriter);
+        CheckClassAdapter.verify(reader, false, printWriter);
+        return stringWriter.toString();
+    }
+
+    private static void verifyAndLog(byte[] classfileBuffer, String className, VerificationPhase phase) {
+        var failureLogLevel = (phase == VerificationPhase.BEFORE_INSTRUMENTATION ? Level.WARN : Level.ERROR);
+        try {
+            String result = verify(classfileBuffer);
+            if (result.isEmpty() == false) {
+                logger.log(
+                    failureLogLevel,
+                    Strings.format("Bytecode verification (%s) for class [%s] failed: %s", phase, className, result)
+                );
+            } else {
+                logger.info("Bytecode verification ({}) for class [{}] passed", phase, className);
+            }
+        } catch (Throwable e) {
+            // The ASM CheckClassAdapter in some cases throws instead of printing the error
+            logger.log(
+                failureLogLevel,
+                Strings.format(
+                    "Bytecode verification (%s) for class [%s] failed: %s: %s",
+                    phase,
+                    className,
+                    e.getClass().getName(),
+                    e.getMessage()
+                )
+            );
+        }
+    }
+
     @Override
     public byte[] instrumentClass(String className, byte[] classfileBuffer) {
+        if (verifyBytecode) {
+            verifyAndLog(classfileBuffer, className, VerificationPhase.BEFORE_INSTRUMENTATION);
+        }
+
         ClassReader reader = new ClassReader(classfileBuffer);
         ClassWriter writer = new ClassWriter(reader, COMPUTE_FRAMES | COMPUTE_MAXS);
         ClassVisitor visitor = new EntitlementClassVisitor(Opcodes.ASM9, writer, className);
         reader.accept(visitor, 0);
-        return writer.toByteArray();
+        var outBytes = writer.toByteArray();
+
+        if (verifyBytecode) {
+            verifyAndLog(outBytes, className, VerificationPhase.AFTER_INSTRUMENTATION);
+        }
+
+        return outBytes;
     }
 
     class EntitlementClassVisitor extends ClassVisitor {

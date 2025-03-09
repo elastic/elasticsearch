@@ -19,6 +19,8 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 
+import static org.elasticsearch.test.ESTestCase.asInstanceOf;
+
 /**
  * Utilities around testing the `error_trace` message header in search.
  */
@@ -28,7 +30,7 @@ public enum ErrorTraceHelper {
     public static BooleanSupplier setupErrorTraceListener(InternalTestCluster internalCluster) {
         final AtomicBoolean transportMessageHasStackTrace = new AtomicBoolean(false);
         internalCluster.getDataNodeInstances(TransportService.class)
-            .forEach(ts -> ((MockTransportService) ts).addMessageListener(new TransportMessageListener() {
+            .forEach(ts -> asInstanceOf(MockTransportService.class, ts).addMessageListener(new TransportMessageListener() {
                 @Override
                 public void onResponseSent(long requestId, String action, Exception error) {
                     TransportMessageListener.super.onResponseSent(requestId, action, error);

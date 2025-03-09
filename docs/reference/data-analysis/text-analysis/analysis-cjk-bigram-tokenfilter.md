@@ -30,6 +30,84 @@ The filter produces the following tokens:
 [ 東京, 京都, 都は, 日本, 本の, の首, 首都, 都で, であ, あり ]
 ```
 
+% [source,console-result]
+% --------------------------------------------------
+% {
+%   "tokens" : [
+%     {
+%       "token" : "東京",
+%       "start_offset" : 0,
+%       "end_offset" : 2,
+%       "type" : "<DOUBLE>",
+%       "position" : 0
+%     },
+%     {
+%       "token" : "京都",
+%       "start_offset" : 1,
+%       "end_offset" : 3,
+%       "type" : "<DOUBLE>",
+%       "position" : 1
+%     },
+%     {
+%       "token" : "都は",
+%       "start_offset" : 2,
+%       "end_offset" : 4,
+%       "type" : "<DOUBLE>",
+%       "position" : 2
+%     },
+%     {
+%       "token" : "日本",
+%       "start_offset" : 5,
+%       "end_offset" : 7,
+%       "type" : "<DOUBLE>",
+%       "position" : 3
+%     },
+%     {
+%       "token" : "本の",
+%       "start_offset" : 6,
+%       "end_offset" : 8,
+%       "type" : "<DOUBLE>",
+%       "position" : 4
+%     },
+%     {
+%       "token" : "の首",
+%       "start_offset" : 7,
+%       "end_offset" : 9,
+%       "type" : "<DOUBLE>",
+%       "position" : 5
+%     },
+%     {
+%       "token" : "首都",
+%       "start_offset" : 8,
+%       "end_offset" : 10,
+%       "type" : "<DOUBLE>",
+%       "position" : 6
+%     },
+%     {
+%       "token" : "都で",
+%       "start_offset" : 9,
+%       "end_offset" : 11,
+%       "type" : "<DOUBLE>",
+%       "position" : 7
+%     },
+%     {
+%       "token" : "であ",
+%       "start_offset" : 10,
+%       "end_offset" : 12,
+%       "type" : "<DOUBLE>",
+%       "position" : 8
+%     },
+%     {
+%       "token" : "あり",
+%       "start_offset" : 11,
+%       "end_offset" : 13,
+%       "type" : "<DOUBLE>",
+%       "position" : 9
+%     }
+%   ]
+% }
+% --------------------------------------------------
+
 
 ## Add to an analyzer [analysis-cjk-bigram-tokenfilter-analyzer-ex]
 

@@ -38,6 +38,8 @@ Suppose you provide this configuration of the `json` processor:
 }
 ```
 
+%  NOTCONSOLE
+
 If the following document is processed:
 
 ```js
@@ -45,6 +47,8 @@ If the following document is processed:
   "string_source": "{\"foo\": 2000}"
 }
 ```
+
+%  NOTCONSOLE
 
 after the `json` processor operates on it, it will look like:
 
@@ -57,6 +61,8 @@ after the `json` processor operates on it, it will look like:
 }
 ```
 
+%  NOTCONSOLE
+
 If the following configuration is provided, omitting the optional `target_field` setting:
 
 ```js
@@ -67,6 +73,8 @@ If the following configuration is provided, omitting the optional `target_field`
 }
 ```
 
+%  NOTCONSOLE
+
 then after the `json` processor operates on this document:
 
 ```js
@@ -74,6 +82,8 @@ then after the `json` processor operates on this document:
   "source_and_target": "{\"foo\": 2000}"
 }
 ```
+
+%  NOTCONSOLE
 
 it will look like:
 
@@ -84,6 +94,8 @@ it will look like:
   }
 }
 ```
+
+%  NOTCONSOLE
 
 This illustrates that, unless it is explicitly named in the processor configuration, the `target_field` is the same field provided in the required `field` configuration.
 

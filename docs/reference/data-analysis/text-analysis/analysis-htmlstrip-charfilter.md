@@ -32,6 +32,21 @@ The filter produces the following text:
 [ \nI'm so happy!\n ]
 ```
 
+% [source,console-result]
+% ----
+% {
+%   "tokens": [
+%     {
+%       "token": "\nI’m so happy!\n",
+%       "start_offset": 0,
+%       "end_offset": 32,
+%       "type": "word",
+%       "position": 0
+%     }
+%   ]
+% }
+% ----
+
 
 ## Add to an analyzer [analysis-htmlstrip-charfilter-analyzer-ex]
 

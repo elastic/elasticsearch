@@ -33,6 +33,8 @@ PUT idx
 }
 ```
 
+%  TESTSETUP
+
 While this on-the-fly reconstruction is *generally* slower than saving the source documents verbatim and loading them at query time, it saves a lot of storage space. Additional latency can be avoided by not loading `_source` field in queries when it is not needed.
 
 ### Supported fields [synthetic-source-fields]
@@ -74,6 +76,8 @@ PUT idx/_doc/1
 }
 ```
 
+%  TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
 Will become:
 
 ```console-result
@@ -83,6 +87,8 @@ Will become:
   }
 }
 ```
+
+%  TEST[s/^/{"_source":/ s/\n$/}/]
 
 This can cause some arrays to vanish:
 
@@ -102,6 +108,8 @@ PUT idx/_doc/1
 }
 ```
 
+%  TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
 Will become:
 
 ```console-result
@@ -112,6 +120,8 @@ Will become:
   }
 }
 ```
+
+%  TEST[s/^/{"_source":/ s/\n$/}/]
 
 
 #### Fields named as they are mapped [synthetic-source-modifications-field-names]
@@ -127,6 +137,8 @@ PUT idx/_doc/1
 }
 ```
 
+%  TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
 Will become:
 
 ```console-result
@@ -139,11 +151,15 @@ Will become:
 }
 ```
 
+%  TEST[s/^/{"_source":/ s/\n$/}/]
+
 This impacts how source contents can be referenced in [scripts](docs-content://explore-analyze/scripting/modules-scripting-using.md). For instance, referencing a script in its original source form will return null:
 
 ```js
 "script": { "source": """  emit(params._source['foo.bar.baz'])  """ }
 ```
+
+%  NOTCONSOLE
 
 Instead, source references need to be in line with the mapping structure:
 
@@ -151,11 +167,15 @@ Instead, source references need to be in line with the mapping structure:
 "script": { "source": """  emit(params._source['foo']['bar']['baz'])  """ }
 ```
 
+%  NOTCONSOLE
+
 or simply
 
 ```js
 "script": { "source": """  emit(params._source.foo.bar.baz)  """ }
 ```
+
+%  NOTCONSOLE
 
 The following [field APIs](docs-content://explore-analyze/scripting/modules-scripting-fields.md) are preferable as, in addition to being agnostic to the mapping structure, they make use of docvalues if available and fall back to synthetic source only when needed. This reduces source synthesizing, a slow and costly operation.
 
@@ -163,6 +183,8 @@ The following [field APIs](docs-content://explore-analyze/scripting/modules-scri
 "script": { "source": """  emit(field('foo.bar.baz').get(null))   """ }
 "script": { "source": """  emit($('foo.bar.baz', null))   """ }
 ```
+
+%  NOTCONSOLE
 
 
 #### Alphabetical sorting [synthetic-source-modifications-alphabetical]
@@ -219,6 +241,8 @@ PUT idx_keep
 }
 ```
 
+%  TEST
+
 $$$synthetic-source-keep-example$$$
 
 ```console
@@ -235,6 +259,8 @@ PUT idx_keep/_doc/1
 }
 ```
 
+%  TEST[s/$/\nGET idx_keep\/_doc\/1?filter_path=_source\n/]
+
 returns the original source, with no array deduplication and sorting:
 
 ```console-result
@@ -249,6 +275,8 @@ returns the original source, with no array deduplication and sorting:
   "ids": [ 200, 100, 300, 100 ]
 }
 ```
+
+%  TEST[s/^/{"_source":/ s/\n$/}/]
 
 The option for capturing the source of arrays can be applied at index level, by setting `index.mapping.synthetic_source_keep` to `arrays`. This applies to all objects and fields in the index, except for the ones with explicit overrides of `synthetic_source_keep` set to `none`. In this case, the storage overhead grows with the number and sizes of arrays present in source of each document, naturally.
 

@@ -48,6 +48,21 @@ The filter produces the following text:
 [ My license plate is 25015 ]
 ```
 
+% [source,console-result]
+% ----
+% {
+%   "tokens": [
+%     {
+%       "token": "My license plate is 25015",
+%       "start_offset": 0,
+%       "end_offset": 25,
+%       "type": "word",
+%       "position": 0
+%     }
+%   ]
+% }
+% ----
+
 
 ## Configurable parameters [analysis-mapping-charfilter-configure-parms]
 
@@ -111,11 +126,27 @@ GET /my-index-000001/_analyze
   "text": "I'm delighted about it :("
 }
 ```
+%  TEST[continued]
 
 The filter produces the following text:
 
 ```text
 [ I'm delighted about it _sad_ ]
 ```
+
+% [source,console-result]
+% ----
+% {
+%   "tokens": [
+%     {
+%       "token": "I’m delighted about it *sad*",
+%       "start_offset": 0,
+%       "end_offset": 25,
+%       "type": "word",
+%       "position": 0
+%     }
+%   ]
+% }
+% ----
 
 

@@ -48,6 +48,8 @@ PUT /example
 }
 ```
 
+%  TESTSETUP
+
 This mapping definition maps the geometry field to the shape type. The indexer uses single precision floats for the vertex values so accuracy is guaranteed to the same precision as `float` values provided by the java virtual machine approximately (typically 1E-38).
 
 
@@ -66,7 +68,7 @@ Shapes can be represented using either the [GeoJSON](http://geojson.org) or [Wel
 | `GeometryCollection` | `GEOMETRYCOLLECTION` | `geometrycollection` | A shape collection similar to the`multi*` shapes except that multiple types can coexist (e.g., a Point and a LineString). |
 | `N/A` | `BBOX` | `envelope` | A bounding rectangle, or envelope, specified byspecifying only the top left and bottom right points. |
 
-::::{note}
+::::{note} 
 For all types, both the inner `type` and `coordinates` fields are required.
 
 In GeoJSON and WKT, and therefore Elasticsearch, the correct **coordinate order is (X, Y)** within coordinate arrays. This differs from many Geospatial APIs (e.g., `geo_shape`) that typically use the colloquial latitude, longitude (Y, X) ordering.

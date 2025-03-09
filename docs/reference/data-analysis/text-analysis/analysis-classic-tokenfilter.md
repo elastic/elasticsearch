@@ -30,6 +30,91 @@ The filter produces the following tokens:
 [ The, 2, QUICK, Brown, Foxes, jumped, over, the, lazy, dog, bone ]
 ```
 
+% [source,console-result]
+% --------------------------------------------------
+% {
+%   "tokens" : [
+%     {
+%       "token" : "The",
+%       "start_offset" : 0,
+%       "end_offset" : 3,
+%       "type" : "<ALPHANUM>",
+%       "position" : 0
+%     },
+%     {
+%       "token" : "2",
+%       "start_offset" : 4,
+%       "end_offset" : 5,
+%       "type" : "<ALPHANUM>",
+%       "position" : 1
+%     },
+%     {
+%       "token" : "QUICK",
+%       "start_offset" : 6,
+%       "end_offset" : 16,
+%       "type" : "<ACRONYM>",
+%       "position" : 2
+%     },
+%     {
+%       "token" : "Brown",
+%       "start_offset" : 17,
+%       "end_offset" : 22,
+%       "type" : "<ALPHANUM>",
+%       "position" : 3
+%     },
+%     {
+%       "token" : "Foxes",
+%       "start_offset" : 23,
+%       "end_offset" : 28,
+%       "type" : "<ALPHANUM>",
+%       "position" : 4
+%     },
+%     {
+%       "token" : "jumped",
+%       "start_offset" : 29,
+%       "end_offset" : 35,
+%       "type" : "<ALPHANUM>",
+%       "position" : 5
+%     },
+%     {
+%       "token" : "over",
+%       "start_offset" : 36,
+%       "end_offset" : 40,
+%       "type" : "<ALPHANUM>",
+%       "position" : 6
+%     },
+%     {
+%       "token" : "the",
+%       "start_offset" : 41,
+%       "end_offset" : 44,
+%       "type" : "<ALPHANUM>",
+%       "position" : 7
+%     },
+%     {
+%       "token" : "lazy",
+%       "start_offset" : 45,
+%       "end_offset" : 49,
+%       "type" : "<ALPHANUM>",
+%       "position" : 8
+%     },
+%     {
+%       "token" : "dog",
+%       "start_offset" : 50,
+%       "end_offset" : 55,
+%       "type" : "<APOSTROPHE>",
+%       "position" : 9
+%     },
+%     {
+%       "token" : "bone",
+%       "start_offset" : 56,
+%       "end_offset" : 60,
+%       "type" : "<ALPHANUM>",
+%       "position" : 10
+%     }
+%   ]
+% }
+% --------------------------------------------------
+
 
 ## Add to an analyzer [analysis-classic-tokenfilter-analyzer-ex]
 

@@ -40,6 +40,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.optimizer.QueryProgressFragmentOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -158,6 +159,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 computeListener.acquireAvoid()
                             );
                             final boolean sameNode = transportService.getLocalNode().getId().equals(connection.getNode().getId());
+                            // TODO: Rewrite the plan with the QueryProgressFragmentOptimizer
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
                                 configuration,
@@ -204,6 +206,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final ExchangeSink blockingSink; // block until we have completed on all shards or the coordinator has enough data
         private final boolean failFastOnShardFailure;
         private final Map<ShardId, Exception> shardLevelFailures;
+        private final QueryProgressFragmentOptimizer fragmentOptimizer;
 
         DataNodeRequestExecutor(
             DataNodeRequest request,
@@ -222,16 +225,17 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.failFastOnShardFailure = failFastOnShardFailure;
             this.shardLevelFailures = shardLevelFailures;
             this.blockingSink = exchangeSink.createExchangeSink(() -> {});
+            this.fragmentOptimizer = new QueryProgressFragmentOptimizer(() -> (int) Math.min(Integer.MAX_VALUE, exchangeSink.addedRows()));
         }
 
         void start() {
             parentTask.addListener(
                 () -> exchangeService.finishSinkHandler(request.sessionId(), new TaskCancelledException(parentTask.getReasonCancelled()))
             );
-            runBatch(0);
+            runBatch(request.plan(), 0);
         }
 
-        private void runBatch(int startBatchIndex) {
+        private void runBatch(PhysicalPlan plan, int startBatchIndex) {
             final Configuration configuration = request.configuration();
             final String clusterAlias = request.clusterAlias();
             final var sessionId = request.sessionId();
@@ -283,7 +287,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     null,
                     () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
                 );
-                computeService.runCompute(parentTask, computeContext, request.plan(), batchListener);
+                computeService.runCompute(parentTask, computeContext, plan, batchListener);
             }, batchListener::onFailure));
         }
 
@@ -356,8 +360,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         private void onBatchCompleted(int lastBatchIndex) {
+            PhysicalPlan nextPlan = null;
             if (lastBatchIndex < request.shardIds().size() && exchangeSink.isFinished() == false) {
-                runBatch(lastBatchIndex);
+                nextPlan = fragmentOptimizer.optimizeFragment(request.plan());
+            }
+            if (nextPlan != null) {
+                runBatch(nextPlan, lastBatchIndex);
             } else {
                 // don't return until all pages are fetched
                 var completionListener = computeListener.acquireAvoid();

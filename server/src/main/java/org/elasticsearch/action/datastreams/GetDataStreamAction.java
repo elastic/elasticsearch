@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -28,8 +28,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -53,7 +57,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         super(NAME);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
+    public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.builder()
@@ -104,6 +108,16 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             return null;
         }
 
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
+
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readOptionalStringArray();
@@ -117,19 +131,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 this.verbose = in.readBoolean();
             } else {
                 this.verbose = false;
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalStringArray(names);
-            indicesOptions.writeIndicesOptions(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                out.writeBoolean(includeDefaults);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeBoolean(verbose);
             }
         }
 
@@ -274,29 +275,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 this.indexMode = indexMode;
             }
 
-            @SuppressWarnings("unchecked")
-            DataStreamInfo(StreamInput in) throws IOException {
-                this.dataStream = DataStream.read(in);
-                this.failureStoreEffectivelyEnabled = in.getTransportVersion()
-                    .onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)
-                        ? in.readBoolean()
-                        : dataStream.isFailureStoreExplicitlyEnabled(); // Revert to the behaviour before this field was added
-                this.dataStreamStatus = ClusterHealthStatus.readFrom(in);
-                this.indexTemplate = in.readOptionalString();
-                this.ilmPolicyName = in.readOptionalString();
-                this.timeSeries = in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)
-                    ? in.readOptionalWriteable(TimeSeries::new)
-                    : null;
-                this.indexSettingsValues = in.getTransportVersion().onOrAfter(V_8_11_X)
-                    ? in.readMap(Index::new, IndexProperties::new)
-                    : Map.of();
-                this.templatePreferIlmValue = in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true;
-                this.maximumTimestamp = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalVLong() : null;
-                this.indexMode = in.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM)
-                    ? in.readOptionalString()
-                    : null;
-            }
-
             public DataStream getDataStream() {
                 return dataStream;
             }
@@ -342,6 +320,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return indexMode;
             }
 
+            /**
+             * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+             * we no longer need to support calling this action remotely.
+             */
+            @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
@@ -543,10 +526,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         public record TimeSeries(List<Tuple<Instant, Instant>> temporalRanges) implements Writeable {
 
-            TimeSeries(StreamInput in) throws IOException {
-                this(in.readCollectionAsList(in1 -> new Tuple<>(in1.readInstant(), in1.readInstant())));
-            }
-
+            /**
+             * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+             * we no longer need to support calling this action remotely.
+             */
+            @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeCollection(temporalRanges, (out1, value) -> {
@@ -618,16 +602,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             this.globalRetention = globalRetention;
         }
 
-        public Response(StreamInput in) throws IOException {
-            this(
-                in.readCollectionAsList(DataStreamInfo::new),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(RolloverConfiguration::new) : null,
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
-                    ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
-                    : null
-            );
-        }
-
         public List<DataStreamInfo> getDataStreams() {
             return dataStreams;
         }
@@ -642,6 +616,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             return globalRetention;
         }
 
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreams);

@@ -5,11 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.response.openai;
+package org.elasticsearch.xpack.inference.external.openai;
 
 import org.apache.http.HttpResponse;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
@@ -124,14 +125,14 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         var thrownException = expectThrows(
-            IllegalStateException.class,
+            IllegalArgumentException.class,
             () -> OpenAiEmbeddingsResponseEntity.fromResponse(
                 mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
 
-        assertThat(thrownException.getMessage(), is("Failed to find required field [data] in OpenAI embeddings response"));
+        assertThat(thrownException.getMessage(), is("Required [data]"));
     }
 
     public void testFromResponse_FailsWhenDataFieldNotAnArray() {
@@ -157,17 +158,14 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         var thrownException = expectThrows(
-            ParsingException.class,
+            XContentParseException.class,
             () -> OpenAiEmbeddingsResponseEntity.fromResponse(
                 mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
 
-        assertThat(
-            thrownException.getMessage(),
-            is("Failed to parse object: expecting token of type [START_ARRAY] but found [START_OBJECT]")
-        );
+        assertThat(thrownException.getMessage(), containsString("[EmbeddingFloatResult] failed to parse field [data]"));
     }
 
     public void testFromResponse_FailsWhenEmbeddingsDoesNotExist() {
@@ -193,14 +191,14 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         var thrownException = expectThrows(
-            IllegalStateException.class,
+            XContentParseException.class,
             () -> OpenAiEmbeddingsResponseEntity.fromResponse(
                 mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
 
-        assertThat(thrownException.getMessage(), is("Failed to find required field [embedding] in OpenAI embeddings response"));
+        assertThat(thrownException.getMessage(), containsString("[EmbeddingFloatResult] failed to parse field [data]"));
     }
 
     public void testFromResponse_FailsWhenEmbeddingValueIsAString() {
@@ -225,17 +223,14 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         var thrownException = expectThrows(
-            ParsingException.class,
+            XContentParseException.class,
             () -> OpenAiEmbeddingsResponseEntity.fromResponse(
                 mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
 
-        assertThat(
-            thrownException.getMessage(),
-            is("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]")
-        );
+        assertThat(thrownException.getMessage(), containsString("[EmbeddingFloatResult] failed to parse field [data]"));
     }
 
     public void testFromResponse_SucceedsWhenEmbeddingValueIsInt() throws IOException {
@@ -318,17 +313,14 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         var thrownException = expectThrows(
-            ParsingException.class,
+            XContentParseException.class,
             () -> OpenAiEmbeddingsResponseEntity.fromResponse(
                 mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
 
-        assertThat(
-            thrownException.getMessage(),
-            is("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_OBJECT]")
-        );
+        assertThat(thrownException.getMessage(), containsString("[EmbeddingFloatResult] failed to parse field [data]"));
     }
 
     public void testFieldsInDifferentOrderServer() throws IOException {

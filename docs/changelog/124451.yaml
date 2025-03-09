@@ -1,0 +1,5 @@
+pr: 124451
+summary: Improve downsample dimension processing
+area: Downsampling
+type: bug
+issues: []

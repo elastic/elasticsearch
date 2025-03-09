@@ -24,6 +24,10 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.ABORT;
+import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.BACKLOG;
+import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.RUN;
+
 public class ThreadPoolMergeExecutorService {
     /**
      * Floor for IO write rate limit of individual merge tasks (we will never go any lower than this)
@@ -124,30 +128,32 @@ public class ThreadPoolMergeExecutorService {
                 boolean interrupted = false;
                 // one such runnable always executes a SINGLE merge task from the queue
                 // this is important for merge queue statistics, i.e. the executor's queue size represents the current amount of merges
-                MergeTask smallestMergeTask = null;
                 try {
                     while (true) {
+                        MergeTask smallestMergeTask = null;
                         try {
                             // will block if there are backlogged merges until they're enqueued again
                             smallestMergeTask = queuedMergeTasks.take();
                         } catch (InterruptedException e) {
                             interrupted = true;
-                            // this runnable must always run exactly a single merge task
+                            // this runnable must always run exactly one merge task
                             continue;
                         }
                         // let the task's scheduler decide if it can actually run the merge task now
-                        if (smallestMergeTask.runNowOrBacklog()) {
+                        ThreadPoolMergeScheduler.Schedule schedule = smallestMergeTask.schedule();
+                        if (schedule == RUN) {
                             runMergeTask(smallestMergeTask);
                             break;
+                        } else if (schedule == ABORT) {
+                            abortMergeTask(smallestMergeTask);
+                            break;
+                        } else {
+                            assert schedule == BACKLOG;
+                            // the merge task is backlogged by the merge scheduler, try to get the next smallest one
+                            // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when it can be run
                         }
-                        smallestMergeTask = null;
-                        // the merge task is backlogged by the merge scheduler, try to get the next smallest one
-                        // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when it can be run
                     }
                 } finally {
-                    if (smallestMergeTask != null && smallestMergeTask.supportsIOThrottling()) {
-                        currentlySubmittedIOThrottledMergeTasksCount.decrementAndGet();
-                    }
                     if (interrupted) {
                         Thread.currentThread().interrupt();
                     }
@@ -173,6 +179,21 @@ public class ThreadPoolMergeExecutorService {
         } finally {
             boolean removed = runningMergeTasks.remove(mergeTask);
             assert removed : "completed merge task [" + mergeTask + "] not registered as running";
+            if (mergeTask.supportsIOThrottling()) {
+                currentlySubmittedIOThrottledMergeTasksCount.decrementAndGet();
+            }
+        }
+    }
+
+    private void abortMergeTask(MergeTask mergeTask) {
+        assert mergeTask.isRunning() == false;
+        assert runningMergeTasks.contains(mergeTask) == false;
+        try {
+            mergeTask.abort();
+        } finally {
+            if (mergeTask.supportsIOThrottling()) {
+                currentlySubmittedIOThrottledMergeTasksCount.decrementAndGet();
+            }
         }
     }
 

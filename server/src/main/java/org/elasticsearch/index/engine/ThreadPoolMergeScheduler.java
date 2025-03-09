@@ -20,7 +20,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimitedIndexOutput;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -209,21 +208,19 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
     }
 
-    // synchronized so that {@code #closed}, {@code #currentlyRunningMergeTasks} and {@code #backloggedMergeTasks} are modified atomically
-    private synchronized boolean runNowOrBacklog(MergeTask mergeTask) {
+    // synchronized so that {@code #closed}, {@code #runningMergeTasks} and {@code #backloggedMergeTasks} are modified atomically
+    private synchronized Schedule schedule(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
         if (closed) {
-            // Do not backlog or execute tasks when closing the merge scheduler, instead abort them.
-            mergeTask.abort();
-            throw new ElasticsearchException("merge task aborted because scheduler is shutting down");
-        }
-        if (runningMergeTasks.size() < config.getMaxThreadCount()) {
+            // do not run or backlog tasks when closing the merge scheduler, instead abort them
+            return Schedule.ABORT;
+        } else if (runningMergeTasks.size() < config.getMaxThreadCount()) {
             boolean added = runningMergeTasks.put(mergeTask.onGoingMerge.getMerge(), mergeTask) == null;
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
-            return true;
+            return Schedule.RUN;
         } else {
             backloggedMergeTasks.add(mergeTask);
-            return false;
+            return Schedule.BACKLOG;
         }
     }
 
@@ -320,8 +317,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             this.supportsIOThrottling = supportsIOThrottling;
         }
 
-        boolean runNowOrBacklog() {
-            return ThreadPoolMergeScheduler.this.runNowOrBacklog(this);
+        Schedule schedule() {
+            return ThreadPoolMergeScheduler.this.schedule(this);
         }
 
         public boolean supportsIOThrottling() {
@@ -340,8 +337,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
 
         /**
-         * Executes the merge associated to this task. MUST be invoked after {@link #runNowOrBacklog()} returned {@code true},
-         * to confirm that the associated {@link MergeScheduler} assents to executing the merge.
+         * Runs the merge associated to this task. MUST be invoked after {@link #schedule()} returned {@link Schedule#RUN},
+         * to confirm that the associated {@link MergeScheduler} assents to run the merge.
          * Either one of {@link #run()} or {@link #abort()} MUST be invoked exactly once for evey {@link MergeTask}.
          * After the merge is finished, this will also submit any follow-up merges from the task's merge source.
          */
@@ -520,5 +517,11 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         } else {
             return String.format(Locale.ROOT, "%.1f MB/sec", mbPerSec);
         }
+    }
+
+    static enum Schedule {
+        ABORT,
+        RUN,
+        BACKLOG
     }
 }

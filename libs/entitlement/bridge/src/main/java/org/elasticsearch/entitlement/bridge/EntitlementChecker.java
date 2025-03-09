@@ -518,10 +518,7 @@ public interface EntitlementChecker {
         Class<?>[] classes
     );
 
-    void check$sun_net_www_protocol_https_AbstractDelegateHttpsURLConnection$connect(
-        Class<?> callerClass,
-        javax.net.ssl.HttpsURLConnection that
-    );
+    void check$sun_net_www_protocol_https_AbstractDelegateHttpsURLConnection$connect(Class<?> callerClass, java.net.HttpURLConnection that);
 
     void check$sun_net_www_protocol_mailto_MailToURLConnection$connect(Class<?> callerClass, java.net.URLConnection that);
 
@@ -1237,6 +1234,34 @@ public interface EntitlementChecker {
     void check$sun_net_www_protocol_file_FileURLConnection$getLastModified(Class<?> callerClass, java.net.URLConnection that);
 
     void check$sun_net_www_protocol_file_FileURLConnection$getInputStream(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_JarURLConnection$getManifest(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getJarEntry(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getAttributes(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getMainAttributes(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getCertificates(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getJarFile(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getJarEntry(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$connect(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getInputStream(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContentLength(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContentLengthLong(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContent(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContentType(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getHeaderField(Class<?> callerClass, java.net.JarURLConnection that, String name);
 
     ////////////////////
     //

@@ -51,7 +51,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             }
 
             @Override
-            public void onFailedQueryPhase(SearchContext searchContext) {
+            public void onFailedQueryPhase(SearchContext searchContext, long tookInNanos) {
                 assertNotNull(searchContext);
                 failedQuery.incrementAndGet();
             }
@@ -71,7 +71,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             }
 
             @Override
-            public void onFailedFetchPhase(SearchContext searchContext) {
+            public void onFailedFetchPhase(SearchContext searchContext, long tookInNanos) {
                 assertNotNull(searchContext);
                 failedFetch.incrementAndGet();
             }
@@ -191,7 +191,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(0, freeScrollContext.get());
             assertEquals(0, validateSearchContext.get());
 
-            compositeListener.onFailedFetchPhase(ctx);
+            compositeListener.onFailedFetchPhase(ctx, -1);
             assertEquals(2, preFetch.get());
             assertEquals(2, preQuery.get());
             assertEquals(2, failedFetch.get());
@@ -204,7 +204,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(0, freeScrollContext.get());
             assertEquals(0, validateSearchContext.get());
 
-            compositeListener.onFailedQueryPhase(ctx);
+            compositeListener.onFailedQueryPhase(ctx, -1);
             assertEquals(2, preFetch.get());
             assertEquals(2, preQuery.get());
             assertEquals(2, failedFetch.get());

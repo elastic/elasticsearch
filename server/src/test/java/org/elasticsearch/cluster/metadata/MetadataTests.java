@@ -76,7 +76,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -3037,17 +3036,16 @@ public class MetadataTests extends ESTestCase {
             projectBuilder.put(indexMetadata, false);
         }
 
-        final Metadata.ProjectLookup lookup = Metadata.builder().put(projectBuilder).build().getProjectLookup();
-        assertThat(lookup, Matchers.instanceOf(Metadata.SingleProjectLookup.class));
+        final Metadata lookup = Metadata.builder().put(projectBuilder).build();
         indices.forEach(im -> {
             final Index index = im.getIndex();
-            assertThat(lookup.project(index).map(ProjectMetadata::id), isPresentWith(projectId));
+            assertThat(lookup.lookupProject(index).map(ProjectMetadata::id), isPresentWith(projectId));
 
             Index alt1 = new Index(index.getName(), randomValueOtherThan(im.getIndexUUID(), ESTestCase::randomUUID));
-            assertThat(lookup.project(alt1), isEmpty());
+            assertThat(lookup.lookupProject(alt1), isEmpty());
 
             Index alt2 = new Index(randomAlphaOfLength(8), im.getIndexUUID());
-            assertThat(lookup.project(alt2), isEmpty());
+            assertThat(lookup.lookupProject(alt2), isEmpty());
         });
     }
 
@@ -3076,7 +3074,6 @@ public class MetadataTests extends ESTestCase {
         }
 
         final Metadata.ProjectLookup lookup = metadataBuilder.build().getProjectLookup();
-        assertThat(lookup, Matchers.instanceOf(Metadata.MultiProjectLookup.class));
 
         indices.forEach((project, ix) -> ix.forEach(im -> {
             final Index index = im.getIndex();

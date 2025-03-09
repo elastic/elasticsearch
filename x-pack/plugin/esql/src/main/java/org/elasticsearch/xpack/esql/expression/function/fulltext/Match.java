@@ -123,7 +123,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
     protected final Expression field;
 
-    // Options for match function. They don't need to be serialized as the data nodes will retrieve them from the query builder
+    // Options for match function. They don’t need to be serialized as the data nodes will retrieve them from the query builder
     private final transient Expression options;
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(

@@ -6,14 +6,14 @@
 | --- | --- | --- |
 | double | integer | double |
 | double | long | double |
-| double |  | double |
+| double | | double |
 | integer | integer | integer |
 | integer | long | integer |
-| integer |  | integer |
+| integer | | integer |
 | long | integer | long |
 | long | long | long |
-| long |  | long |
+| long | | long |
 | unsigned_long | integer | unsigned_long |
 | unsigned_long | long | unsigned_long |
-| unsigned_long |  | unsigned_long |
+| unsigned_long | | unsigned_long |
 

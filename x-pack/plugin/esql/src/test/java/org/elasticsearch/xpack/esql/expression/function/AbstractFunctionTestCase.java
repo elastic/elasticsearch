@@ -49,6 +49,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Great
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -66,7 +69,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
-import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -76,6 +78,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -94,6 +97,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -123,27 +127,63 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Operators are unregistered functions.
      */
-    private static final Map<String, Class<?>> OPERATORS = Map.ofEntries(
-        entry("in", In.class),
-        entry("like", WildcardLike.class),
-        entry("rlike", RLike.class),
-        entry("equals", Equals.class),
-        entry("not_equals", NotEquals.class),
-        entry("greater_than", GreaterThan.class),
-        entry("greater_than_or_equal", GreaterThanOrEqual.class),
-        entry("less_than", LessThan.class),
-        entry("less_than_or_equal", LessThanOrEqual.class),
-        entry("add", Add.class),
-        entry("sub", Sub.class),
-        entry("mul", Mul.class),
-        entry("div", Div.class),
-        entry("mod", Mod.class),
-        entry("neg", Neg.class),
-        entry("is_null", IsNull.class),
-        entry("is_not_null", IsNotNull.class),
-        // Match operator is both a function and an operator
-        entry("match_operator", MatchOperator.class)
+    private static final Map<String, OperatorConfig> OPERATORS = Map.ofEntries(
+        // Binary
+        operatorEntry("equals", "==", Equals.class, OperatorCategory.BINARY),
+        operatorEntry("not_equals", "!=", NotEquals.class, OperatorCategory.BINARY),
+        operatorEntry("greater_than", ">", GreaterThan.class, OperatorCategory.BINARY),
+        operatorEntry("greater_than_or_equal", ">=", GreaterThanOrEqual.class, OperatorCategory.BINARY),
+        operatorEntry("less_than", "<", LessThan.class, OperatorCategory.BINARY),
+        operatorEntry("less_than_or_equal", "<=", LessThanOrEqual.class, OperatorCategory.BINARY),
+        operatorEntry("add", "+", Add.class, OperatorCategory.BINARY),
+        operatorEntry("sub", "-", Sub.class, OperatorCategory.BINARY),
+        operatorEntry("mul", "*", Mul.class, OperatorCategory.BINARY),
+        operatorEntry("div", "/", Div.class, OperatorCategory.BINARY),
+        operatorEntry("mod", "%", Mod.class, OperatorCategory.BINARY),
+        // Unary
+        operatorEntry("neg", "-", Neg.class, OperatorCategory.UNARY),
+        // Logical
+        operatorEntry("and", "AND", And.class, OperatorCategory.LOGICAL),
+        operatorEntry("or", "OR", Or.class, OperatorCategory.LOGICAL),
+        operatorEntry("not", "NOT", Not.class, OperatorCategory.LOGICAL),
+        // NULL and IS NOT NULL
+        operatorEntry("is_null", "IS NULL", IsNull.class, OperatorCategory.NULL_PREDICATES),
+        operatorEntry("is_not_null", "IS NOT NULL", IsNotNull.class, OperatorCategory.NULL_PREDICATES),
+        // LIKE AND RLIKE
+        // case "rlike", "like", "in", "not_rlike", "not_like", "not_in" -> true;
+        operatorEntry("like", "LIKE", WildcardLike.class, OperatorCategory.LIKE_AND_RLIKE, true),
+        operatorEntry("rlike", "RLIKE", RLike.class, OperatorCategory.LIKE_AND_RLIKE, true),
+        // IN
+        operatorEntry("in", "IN", In.class, OperatorCategory.IN, true),
+        // Search
+        operatorEntry("match_operator", ":", MatchOperator.class, OperatorCategory.SEARCH)
     );
+
+    private enum OperatorCategory {
+        BINARY,
+        UNARY,
+        LOGICAL,
+        NULL_PREDICATES,
+        IN,
+        LIKE_AND_RLIKE,
+        SEARCH
+    }
+
+    private record OperatorConfig(String name, String symbol, Class<?> clazz, OperatorCategory category, boolean variadic) {}
+
+    private static Map.Entry<String, OperatorConfig> operatorEntry(
+        String name,
+        String symbol,
+        Class<?> clazz,
+        OperatorCategory category,
+        boolean variadic
+    ) {
+        return entry(name, new OperatorConfig(name, symbol, clazz, category, variadic));
+    }
+
+    private static Map.Entry<String, OperatorConfig> operatorEntry(String name, String symbol, Class<?> clazz, OperatorCategory category) {
+        return entry(name, new OperatorConfig(name, symbol, clazz, category, false));
+    }
 
     private static EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry().snapshotRegistry();
 
@@ -172,7 +212,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * </p>
      *
      * @param entirelyNullPreservesType should a test case that only contains parameters
-     *                                  with the {@code null} type keep it's expected type?
+     *                                  with the {@code null} type keep it’s expected type?
      *                                  This is <strong>mostly</strong> going to be {@code true}
      *                                  except for functions that base their type entirely
      *                                  on input types like {@link Greatest} or {@link Coalesce}.
@@ -210,7 +250,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
          *
          * Also, if this was the first time we saw the signature we copy it
          * *again*, replacing the argument with null, but annotating the
-         * argument's type as `null` explicitly.
+         * argument’s type as `null` explicitly.
          */
         Set<List<DataType>> uniqueSignatures = new HashSet<>();
         for (TestCaseSupplier original : testCaseSuppliers) {
@@ -470,7 +510,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             if (DataType.UNDER_CONSTRUCTION.containsKey(t)) {
                 /*
                  * Types under construction aren't checked because we're actively
-                 * adding support for them to functions. That's *why* they are
+                 * adding support for them to functions. That’s *why* they are
                  * under construction.
                  */
                 return false;
@@ -478,7 +518,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             if (t.isCounter()) {
                 /*
                  * For now, we're assuming no functions take counters
-                 * as parameters. That's not true - some do. But we'll
+                 * as parameters. That’s not true - some do. But we'll
                  * need to update the tests to handle that.
                  */
                 return false;
@@ -858,44 +898,52 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     @AfterClass
     public static void renderSignature() throws IOException {
-        // Temporarily turn off docs generation during docs freeze
-        // TODO: Only turn this back on once this generates the correct MD files
-        if (System.getProperty("generateDocs") == null || true) {
+        if (System.getProperty("generateDocs") == null) {
             return;
         }
         String name = functionName();
-        String rendered = buildSignatureSvg(name);
+        OperatorConfig op = OPERATORS.get(name);
+        if (op != null) {
+            renderOperatorSignature(op);
+        } else {
+            renderFunctionSignature(name);
+        }
+    }
+
+    private static void renderFunctionSignature(String name) throws IOException {
+        String rendered = buildFunctionSignatureSvg(name);
         if (rendered == null) {
             LogManager.getLogger(getTestClass()).info("Skipping rendering signature because the function isn't registered");
         } else {
             LogManager.getLogger(getTestClass()).info("Writing function signature");
-            writeToTempDir("signature", name, "svg", rendered);
+            writeToTempImageDir("functions", name, "svg", rendered);
         }
     }
 
-    private static String buildSignatureSvg(String name) throws IOException {
-        String binaryOperator = binaryOperator(name);
-        if (binaryOperator != null) {
-            return RailRoadDiagram.binaryOperator(binaryOperator);
+    private static void renderOperatorSignature(OperatorConfig op) throws IOException {
+        String rendered = (switch (op.category()) {
+            case BINARY -> RailRoadDiagram.binaryOperator(op.symbol);
+            case UNARY -> RailRoadDiagram.unaryOperator(op.symbol);
+            case SEARCH -> RailRoadDiagram.searchOperator(op.symbol);
+            default -> buildFunctionSignatureSvg(op.name());
+        });
+        if (rendered == null) {
+            LogManager.getLogger(getTestClass()).info("Skipping rendering signature because the operator isn't registered");
+        } else {
+            LogManager.getLogger(getTestClass()).info("Writing operator signature");
+            writeToTempImageDir("operators", op.name(), "svg", rendered);
         }
-        String unaryOperator = unaryOperator(name);
-        if (unaryOperator != null) {
-            return RailRoadDiagram.unaryOperator(unaryOperator);
-        }
-        String searchOperator = searchOperator(name);
-        if (searchOperator != null) {
-            return RailRoadDiagram.searchOperator(searchOperator);
-        }
+
+    }
+
+    private static String buildFunctionSignatureSvg(String name) throws IOException {
         FunctionDefinition definition = definition(name);
-        if (definition != null) {
-            return RailRoadDiagram.functionSignature(definition);
-        }
-        return null;
+        return (definition != null) ? RailRoadDiagram.functionSignature(definition) : null;
     }
 
     private static Class<?> classGeneratingSignatures = null;
     /**
-     * Unique signatures in this test's parameters.
+     * Unique signatures in this test’s parameters.
      */
     private static Map<List<DataType>, DataType> signatures;
 
@@ -935,76 +983,81 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected static void renderDocs(String name) throws IOException {
-        // Temporarily turn off docs generation during docs freeze
-        // TODO: Only turn this back on once this generates the correct MD files
-        if (System.getProperty("generateDocs") == null || true) {
+        if (System.getProperty("generateDocs") == null) {
             return;
         }
-        if (binaryOperator(name) != null || unaryOperator(name) != null || searchOperator(name) != null || likeOrInOperator(name)) {
-            renderDocsForOperators(name);
-            return;
-        }
+        OperatorConfig op = OPERATORS.get(name);
         FunctionDefinition definition = definition(name);
-        if (definition != null) {
-            EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
-            if (name.equals("case")) {
-                /*
-                 * Hack the description, so we render a proper one for case.
-                 */
-                // TODO build the description properly *somehow*
-                EsqlFunctionRegistry.ArgSignature trueValue = description.args().get(1);
-                EsqlFunctionRegistry.ArgSignature falseValue = new EsqlFunctionRegistry.ArgSignature(
-                    "elseValue",
-                    trueValue.type(),
-                    "The value that's returned when no condition evaluates to `true`.",
-                    true
-                );
-                description = new EsqlFunctionRegistry.FunctionDescription(
-                    description.name(),
-                    List.of(description.args().get(0), trueValue, falseValue),
-                    description.returnType(),
-                    description.description(),
-                    description.variadic(),
-                    description.type()
-                );
-            }
-            renderTypes(name, description.args());
-            renderParametersList(name, description.argNames(), description.argDescriptions());
-            FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
-            renderDescription(name, description.description(), info.detailedDescription(), info.note());
-            Optional<EsqlFunctionRegistry.ArgSignature> mapArgSignature = description.args()
-                .stream()
-                .filter(EsqlFunctionRegistry.ArgSignature::mapArg)
-                .findFirst();
-            boolean hasFunctionOptions = mapArgSignature.isPresent();
-            if (hasFunctionOptions) {
-                renderFunctionNamedParams(name, (EsqlFunctionRegistry.MapArgSignature) mapArgSignature.get());
-            }
-            boolean hasExamples = renderExamples(name, info);
-            boolean hasAppendix = renderAppendix(name, info.appendix());
-            renderFullLayout(name, info.preview(), hasExamples, hasAppendix, hasFunctionOptions);
-            renderKibanaInlineDocs(name, info);
-            renderKibanaFunctionDefinition(name, info, description.args(), description.variadic());
-            return;
+        if (op != null) {
+            renderDocsForOperators(op);
+        } else if (definition != null) {
+            renderDocsForFunctions(name, definition);
+        } else {
+            LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function '" + name + "' isn't registered");
         }
-        LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function '" + name + "' isn't registered");
+    }
+
+    private static void renderDocsForFunctions(String name, FunctionDefinition definition) throws IOException {
+        EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
+        if (name.equals("case")) {
+            /*
+             * Hack the description, so we render a proper one for case.
+             */
+            // TODO build the description properly *somehow*
+            EsqlFunctionRegistry.ArgSignature trueValue = description.args().get(1);
+            EsqlFunctionRegistry.ArgSignature falseValue = new EsqlFunctionRegistry.ArgSignature(
+                "elseValue",
+                trueValue.type(),
+                "The value that’s returned when no condition evaluates to `true`.",
+                true
+            );
+            description = new EsqlFunctionRegistry.FunctionDescription(
+                description.name(),
+                List.of(description.args().get(0), trueValue, falseValue),
+                description.returnType(),
+                description.description(),
+                description.variadic(),
+                description.type()
+            );
+        }
+        renderTypes("functions", name, description.args());
+        renderParametersList("functions", name, description.argNames(), description.argDescriptions());
+        FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
+        assert info != null;
+        renderDescription("functions", name, description.description(), info.detailedDescription(), info.note());
+        Optional<EsqlFunctionRegistry.ArgSignature> mapArgSignature = description.args()
+            .stream()
+            .filter(EsqlFunctionRegistry.ArgSignature::mapArg)
+            .findFirst();
+        boolean hasFunctionOptions = mapArgSignature.isPresent();
+        if (hasFunctionOptions) {
+            renderFunctionNamedParams(name, (EsqlFunctionRegistry.MapArgSignature) mapArgSignature.get());
+        }
+        boolean hasExamples = renderExamples(name, info);
+        boolean hasAppendix = renderAppendix(name, info.appendix());
+        renderFullLayout(name, info.preview(), hasExamples, hasAppendix, hasFunctionOptions);
+        renderKibanaInlineDocs(name, info);
+        renderKibanaFunctionDefinition(name, info, description.args(), description.variadic());
     }
 
     private static final String DOCS_WARNING =
-        "// This is generated by ESQL's AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it.\n\n";
+        "% This is generated by ESQL's AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it.\n\n";
 
     private static final String PREVIEW_CALLOUT =
         "\npreview::[\"Do not use on production environments. This functionality is in technical preview and "
             + "may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview "
             + "are not subject to the support SLA of official GA features.\"]\n";
 
-    private static void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
-        StringBuilder header = new StringBuilder();
+    private static void renderTypes(String category, String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
+        StringBuilder header = new StringBuilder("| ");
+        StringBuilder separator = new StringBuilder("| ");
         List<String> argNames = args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList();
         for (String arg : argNames) {
             header.append(arg).append(" | ");
+            separator.append("---").append(" | ");
         }
-        header.append("result");
+        header.append("result |");
+        separator.append("--- |");
 
         List<String> table = new ArrayList<>();
         for (Map.Entry<List<DataType>, DataType> sig : signatures().entrySet()) { // TODO flip to using sortedSignatures
@@ -1014,7 +1067,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             if (sig.getKey().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
                 continue;
             }
-            StringBuilder b = new StringBuilder();
+            StringBuilder b = new StringBuilder("| ");
             for (int i = 0; i < sig.getKey().size(); i++) {
                 DataType argType = sig.getKey().get(i);
                 EsqlFunctionRegistry.ArgSignature argSignature = args.get(i);
@@ -1027,6 +1080,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             b.append("| ".repeat(argNames.size() - sig.getKey().size()));
             b.append(sig.getValue().esNameIfPossible());
+            b.append(" |");
             table.add(b.toString());
         }
         Collections.sort(table);
@@ -1035,42 +1089,55 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         String rendered = DOCS_WARNING + """
-            *Supported types*
+            **Supported types**
 
-            [%header.monospaced.styled,format=dsv,separator=|]
-            |===
-            """ + header + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n|===\n";
+            """ + header + "\n" + separator + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n\n";
         LogManager.getLogger(getTestClass()).info("Writing function types for [{}]:\n{}", name, rendered);
-        writeToTempDir("types", name, "asciidoc", rendered);
+        writeToTempSnippetsDir(category, "types", name, "md", rendered);
     }
 
-    private static void renderParametersList(String name, List<String> argNames, List<String> argDescriptions) throws IOException {
+    private static void renderParametersList(String category, String name, List<String> argNames, List<String> argDescriptions)
+        throws IOException {
         StringBuilder builder = new StringBuilder();
         builder.append(DOCS_WARNING);
-        builder.append("*Parameters*\n");
+        builder.append("**Parameters**\n");
         for (int a = 0; a < argNames.size(); a++) {
-            builder.append("\n`").append(argNames.get(a)).append("`::\n").append(argDescriptions.get(a)).append('\n');
+            String description = DocsV3Support.FUNCTIONS.replaceLinks(argDescriptions.get(a));
+            builder.append("\n`").append(argNames.get(a)).append("`\n:   ").append(description).append('\n');
         }
+        builder.append('\n');
         String rendered = builder.toString();
         LogManager.getLogger(getTestClass()).info("Writing parameters for [{}]:\n{}", name, rendered);
-        writeToTempDir("parameters", name, "asciidoc", rendered);
+        writeToTempSnippetsDir(category, "parameters", name, "md", rendered);
     }
 
-    private static void renderDescription(String name, String description, String detailedDescription, String note) throws IOException {
+    private static void renderDescription(String category, String name, String description, String detailedDescription, String note)
+        throws IOException {
+        description = DocsV3Support.FUNCTIONS.replaceLinks(description);
+        detailedDescription = DocsV3Support.FUNCTIONS.replaceLinks(detailedDescription);
+        note = DocsV3Support.FUNCTIONS.replaceLinks(note);
         String rendered = DOCS_WARNING + """
-            *Description*
+            **Description**
 
             """ + description + "\n";
 
         if (Strings.isNullOrEmpty(detailedDescription) == false) {
-            rendered += "\n" + detailedDescription + "\n";
+            rendered += "\n" + reformatDescription(detailedDescription) + "\n";
         }
 
         if (Strings.isNullOrEmpty(note) == false) {
-            rendered += "\nNOTE: " + note + "\n";
+            rendered += "\n::::{note}\n" + note + "\n::::\n\n";
         }
+        rendered += "\n";
         LogManager.getLogger(getTestClass()).info("Writing description for [{}]:\n{}", name, rendered);
-        writeToTempDir("description", name, "asciidoc", rendered);
+        writeToTempSnippetsDir(category, "description", name, "md", rendered);
+    }
+
+    private static String reformatDescription(String description) {
+        // The new markdown does not reformat paragraphs, so we need to put consecutive lines on one line
+        // return description.replaceAll("\n\n", "NEWLINE").replaceAll("\n", " ").replaceAll("NEWLINE", "\n");
+        // TODO some formatting is being relied on, we need a better solution
+        return description;
     }
 
     private static boolean renderExamples(String name, FunctionInfo info) throws IOException {
@@ -1186,15 +1253,80 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return null;
     }
 
-    private static void renderDocsForOperators(String name) throws IOException {
-        Constructor<?> ctor = constructorWithFunctionInfo(OPERATORS.get(name));
-        assert ctor != null;
-        FunctionInfo functionInfo = ctor.getAnnotation(FunctionInfo.class);
-        assert functionInfo != null;
-        renderDocsForOperators(name, ctor, functionInfo);
+    private static void renderDocsForOperators(OperatorConfig op) throws IOException {
+        Constructor<?> ctor = constructorWithFunctionInfo(op.clazz());
+        if (ctor != null) {
+            FunctionInfo functionInfo = ctor.getAnnotation(FunctionInfo.class);
+            assert functionInfo != null;
+            renderDocsForOperators(op.name(), ctor, functionInfo, op.variadic());
+        } else {
+            LogManager.getLogger(getTestClass()).info("Skipping rendering docs for operator '" + op.name() + "' with no @FunctionInfo");
+        }
     }
 
-    protected static void renderDocsForOperators(String name, Constructor<?> ctor, FunctionInfo functionInfo) throws IOException {
+    protected static void renderDocsForNegatedOperators(String name, Constructor<?> ctor, Function<String, String> description)
+        throws IOException {
+        OperatorConfig op = OPERATORS.get(name);
+        assert op != null;
+        FunctionInfo orig = ctor.getAnnotation(FunctionInfo.class);
+        assert orig != null;
+        FunctionInfo functionInfo = new FunctionInfo() {
+            @Override
+            public Class<? extends Annotation> annotationType() {
+                return orig.annotationType();
+            }
+
+            @Override
+            public String operator() {
+                return "NOT " + name;
+            }
+
+            @Override
+            public String[] returnType() {
+                return orig.returnType();
+            }
+
+            @Override
+            public boolean preview() {
+                return orig.preview();
+            }
+
+            @Override
+            public String description() {
+                return description.apply(orig.description().replace(name, "NOT " + name));
+            }
+
+            @Override
+            public String detailedDescription() {
+                return "";
+            }
+
+            @Override
+            public String note() {
+                return orig.note().replace(name, "NOT " + name);
+            }
+
+            @Override
+            public String appendix() {
+                return orig.appendix().replace(name, "NOT " + name);
+            }
+
+            @Override
+            public FunctionType type() {
+                return orig.type();
+            }
+
+            @Override
+            public Example[] examples() {
+                // throw away examples
+                return new Example[] {};
+            }
+        };
+        renderDocsForOperators("not_" + op.name(), ctor, functionInfo, op.variadic());
+    }
+
+    private static void renderDocsForOperators(String name, Constructor<?> ctor, FunctionInfo functionInfo, boolean variadic)
+        throws IOException {
         renderKibanaInlineDocs(name, functionInfo);
 
         var params = ctor.getParameters();
@@ -1211,15 +1343,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 }
             }
         }
-        renderKibanaFunctionDefinition(name, functionInfo, args, likeOrInOperator(name));
-        renderTypes(name, args);
+        renderKibanaFunctionDefinition(name, functionInfo, args, variadic);
+        renderTypes("operators", name, args);
     }
 
     private static void renderKibanaInlineDocs(String name, FunctionInfo info) throws IOException {
         StringBuilder builder = new StringBuilder();
         builder.append("""
             <!--
-            This is generated by ESQL's AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it.
+            This is generated by ESQL’s AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it.
             -->
 
             """);
@@ -1250,7 +1382,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().lfAtEnd().startObject();
         builder.field(
             "comment",
-            "This is generated by ESQL's AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it."
+            "This is generated by ESQL’s AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it."
         );
         if (false == info.operator().isEmpty()) {
             builder.field("type", "operator");
@@ -1282,7 +1414,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             int minArgCount = (int) args.stream().filter(a -> false == a.optional()).count();
             for (Map.Entry<List<DataType>, DataType> sig : sortedSignatures()) {
                 if (variadic && sig.getKey().size() > args.size()) {
-                    // For variadic functions we test much longer signatures, let's just stop at the last one
+                    // For variadic functions we test much longer signatures, let’s just stop at the last one
                     continue;
                 }
                 if (sig.getKey().size() < minArgCount) {
@@ -1383,56 +1515,40 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
-     * If this test is a for a binary operator return its symbol, otherwise return {@code null}.
-     * This is functionally the reverse of the combination of
-     * {@link ExpressionBuilder#visitArithmeticBinary} and {@link ExpressionBuilder#visitComparison}.
+     * Write some text to a tempdir so we can copy it to the docs later.
+     * <p>
+     * We need to write to a tempdir instead of the docs because the tests
+     * don't have write permission to the docs.
+     * </p>
      */
-    private static String binaryOperator(String name) {
-        return switch (name) {
-            case "add" -> "+";
-            case "div" -> "/";
-            case "equals" -> "==";
-            case "greater_than" -> ">";
-            case "greater_than_or_equal" -> ">=";
-            case "less_than" -> "<";
-            case "less_than_or_equal" -> "<=";
-            case "mod" -> "%";
-            case "mul" -> "*";
-            case "not_equals" -> "!=";
-            case "sub" -> "-";
-            default -> null;
-        };
+    private static void writeToTempImageDir(String category, String name, String extension, String str) throws IOException {
+        // We have to write to a tempdir because it’s all test are allowed to write to. Gradle can move them.
+        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("images").resolve(category);
+        Files.createDirectories(dir);
+        Path file = dir.resolve(name + "." + extension);
+        Files.writeString(file, str);
+        LogManager.getLogger(getTestClass()).info("Wrote to file: {}", file);
     }
 
     /**
-     * If this test is a for a search operator return its symbol, otherwise return {@code null}.
+     * Write some text to a tempdir so we can copy it to the docs later.
+     * <p>
+     * We need to write to a tempdir instead of the docs because the tests
+     * don't have write permission to the docs.
+     * </p>
      */
-    private static String searchOperator(String name) {
-        return switch (name) {
-            case "match_operator" -> ":";
-            default -> null;
-        };
-    }
-
-    /**
-     * If this tests is for a unary operator return its symbol, otherwise return {@code null}.
-     * This is functionally the reverse of {@link ExpressionBuilder#visitArithmeticUnary}.
-     */
-    private static String unaryOperator(String name) {
-        return switch (name) {
-            case "neg" -> "-";
-            default -> null;
-        };
-    }
-
-    /**
-     * If this tests is for a like or rlike operator return true, otherwise return {@code null}.
-     */
-    private static boolean likeOrInOperator(String name) {
-        return switch (name.toLowerCase(Locale.ENGLISH)) {
-            case "rlike", "like", "in", "not_rlike", "not_like", "not_in" -> true;
-            default -> false;
-        };
+    private static void writeToTempSnippetsDir(String category, String subdir, String name, String extension, String str)
+        throws IOException {
+        // We have to write to a tempdir because it’s all test are allowed to write to. Gradle can move them.
+        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir"))
+            .resolve("esql")
+            .resolve("_snippets")
+            .resolve(category)
+            .resolve(subdir);
+        Files.createDirectories(dir);
+        Path file = dir.resolve(name + "." + extension);
+        Files.writeString(file, str);
+        LogManager.getLogger(getTestClass()).info("Wrote to file: {}", file);
     }
 
     /**
@@ -1443,7 +1559,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * </p>
      */
     private static void writeToTempDir(String subdir, String name, String extension, String str) throws IOException {
-        // We have to write to a tempdir because it's all test are allowed to write to. Gradle can move them.
+        // We have to write to a tempdir because it’s all test are allowed to write to. Gradle can move them.
         Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("functions").resolve(subdir);
         Files.createDirectories(dir);
         Path file = dir.resolve(name + "." + extension);
@@ -1478,7 +1594,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Returns true if the current test case is for an aggregation function.
      * <p>
-     *     This method requires reflection, as it's called from a static context (@AfterClass documentation rendering).
+     *     This method requires reflection, as it’s called from a static context (@AfterClass documentation rendering).
      * </p>
      */
     private static boolean isAggregation() {

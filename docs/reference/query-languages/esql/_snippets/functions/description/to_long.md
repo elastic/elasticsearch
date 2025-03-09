@@ -2,5 +2,5 @@
 
 **Description**
 
-Converts an input value to a long value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the [Unix epoch](https://en.wikipedia.org/wiki/Unix_time), converted to long. Boolean **true** will be converted to long **1**, **false** to **0**.
+Converts an input value to a long value. If the input parameter is of a date type, its value will be interpreted as milliseconds since the [Unix epoch](https://en.wikipedia.org/wiki/Unix_time), converted to long. Boolean `true` will be converted to long `1`, `false` to `0`.
 

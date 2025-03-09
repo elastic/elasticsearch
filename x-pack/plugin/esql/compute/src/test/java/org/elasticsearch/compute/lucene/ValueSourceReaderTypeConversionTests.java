@@ -225,7 +225,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         MappedFieldType ft,
         ElementType elementType
     ) {
-        return factory(shardContexts, ft.name(), elementType, ft.blockLoader(null));
+        return factory(shardContexts, ft.name(), elementType, ft.blockLoader(blContext()));
     }
 
     private static Operator.OperatorFactory factory(

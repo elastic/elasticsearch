@@ -748,7 +748,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (hasDocValues()) {
+            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.PREFER_STORED || isSyntheticSource)) {
                 return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
             }
             if (isStored()) {
@@ -806,7 +806,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (getTextSearchInfo().hasNorms()) {
                 return BlockSourceReader.lookupFromNorms(name());
             }
-            if (isIndexed() || isStored()) {
+            if (hasDocValues() == false && (isIndexed() || isStored())) {
                 return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
             }
             return BlockSourceReader.lookupMatchingAll();

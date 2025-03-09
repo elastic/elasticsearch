@@ -336,9 +336,6 @@ tests:
 - class: org.elasticsearch.search.query.QueryPhaseTimeoutTests
   method: testScorerTimeoutTerms
   issue: https://github.com/elastic/elasticsearch/issues/124141
-- class: org.elasticsearch.compute.data.BlockMultiValuedTests
-  method: testToMask {elementType=BOOLEAN nullAllowed=true}
-  issue: https://github.com/elastic/elasticsearch/issues/124165
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/start_data_frame_analytics/Test start classification analysis when the dependent variable is missing}
   issue: https://github.com/elastic/elasticsearch/issues/124168

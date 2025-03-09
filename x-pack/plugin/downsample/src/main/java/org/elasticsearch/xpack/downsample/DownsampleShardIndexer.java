@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -80,6 +81,7 @@ import static org.elasticsearch.core.Strings.format;
 class DownsampleShardIndexer {
 
     private static final Logger logger = LogManager.getLogger(DownsampleShardIndexer.class);
+    private static final int DOCID_BUFFER_SIZE = 8069;
     public static final int DOWNSAMPLE_BULK_ACTIONS = 10000;
     public static final ByteSizeValue DOWNSAMPLE_BULK_SIZE = ByteSizeValue.of(1, ByteSizeUnit.MB);
     public static final ByteSizeValue DOWNSAMPLE_MAX_BYTES_IN_FLIGHT = ByteSizeValue.of(50, ByteSizeUnit.MB);
@@ -365,7 +367,11 @@ class DownsampleShardIndexer {
                 formattedDocValues[i] = fieldValueFetchers.get(i).getLeaf(ctx);
             }
 
+            long timestampBoundStartTime = searchExecutionContext.getIndexSettings().getTimestampBounds().startTime();
             return new LeafBucketCollector() {
+
+                final IntArrayList buffer = new IntArrayList(DOCID_BUFFER_SIZE);
+
                 @Override
                 public void collect(int docId, long owningBucketOrd) throws IOException {
                     task.addNumReceived(1);
@@ -376,10 +382,7 @@ class DownsampleShardIndexer {
 
                     boolean tsidChanged = tsidHashOrd != downsampleBucketBuilder.tsidOrd();
                     if (tsidChanged || timestamp < lastHistoTimestamp) {
-                        lastHistoTimestamp = Math.max(
-                            rounding.round(timestamp),
-                            searchExecutionContext.getIndexSettings().getTimestampBounds().startTime()
-                        );
+                        lastHistoTimestamp = Math.max(rounding.round(timestamp), timestampBoundStartTime);
                     }
                     task.setLastSourceTimestamp(timestamp);
                     task.setLastTargetTimestamp(lastHistoTimestamp);
@@ -415,6 +418,7 @@ class DownsampleShardIndexer {
                     lastTimestamp = timestamp;
 
                     if (tsidChanged || downsampleBucketBuilder.timestamp() != lastHistoTimestamp) {
+                        bulkCollection();
                         // Flush downsample doc if not empty
                         if (downsampleBucketBuilder.isEmpty() == false) {
                             XContentBuilder doc = downsampleBucketBuilder.buildDownsampleDocument();
@@ -429,17 +433,39 @@ class DownsampleShardIndexer {
                         }
                         bucketsCreated++;
                     }
-
-                    final int docCount = docCountProvider.getDocCount(docId);
-                    downsampleBucketBuilder.collectDocCount(docCount);
-                    // Iterate over all field values and collect the doc_values for this docId
-                    for (int i = 0; i < fieldProducers.length; i++) {
-                        AbstractDownsampleFieldProducer fieldProducer = fieldProducers[i];
-                        FormattedDocValues docValues = formattedDocValues[i];
-                        fieldProducer.collect(docValues, docId);
+                    if (buffer.size() == DOCID_BUFFER_SIZE) {
+                        bulkCollection();
                     }
-                    docsProcessed++;
+
+                    buffer.buffer[buffer.elementsCount++] = docId;
+                }
+
+                @Override
+                public void finish() throws IOException {
+                    bulkCollection();
+                }
+
+                void bulkCollection() throws IOException {
+                    if (buffer.isEmpty()) {
+                        return;
+                    }
+
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("buffered {} docids", buffer.size());
+                    }
+
+                    downsampleBucketBuilder.collectDocCount(buffer, docCountProvider);
+                    // Iterate over all field values and collect the doc_values for this docId
+                    for (int j = 0; j < fieldProducers.length; j++) {
+                        AbstractDownsampleFieldProducer fieldProducer = fieldProducers[j];
+                        FormattedDocValues docValues = formattedDocValues[j];
+                        fieldProducer.collect(docValues, buffer);
+                    }
+
+                    docsProcessed += buffer.size();
                     task.setDocsProcessed(docsProcessed);
+
+                    buffer.elementsCount = 0;
                 }
             };
         }
@@ -545,8 +571,15 @@ class DownsampleShardIndexer {
             }
         }
 
-        public void collectDocCount(int docCount) {
-            this.docCount += docCount;
+        public void collectDocCount(IntArrayList buffer, DocCountProvider docCountProvider) throws IOException {
+            if (docCountProvider.alwaysOne()) {
+                this.docCount += buffer.size();
+            } else {
+                for (int i = 0; i < buffer.size(); i++) {
+                    int docId = buffer.get(i);
+                    this.docCount += docCountProvider.getDocCount(docId);
+                }
+            }
         }
 
         public XContentBuilder buildDownsampleDocument() throws IOException {

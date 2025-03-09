@@ -360,6 +360,18 @@ tests:
 - class: org.elasticsearch.env.NodeEnvironmentTests
   method: testIndexCompatibilityChecks
   issue: https://github.com/elastic/elasticsearch/issues/124388
+- class: org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests
+  method: testFilesEntitlementsWithExclusive
+  issue: https://github.com/elastic/elasticsearch/issues/124420
+- class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
+  method: testDuplicateExclusivePaths
+  issue: https://github.com/elastic/elasticsearch/issues/124437
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testWatcherWithApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/124159
+- class: org.elasticsearch.indices.stats.IndexStatsIT
+  method: testFilterCacheStats
+  issue: https://github.com/elastic/elasticsearch/issues/124447
 
 # Examples:
 #

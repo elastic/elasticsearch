@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -34,7 +33,7 @@ public class NameId implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return Long.hashCode(id);
     }
 
     @Override

@@ -327,17 +327,6 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
         }
     }
 
-    static Character[] convertCharArray(char[] array) {
-        if (array == null) {
-            return null;
-        }
-        Character[] charArray = new Character[array.length];
-        for (int i = 0; i < array.length; i++) {
-            charArray[i] = array[i];
-        }
-        return charArray;
-    }
-
     @Override
     public void innerXContent(XContentBuilder builder) throws IOException {
         // first write common options

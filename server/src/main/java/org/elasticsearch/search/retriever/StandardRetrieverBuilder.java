@@ -74,7 +74,7 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
             COLLAPSE_FIELD,
             ObjectParser.ValueType.OBJECT
         );
-        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
     public static StandardRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {

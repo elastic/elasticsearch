@@ -786,7 +786,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * for tracking search Cluster details.
          */
         public boolean hasClusterObjects() {
-            return clusterInfo.keySet().size() > 0;
+            return clusterInfo.isEmpty() == false;
         }
 
         /**
@@ -853,27 +853,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          */
         public Cluster(String clusterAlias, String indexExpression, boolean skipUnavailable) {
             this(clusterAlias, indexExpression, skipUnavailable, Status.RUNNING, null, null, null, null, null, null, false);
-        }
-
-        /**
-         * Create a Cluster with a new Status and one or more ShardSearchFailures. This constructor
-         * should only be used for fatal failures where shard counters (total, successful, skipped, failed)
-         * are not known (unset).
-         * @param clusterAlias clusterAlias as defined in the remote cluster settings or RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
-         *                     for the local cluster
-         * @param indexExpression the original (not resolved/concrete) indices expression provided for this cluster.
-         * @param skipUnavailable whether cluster is marked as skip_unavailable in remote cluster settings
-         * @param status current status of the search on this Cluster
-         * @param failures list of failures that occurred during the search on this Cluster
-         */
-        public Cluster(
-            String clusterAlias,
-            String indexExpression,
-            boolean skipUnavailable,
-            Status status,
-            List<ShardSearchFailure> failures
-        ) {
-            this(clusterAlias, indexExpression, skipUnavailable, status, null, null, null, null, failures, null, false);
         }
 
         public Cluster(
@@ -1034,7 +1013,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             String name = clusterAlias;
-            if (clusterAlias.equals("")) {
+            if (clusterAlias.isEmpty()) {
                 name = LOCAL_CLUSTER_NAME_REPRESENTATION;
             }
             builder.startObject(name);

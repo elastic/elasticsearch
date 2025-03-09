@@ -40,10 +40,10 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
         Truncator.TruncationResult truncationResult,
         ElasticInferenceServiceSparseEmbeddingsModel model,
         TraceContext traceContext,
-        String productOrigin,
+        ElasticInferenceServiceRequestMetadata metadata,
         InputType inputType
     ) {
-        super(productOrigin);
+        super(metadata);
         this.truncator = truncator;
         this.truncationResult = truncationResult;
         this.model = Objects.requireNonNull(model);
@@ -95,7 +95,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
             truncatedInput,
             model,
             traceContextHandler.traceContext(),
-            getProductOrigin(),
+            getMetadata(),
             inputType
         );
     }

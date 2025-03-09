@@ -9,18 +9,15 @@ package org.elasticsearch.xpack.inference.external.request.openai;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
@@ -29,19 +26,17 @@ import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUt
 
 public class OpenAiUnifiedChatCompletionRequest implements Request {
 
-    private final OpenAiAccount account;
     private final OpenAiChatCompletionModel model;
     private final UnifiedChatInput unifiedChatInput;
 
     public OpenAiUnifiedChatCompletionRequest(UnifiedChatInput unifiedChatInput, OpenAiChatCompletionModel model) {
-        this.account = OpenAiAccount.of(model, OpenAiUnifiedChatCompletionRequest::buildDefaultUri);
         this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
         this.model = Objects.requireNonNull(model);
     }
 
     @Override
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(account.uri());
+        HttpPost httpPost = new HttpPost(model.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model)).getBytes(StandardCharsets.UTF_8)
@@ -49,9 +44,9 @@ public class OpenAiUnifiedChatCompletionRequest implements Request {
         httpPost.setEntity(byteEntity);
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
+        httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
 
-        var org = account.organizationId();
+        var org = model.rateLimitServiceSettings().organizationId();
         if (org != null) {
             httpPost.setHeader(createOrgHeader(org));
         }
@@ -61,7 +56,7 @@ public class OpenAiUnifiedChatCompletionRequest implements Request {
 
     @Override
     public URI getURI() {
-        return account.uri();
+        return model.uri();
     }
 
     @Override
@@ -84,12 +79,5 @@ public class OpenAiUnifiedChatCompletionRequest implements Request {
     @Override
     public boolean isStreaming() {
         return unifiedChatInput.stream();
-    }
-
-    public static URI buildDefaultUri() throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(OpenAiUtils.HOST)
-            .setPathSegments(OpenAiUtils.VERSION_1, OpenAiUtils.CHAT_PATH, OpenAiUtils.COMPLETIONS_PATH)
-            .build();
     }
 }

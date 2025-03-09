@@ -37,9 +37,14 @@ public class DefaultWrappersHandler implements DataSourceHandler {
         return new DataSourceResponse.MalformedWrapper(injectMalformed(request.malformedValues()));
     }
 
+    @Override
+    public DataSourceResponse.TransformWrapper handle(DataSourceRequest.TransformWrapper request) {
+        return new DataSourceResponse.TransformWrapper(transform(request.transformedProportion(), request.transformation()));
+    }
+
     private static Function<Supplier<Object>, Supplier<Object>> injectNulls() {
         // Inject some nulls but majority of data should be non-null (as it likely is in reality).
-        return (values) -> () -> ESTestCase.randomDouble() <= 0.05 ? null : values.get();
+        return transform(0.05, ignored -> null);
     }
 
     private static Function<Supplier<Object>, Supplier<Object>> wrapInArray() {
@@ -69,6 +74,13 @@ public class DefaultWrappersHandler implements DataSourceHandler {
     }
 
     private static Function<Supplier<Object>, Supplier<Object>> injectMalformed(Supplier<Object> malformedValues) {
-        return (values) -> () -> ESTestCase.randomDouble() <= 0.1 ? malformedValues.get() : values.get();
+        return transform(0.1, ignored -> malformedValues.get());
+    }
+
+    private static Function<Supplier<Object>, Supplier<Object>> transform(
+        double transformedProportion,
+        Function<Object, Object> transformation
+    ) {
+        return (values) -> () -> ESTestCase.randomDouble() <= transformedProportion ? transformation.apply(values.get()) : values.get();
     }
 }

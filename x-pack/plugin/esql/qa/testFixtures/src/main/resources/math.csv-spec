@@ -1603,3 +1603,95 @@ emp_no: integer | x:date     | y:date
 10001           | 2024-11-03 | 2024-11-06
 10002           | 2024-11-03 | 2024-11-06
 ;
+
+greatestWithMixedNumericValues
+required_capability: mixed_numeric_types_in_case_greatest_least
+ROW g1=GREATEST(10.0, 5.0, 1, -100.1, 0, 1234, -10000), g2=GREATEST(10.0, 5, 1, -100.1, null);
+
+g1:double |g2:double
+1234      |null
+;
+
+leastWithMixedNumericValues
+required_capability: mixed_numeric_types_in_case_greatest_least
+ROW l1=LEAST(10.0, 5.0, 1, -100.1, 0, 1234, -10000), l2=LEAST(10.0, 5, 1, -100.1, null);
+
+l1:double |l2:double
+-10000    |null
+;
+
+greatestWithMixedNumericFields
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| EVAL g1 = GREATEST(height, salary, languages), g2 = GREATEST(height, salary, languages, null)
+| KEEP emp_no, g1, g2
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | g1:double | g2:double
+10001          | 57305.0   | null
+10002          | 56371.0   | null
+10003          | 61805.0   | null
+;
+
+leastWithMixedNumericFields
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| EVAL l1 = LEAST(height, salary, languages), l2 = LEAST(height, salary, languages, null)
+| KEEP emp_no, l1, l2
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | l1:double | l2:double
+10001          | 2.0       | null
+10002          | 2.08      | null
+10003          | 1.83      | null
+;
+
+greatestWithMixedNumericValuesWithMV
+required_capability: mixed_numeric_types_in_case_greatest_least
+ROW g1=GREATEST([10.0, 4], 1), g2=GREATEST([10.0, 4], 1, null);
+
+g1:double |g2:double
+10        |null
+;
+
+leastWithMixedNumericValuesWithMV
+required_capability: mixed_numeric_types_in_case_greatest_least
+ROW l1=LEAST([10.0, 4], 1), l2=LEAST([10.0, 4], 1, null);
+
+l1:double |l2:double
+1         |null
+;
+
+greatestWithMixedNumericFieldsWithMV
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| EVAL g1 = GREATEST(salary_change, salary, languages), g2 = GREATEST(salary_change, salary, languages, null)
+| KEEP emp_no, g1, g2
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | g1:double | g2:double
+10001          | 57305.0   | null
+10002          | 56371.0   | null
+10003          | 61805.0   | null
+;
+
+leastWithMixedNumericFieldsWithMV
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| EVAL l1 = LEAST(salary_change, salary, languages), l2 = LEAST(salary_change, salary, languages, null)
+| KEEP emp_no, l1, l2
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | l1:double | l2:double
+10001          | 1.19      | null     
+10002          | -7.23     | null     
+10003          | 4.0       | null     
+;

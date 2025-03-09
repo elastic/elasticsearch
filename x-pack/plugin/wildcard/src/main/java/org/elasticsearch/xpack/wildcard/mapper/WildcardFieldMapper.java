@@ -898,6 +898,7 @@ public class WildcardFieldMapper extends FieldMapper {
     private final int ignoreAbove;
     private final int ignoreAboveDefault;
     private final boolean storeIgnored;
+    private final String originalName;
 
     private WildcardFieldMapper(
         String simpleName,
@@ -913,6 +914,7 @@ public class WildcardFieldMapper extends FieldMapper {
         this.indexVersionCreated = indexVersionCreated;
         this.ignoreAbove = builder.ignoreAbove.getValue();
         this.ignoreAboveDefault = builder.ignoreAboveDefault;
+        this.originalName = storeIgnored ? fullPath() + "._original" : null;
     }
 
     @Override
@@ -958,7 +960,7 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     private String originalName() {
-        return fullPath() + "._original";
+        return originalName;
     }
 
     void createFields(String value, LuceneDocument parseDoc, List<IndexableField> fields) {

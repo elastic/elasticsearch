@@ -21,6 +21,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -721,12 +722,34 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
-    private record IngestPipelinesExecutionResult(boolean success, boolean shouldKeep, Exception exception, String failedIndex) {
+    private record IngestPipelinesExecutionResult(
+        boolean success,
+        boolean shouldKeep,
+        Exception exception,
+        String failedIndex,
+        IndexDocFailureStoreStatus failureStoreStatus
+    ) {
 
-        private static final IngestPipelinesExecutionResult SUCCESSFUL_RESULT = new IngestPipelinesExecutionResult(true, true, null, null);
-        private static final IngestPipelinesExecutionResult DISCARD_RESULT = new IngestPipelinesExecutionResult(true, false, null, null);
+        private static final IngestPipelinesExecutionResult SUCCESSFUL_RESULT = new IngestPipelinesExecutionResult(
+            true,
+            true,
+            null,
+            null,
+            IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
+        );
+        private static final IngestPipelinesExecutionResult DISCARD_RESULT = new IngestPipelinesExecutionResult(
+            true,
+            false,
+            null,
+            null,
+            IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
+        );
         private static IngestPipelinesExecutionResult failAndStoreFor(String index, Exception e) {
-            return new IngestPipelinesExecutionResult(false, true, e, index);
+            return new IngestPipelinesExecutionResult(false, true, e, index, IndexDocFailureStoreStatus.USED);
+        }
+
+        private static IngestPipelinesExecutionResult failWithoutStoringIn(String index, Exception e) {
+            return new IngestPipelinesExecutionResult(false, true, e, index, IndexDocFailureStoreStatus.NOT_ENABLED);
         }
     }
 
@@ -756,7 +779,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final IntConsumer onDropped,
         final Function<String, Boolean> resolveFailureStore,
         final TriConsumer<Integer, String, Exception> onStoreFailure,
-        final BiConsumer<Integer, Exception> onFailure,
+        final TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> onFailure,
         final BiConsumer<Thread, Exception> onCompletion,
         final Executor executor
     ) {
@@ -816,18 +839,26 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                             firstPipeline.getMetrics().postIngestBytes(indexRequest.ramBytesUsed());
                                         }
                                     } else {
-                                        // We were given a failure result in the onResponse method, so we must store the failure
-                                        // Recover the original document state, track a failed ingest, and pass it along
-                                        updateIndexRequestMetadata(indexRequest, originalDocumentMetadata);
                                         totalMetrics.ingestFailed();
-                                        onStoreFailure.apply(slot, result.failedIndex, result.exception);
+                                        if (IndexDocFailureStoreStatus.NOT_ENABLED.equals(result.failureStoreStatus)) {
+                                            // A failure result, but despite the target being a data stream, it does not have failure
+                                            // storage enabled currently. Capture the status in the onFailure call and skip any further
+                                            // processing
+                                            onFailure.apply(slot, result.exception, result.failureStoreStatus);
+                                        } else {
+                                            // We were given a failure result in the onResponse method, so we must store the failure
+                                            // Recover the original document state, track a failed ingest, and pass it along
+                                            updateIndexRequestMetadata(indexRequest, originalDocumentMetadata);
+                                            onStoreFailure.apply(slot, result.failedIndex, result.exception);
+                                        }
                                     }
                                 }
 
                                 @Override
                                 public void onFailure(Exception e) {
+                                    // The target of the request does not allow failure storage, or failed for unforeseen reason
                                     totalMetrics.ingestFailed();
-                                    onFailure.accept(slot, e);
+                                    onFailure.apply(slot, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
                                 }
                             },
                             () -> {
@@ -949,15 +980,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             if (failureStoreResolution != null && failureStoreResolution) {
                 failureStoreMetrics.incrementFailureStore(originalIndex, errorType, FailureStoreMetrics.ErrorLocation.PIPELINE);
                 listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, e));
+            } else if (failureStoreResolution != null) {
+                // If this document targeted a data stream that didn't have the failure store enabled, we increment
+                // the rejected counter.
+                // We also increment the total counter because this request will not reach the code that increments
+                // the total counter for non-rejected documents.
+                failureStoreMetrics.incrementTotal(originalIndex);
+                failureStoreMetrics.incrementRejected(originalIndex, errorType, FailureStoreMetrics.ErrorLocation.PIPELINE, false);
+                listener.onResponse(IngestPipelinesExecutionResult.failWithoutStoringIn(originalIndex, e));
             } else {
-                if (failureStoreResolution != null) {
-                    // If this document targeted a data stream that didn't have the failure store enabled, we increment
-                    // the rejected counter.
-                    // We also increment the total counter because this request will not reach the code that increments
-                    // the total counter for non-rejected documents.
-                    failureStoreMetrics.incrementTotal(originalIndex);
-                    failureStoreMetrics.incrementRejected(originalIndex, errorType, FailureStoreMetrics.ErrorLocation.PIPELINE, false);
-                }
                 listener.onFailure(e);
             }
         };
@@ -1159,20 +1190,35 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         if (processor instanceof ConditionalProcessor conditionalProcessor) {
             processor = conditionalProcessor.getInnerProcessor();
         }
-        StringBuilder sb = new StringBuilder(5);
-        sb.append(processor.getType());
 
-        if (processor instanceof PipelineProcessor pipelineProcessor) {
-            String pipelineName = pipelineProcessor.getPipelineTemplate().newInstance(Map.of()).execute();
-            sb.append(":");
-            sb.append(pipelineName);
-        }
         String tag = processor.getTag();
-        if (tag != null && tag.isEmpty() == false) {
-            sb.append(":");
-            sb.append(tag);
+        if (tag != null && tag.isEmpty()) {
+            tag = null; // it simplifies the rest of the logic slightly to coalesce to null
         }
-        return sb.toString();
+
+        String pipelineName = null;
+        if (processor instanceof PipelineProcessor pipelineProcessor) {
+            pipelineName = pipelineProcessor.getPipelineTemplate().newInstance(Map.of()).execute();
+        }
+
+        // if there's a tag, OR if it's a pipeline processor, then the processor name is a compound thing,
+        // BUT if neither of those apply, then it's just the type -- so we can return the type itself without
+        // allocating a new String object
+        if (tag == null && pipelineName == null) {
+            return processor.getType();
+        } else {
+            StringBuilder sb = new StringBuilder(5);
+            sb.append(processor.getType());
+            if (pipelineName != null) {
+                sb.append(":");
+                sb.append(pipelineName);
+            }
+            if (tag != null) {
+                sb.append(":");
+                sb.append(tag);
+            }
+            return sb.toString();
+        }
     }
 
     /**

@@ -675,8 +675,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             null,
             threadPool,
             null,
-            mock(ActionFilters.class),
-            null
+            mock(ActionFilters.class)
         );
         assertEquals(ReservedComposableIndexTemplateAction.NAME, putIndexAction.reservedStateHandlerName().get());
         assertThat(
@@ -688,8 +687,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             null,
             threadPool,
             null,
-            mock(ActionFilters.class),
-            null
+            mock(ActionFilters.class)
         );
         assertEquals(ReservedComposableIndexTemplateAction.NAME, delIndexAction.reservedStateHandlerName().get());
         assertThat(
@@ -703,7 +701,6 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             threadPool,
             null,
             mock(ActionFilters.class),
-            null,
             indexScopedSettings
         );
         assertEquals(ReservedComposableIndexTemplateAction.NAME, putComponentAction.reservedStateHandlerName().get());
@@ -717,8 +714,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             null,
             threadPool,
             null,
-            mock(ActionFilters.class),
-            null
+            mock(ActionFilters.class)
         );
         assertEquals(ReservedComposableIndexTemplateAction.NAME, delComponentAction.reservedStateHandlerName().get());
         assertThat(
@@ -932,8 +928,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             null,
             threadPool,
             null,
-            mock(ActionFilters.class),
-            null
+            mock(ActionFilters.class)
         );
 
         // Try fake REST modification request with validate_template, this will fail

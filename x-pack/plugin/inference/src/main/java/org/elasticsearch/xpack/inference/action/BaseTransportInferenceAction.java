@@ -19,7 +19,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -276,7 +275,10 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         inferenceStats.requestCount().incrementBy(1, modelAttributes(model));
         inferOnService(model, request, service, ActionListener.wrap(inferenceResults -> {
             if (request.isStreaming()) {
-                var taskProcessor = streamingTaskManager.<ChunkedToXContent>create(STREAMING_INFERENCE_TASK_TYPE, STREAMING_TASK_ACTION);
+                var taskProcessor = streamingTaskManager.<InferenceServiceResults.Result>create(
+                    STREAMING_INFERENCE_TASK_TYPE,
+                    STREAMING_TASK_ACTION
+                );
                 inferenceResults.publisher().subscribe(taskProcessor);
 
                 var instrumentedStream = new PublisherWithMetrics(timer, model);
@@ -295,7 +297,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         }));
     }
 
-    protected Flow.Publisher<ChunkedToXContent> streamErrorHandler(Flow.Processor<ChunkedToXContent, ChunkedToXContent> upstream) {
+    protected <T> Flow.Publisher<T> streamErrorHandler(Flow.Processor<T, T> upstream) {
         return upstream;
     }
 
@@ -308,7 +310,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     }
 
     private void inferOnService(Model model, Request request, InferenceService service, ActionListener<InferenceServiceResults> listener) {
-        if (request.isStreaming() == false || service.canStream(request.getTaskType())) {
+        if (request.isStreaming() == false || service.canStream(model.getTaskType())) {
             doInference(model, request, service, listener);
         } else {
             listener.onFailure(unsupportedStreamingTaskException(request, service));
@@ -349,7 +351,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         );
     }
 
-    private class PublisherWithMetrics extends DelegatingProcessor<ChunkedToXContent, ChunkedToXContent> {
+    private class PublisherWithMetrics extends DelegatingProcessor<InferenceServiceResults.Result, InferenceServiceResults.Result> {
 
         private final InferenceTimer timer;
         private final Model model;
@@ -360,7 +362,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         }
 
         @Override
-        protected void next(ChunkedToXContent item) {
+        protected void next(InferenceServiceResults.Result item) {
             downstream().onNext(item);
         }
 

@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -50,8 +51,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
@@ -82,7 +83,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private static final String SEMANTIC_TEXT_FIELD = "semantic";
     private static final float TOKEN_WEIGHT = 0.5f;
     private static final int QUERY_TOKEN_LENGTH = 4;
-    private static final int TEXT_EMBEDDING_DIMENSION_COUNT = 10;
+    private static final int TEXT_EMBEDDING_DIMENSION_COUNT = 16; // Must be a multiple of 8 to be a valid bit embedding
     private static final String INFERENCE_ID = "test_service";
     private static final String SEARCH_INFERENCE_ID = "search_test_service";
 
@@ -113,10 +114,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         // These are class variables because they are used when initializing additional mappings, which happens once per test suite run in
         // AbstractBuilderTestCase#beforeTest as part of service holder creation.
         inferenceResultType = randomFrom(InferenceResultType.values());
-        denseVectorElementType = randomValueOtherThan(
-            DenseVectorFieldMapper.ElementType.BIT,
-            () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
-        ); // TODO: Support bit elements once KNN bit vector queries are available
+        denseVectorElementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
         useSearchInferenceId = randomBoolean();
     }
 
@@ -229,8 +227,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
         Class<? extends Query> expectedKnnQueryClass = switch (denseVectorElementType) {
             case FLOAT -> KnnFloatVectorQuery.class;
-            case BYTE -> KnnByteVectorQuery.class;
-            default -> throw new IllegalStateException("Unhandled element type [" + denseVectorElementType + "]");
+            case BYTE, BIT -> KnnByteVectorQuery.class;
         };
         assertThat(innerQuery, instanceOf(expectedKnnQueryClass));
     }
@@ -296,11 +293,12 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     }
 
     private InferenceAction.Response generateTextEmbeddingInferenceResponse() {
-        double[] inference = new double[TEXT_EMBEDDING_DIMENSION_COUNT];
+        int inferenceLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(denseVectorElementType, TEXT_EMBEDDING_DIMENSION_COUNT);
+        double[] inference = new double[inferenceLength];
         Arrays.fill(inference, 1.0);
         MlTextEmbeddingResults textEmbeddingResults = new MlTextEmbeddingResults(DEFAULT_RESULTS_FIELD, inference, false);
 
-        return new InferenceAction.Response(InferenceTextEmbeddingFloatResults.of(List.of(textEmbeddingResults)));
+        return new InferenceAction.Response(TextEmbeddingFloatResults.of(List.of(textEmbeddingResults)));
     }
 
     @Override
@@ -358,7 +356,8 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             case TEXT_EMBEDDING -> new MinimalServiceSettings(
                 TaskType.TEXT_EMBEDDING,
                 TEXT_EMBEDDING_DIMENSION_COUNT,
-                SimilarityMeasure.COSINE,
+                // l2_norm similarity is required for bit embeddings
+                denseVectorElementType == DenseVectorFieldMapper.ElementType.BIT ? SimilarityMeasure.L2_NORM : SimilarityMeasure.COSINE,
                 denseVectorElementType
             );
         };

@@ -280,7 +280,8 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             assertTrue(context.hasOnlySuggest());
             QueryPhase.execute(context);
             assertTrue(context.queryResult().searchTimedOut());
-            assertNull(context.queryResult().suggest());
+            assertEquals(1, context.queryResult().suggest().size());
+            assertEquals(0, context.queryResult().suggest().getSuggestion("suggestion").getEntries().size());
             assertNotNull(context.queryResult().topDocs());
             assertEquals(0, context.queryResult().topDocs().topDocs.totalHits.value);
         }
@@ -294,7 +295,8 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             QueryPhase.execute(context);
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, Matchers.greaterThan(0L));
             assertTrue(context.queryResult().searchTimedOut());
-            assertNull(context.queryResult().suggest());
+            assertEquals(1, context.queryResult().suggest().size());
+            assertEquals(0, context.queryResult().suggest().getSuggestion("suggestion").getEntries().size());
         }
     }
 

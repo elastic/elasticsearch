@@ -73,7 +73,7 @@ public class Java19ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
 
     @Override
     public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, MemorySession session) {
-        // TODO: check filesystem entitlement READ
+        policyManager.checkFileRead(callerClass, path);
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 }

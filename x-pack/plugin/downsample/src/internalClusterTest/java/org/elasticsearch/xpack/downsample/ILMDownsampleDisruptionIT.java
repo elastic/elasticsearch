@@ -130,7 +130,7 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
             new Phase(
                 "warm",
                 TimeValue.ZERO,
-                Map.of("downsample", new org.elasticsearch.xpack.core.ilm.DownsampleAction(DateHistogramInterval.HOUR, null))
+                Map.of("downsample", new org.elasticsearch.xpack.core.ilm.DownsampleAction(DateHistogramInterval.HOUR, null, null))
             )
         );
         LifecyclePolicy policy = new LifecyclePolicy(POLICY_NAME, phases);
@@ -148,7 +148,8 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
         final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         long startTime = LocalDateTime.parse("1993-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
         setup(sourceIndex, 1, 0, startTime);
-        final DownsampleConfig config = new DownsampleConfig(randomInterval());
+        Integer forceMergeMaxNumSegments = randomBoolean() ? null : randomIntBetween(-1, 128);
+        final DownsampleConfig config = new DownsampleConfig(randomInterval(), forceMergeMaxNumSegments);
         final SourceSupplier sourceSupplier = () -> {
             final String ts = randomDateForInterval(config.getInterval(), startTime);
             double counterValue = DATE_FORMATTER.parseMillis(ts);

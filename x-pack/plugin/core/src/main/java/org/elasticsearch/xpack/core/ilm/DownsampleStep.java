@@ -33,17 +33,20 @@ public class DownsampleStep extends AsyncActionStep {
 
     private final DateHistogramInterval fixedInterval;
     private final TimeValue waitTimeout;
+    private final Integer forceMergeMaxNumSegments;
 
     public DownsampleStep(
         final StepKey key,
         final StepKey nextStepKey,
         final Client client,
         final DateHistogramInterval fixedInterval,
-        final TimeValue waitTimeout
+        final TimeValue waitTimeout,
+        final Integer forceMergeMaxNumSegments
     ) {
         super(key, nextStepKey, client);
         this.fixedInterval = fixedInterval;
         this.waitTimeout = waitTimeout;
+        this.forceMergeMaxNumSegments = forceMergeMaxNumSegments;
     }
 
     @Override
@@ -89,7 +92,7 @@ public class DownsampleStep extends AsyncActionStep {
     }
 
     void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
-        DownsampleConfig config = new DownsampleConfig(fixedInterval);
+        DownsampleConfig config = new DownsampleConfig(fixedInterval, forceMergeMaxNumSegments);
         DownsampleAction.Request request = new DownsampleAction.Request(
             TimeValue.MAX_VALUE,
             indexName,
@@ -109,9 +112,13 @@ public class DownsampleStep extends AsyncActionStep {
         return waitTimeout;
     }
 
+    public Integer getForceMergeMaxNumSegments() {
+        return forceMergeMaxNumSegments;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fixedInterval, waitTimeout);
+        return Objects.hash(super.hashCode(), fixedInterval, waitTimeout, forceMergeMaxNumSegments);
     }
 
     @Override
@@ -126,7 +133,10 @@ public class DownsampleStep extends AsyncActionStep {
             return false;
         }
         DownsampleStep other = (DownsampleStep) obj;
-        return super.equals(obj) && Objects.equals(fixedInterval, other.fixedInterval) && Objects.equals(waitTimeout, other.waitTimeout);
+        return super.equals(obj)
+            && Objects.equals(fixedInterval, other.fixedInterval)
+            && Objects.equals(waitTimeout, other.waitTimeout)
+            && Objects.equals(forceMergeMaxNumSegments, other.forceMergeMaxNumSegments);
     }
 
 }

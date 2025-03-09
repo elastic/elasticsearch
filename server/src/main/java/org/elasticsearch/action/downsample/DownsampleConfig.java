@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.downsample;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
@@ -31,6 +32,7 @@ import java.time.ZoneId;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This class holds the configuration details of a DownsampleAction that downsamples time series
@@ -56,11 +58,14 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
 
     private static final String NAME = "downsample/action/config";
     public static final String FIXED_INTERVAL = "fixed_interval";
+    public static final String FORCE_MERGE_MAX_NUM_SEGMENTS = "force_merge_max_num_segments";
     public static final String TIME_ZONE = "time_zone";
     public static final String DEFAULT_TIMEZONE = ZoneId.of("UTC").getId();
+    private static final int DEFAULT_MAX_NUM_SEGMENTS = 1;
 
     private static final String timestampField = DataStreamTimestampFieldMapper.DEFAULT_PATH;
     private final DateHistogramInterval fixedInterval;
+    private final int forceMergeMaxNumSegments;
     private final String timeZone = DEFAULT_TIMEZONE;
     private final String intervalType = FIXED_INTERVAL;
 
@@ -68,8 +73,9 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
     static {
         PARSER = new ConstructingObjectParser<>(NAME, a -> {
             DateHistogramInterval fixedInterval = (DateHistogramInterval) a[0];
+            Integer forceMergeMaxNumSegments = (Integer) a[1];
             if (fixedInterval != null) {
-                return new DownsampleConfig(fixedInterval);
+                return new DownsampleConfig(fixedInterval, forceMergeMaxNumSegments);
             } else {
                 throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL + "] is required.");
             }
@@ -81,13 +87,19 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
             new ParseField(FIXED_INTERVAL),
             ObjectParser.ValueType.STRING
         );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> p.intValue(),
+            new ParseField(FORCE_MERGE_MAX_NUM_SEGMENTS),
+            ObjectParser.ValueType.INT
+        );
     }
 
     /**
      * Create a new {@link DownsampleConfig} using the given configuration parameters.
      * @param fixedInterval the fixed interval to use for computing the date histogram for the rolled up documents (required).
      */
-    public DownsampleConfig(final DateHistogramInterval fixedInterval) {
+    public DownsampleConfig(final DateHistogramInterval fixedInterval, Integer forceMergeMaxNumSegments) {
         if (fixedInterval == null) {
             throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL + "] is required.");
         }
@@ -95,10 +107,20 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
 
         // validate interval
         createRounding(this.fixedInterval.toString(), this.timeZone);
+
+        if (forceMergeMaxNumSegments == null) {
+            forceMergeMaxNumSegments = 1;
+        }
+        this.forceMergeMaxNumSegments = forceMergeMaxNumSegments;
     }
 
     public DownsampleConfig(final StreamInput in) throws IOException {
         fixedInterval = new DateHistogramInterval(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.DOWNSAMPLE_FORCE_MERGE_MAX_NUM_SEGMENTS_PARAMETER)) {
+            forceMergeMaxNumSegments = in.readInt();
+        } else {
+            forceMergeMaxNumSegments = DEFAULT_MAX_NUM_SEGMENTS;
+        }
     }
 
     /**
@@ -135,6 +157,9 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         fixedInterval.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.DOWNSAMPLE_FORCE_MERGE_MAX_NUM_SEGMENTS_PARAMETER)) {
+            out.writeInt(forceMergeMaxNumSegments);
+        }
     }
 
     /**
@@ -180,6 +205,10 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         return createRounding(fixedInterval.toString(), timeZone);
     }
 
+    public int getForceMergeMaxNumSegments() {
+        return forceMergeMaxNumSegments;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;
@@ -195,7 +224,11 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
     }
 
     public XContentBuilder toXContentFragment(final XContentBuilder builder) throws IOException {
-        return builder.field(FIXED_INTERVAL, fixedInterval.toString());
+        builder.field(FIXED_INTERVAL, fixedInterval.toString());
+        if (forceMergeMaxNumSegments != DEFAULT_MAX_NUM_SEGMENTS) {
+            builder.field(FORCE_MERGE_MAX_NUM_SEGMENTS, forceMergeMaxNumSegments);
+        }
+        return builder;
     }
 
     public static DownsampleConfig fromXContent(final XContentParser parser) throws IOException {
@@ -212,13 +245,14 @@ public class DownsampleConfig implements NamedWriteable, ToXContentObject {
         }
         final DownsampleConfig that = (DownsampleConfig) other;
         return Objects.equals(fixedInterval, that.fixedInterval)
+            && Objects.equals(forceMergeMaxNumSegments, that.forceMergeMaxNumSegments)
             && Objects.equals(intervalType, that.intervalType)
             && ZoneId.of(timeZone, ZoneId.SHORT_IDS).getRules().equals(ZoneId.of(that.timeZone, ZoneId.SHORT_IDS).getRules());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fixedInterval, intervalType, ZoneId.of(timeZone));
+        return Objects.hash(fixedInterval, forceMergeMaxNumSegments, intervalType, ZoneId.of(timeZone));
     }
 
     @Override

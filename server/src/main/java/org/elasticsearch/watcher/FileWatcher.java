@@ -20,7 +20,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.security.AccessControlException;
 import java.util.Arrays;
 import java.util.stream.StreamSupport;
 
@@ -256,7 +255,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
                 FileObserver child = new FileObserver(file);
                 child.init(initial);
                 return child;
-            } catch (AccessControlException e) {
+            } catch (SecurityException e) {
                 // don't have permissions, use a placeholder
                 logger.debug(() -> Strings.format("Don't have permissions to watch path [%s]", file), e);
                 return new DeniedObserver(file);

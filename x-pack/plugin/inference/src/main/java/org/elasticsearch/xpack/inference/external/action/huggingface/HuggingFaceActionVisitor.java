@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceE
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
 
 public interface HuggingFaceActionVisitor {
-    ExecutableAction create(HuggingFaceEmbeddingsModel mode);
+    ExecutableAction create(HuggingFaceEmbeddingsModel model);
 
-    ExecutableAction create(HuggingFaceElserModel mode);
+    ExecutableAction create(HuggingFaceElserModel model);
 }

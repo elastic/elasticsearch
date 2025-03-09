@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.action.voyageai;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -35,8 +34,8 @@ public class VoyageAIActionCreator implements VoyageAIActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(VoyageAIEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
-        var overriddenModel = VoyageAIEmbeddingsModel.of(model, taskSettings, inputType);
+    public ExecutableAction create(VoyageAIEmbeddingsModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = VoyageAIEmbeddingsModel.of(model, taskSettings);
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("VoyageAI embeddings");
         var requestCreator = VoyageAIEmbeddingsRequestManager.of(overriddenModel, serviceComponents.threadPool());
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);

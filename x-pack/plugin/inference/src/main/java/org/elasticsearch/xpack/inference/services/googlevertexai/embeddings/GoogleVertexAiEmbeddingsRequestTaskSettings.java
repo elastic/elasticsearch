@@ -16,8 +16,8 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE;
-import static org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings.VALID_REQUEST_VALUES;
 
 public record GoogleVertexAiEmbeddingsRequestTaskSettings(@Nullable Boolean autoTruncate, @Nullable InputType inputType) {
 
@@ -38,7 +38,7 @@ public record GoogleVertexAiEmbeddingsRequestTaskSettings(@Nullable Boolean auto
             INPUT_TYPE,
             ModelConfigurations.TASK_SETTINGS,
             InputType::fromString,
-            VALID_REQUEST_VALUES,
+            VALID_INPUT_TYPE_VALUES,
             validationException
         );
 

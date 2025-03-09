@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.util.Map;
 
 public class HuggingFaceEmbeddingsModel extends HuggingFaceModel {
+
     public HuggingFaceEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,

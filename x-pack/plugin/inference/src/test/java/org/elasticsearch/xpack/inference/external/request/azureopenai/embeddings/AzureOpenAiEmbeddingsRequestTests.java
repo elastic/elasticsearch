@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.inference.external.request.azureopenai.embedding
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiEmbeddingsRequest;
@@ -52,6 +54,33 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(requestMap.size(), equalTo(2));
         assertThat(requestMap.get("input"), is(List.of(input)));
         assertThat(requestMap.get("user"), is(user));
+    }
+
+    public void testCreateRequest_WithInputTypeDefined() throws IOException {
+        var input = "input";
+        var user = "user";
+        var apiKey = randomAlphaOfLength(10);
+        var inputType = InputTypeTests.randomWithoutUnspecified();
+
+        var request = createRequest("resource", "deployment", "2024", apiKey, null, input, user);
+        var httpRequest = request.createHttpRequest();
+
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        assertThat(
+            httpPost.getURI().toString(),
+            is("https://resource.openai.azure.com/openai/deployments/deployment/embeddings?api-version=2024")
+        );
+
+        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getLastHeader(API_KEY_HEADER).getValue(), is(apiKey));
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(requestMap.size(), equalTo(3));
+        assertThat(requestMap.get("input"), is(List.of(input)));
+        assertThat(requestMap.get("user"), is(user));
+        assertThat(requestMap.get("input_type"), is(inputType.toString()));
     }
 
     public void testCreateRequest_WithEntraIdDefined() throws IOException {
@@ -121,6 +150,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         return new AzureOpenAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
+            InputType.SEARCH,
             embeddingsModel
         );
     }

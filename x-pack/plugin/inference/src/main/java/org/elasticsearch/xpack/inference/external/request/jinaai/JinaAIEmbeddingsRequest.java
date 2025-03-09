@@ -11,6 +11,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.jinaai.JinaAIAccount;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -28,16 +29,18 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
 
     private final JinaAIAccount account;
     private final List<String> input;
+    private final InputType inputType;
     private final JinaAIEmbeddingsTaskSettings taskSettings;
     private final String model;
     private final String inferenceEntityId;
     private final JinaAIEmbeddingType embeddingType;
 
-    public JinaAIEmbeddingsRequest(List<String> input, JinaAIEmbeddingsModel embeddingsModel) {
+    public JinaAIEmbeddingsRequest(List<String> input, InputType inputType, JinaAIEmbeddingsModel embeddingsModel) {
         Objects.requireNonNull(embeddingsModel);
 
         account = JinaAIAccount.of(embeddingsModel, JinaAIEmbeddingsRequest::buildDefaultUri);
         this.input = Objects.requireNonNull(input);
+        this.inputType = inputType;
         taskSettings = embeddingsModel.getTaskSettings();
         model = embeddingsModel.getServiceSettings().getCommonSettings().modelId();
         embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
@@ -49,7 +52,8 @@ public class JinaAIEmbeddingsRequest extends JinaAIRequest {
         HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new JinaAIEmbeddingsRequestEntity(input, taskSettings, model, embeddingType)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new JinaAIEmbeddingsRequestEntity(input, inputType, taskSettings, model, embeddingType))
+                .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 

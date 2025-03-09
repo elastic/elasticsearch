@@ -12,12 +12,16 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
 
 import java.util.Map;
 
@@ -34,6 +38,79 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
         assertThat(thrownException.getMessage(), containsString("Amazon Bedrock embeddings model cannot have task settings"));
     }
 
+    public void testInputTypeValid_WhenProviderAllowsTaskType() {
+        var model = createModel("id", "region", "model", AmazonBedrockProvider.COHERE, "accesskey", "secretkey");
+        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of());
+        var expectedModel = createModel("id", "region", "model", AmazonBedrockProvider.COHERE, "accesskey", "secretkey", InputType.SEARCH);
+        MatcherAssert.assertThat(overriddenModel, Matchers.is(expectedModel));
+    }
+
+    public void testInputTypeInternal_WhenProviderAllowsTaskType() {
+        var model = createModel("id", "region", "model", AmazonBedrockProvider.COHERE, "accesskey", "secretkey");
+        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of());
+        var expectedModel = createModel(
+            "id",
+            "region",
+            "model",
+            AmazonBedrockProvider.COHERE,
+            "accesskey",
+            "secretkey",
+            InputType.INTERNAL_SEARCH
+        );
+        MatcherAssert.assertThat(overriddenModel, Matchers.is(expectedModel));
+    }
+
+    public void testInputTypeNull_WhenProviderAllowsTaskType() {
+        var model = createModel("id", "region", "model", AmazonBedrockProvider.COHERE, "accesskey", "secretkey");
+        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of());
+        MatcherAssert.assertThat(overriddenModel, Matchers.is(model));
+    }
+
+    public void testInputTypeUnspecified_WhenProviderAllowsTaskType() {
+        var model = createModel("id", "region", "model", AmazonBedrockProvider.COHERE, "accesskey", "secretkey");
+        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of());
+        MatcherAssert.assertThat(overriddenModel, Matchers.is(model));
+    }
+
+    public void testThrowsError_WhenInputTypeSpecified_WhenProviderDoesNotAllowTaskType() {
+        var model = createModel("id", "region", "model", AmazonBedrockProvider.AMAZONTITAN, "accesskey", "secretkey");
+
+        var thrownException = expectThrows(ValidationException.class, () -> AmazonBedrockEmbeddingsModel.of(model, Map.of()));
+        assertThat(
+            thrownException.getMessage(),
+            CoreMatchers.is(
+                "Validation Failed: 1: Invalid value [search] received. [input_type] is not allowed for provider [amazontitan];"
+            )
+        );
+    }
+
+    public void testInputTypeInternal_WhenProviderDoesNotAllowTaskType() {
+        var model = createModel("id", "region", "model", AmazonBedrockProvider.AMAZONTITAN, "accesskey", "secretkey");
+        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of());
+        var expectedModel = createModel(
+            "id",
+            "region",
+            "model",
+            AmazonBedrockProvider.AMAZONTITAN,
+            "accesskey",
+            "secretkey",
+            InputType.INTERNAL_SEARCH
+        );
+        MatcherAssert.assertThat(overriddenModel, Matchers.is(expectedModel));
+    }
+
+    public void testInputTypeNull_WhenProviderDoesNotAllowTaskType() {
+        var model = createModel("id", "region", "model", AmazonBedrockProvider.AMAZONTITAN, "accesskey", "secretkey");
+        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of());
+        MatcherAssert.assertThat(overriddenModel, Matchers.is(model));
+    }
+
+    public void testInputTypeUnspecified_WhenModelIdDoesNotAllowTaskType() {
+        var model = createModel("id", "region", "model", AmazonBedrockProvider.AMAZONTITAN, "accesskey", "secretkey");
+        var overriddenModel = AmazonBedrockEmbeddingsModel.of(model, Map.of());
+        MatcherAssert.assertThat(overriddenModel, Matchers.is(model));
+    }
+
     // model creation only - no tests to define, but we want to have the public createModel
     // method available
 
@@ -44,6 +121,18 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
         AmazonBedrockProvider provider,
         String accessKey,
         String secretKey
+    ) {
+        return createModel(inferenceId, region, model, provider, null, false, null, null, new RateLimitSettings(240), accessKey, secretKey);
+    }
+
+    public static AmazonBedrockEmbeddingsModel createModel(
+        String inferenceId,
+        String region,
+        String model,
+        AmazonBedrockProvider provider,
+        String accessKey,
+        String secretKey,
+        InputType inputType
     ) {
         return createModel(inferenceId, region, model, provider, null, false, null, null, new RateLimitSettings(240), accessKey, secretKey);
     }

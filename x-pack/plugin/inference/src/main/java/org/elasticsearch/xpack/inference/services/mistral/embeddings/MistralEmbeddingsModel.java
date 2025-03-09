@@ -28,6 +28,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.API_EMBEDDINGS_PATH;
 
 public class MistralEmbeddingsModel extends Model {
+
     protected String model;
     protected URI uri;
     protected RateLimitSettings rateLimitSettings;

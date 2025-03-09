@@ -738,7 +738,7 @@ public final class ServiceUtils {
             List.of(TEST_EMBEDDING_INPUT),
             false,
             Map.of(),
-            InputType.INGEST,
+            InputType.INTERNAL_INGEST,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener.delegateFailureAndWrap((delegate, r) -> {
                 if (r instanceof TextEmbeddingResults<?, ?> embeddingResults) {
@@ -798,6 +798,19 @@ public final class ServiceUtils {
             model.getInferenceEntityId(),
             STREAM_SUFFIX
         );
+    }
+
+    public static final EnumSet<InputType> VALID_INTERNAL_INPUT_TYPE_VALUES = EnumSet.of(
+        InputType.INTERNAL_INGEST,
+        InputType.INTERNAL_SEARCH
+    );
+
+    public static void validateInputTypeIsUnspecifiedOrInternal(InputType inputType, ValidationException validationException) {
+        if (inputType != null && inputType != InputType.UNSPECIFIED && VALID_INTERNAL_INPUT_TYPE_VALUES.contains(inputType) == false) {
+            validationException.addValidationError(
+                Strings.format("Invalid value [%s] received. [%s] is not allowed", inputType, "input_type")
+            );
+        }
     }
 
     private ServiceUtils() {}

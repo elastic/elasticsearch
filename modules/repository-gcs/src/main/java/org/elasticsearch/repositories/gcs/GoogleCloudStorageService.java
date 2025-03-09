@@ -24,8 +24,10 @@ import com.google.cloud.storage.StorageRetryStrategy;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -52,6 +54,11 @@ public class GoogleCloudStorageService {
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageService.class);
 
     private volatile Map<String, GoogleCloudStorageClientSettings> clientSettings = emptyMap();
+    private final boolean isStateless;
+
+    public GoogleCloudStorageService(Settings settings) {
+        this.isStateless = DiscoveryNode.isStateless(settings);
+    }
 
     private record ClientKey(OperationPurpose purpose, String repositoryName) {}
 
@@ -127,6 +134,10 @@ public class GoogleCloudStorageService {
         }
     }
 
+    boolean isStateless() {
+        return isStateless;
+    }
+
     synchronized void closeRepositoryClients(String repositoryName) {
         clientCache = clientCache.entrySet()
             .stream()
@@ -182,7 +193,6 @@ public class GoogleCloudStorageService {
 
                 return (httpRequest) -> {
                     if (requestInitializer != null) requestInitializer.initialize(httpRequest);
-
                     httpRequest.setResponseInterceptor(httpStatsCollector);
                 };
             }

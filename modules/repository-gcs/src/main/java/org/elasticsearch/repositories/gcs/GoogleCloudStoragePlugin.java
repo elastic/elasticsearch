@@ -34,14 +34,14 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
 
     @SuppressWarnings("this-escape")
     public GoogleCloudStoragePlugin(final Settings settings) {
-        this.storageService = createStorageService();
+        this.storageService = createStorageService(settings);
         // eagerly load client settings so that secure settings are readable (not closed)
         reload(settings);
     }
 
     // overridable for tests
-    protected GoogleCloudStorageService createStorageService() {
-        return new GoogleCloudStorageService();
+    protected GoogleCloudStorageService createStorageService(Settings settings) {
+        return new GoogleCloudStorageService(settings);
     }
 
     @Override

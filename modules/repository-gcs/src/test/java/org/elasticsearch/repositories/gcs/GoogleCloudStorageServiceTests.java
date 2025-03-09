@@ -75,7 +75,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             .put(GoogleCloudStorageClientSettings.PROXY_PORT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), 8080)
             .build();
         SetOnce<Proxy> proxy = new SetOnce<>();
-        final GoogleCloudStorageService service = new GoogleCloudStorageService() {
+        final GoogleCloudStorageService service = new GoogleCloudStorageService(Settings.EMPTY) {
             @Override
             void notifyProxyIsSet(Proxy p) {
                 proxy.set(p);

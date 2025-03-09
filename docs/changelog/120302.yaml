@@ -1,5 +1,5 @@
 pr: 120302
-summary: "ESQL: Support for arbitrary month and year intervals in `BUCKET`"
+summary: "ESQL: Enhanced `DATE_TRUNC` with arbitrary intervals"
 area: ES|QL
 type: enhancement
 issues:

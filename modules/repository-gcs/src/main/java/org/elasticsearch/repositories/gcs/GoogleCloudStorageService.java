@@ -24,6 +24,7 @@ import com.google.cloud.storage.StorageRetryStrategy;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.Maps;
@@ -39,8 +40,10 @@ import java.net.HttpURLConnection;
 import java.net.Proxy;
 import java.net.URI;
 import java.net.URL;
+import java.net.UnknownHostException;
 import java.security.KeyStore;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -197,7 +200,7 @@ public class GoogleCloudStorageService {
         final HttpTransportOptions httpTransportOptions
     ) {
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
-            .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
+            .setStorageRetryStrategy(getRetryStrategy())
             .setTransportOptions(httpTransportOptions)
             .setHeaderProvider(() -> {
                 return Strings.hasLength(gcsClientSettings.getApplicationName())
@@ -252,6 +255,22 @@ public class GoogleCloudStorageService {
             storageOptionsBuilder.setCredentials(serviceAccountCredentials);
         }
         return storageOptionsBuilder.build();
+    }
+
+    protected StorageRetryStrategy getRetryStrategy() {
+        return new DelegatingStorageRetryStrategy<>(
+            StorageRetryStrategy.getLegacyStorageRetryStrategy(),
+            d -> new DelegatingStorageRetryStrategy.DelegatingResultRetryAlgorithm<>(d) {
+                @Override
+                public boolean shouldRetry(Throwable prevThrowable, Object prevResponse) throws CancellationException {
+                    // Retry in the event of an unknown host exception
+                    if (ExceptionsHelper.unwrap(prevThrowable, UnknownHostException.class) != null) {
+                        return true;
+                    }
+                    return delegate.shouldRetry(prevThrowable, prevResponse);
+                }
+            }
+        );
     }
 
     /**

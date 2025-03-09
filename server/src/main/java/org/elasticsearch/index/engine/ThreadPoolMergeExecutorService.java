@@ -42,10 +42,10 @@ public class ThreadPoolMergeExecutorService {
      */
     static final ByteSizeValue START_IO_RATE = ByteSizeValue.ofMb(20L);
     /**
-     * Total number of submitted merge tasks that support IO auto throttling and that have not yet been executed.
+     * Total number of submitted merge tasks that support IO auto throttling and that have not yet been run (or aborted).
      * This includes merge tasks that are currently running and that are backlogged (by their respective merge schedulers).
      */
-    private final AtomicInteger currentlySubmittedIOThrottledMergeTasksCount = new AtomicInteger();
+    private final AtomicInteger ioThrottledMergeTasksCount = new AtomicInteger();
     /**
      * The merge tasks that are waiting execution. This does NOT include backlogged or currently executing merge tasks.
      * For instance, this can be empty while there are backlogged merge tasks awaiting re-enqueuing.
@@ -100,7 +100,7 @@ public class ThreadPoolMergeExecutorService {
         } else {
             if (mergeTask.supportsIOThrottling()) {
                 // count enqueued merge tasks that support IO auto throttling, and maybe adjust IO rate for all
-                maybeUpdateIORateBytesPerSec(currentlySubmittedIOThrottledMergeTasksCount.incrementAndGet());
+                maybeUpdateIORateBytesPerSec(ioThrottledMergeTasksCount.incrementAndGet());
             }
             // then enqueue the merge task proper
             queuedMergeTasks.add(mergeTask);
@@ -113,7 +113,9 @@ public class ThreadPoolMergeExecutorService {
     }
 
     public boolean allDone() {
-        return queuedMergeTasks.isEmpty() && runningMergeTasks.isEmpty() && currentlySubmittedIOThrottledMergeTasksCount.get() == 0L;
+        return queuedMergeTasks.isEmpty()
+            && runningMergeTasks.isEmpty()
+            && ioThrottledMergeTasksCount.get() == 0L;
     }
 
     /**
@@ -178,7 +180,7 @@ public class ThreadPoolMergeExecutorService {
             boolean removed = runningMergeTasks.remove(mergeTask);
             assert removed : "completed merge task [" + mergeTask + "] not registered as running";
             if (mergeTask.supportsIOThrottling()) {
-                currentlySubmittedIOThrottledMergeTasksCount.decrementAndGet();
+                ioThrottledMergeTasksCount.decrementAndGet();
             }
         }
     }
@@ -190,7 +192,7 @@ public class ThreadPoolMergeExecutorService {
             mergeTask.abort();
         } finally {
             if (mergeTask.supportsIOThrottling()) {
-                currentlySubmittedIOThrottledMergeTasksCount.decrementAndGet();
+                ioThrottledMergeTasksCount.decrementAndGet();
             }
         }
     }

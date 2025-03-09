@@ -447,7 +447,9 @@ public class PolicyManagerTests extends ESTestCase {
     public void testFilesEntitlementsWithExclusive() {
         var baseTestPath = Path.of("/base").toAbsolutePath();
         var testPath1 = Path.of("/base/test").toAbsolutePath();
+        var testPath1String = testPath1.toString();
         var testPath2 = Path.of("/base/test/foo").toAbsolutePath();
+        var testPath2String = testPath2.toAbsolutePath();
         var iae = expectThrows(
             IllegalArgumentException.class,
             () -> new PolicyManager(
@@ -494,7 +496,7 @@ public class PolicyManagerTests extends ESTestCase {
         assertThat(
             iae.getMessage(),
             equalTo(
-                "Path [/base/test] is already exclusive to [plugin1][test.module1],"
+                "Path [" + testPath1String + "] is already exclusive to [plugin1][test.module1],"
                     + " cannot add exclusive access for [plugin2][test.module2]"
             )
         );
@@ -547,8 +549,8 @@ public class PolicyManagerTests extends ESTestCase {
             Strings.format(
                 "duplicate/overlapping exclusive paths found in files entitlements: "
                     + "[[plugin1] [test] [%s]] and [[(server)] [test] [%s]]",
-                testPath1,
-                testPath2
+                testPath1String,
+                testPath2String
             ),
             iae.getMessage()
         );

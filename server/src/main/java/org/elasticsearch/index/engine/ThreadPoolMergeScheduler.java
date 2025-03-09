@@ -64,7 +64,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     // how many {@link MergeTask}s have kicked off (this is used to name them).
     private final AtomicLong submittedMergeTaskCount = new AtomicLong();
     private final AtomicLong doneMergeTaskCount = new AtomicLong();
-    private final CountDownLatch closedWithNoCurrentlyRunningMerges = new CountDownLatch(1);
+    private final CountDownLatch closedWithNoRunningMerges = new CountDownLatch(1);
     private volatile boolean closed = false;
 
     public ThreadPoolMergeScheduler(
@@ -243,7 +243,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     private synchronized void maybeSignalAllMergesDoneAfterClose() {
         if (closed && runningMergeTasks.isEmpty()) {
-            closedWithNoCurrentlyRunningMerges.countDown();
+            closedWithNoRunningMerges.countDown();
         }
     }
 
@@ -481,7 +481,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             maybeSignalAllMergesDoneAfterClose();
         }
         try {
-            closedWithNoCurrentlyRunningMerges.await();
+            closedWithNoRunningMerges.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {

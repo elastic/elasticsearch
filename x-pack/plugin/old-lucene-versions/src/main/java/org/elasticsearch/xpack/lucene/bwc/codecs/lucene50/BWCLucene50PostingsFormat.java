@@ -19,6 +19,7 @@
  */
 package org.elasticsearch.xpack.lucene.bwc.codecs.lucene50;
 
+import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsReader;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -95,7 +96,7 @@ public class BWCLucene50PostingsFormat extends PostingsFormat {
     @Override
     public FieldsProducer fieldsProducer(SegmentReadState state) throws IOException {
         // The postings reader is the original one from Lucene 5.0
-        PostingsReaderBase postingsReader = new org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsReader(state);
+        PostingsReaderBase postingsReader = new Lucene50PostingsReader(state);
         boolean success = false;
         try {
             // The Lucene40BlockTreeTermsReader is a fork

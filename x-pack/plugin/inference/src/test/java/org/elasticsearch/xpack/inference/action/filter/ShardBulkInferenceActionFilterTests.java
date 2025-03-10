@@ -408,7 +408,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
             "semantic_text_field",
-            new InferenceFieldMetadata("semantic_text_field", model.getInferenceEntityId(), new String[] { "semantic_text_field" })
+            new InferenceFieldMetadata("semantic_text_field", model.getInferenceEntityId(), new String[] { "semantic_text_field" }, null)
         );
 
         BulkItemRequest[] items = new BulkItemRequest[3];

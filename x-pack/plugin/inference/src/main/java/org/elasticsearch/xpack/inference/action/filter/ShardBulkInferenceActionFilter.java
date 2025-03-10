@@ -46,8 +46,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.InferenceException;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
@@ -318,7 +318,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 return;
             }
             int currentBatchSize = Math.min(requests.size(), batchSize);
-            final ChunkingSettings chunkingSettings = requests.getFirst().chunkingSettings;
+            final ChunkingSettings chunkingSettings = requests.isEmpty() == false ? requests.getFirst().chunkingSettings : null;
             final List<FieldInferenceRequest> currentBatch = new ArrayList<>();
             for (FieldInferenceRequest request : requests) {
                 if (Objects.equals(request.chunkingSettings, chunkingSettings) == false || currentBatch.size() >= currentBatchSize) {
@@ -621,7 +621,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                     new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
                                 );
                             } else {
-                                fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment, chunkingSettings));
+                                fieldRequests.add(
+                                    new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment, chunkingSettings)
+                                );
                             }
 
                             // When using the inference metadata fields format, all the input values are concatenated so that the

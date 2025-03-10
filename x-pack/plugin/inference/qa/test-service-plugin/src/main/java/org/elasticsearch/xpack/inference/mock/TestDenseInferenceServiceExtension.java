@@ -175,7 +175,11 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             return new TextEmbeddingFloatResults(embeddings);
         }
 
-        private List<ChunkedInference> makeChunkedResults(List<String> inputs, ServiceSettings serviceSettings, ChunkingSettings chunkingSettings) {
+        private List<ChunkedInference> makeChunkedResults(
+            List<String> inputs,
+            ServiceSettings serviceSettings,
+            ChunkingSettings chunkingSettings
+        ) {
             TextEmbeddingFloatResults nonChunkedResults = makeResults(inputs, serviceSettings);
             var results = new ArrayList<ChunkedInference>();
             for (int i = 0; i < inputs.size(); i++) {

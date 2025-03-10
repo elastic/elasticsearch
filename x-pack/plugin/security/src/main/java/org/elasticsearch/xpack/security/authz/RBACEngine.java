@@ -913,23 +913,22 @@ public class RBACEngine implements AuthorizationEngine {
             timeChecker.accept(indicesAndAliases);
             return indicesAndAliases;
         }, () -> {
-            if (includeDataStreams == false) {
-                return Collections.emptySet();
-            }
             // TODO is this right?
             Consumer<Collection<String>> timeChecker = timerSupplier.get();
             Set<String> indicesAndAliases = new HashSet<>();
-            for (IndexAbstraction indexAbstraction : lookup.values()) {
-                if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
-                    && predicate.test(indexAbstraction, IndexComponentSelector.FAILURES)) {
-                    indicesAndAliases.add(indexAbstraction.getName());
-                    // add data stream and its backing failure indices for any authorized data streams
-                    for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
-                        indicesAndAliases.add(index.getName());
+            if (includeDataStreams) {
+                for (IndexAbstraction indexAbstraction : lookup.values()) {
+                    if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
+                        && predicate.test(indexAbstraction, IndexComponentSelector.FAILURES)) {
+                        indicesAndAliases.add(indexAbstraction.getName());
+                        // add data stream and its backing failure indices for any authorized data streams
+                        for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
+                            indicesAndAliases.add(index.getName());
+                        }
                     }
                 }
+                timeChecker.accept(indicesAndAliases);
             }
-            timeChecker.accept(indicesAndAliases);
             return indicesAndAliases;
         }, (name, selectorString) -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);

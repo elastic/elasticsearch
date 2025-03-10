@@ -656,6 +656,72 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
         }
         {
+            Request request = searchRequest("test1," + failureIndexName);
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, FAILURE_STORE_ACCESS_USER:
+                        expectThrows403(() -> performRequest(user, request));
+                        break;
+                    case BOTH_ACCESS_USER, STAR_READ_ONLY_USER:
+                        expectDocIds(performRequest(user, request), dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test1," + failureIndexName, "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), failuresDocId);
+                        break;
+                    case BOTH_ACCESS_USER, STAR_READ_ONLY_USER:
+                        expectDocIds(performRequest(user, request), dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test1::failures," + dataIndexName);
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, FAILURE_STORE_ACCESS_USER, STAR_READ_ONLY_USER:
+                        expectThrows403(() -> performRequest(user, request));
+                        break;
+                    case BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            Request request = searchRequest("test1::failures," + dataIndexName, "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS_USER, STAR_READ_ONLY_USER:
+                        expectDocIds(performRequest(user, request), dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), failuresDocId);
+                        break;
+                    case BOTH_ACCESS_USER:
+                        expectDocIds(performRequest(user, request), dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
             Request request = searchRequest("test1,*::failures");
             for (var user : users) {
                 switch (user) {

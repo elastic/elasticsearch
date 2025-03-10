@@ -487,10 +487,6 @@ class IndicesAndAliasesResolver {
         List<String> authorizedAliases = new ArrayList<>();
         SortedMap<String, IndexAbstraction> existingAliases = projectMetadata.getIndicesLookup();
         for (String authorizedIndex : authorizedIndices.get()) {
-            Tuple<String, String> tuple = IndexNameExpressionResolver.splitSelectorExpression(authorizedIndex);
-            authorizedIndex = tuple.v1();
-            String authorizedSelectorString = tuple.v2();
-            // TODO skip failures here?
             IndexAbstraction indexAbstraction = existingAliases.get(authorizedIndex);
             if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
                 authorizedAliases.add(authorizedIndex);

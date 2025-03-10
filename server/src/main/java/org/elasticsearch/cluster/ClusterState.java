@@ -350,6 +350,28 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             .anyMatch(e -> e.systemIndexMappingsVersion().equals(minVersions.systemIndexMappingsVersion()) == false);
     }
 
+    /**
+     * @return the minimum {@link TransportVersion} that will be used for all future intra-cluster node-to-node communications. This value
+     *         only ever increases, so if {@code v.onOrAfter(cs.getMinTransportVersion())} is true once then it will remain true in the
+     *         future.
+     * <p>
+     * There are some subtle exceptions:
+     * <ul>
+     * <li>The "only ever increases" property is handled by the master node using the in-memory (ephemeral) part of the
+     *     {@link ClusterState} only, so in theory a full restart of a mixed-version cluster may lose that state and allow some nodes to see
+     *     this value decrease. For this to happen in practice requires some fairly unlucky timing during the initial master election. We
+     *     tell users not to do this: if something breaks during a rolling upgrade then they should upgrade all remaining nodes to continue.
+     *     But we do not enforce it.
+     * <li>The "used for all node-to-node communications" is false in a disordered upgrade (an upgrade to a semantically-newer but
+     *     chronologically-older version) because for each connection between such nodes we will use {@link
+     *     TransportVersion#bestKnownVersion} to pick a transport version which is known by both endpoints. We tell users not to do
+     *     disordered upgrades too, but do not enforce it.
+     * </ul>
+     * <p>
+     * Note also that node-to-node communications which are not <i>intra-cluster</i> (i.e. they are not between nodes in the same cluster)
+     * may sometimes use an earlier {@link TransportVersion} than this value. This includes remote-cluster communication, and communication
+     * with nodes that are just starting up or otherwise are attempting to join this cluster.
+     */
     public TransportVersion getMinTransportVersion() {
         return this.minVersions.transportVersion();
     }

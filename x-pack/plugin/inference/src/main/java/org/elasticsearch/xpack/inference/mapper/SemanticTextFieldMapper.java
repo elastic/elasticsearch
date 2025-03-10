@@ -117,7 +117,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final NodeFeature SEMANTIC_TEXT_ALWAYS_EMIT_INFERENCE_ID_FIX = new NodeFeature(
         "semantic_text.always_emit_inference_id_fix"
     );
+    public static final NodeFeature SEMANTIC_TEXT_HANDLE_EMPTY_INPUT = new NodeFeature("semantic_text.handle_empty_input");
     public static final NodeFeature SEMANTIC_TEXT_SKIP_INFERENCE_FIELDS = new NodeFeature("semantic_text.skip_inference_fields");
+    public static final NodeFeature SEMANTIC_TEXT_BIT_VECTOR_SUPPORT = new NodeFeature("semantic_text.bit_vector_support");
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
@@ -402,7 +404,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
 
         final SemanticTextFieldMapper mapper;
-        if (fieldType().getModelSettings() == null) {
+        if (fieldType().getModelSettings() == null && field.inference().modelSettings() != null) {
             mapper = addDynamicUpdate(context, field);
         } else {
             Conflicts conflicts = new Conflicts(fullFieldName);
@@ -709,12 +711,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
                         MlTextEmbeddingResults textEmbeddingResults = (MlTextEmbeddingResults) inferenceResults;
                         float[] inference = textEmbeddingResults.getInferenceAsFloat();
-                        var inferenceLength = modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BIT
-                            ? inference.length * Byte.SIZE
+                        int dimensions = modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BIT
+                            ? inference.length * Byte.SIZE // Bit vectors encode 8 dimensions into each byte value
                             : inference.length;
-                        if (inferenceLength != modelSettings.dimensions()) {
+                        if (dimensions != modelSettings.dimensions()) {
                             throw new IllegalArgumentException(
-                                generateDimensionCountMismatchMessage(inferenceLength, modelSettings.dimensions())
+                                generateDimensionCountMismatchMessage(dimensions, modelSettings.dimensions())
                             );
                         }
 

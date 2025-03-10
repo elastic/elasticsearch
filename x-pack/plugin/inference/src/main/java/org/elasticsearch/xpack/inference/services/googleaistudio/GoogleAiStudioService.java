@@ -59,7 +59,6 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.VALID_INTERNAL_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
@@ -320,25 +319,19 @@ public class GoogleAiStudioService extends SenderService {
     @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
         if (model instanceof GoogleAiStudioEmbeddingsModel embeddingsModel) {
-            // InputType is only respected when model=embedding-001 https://ai.google.dev/api/embeddings?authuser=5#EmbedContentRequest
+            // inputType is only allowed when model=embedding-001 https://ai.google.dev/api/embeddings?authuser=5#EmbedContentRequest
             var modelId = embeddingsModel.getServiceSettings().modelId();
 
-            if (Objects.equals(modelId, MODEL_ID_WITH_TASK_TYPE) == false) {
-                // this model does not accept input type parameter so throw validation error if it is specified and not internal
-                if (inputType != null
-                    && inputType != InputType.UNSPECIFIED
-                    && VALID_INTERNAL_INPUT_TYPE_VALUES.contains(inputType) == false) {
-                    // throw validation exception if ingest type is specified
-                    validationException.addValidationError(
-                        Strings.format("Invalid value [%s] received. [%s] is not allowed for model [%s]", inputType, "input_type", modelId)
-                    );
-                }
+            if (Objects.equals(modelId, MODEL_ID_WITH_TASK_TYPE)) {
+                // input type parameter allowed, so verify it is valid if specified
+                ServiceUtils.validateInputTypeAgainstAllowlist(inputType, VALID_INPUT_TYPE_VALUES, SERVICE_NAME, validationException);
             } else {
-                if (inputType != null && inputType != InputType.UNSPECIFIED && VALID_INPUT_TYPE_VALUES.contains(inputType) == false) {
-                    validationException.addValidationError(
-                        Strings.format("Input type [%s] is not supported for [%s]", inputType, SERVICE_NAME)
-                    );
-                }
+                // input type parameter not allowed so throw validation error if it is specified and not internal
+                ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(
+                    inputType,
+                    validationException,
+                    Strings.format("Invalid value [%s] received. [%s] is not allowed for model [%s]", inputType, "input_type", modelId)
+                );
             }
         }
     }

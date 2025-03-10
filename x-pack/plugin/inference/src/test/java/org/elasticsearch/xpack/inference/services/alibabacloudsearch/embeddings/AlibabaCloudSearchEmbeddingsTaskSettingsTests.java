@@ -68,16 +68,6 @@ public class AlibabaCloudSearchEmbeddingsTaskSettingsTests extends AbstractWireS
         assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
     }
 
-    public void testOf_UsesRequestTaskSettings_AndRequestInputType() {
-        var taskSettings = new AlibabaCloudSearchEmbeddingsTaskSettings(InputType.SEARCH);
-        var overriddenTaskSettings = AlibabaCloudSearchEmbeddingsTaskSettings.of(
-            taskSettings,
-            new AlibabaCloudSearchEmbeddingsTaskSettings((InputType) null)
-        );
-
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new AlibabaCloudSearchEmbeddingsTaskSettings(InputType.INTERNAL_INGEST)));
-    }
-
     @Override
     protected Writeable.Reader<AlibabaCloudSearchEmbeddingsTaskSettings> instanceReader() {
         return AlibabaCloudSearchEmbeddingsTaskSettings::new;

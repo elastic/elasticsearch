@@ -29,6 +29,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings.AUTO_TRUNCATE;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE;
 import static org.hamcrest.Matchers.is;
@@ -106,6 +107,44 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
         assertThat(taskSettings, is(new GoogleVertexAiEmbeddingsTaskSettings(nullBoolean, null)));
     }
 
+    public void testFromMap_ReturnsFailure_WhenInputTypeIsInvalid() {
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> GoogleVertexAiEmbeddingsTaskSettings.fromMap(
+                new HashMap<>(Map.of(GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE, "abc"))
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [task_settings] Invalid value [abc] received. [input_type] must be one of [%s];",
+                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
+                )
+            )
+        );
+    }
+
+    public void testFromMap_ReturnsFailure_WhenInputTypeIsUnspecified() {
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> GoogleVertexAiEmbeddingsTaskSettings.fromMap(
+                new HashMap<>(Map.of(GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE, InputType.UNSPECIFIED.toString()))
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [task_settings] Invalid value [unspecified] received. [input_type] must be one of [%s];",
+                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
+                )
+            )
+        );
+    }
+
     public void testOf_UseRequestSettings() {
         var originalAutoTruncate = true;
         var originalSettings = new GoogleVertexAiEmbeddingsTaskSettings(originalAutoTruncate, null);
@@ -114,19 +153,6 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
         var requestTaskSettings = new GoogleVertexAiEmbeddingsRequestTaskSettings(requestAutoTruncate, null);
 
         assertThat(GoogleVertexAiEmbeddingsTaskSettings.of(originalSettings, requestTaskSettings).autoTruncate(), is(requestAutoTruncate));
-    }
-
-    public void testOf_UseRequestSettings_AndRequestInputType() {
-        var originalAutoTruncate = true;
-        var originalSettings = new GoogleVertexAiEmbeddingsTaskSettings(originalAutoTruncate, InputType.SEARCH);
-
-        var requestAutoTruncate = originalAutoTruncate == false;
-        var requestTaskSettings = new GoogleVertexAiEmbeddingsRequestTaskSettings(requestAutoTruncate, null);
-
-        assertThat(
-            GoogleVertexAiEmbeddingsTaskSettings.of(originalSettings, requestTaskSettings).getInputType(),
-            is(InputType.INTERNAL_INGEST)
-        );
     }
 
     public void testOf_UseOriginalSettings() {

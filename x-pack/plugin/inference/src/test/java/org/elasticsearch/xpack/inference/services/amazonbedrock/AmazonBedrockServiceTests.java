@@ -953,7 +953,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
-    public void testInfer_ThrowsErrorWhenInputTypeIsSpecifiedForProviderThatDoesNotAcceptTaskType() throws IOException {
+    public void testInfer_ThrowsValidationErrorWhenInputTypeIsSpecifiedForProviderThatDoesNotAcceptTaskType() throws IOException {
         var sender = mock(Sender.class);
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -986,7 +986,6 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     listener
                 )
             );
-            System.out.println(thrownException.getMessage());
             assertThat(
                 thrownException.getMessage(),
                 is("Validation Failed: 1: Invalid value [ingest] received. [input_type] is not allowed for provider [amazontitan];")
@@ -1021,7 +1020,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     "id",
                     "region",
                     "model",
-                    AmazonBedrockProvider.AMAZONTITAN,
+                    AmazonBedrockProvider.COHERE,
                     "access",
                     "secret"
                 );
@@ -1032,7 +1031,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     List.of("abc"),
                     false,
                     new HashMap<>(),
-                    InputType.INTERNAL_INGEST,
+                    InputType.CLASSIFICATION,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
                     listener
                 );

@@ -77,6 +77,13 @@ public class AzureAiStudioService extends SenderService {
     private static final String SERVICE_NAME = "Azure AI Studio";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
 
+    private static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
+        InputType.INGEST,
+        InputType.SEARCH,
+        InputType.INTERNAL_INGEST,
+        InputType.INTERNAL_SEARCH
+    );
+
     public AzureAiStudioService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
     }
@@ -110,7 +117,9 @@ public class AzureAiStudioService extends SenderService {
     }
 
     @Override
-    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {}
+    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
+        ServiceUtils.validateInputTypeAgainstAllowlist(inputType, VALID_INPUT_TYPE_VALUES, SERVICE_NAME, validationException);
+    }
 
     @Override
     protected void doChunkedInfer(

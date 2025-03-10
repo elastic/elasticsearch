@@ -77,4 +77,5 @@ public class GoogleAiStudioEmbeddingsModelTests extends ESTestCase {
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
+
 }

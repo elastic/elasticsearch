@@ -685,7 +685,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
-    public void testInfer_ThrowsErrorWhenInputTypeIsSpecifiedForModelThatDoesNotAcceptTaskType() throws IOException {
+    public void testInfer_ThrowsValidationErrorWhenInputTypeIsSpecifiedForModelThatDoesNotAcceptTaskType() throws IOException {
         var sender = mock(Sender.class);
 
         var factory = mock(HttpRequestSender.Factory.class);
@@ -856,7 +856,9 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                             "model",
                             Strings.format("%s/%s", "models", modelId),
                             "content",
-                            Map.of("parts", List.of(Map.of("text", input)))
+                            Map.of("parts", List.of(Map.of("text", input))),
+                            "taskType",
+                            "RETRIEVAL_DOCUMENT"
                         )
                     )
                 )
@@ -966,13 +968,17 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                             "model",
                             Strings.format("%s/%s", "models", modelId),
                             "content",
-                            Map.of("parts", List.of(Map.of("text", input.get(0))))
+                            Map.of("parts", List.of(Map.of("text", input.get(0)))),
+                            "taskType",
+                            "RETRIEVAL_DOCUMENT"
                         ),
                         Map.of(
                             "model",
                             Strings.format("%s/%s", "models", modelId),
                             "content",
-                            Map.of("parts", List.of(Map.of("text", input.get(1))))
+                            Map.of("parts", List.of(Map.of("text", input.get(1)))),
+                            "taskType",
+                            "RETRIEVAL_DOCUMENT"
                         )
                     )
                 )

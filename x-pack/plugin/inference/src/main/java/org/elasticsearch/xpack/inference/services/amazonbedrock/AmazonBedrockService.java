@@ -57,7 +57,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.VALID_INTERNAL_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
@@ -132,30 +131,19 @@ public class AmazonBedrockService extends SenderService {
     @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
         if (model instanceof AmazonBedrockModel baseAmazonBedrockModel) {
-            // InputType is only respected when provider=cohere for text embeddings
+            // inputType is only allowed when provider=cohere for text embeddings
             var provider = baseAmazonBedrockModel.provider();
 
-            if (Objects.equals(provider, PROVIDER_WITH_TASK_TYPE) == false) {
-                // this model does not accept input type parameter so throw validation error if it is specified and not internal
-                if (inputType != null
-                    && inputType != InputType.UNSPECIFIED
-                    && VALID_INTERNAL_INPUT_TYPE_VALUES.contains(inputType) == false) {
-                    validationException.addValidationError(
-                        Strings.format(
-                            "Invalid value [%s] received. [%s] is not allowed for provider [%s]",
-                            inputType,
-                            "input_type",
-                            provider
-                        )
-                    );
-                }
+            if (Objects.equals(provider, PROVIDER_WITH_TASK_TYPE)) {
+                // input type parameter allowed, so verify it is valid if specified
+                ServiceUtils.validateInputTypeAgainstAllowlist(inputType, VALID_INPUT_TYPE_VALUES, SERVICE_NAME, validationException);
             } else {
-                // this model does accept input type parameter, so verify it is valid if specified
-                if (inputType != null && inputType != InputType.UNSPECIFIED && VALID_INPUT_TYPE_VALUES.contains(inputType) == false) {
-                    validationException.addValidationError(
-                        Strings.format("Input type [%s] is not supported for [%s]", inputType, SERVICE_NAME)
-                    );
-                }
+                // input type parameter not allowed so throw validation error if it is specified and not internal
+                ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(
+                    inputType,
+                    validationException,
+                    Strings.format("Invalid value [%s] received. [%s] is not allowed for provider [%s]", inputType, "input_type", provider)
+                );
             }
         }
     }

@@ -120,6 +120,13 @@ public abstract class SenderService implements InferenceService {
         ActionListener<List<ChunkedInference>> listener
     ) {
         init();
+
+        ValidationException validationException = new ValidationException();
+        validateInputType(inputType, model, validationException);
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+
         // a non-null query is not supported and is dropped by all providers
         doChunkedInfer(model, new EmbeddingsInput(input, inputType), taskSettings, inputType, timeout, listener);
     }

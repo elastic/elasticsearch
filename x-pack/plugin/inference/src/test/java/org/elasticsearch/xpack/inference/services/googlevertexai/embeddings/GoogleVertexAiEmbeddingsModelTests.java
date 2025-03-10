@@ -49,45 +49,21 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
         );
     }
 
-    public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty_AndInputTypeIsInvalid() {
+    public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty() {
         var model = createModel("model", Boolean.FALSE, InputType.SEARCH);
         var overriddenModel = GoogleVertexAiEmbeddingsModel.of(model, Map.of());
 
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 
-    public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreNull_AndInputTypeIsInvalid() {
+    public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreNull() {
         var model = createModel("model", Boolean.FALSE, InputType.SEARCH);
         var overriddenModel = GoogleVertexAiEmbeddingsModel.of(model, null);
 
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 
-    public void testOverrideWith_SetsInputTypeToOverride_WhenFieldIsNullInModelTaskSettings_AndNullInRequestTaskSettings() {
-        var model = createModel("model", Boolean.FALSE, (InputType) null);
-        var overriddenModel = GoogleVertexAiEmbeddingsModel.of(model, getTaskSettingsMap(null, null));
-
-        var expectedModel = createModel("model", Boolean.FALSE, InputType.SEARCH);
-        MatcherAssert.assertThat(overriddenModel, is(expectedModel));
-    }
-
-    public void testOverrideWith_SetsInputType_FromRequest_IfValid_OverridingStoredTaskSettings() {
-        var model = createModel("model", Boolean.FALSE, InputType.INGEST);
-        var overriddenModel = GoogleVertexAiEmbeddingsModel.of(model, getTaskSettingsMap(null, null));
-
-        var expectedModel = createModel("model", Boolean.FALSE, InputType.SEARCH);
-        MatcherAssert.assertThat(overriddenModel, is(expectedModel));
-    }
-
-    public void testOverrideWith_SetsInputType_FromRequest_IfValid_OverridingRequestTaskSettings() {
-        var model = createModel("model", Boolean.FALSE, (InputType) null);
-        var overriddenModel = GoogleVertexAiEmbeddingsModel.of(model, getTaskSettingsMap(null, InputType.CLUSTERING));
-
-        var expectedModel = createModel("model", Boolean.FALSE, InputType.SEARCH);
-        MatcherAssert.assertThat(overriddenModel, is(expectedModel));
-    }
-
-    public void testOverrideWith_OverridesInputType_WithRequestTaskSettingsSearch_WhenRequestInputTypeIsInvalid() {
+    public void testOverrideWith_SetsInputType_FromRequestTaskSettings_IfValid_OverridingStoredTaskSettings() {
         var model = createModel("model", Boolean.FALSE, InputType.INGEST);
         var overriddenModel = GoogleVertexAiEmbeddingsModel.of(model, getTaskSettingsMap(null, InputType.SEARCH));
 
@@ -95,15 +71,7 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
         MatcherAssert.assertThat(overriddenModel, is(expectedModel));
     }
 
-    public void testOverrideWith_DoesNotSetInputType_FromRequest_IfInputTypeIsInvalid() {
-        var model = createModel("model", Boolean.FALSE, (InputType) null);
-        var overriddenModel = GoogleVertexAiEmbeddingsModel.of(model, getTaskSettingsMap(null, null));
-
-        var expectedModel = createModel("model", Boolean.FALSE, (InputType) null);
-        MatcherAssert.assertThat(overriddenModel, is(expectedModel));
-    }
-
-    public void testOverrideWith_DoesNotSetInputType_WhenRequestTaskSettingsIsNull_AndRequestInputTypeIsInvalid() {
+    public void testOverrideWith_DoesNotOverrideInputType_WhenRequestTaskSettingsIsNull() {
         var model = createModel("model", Boolean.FALSE, InputType.INGEST);
         var overriddenModel = GoogleVertexAiEmbeddingsModel.of(model, getTaskSettingsMap(null, null));
 

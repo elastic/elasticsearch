@@ -142,17 +142,31 @@ public final class IndicesPermission {
     }
 
     private IsResourceAuthorizedPredicate buildIndexMatcherPredicateForAction(String action) {
-        final Set<String> ordinaryIndices = new HashSet<>();
-        final Set<String> restrictedIndices = new HashSet<>();
+        final Set<String> dataAccessOrdinaryIndices = new HashSet<>();
+        final Set<String> failureAccessOrdinaryIndices = new HashSet<>();
+        final Set<String> dataAccessRestrictedIndices = new HashSet<>();
+        final Set<String> failureAccessRestrictedIndices = new HashSet<>();
         final Set<String> grantMappingUpdatesOnIndices = new HashSet<>();
         final Set<String> grantMappingUpdatesOnRestrictedIndices = new HashSet<>();
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
         for (final Group group : groups) {
             if (group.actionMatcher.test(action)) {
                 if (group.allowRestrictedIndices) {
-                    restrictedIndices.addAll(Arrays.asList(group.indices()));
+                    List<String> indexList = Arrays.asList(group.indices());
+                    if (group.checkSelector(IndexComponentSelector.DATA)) {
+                        dataAccessRestrictedIndices.addAll(indexList);
+                    }
+                    if (group.checkSelector(IndexComponentSelector.FAILURES)) {
+                        failureAccessRestrictedIndices.addAll(indexList);
+                    }
                 } else {
-                    ordinaryIndices.addAll(Arrays.asList(group.indices()));
+                    List<String> indexList = Arrays.asList(group.indices());
+                    if (group.checkSelector(IndexComponentSelector.DATA)) {
+                        dataAccessOrdinaryIndices.addAll(indexList);
+                    }
+                    if (group.checkSelector(IndexComponentSelector.FAILURES)) {
+                        failureAccessOrdinaryIndices.addAll(indexList);
+                    }
                 }
             } else if (isMappingUpdateAction && containsPrivilegeThatGrantsMappingUpdatesForBwc(group)) {
                 // special BWC case for certain privileges: allow put mapping on indices and aliases (but not on data streams), even if
@@ -164,30 +178,44 @@ public final class IndicesPermission {
                 }
             }
         }
-        final StringMatcher nameMatcher = indexMatcher(ordinaryIndices, restrictedIndices);
+        final StringMatcher dataAccessNameMatcher = indexMatcher(dataAccessOrdinaryIndices, dataAccessRestrictedIndices);
+        final StringMatcher failureAccessNameMatcher = indexMatcher(failureAccessOrdinaryIndices, failureAccessRestrictedIndices);
         final StringMatcher bwcSpecialCaseMatcher = indexMatcher(grantMappingUpdatesOnIndices, grantMappingUpdatesOnRestrictedIndices);
-        return new IsResourceAuthorizedPredicate(nameMatcher, bwcSpecialCaseMatcher);
+        return new IsResourceAuthorizedPredicate(dataAccessNameMatcher, failureAccessNameMatcher, bwcSpecialCaseMatcher);
     }
 
     /**
      * This encapsulates the authorization test for resources.
      * There is an additional test for resources that are missing or that are not a datastream or a backing index.
      */
-    public static class IsResourceAuthorizedPredicate implements BiPredicate<String, IndexAbstraction> {
+    public static class IsResourceAuthorizedPredicate {
 
-        private final BiPredicate<String, IndexAbstraction> biPredicate;
+        private final BiPredicate<String, IndexAbstraction> isAuthorizedForData;
+        private final BiPredicate<String, IndexAbstraction> isAuthorizedForFailureStore;
 
         // public for tests
-        public IsResourceAuthorizedPredicate(StringMatcher resourceNameMatcher, StringMatcher additionalNonDatastreamNameMatcher) {
+        public IsResourceAuthorizedPredicate(
+            StringMatcher resourceNameMatcher,
+            StringMatcher failureStoreNameMatcher,
+            StringMatcher additionalNonDatastreamNameMatcher
+        ) {
             this((String name, @Nullable IndexAbstraction indexAbstraction) -> {
                 assert indexAbstraction == null || name.equals(indexAbstraction.getName());
                 return resourceNameMatcher.test(name)
                     || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(name));
+            }, (String name, @Nullable IndexAbstraction indexAbstraction) -> {
+                assert indexAbstraction == null || name.equals(indexAbstraction.getName());
+                // we can't enforce that the abstraction is part of a data stream since we need to account for non-existent resources
+                return failureStoreNameMatcher.test(name);
             });
         }
 
-        private IsResourceAuthorizedPredicate(BiPredicate<String, IndexAbstraction> biPredicate) {
-            this.biPredicate = biPredicate;
+        private IsResourceAuthorizedPredicate(
+            BiPredicate<String, IndexAbstraction> isAuthorizedForData,
+            BiPredicate<String, IndexAbstraction> isAuthorizedForFailureStore
+        ) {
+            this.isAuthorizedForData = isAuthorizedForData;
+            this.isAuthorizedForFailureStore = isAuthorizedForFailureStore;
         }
 
         /**
@@ -195,18 +223,25 @@ public final class IndicesPermission {
         * return a new {@link IsResourceAuthorizedPredicate} instance that is equivalent to the conjunction of
         * authorization tests of that other instance and this one.
         */
-        @Override
-        public final IsResourceAuthorizedPredicate and(BiPredicate<? super String, ? super IndexAbstraction> other) {
-            return new IsResourceAuthorizedPredicate(this.biPredicate.and(other));
+        public final IsResourceAuthorizedPredicate and(IsResourceAuthorizedPredicate other) {
+            return new IsResourceAuthorizedPredicate(
+                this.isAuthorizedForData.and(other.isAuthorizedForData),
+                this.isAuthorizedForFailureStore.and(other.isAuthorizedForFailureStore)
+            );
+        }
+
+        // TODO remove me (this has >700 usages in tests which would make for a horrible diff; will remove this once the main PR is merged)
+        public boolean test(IndexAbstraction indexAbstraction) {
+            return test(indexAbstraction.getName(), indexAbstraction, null);
         }
 
         /**
          * Verifies if access is authorized to the given {@param indexAbstraction} resource.
-         * The resource must exist. Otherwise, use the {@link #test(String, IndexAbstraction)} method.
+         * The resource must exist. Otherwise, use the {@link #test(String, IndexAbstraction, IndexComponentSelector)} method.
          * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
          */
-        public final boolean test(IndexAbstraction indexAbstraction) {
-            return test(indexAbstraction.getName(), indexAbstraction);
+        public boolean test(IndexAbstraction indexAbstraction, @Nullable IndexComponentSelector selector) {
+            return test(indexAbstraction.getName(), indexAbstraction, selector);
         }
 
         /**
@@ -215,9 +250,10 @@ public final class IndicesPermission {
          * if it doesn't.
          * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
          */
-        @Override
-        public boolean test(String name, @Nullable IndexAbstraction indexAbstraction) {
-            return biPredicate.test(name, indexAbstraction);
+        public boolean test(String name, @Nullable IndexAbstraction indexAbstraction, @Nullable IndexComponentSelector selector) {
+            return IndexComponentSelector.FAILURES.equals(selector)
+                ? isAuthorizedForFailureStore.test(name, indexAbstraction)
+                : isAuthorizedForData.test(name, indexAbstraction);
         }
 
         private static boolean isPartOfDatastream(IndexAbstraction indexAbstraction) {
@@ -411,11 +447,14 @@ public final class IndicesPermission {
         public boolean checkIndex(Group group) {
             final DataStream ds = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
             if (ds != null) {
-                if (group.checkIndex(ds.getName())) {
+                final IndexComponentSelector selectorToCheck = indexAbstraction.isFailureIndexOfDataStream()
+                    ? IndexComponentSelector.FAILURES
+                    : selector;
+                if (group.checkSelector(selectorToCheck) && group.checkIndex(ds.getName())) {
                     return true;
                 }
             }
-            return group.checkIndex(name);
+            return group.checkSelector(selector) && group.checkIndex(name);
         }
 
         /**
@@ -500,14 +539,16 @@ public final class IndicesPermission {
         int totalResourceCount = 0;
         Map<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         for (String indexOrAlias : requestedIndicesOrAliases) {
-            // Remove any selectors from abstraction name. Discard them for this check as we do not have access control for them (yet)
+            String originalIndexOrAlias = indexOrAlias;
+            // Remove any selectors from abstraction name, but include it in the map key if it's ::failures. We need to do this to
+            // disambiguate between data streams and their failure stores.
             Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexOrAlias);
             indexOrAlias = expressionAndSelector.v1();
             IndexComponentSelector selector = expressionAndSelector.v2() == null
                 ? null
                 : IndexComponentSelector.getByKey(expressionAndSelector.v2());
             final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias), selector);
-            resources.put(resource.name, resource);
+            resources.put(IndexComponentSelector.FAILURES.equals(selector) ? originalIndexOrAlias : indexOrAlias, resource);
             totalResourceCount += resource.size(lookup);
         }
 
@@ -540,10 +581,11 @@ public final class IndicesPermission {
 
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
-        for (IndexResource resource : requestedResources.values()) {
+        for (Map.Entry<String, IndexResource> resourceEntry : requestedResources.entrySet()) {
             // true if ANY group covers the given index AND the given action
             boolean granted = false;
-
+            final String resourceName = resourceEntry.getKey();
+            final IndexResource resource = resourceEntry.getValue();
             final Collection<String> concreteIndices = resource.resolveConcreteIndices(metadata);
             for (Group group : groups) {
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
@@ -590,9 +632,9 @@ public final class IndicesPermission {
                                 roleQueriesByIndex.put(index, docPermissions);
                             }
 
-                            if (index.equals(resource.name) == false) {
-                                fieldPermissionsByIndex.put(resource.name, fieldPermissions);
-                                roleQueriesByIndex.put(resource.name, docPermissions);
+                            if (index.equals(resourceName) == false) {
+                                fieldPermissionsByIndex.put(resourceName, fieldPermissions);
+                                roleQueriesByIndex.put(resourceName, docPermissions);
                             }
                         }
                     }
@@ -600,10 +642,11 @@ public final class IndicesPermission {
             }
 
             if (granted) {
-                grantedResources.add(resource.name);
+                grantedResources.add(resourceName);
+
                 if (resource.canHaveBackingIndices()) {
                     for (String concreteIndex : concreteIndices) {
-                        // If the name appear directly as part of the requested indices, it takes precedence over implicit access
+                        // If the name appears directly as part of the requested indices, it takes precedence over implicit access
                         if (false == requestedResources.containsKey(concreteIndex)) {
                             grantedResources.add(concreteIndex);
                         }
@@ -864,8 +907,8 @@ public final class IndicesPermission {
             return query != null;
         }
 
-        public boolean checkSelector(IndexComponentSelector selector) {
-            return selectorPredicate.test(selector);
+        public boolean checkSelector(@Nullable IndexComponentSelector selector) {
+            return selectorPredicate.test(selector == null ? IndexComponentSelector.DATA : selector);
         }
 
         public boolean allowRestrictedIndices() {

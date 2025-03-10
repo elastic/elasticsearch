@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -281,22 +280,23 @@ public interface AuthorizationEngine {
     }
 
     /**
-     * Used to retrieve index-like resources that the user has access to, for a specific access action type,
+     * Used to retrieve index-like resources that the user has access to, for a specific access action type and selector,
      * at a specific point in time (for a fixed cluster state view).
      * It can also be used to check if a specific resource name is authorized (access to the resource name
      * can be authorized even if it doesn't exist).
      */
     interface AuthorizedIndices {
         /**
-         * Returns all the index-like resource names that are available and accessible for an action type by a user,
+         * Returns all the index-like resource names that are available and accessible for an action type and selector by a user,
          * at a fixed point in time (for a single cluster state view).
+         * The result is cached and subsequent calls to this method are idempotent.
          */
-        Supplier<Set<String>> all();
+        Set<String> all(@Nullable String selector);
 
         /**
          * Checks if an index-like resource name is authorized, for an action by a user. The resource might or might not exist.
          */
-        boolean check(String name);
+        boolean check(String name, @Nullable String selector);
     }
 
     /**
@@ -365,6 +365,15 @@ public interface AuthorizationEngine {
                 && application != null
                 && application.length == 0) {
                 validationException = addValidationError("must specify at least one privilege", validationException);
+            }
+            if (index != null) {
+                for (RoleDescriptor.IndicesPrivileges indexPrivilege : index) {
+                    if (indexPrivilege.getPrivileges() != null
+                        && Arrays.stream(indexPrivilege.getPrivileges())
+                            .anyMatch(p -> "read_failure_store".equals(p) || "manage_failure_store".equals(p))) {
+                        validationException = addValidationError("checking failure store privileges is not supported", validationException);
+                    }
+                }
             }
             return validationException;
         }

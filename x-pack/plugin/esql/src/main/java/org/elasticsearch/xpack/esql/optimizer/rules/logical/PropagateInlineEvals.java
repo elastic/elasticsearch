@@ -34,7 +34,6 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
         // check if there's any grouping that uses a reference on the right side
         // if so, look for the source until finding a StubReference
         // then copy those on the left side as well
-
         LogicalPlan left = plan.left();
         LogicalPlan right = plan.right();
 
@@ -46,7 +45,6 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
         // first checks any aggregate that declares expressions inside the grouping
         // second that checks any found references to collect their declaration
         right = right.transformDown(p -> {
-
             if (p instanceof Aggregate aggregate) {
                 // collect references
                 for (Expression g : aggregate.groupings()) {
@@ -54,6 +52,10 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
                         groupingRefs.put(ref.name(), ref);
                     }
                 }
+            }
+
+            if (groupingRefs.isEmpty()) {
+                return p;
             }
 
             // find their declaration and remove it

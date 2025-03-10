@@ -983,6 +983,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return copyAndUpdate(builder -> builder.metadata(metadata().copyAndUpdate(updater)));
     }
 
+    public ClusterState copyAndUpdateProject(ProjectId projectId, Consumer<ProjectMetadata.Builder> updater) {
+        return copyAndUpdate(builder -> builder.putProjectMetadata(metadata().getProject(projectId).copyAndUpdate(updater)));
+    }
+
     @SuppressForbidden(reason = "directly reading ClusterState#clusterFeatures")
     private static Map<String, Set<String>> getNodeFeatures(ClusterFeatures features) {
         return features.nodeFeatures();

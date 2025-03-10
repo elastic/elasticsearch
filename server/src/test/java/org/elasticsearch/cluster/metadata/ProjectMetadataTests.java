@@ -30,6 +30,9 @@ import static org.elasticsearch.cluster.metadata.MetadataTests.checkChunkSize;
 import static org.elasticsearch.cluster.metadata.MetadataTests.count;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ProjectMetadataTests extends ESTestCase {
 
@@ -383,6 +386,23 @@ public class ProjectMetadataTests extends ESTestCase {
         }
 
         return Math.toIntExact(chunkCount);
+    }
+
+    public void testCopyAndUpdate() {
+        var initialIndexUUID = randomUUID();
+        final String indexName = randomAlphaOfLengthBetween(4, 12);
+        final ProjectMetadata before = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), initialIndexUUID, 1, 1)))
+            .build();
+
+        var alteredIndexUUID = randomUUID();
+        assertThat(alteredIndexUUID, not(equalTo(initialIndexUUID)));
+        final ProjectMetadata after = before.copyAndUpdate(
+            builder -> builder.put(IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), alteredIndexUUID, 1, 1)))
+        );
+
+        assertThat(after, not(sameInstance(before)));
+        assertThat(after.index(indexName).getIndexUUID(), equalTo(alteredIndexUUID));
     }
 
 }

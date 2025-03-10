@@ -15,7 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -443,27 +443,40 @@ public final class IndexLifecycleTransition {
      * any lifecycle execution state that may be present in the index metadata
      */
     public static ClusterState removePolicyForIndexes(final Index[] indices, ClusterState currentState, List<String> failedIndexes) {
-        Metadata.Builder newMetadata = Metadata.builder(currentState.getMetadata());
-        boolean clusterStateChanged = false;
+        final ProjectMetadata currentProject = currentState.metadata().getProject();
+        final ProjectMetadata updatedProject = removePolicyForIndexes(indices, currentProject, failedIndexes);
+
+        if (currentProject == updatedProject) {
+            return currentState;
+        } else {
+            return ClusterState.builder(currentState).putProjectMetadata(updatedProject).build();
+        }
+    }
+
+    private static ProjectMetadata removePolicyForIndexes(
+        final Index[] indices,
+        ProjectMetadata currentProject,
+        List<String> failedIndexes
+    ) {
+        ProjectMetadata.Builder newProject = ProjectMetadata.builder(currentProject);
+        boolean projectChanged = false;
         for (Index index : indices) {
-            IndexMetadata indexMetadata = currentState.getMetadata().getProject().index(index);
+            IndexMetadata indexMetadata = currentProject.index(index);
             if (indexMetadata == null) {
                 // Index doesn't exist so fail it
                 failedIndexes.add(index.getName());
             } else {
                 IndexMetadata.Builder newIdxMetadata = removePolicyForIndex(indexMetadata);
                 if (newIdxMetadata != null) {
-                    newMetadata.put(newIdxMetadata);
-                    clusterStateChanged = true;
+                    newProject.put(newIdxMetadata);
+                    projectChanged = true;
                 }
             }
         }
-        if (clusterStateChanged) {
-            ClusterState.Builder newClusterState = ClusterState.builder(currentState);
-            newClusterState.metadata(newMetadata);
-            return newClusterState.build();
+        if (projectChanged) {
+            return newProject.build();
         } else {
-            return currentState;
+            return currentProject;
         }
     }
 

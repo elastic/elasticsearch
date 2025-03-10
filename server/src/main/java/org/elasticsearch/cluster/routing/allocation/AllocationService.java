@@ -484,7 +484,7 @@ public class AllocationService {
                 if (unassignedInfo.delayed()) {
                     final long newComputedLeftDelayNanos = unassignedInfo.remainingDelay(
                         allocation.getCurrentNanoTime(),
-                        metadata.getProject().getIndexSafe(shardRouting.index()).getSettings(),
+                        metadata.indexMetadata(shardRouting.index()).getSettings(),
                         metadata.nodeShutdowns()
                     );
                     if (newComputedLeftDelayNanos == 0) {
@@ -714,7 +714,7 @@ public class AllocationService {
 
             // now, go over all the shards routing on the node, and fail them
             for (ShardRouting shardRouting : node.copyShards()) {
-                final IndexMetadata indexMetadata = allocation.metadata().getProject().getIndexSafe(shardRouting.index());
+                final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
                 boolean delayed = delayedDueToKnownRestart
                     || INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).nanos() > 0;
 

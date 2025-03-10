@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Formatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -58,7 +59,7 @@ public class DriverSleepsTests extends AbstractWireSerializingTestCase<DriverSle
     }
 
     public void testSleepingToXContent() {
-        Formatter formatter = new Formatter();
+        Formatter formatter = new Formatter(Locale.US);
         String expected = formatter.format("""
             {
               "counts" : {
@@ -85,7 +86,7 @@ public class DriverSleepsTests extends AbstractWireSerializingTestCase<DriverSle
     }
 
     public void testWakingToXContent() {
-        Formatter formatter = new Formatter();
+        Formatter formatter = new Formatter(Locale.US);
         String expected = formatter.format("""
             {
               "counts" : {

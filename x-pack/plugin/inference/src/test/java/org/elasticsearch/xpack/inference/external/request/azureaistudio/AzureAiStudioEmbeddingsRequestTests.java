@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.request.azureaistudio;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
@@ -179,6 +180,7 @@ public class AzureAiStudioEmbeddingsRequestTests extends ESTestCase {
         return new AzureAiStudioEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
+            InputType.SEARCH,
             model
         );
     }

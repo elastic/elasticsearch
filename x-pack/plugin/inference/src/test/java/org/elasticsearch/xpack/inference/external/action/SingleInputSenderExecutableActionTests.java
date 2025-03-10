@@ -13,7 +13,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -53,7 +53,7 @@ public class SingleInputSenderExecutableActionTests extends ESTestCase {
         var testRan = new AtomicBoolean(false);
 
         executableAction.execute(
-            mock(DocumentsOnlyInput.class),
+            mock(EmbeddingsInput.class),
             mock(TimeValue.class),
             ActionListener.wrap(success -> testRan.set(true), e -> fail(e, "Test failed."))
         );
@@ -62,7 +62,7 @@ public class SingleInputSenderExecutableActionTests extends ESTestCase {
     }
 
     public void testMoreThanOneInput() {
-        var badInput = mock(DocumentsOnlyInput.class);
+        var badInput = mock(EmbeddingsInput.class);
         var input = List.of("one", "two");
         when(badInput.getInputs()).thenReturn(input);
         when(badInput.inputSize()).thenReturn(input.size());

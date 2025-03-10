@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.request.azureopenai;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -23,12 +24,19 @@ public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
 
     private final Truncator truncator;
     private final Truncator.TruncationResult truncationResult;
+    private final InputType inputType;
     private final URI uri;
     private final AzureOpenAiEmbeddingsModel model;
 
-    public AzureOpenAiEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, AzureOpenAiEmbeddingsModel model) {
+    public AzureOpenAiEmbeddingsRequest(
+        Truncator truncator,
+        Truncator.TruncationResult input,
+        InputType inputType,
+        AzureOpenAiEmbeddingsModel model
+    ) {
         this.truncator = Objects.requireNonNull(truncator);
         this.truncationResult = Objects.requireNonNull(input);
+        this.inputType = inputType;
         this.model = Objects.requireNonNull(model);
         this.uri = model.getUri();
     }
@@ -39,6 +47,7 @@ public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
         String requestEntity = Strings.toString(
             new AzureOpenAiEmbeddingsRequestEntity(
                 truncationResult.input(),
+                inputType,
                 model.getTaskSettings().user(),
                 model.getServiceSettings().dimensions(),
                 model.getServiceSettings().dimensionsSetByUser()
@@ -67,7 +76,7 @@ public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
     public Request truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
 
-        return new AzureOpenAiEmbeddingsRequest(truncator, truncatedInput, model);
+        return new AzureOpenAiEmbeddingsRequest(truncator, truncatedInput, inputType, model);
     }
 
     @Override

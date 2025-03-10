@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -29,15 +28,11 @@ import static org.elasticsearch.core.Strings.format;
 
 public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
 
-    public static GoogleVertexAiEmbeddingsModel of(
-        GoogleVertexAiEmbeddingsModel model,
-        Map<String, Object> taskSettings,
-        InputType inputType
-    ) {
+    public static GoogleVertexAiEmbeddingsModel of(GoogleVertexAiEmbeddingsModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
         return new GoogleVertexAiEmbeddingsModel(
             model,
-            GoogleVertexAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings, inputType)
+            GoogleVertexAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings)
         );
     }
 
@@ -135,8 +130,8 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
     }
 
     @Override
-    public ExecutableAction accept(GoogleVertexAiActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
-        return visitor.create(this, taskSettings, inputType);
+    public ExecutableAction accept(GoogleVertexAiActionVisitor visitor, Map<String, Object> taskSettings) {
+        return visitor.create(this, taskSettings);
     }
 
     public static URI buildUri(String location, String projectId, String modelId) throws URISyntaxException {

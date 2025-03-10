@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.request.alibabacloudsearch;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -58,6 +59,6 @@ public class AlibabaCloudSearchSparseRequestTests extends ESTestCase {
 
     public static AlibabaCloudSearchSparseRequest createRequest(List<String> input, AlibabaCloudSearchSparseModel model) {
         var account = new AlibabaCloudSearchAccount(model.getSecretSettings().apiKey());
-        return new AlibabaCloudSearchSparseRequest(account, input, model);
+        return new AlibabaCloudSearchSparseRequest(account, input, InputType.SEARCH, model);
     }
 }

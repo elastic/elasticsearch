@@ -27,7 +27,6 @@ import java.util.Map;
 import static org.elasticsearch.core.Strings.format;
 
 public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
-
     private URI uri;
 
     public GoogleAiStudioEmbeddingsModel(

@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -27,11 +28,19 @@ public class GoogleVertexAiEmbeddingsRequest implements GoogleVertexAiRequest {
 
     private final Truncator.TruncationResult truncationResult;
 
+    private final InputType inputType;
+
     private final GoogleVertexAiEmbeddingsModel model;
 
-    public GoogleVertexAiEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, GoogleVertexAiEmbeddingsModel model) {
+    public GoogleVertexAiEmbeddingsRequest(
+        Truncator truncator,
+        Truncator.TruncationResult input,
+        InputType inputType,
+        GoogleVertexAiEmbeddingsModel model
+    ) {
         this.truncator = Objects.requireNonNull(truncator);
         this.truncationResult = Objects.requireNonNull(input);
+        this.inputType = inputType;
         this.model = Objects.requireNonNull(model);
     }
 
@@ -40,7 +49,7 @@ public class GoogleVertexAiEmbeddingsRequest implements GoogleVertexAiRequest {
         HttpPost httpPost = new HttpPost(model.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new GoogleVertexAiEmbeddingsRequestEntity(truncationResult.input(), model.getTaskSettings()))
+            Strings.toString(new GoogleVertexAiEmbeddingsRequestEntity(truncationResult.input(), inputType, model.getTaskSettings()))
                 .getBytes(StandardCharsets.UTF_8)
         );
 
@@ -82,7 +91,7 @@ public class GoogleVertexAiEmbeddingsRequest implements GoogleVertexAiRequest {
     public Request truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
 
-        return new GoogleVertexAiEmbeddingsRequest(truncator, truncatedInput, model);
+        return new GoogleVertexAiEmbeddingsRequest(truncator, truncatedInput, inputType, model);
     }
 
     @Override

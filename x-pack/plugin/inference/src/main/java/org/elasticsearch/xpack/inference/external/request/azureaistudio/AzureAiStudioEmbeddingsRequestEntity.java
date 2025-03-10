@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.request.azureaistudio;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -21,6 +22,7 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 
 public record AzureAiStudioEmbeddingsRequestEntity(
     List<String> input,
+    InputType inputType,
     @Nullable String user,
     @Nullable Integer dimensions,
     boolean dimensionsSetByUser

@@ -244,23 +244,23 @@ public class ThreadPoolMergeExecutorService {
         return newTargetIORateBytesPerSec;
     }
 
-    static class AtomicIORate extends AtomicLong {
-
-        public AtomicIORate(long initialIORate) {
-            super(initialIORate);
+    static class AtomicIORate {
+        private final AtomicLong ioRate;
+        AtomicIORate(long initialIORate) {
+            ioRate = new AtomicLong(initialIORate);
         }
 
         // Exactly like {@link AtomicLong#updateAndGet} but calls the consumer rather than return the new (updated) value.
         // The consumer receives both the previous and the updated values (which can be equal).
-        void update(LongUnaryOperator updateFunction, UpdateConsumer updateConsumer) {
-            long prev = get(), next = 0L;
+        void update(LongUnaryOperator updateFunction, AtomicIORate.UpdateConsumer updateConsumer) {
+            long prev = ioRate.get(), next = 0L;
             for (boolean haveNext = false;;) {
                 if (!haveNext) next = updateFunction.applyAsLong(prev);
-                if (weakCompareAndSetVolatile(prev, next)) {
+                if (ioRate.weakCompareAndSetVolatile(prev, next)) {
                     updateConsumer.accept(prev, next);
                     return;
                 }
-                haveNext = (prev == (prev = get()));
+                haveNext = (prev == (prev = ioRate.get()));
             }
         }
 

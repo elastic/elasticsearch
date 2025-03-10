@@ -35,7 +35,8 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
- * Returns the minimum value of multiple columns.
+ * Returns the minimum value of multiple columns. This will correctly return the
+ * least value across multivalue fields.
  */
 public class Least extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Least", Least::new);
@@ -46,7 +47,9 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
         returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
         description = "Returns the minimum value from multiple columns. "
             + "This is similar to <<esql-mv_min>> except it is intended to run on multiple columns at once.",
-        examples = @Example(file = "math", tag = "least")
+        examples = { @Example(file = "math", tag = "least"), @Example(description = """
+            Returns the minimum value from multivalued fields.
+            """, file = "math", tag = "least-mv"), }
     )
     public Least(
         Source source,

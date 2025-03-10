@@ -123,11 +123,18 @@ PERCENT : '%';
 LEFT_BRACES : '{';
 RIGHT_BRACES : '}';
 
+DOUBLE_PARAMS: {this.isDevVersion()}? '??';
+
 NESTED_WHERE : WHERE -> type(WHERE);
 
 NAMED_OR_POSITIONAL_PARAM
     : PARAM (LETTER | UNDERSCORE) UNQUOTED_ID_BODY*
     | PARAM DIGIT+
+    ;
+
+NAMED_OR_POSITIONAL_DOUBLE_PARAMS
+    : DOUBLE_PARAMS (LETTER | UNDERSCORE) UNQUOTED_ID_BODY*
+    | DOUBLE_PARAMS DIGIT+
     ;
 
 // Brackets are funny. We can happen upon a CLOSING_BRACKET in two ways - one

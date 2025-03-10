@@ -17,17 +17,22 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.LogType;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.ClassRule;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -40,15 +45,19 @@ import java.util.Map;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.Is.is;
 
@@ -327,6 +336,79 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 );
                 default -> throw new IllegalArgumentException("can't match " + description);
             }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testProfileParsing() throws IOException {
+        indexTimestampData(1);
+
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | stats avg(value)");
+        builder.profile(true);
+        Map<String, Object> result = runEsql(builder);
+
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        try (XContentBuilder jsonOutputBuilder = new XContentBuilder(JsonXContent.jsonXContent, os)) {
+            parseProfile(result, jsonOutputBuilder);
+        }
+
+        // Read the written JSON again into a map, so we can make assertions on it
+        ByteArrayInputStream profileJson = new ByteArrayInputStream(os.toByteArray());
+        Map<String, Object> parsedProfile = XContentHelper.convertToMap(JsonXContent.jsonXContent, profileJson, true);
+
+        assertEquals(parsedProfile.get("displayTimeUnit"), "ns");
+        List<Map<String, Object>> events = (List<Map<String, Object>>) parsedProfile.get("traceEvents");
+        // At least 1 metadata event to declare the node, and 2 events each for the data, node_reduce and final drivers, resp.
+        assertThat(events.size(), greaterThanOrEqualTo(7));
+
+        // Declaration of each node as a "process" via a metadata event (phase `ph` is `M`)
+        Map<String, Object> nodeMetadata = events.get(0);
+        assertEquals(nodeMetadata.get("ph"), "M");
+        assertEquals(nodeMetadata.get("name"), "process_name");
+        int nodeIndex = 0;
+        assertEquals(nodeMetadata.get("pid"), nodeIndex);
+        Map<String, Object> nodeMetadataArgs = (Map<String, Object>) nodeMetadata.get("args");
+        // cluster:node should be the label for the "process" name
+        assertEquals(nodeMetadataArgs.get("name"), "test-cluster:test-cluster-0");
+
+        // The rest should be pairs of 2 events: first, a metadata event, declaring 1 "thread" per driver in the profile, then
+        // a "complete" event (phase `ph` is `X`) with a timestamp, duration `dur`, thread duration `tdur` (cpu time) and additional
+        // arguments obtained from the driver.
+        for (int i = 1; i < events.size() - 1; i = i + 2) {
+            Map<String, Object> driverMetadata = events.get(i);
+
+            assertEquals(driverMetadata.get("ph"), "M");
+            assertEquals(driverMetadata.get("name"), "thread_name");
+            assertEquals(driverMetadata.get("pid"), nodeIndex);
+            int driverIndex = i / 2;
+            assertEquals(driverMetadata.get("tid"), driverIndex);
+            Map<String, Object> driverMetadataArgs = (Map<String, Object>) driverMetadata.get("args");
+            String driverType = (String) driverMetadataArgs.get("name");
+            assertThat(driverType, oneOf("data", "node_reduce", "final"));
+
+            Map<String, Object> driverSlice = events.get(i + 1);
+            assertEquals(driverSlice.get("ph"), "X");
+            assertThat((String) driverSlice.get("name"), startsWith(driverType));
+            // Category used to implicitly colour-code and group drivers
+            assertEquals(driverSlice.get("cat"), driverType);
+            assertEquals(driverSlice.get("pid"), nodeIndex);
+            assertEquals(driverSlice.get("tid"), driverIndex);
+            long timestampMillis = (long) driverSlice.get("ts");
+            double durationMicros = (double) driverSlice.get("dur");
+            double cpuDurationMicros = (double) driverSlice.get("tdur");
+            assertTrue(timestampMillis >= 0);
+            assertTrue(durationMicros >= 0);
+            assertTrue(cpuDurationMicros >= 0);
+            assertTrue(durationMicros >= cpuDurationMicros);
+
+            // This should contain the essential information from a driver, like its operators, and will be just attached to the slice/
+            // visible when clicking on it.
+            Map<String, Object> driverSliceArgs = (Map<String, Object>) driverSlice.get("args");
+            assertNotNull(driverSliceArgs.get("cpu_nanos"));
+            assertNotNull(driverSliceArgs.get("took_nanos"));
+            assertNotNull(driverSliceArgs.get("iterations"));
+            assertNotNull(driverSliceArgs.get("sleeps"));
+            assertThat(((List<String>) driverSliceArgs.get("operators")), not(empty()));
         }
     }
 

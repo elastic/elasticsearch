@@ -274,5 +274,5 @@ forkSubQueryProcessingCommand
     ;
 
 rerankCommand
-    : DEV_RERANK queryText=stringOrParameter (ON fields)? WITH inferenceId=stringOrParameter
+    : DEV_RERANK queryText=stringOrParameter ON fields WITH inferenceId=stringOrParameter
     ;

@@ -48,7 +48,7 @@ public class InferenceService {
             .collect(Collectors.toSet());
 
         CountDownLatch countDownLatch = new CountDownLatch(inferenceIds.size());
-        InferenceResolution inferenceResolution = new InferenceResolution();
+        InferenceResolution.Builder inferenceResolutionBuilder = InferenceResolution.builder();
 
         for (var inferenceId : inferenceIds) {
             client.execute(
@@ -56,10 +56,10 @@ public class InferenceService {
                 new GetInferenceModelAction.Request(inferenceId, TaskType.ANY),
                 ActionListener.wrap(r -> {
                     ResolvedInference resolvedInference = new ResolvedInference(inferenceId, r.getEndpoints().getFirst().getTaskType());
-                    inferenceResolution.addResolvedInference(resolvedInference);
+                    inferenceResolutionBuilder.withResolvedInference(resolvedInference);
                     countDownLatch.countDown();
                 }, e -> {
-                    inferenceResolution.addError(inferenceId, e.getMessage());
+                    inferenceResolutionBuilder.withError(inferenceId, e.getMessage());
                     countDownLatch.countDown();
                 })
             );
@@ -71,7 +71,7 @@ public class InferenceService {
             throw new RuntimeException(e);
         }
 
-        listener.onResponse(inferenceResolution);
+        listener.onResponse(inferenceResolutionBuilder.build());
     }
 
     public void doInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {

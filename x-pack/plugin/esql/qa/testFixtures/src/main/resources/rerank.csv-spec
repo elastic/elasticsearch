@@ -1,0 +1,17 @@
+singleFieldReranker
+required_capability: rerank
+required_capability: match_function
+
+FROM books METADATA _score
+| WHERE MATCH(author, "Faulkner")
+| RERANK "Faulkner" ON author WITH "test_reranker"
+| KEEP book_no, author, _score 
+;
+
+book_no:keyword | author:text                                        | _score:double
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 0
+2713            | William Faulkner                                   | 0
+2847            | Colleen Faulkner                                   | 0
+2883            | William Faulkner                                   | 0
+3293            | Danny Faulkner                                     | 0
+;

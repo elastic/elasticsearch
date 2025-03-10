@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -62,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -104,6 +106,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
@@ -2977,6 +2980,132 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(plan, instanceOf(EsRelation.class));
         EsRelation esRelation = (EsRelation) plan;
         assertThat(esRelation.output(), equalTo(NO_FIELDS));
+    }
+
+    public void testResolveRerankInferenceId() {
+        {
+            LogicalPlan plan = analyze(
+                "FROM books | RERANK \"italian food recipe\" ON title WITH \"reranking-inference-id\"",
+                "mapping-books.json"
+            );
+            Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
+            assertThat(rerank.inferenceId(), equalTo(string("reranking-inference-id")));
+        }
+
+        {
+            VerificationException ve = expectThrows(
+                VerificationException.class,
+                () -> analyze("FROM books | RERANK \"italian food recipe\" ON title WITH \"completion-inference-id\"", "mapping-books.json")
+
+            );
+            assertThat(
+                ve.getMessage(),
+                containsString(
+                    "cannot use inference endpoint [completion-inference-id] with task type [completion] within a Rerank command. Only inference endpoints with the task type [rerank] are supported"
+                )
+            );
+        }
+
+        {
+            VerificationException ve = expectThrows(
+                VerificationException.class,
+                () -> analyze("FROM books | RERANK \"italian food recipe\" ON title WITH \"error-inference-id\"", "mapping-books.json")
+
+            );
+            assertThat(ve.getMessage(), containsString("error with inference resolution"));
+        }
+
+        {
+            VerificationException ve = expectThrows(
+                VerificationException.class,
+                () -> analyze("FROM books | RERANK \"italian food recipe\" ON title WITH \"unknow-inference-id\"", "mapping-books.json")
+
+            );
+            assertThat(ve.getMessage(), containsString("unresolved inference [unknow-inference-id]"));
+        }
+    }
+
+    public void testResolveRerankFields() {
+        assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
+
+        {
+            // Single field.
+            LogicalPlan plan = analyze("""
+                FROM books
+                | WHERE title:"italian food recipe" OR description:"italian food recipe"
+                | KEEP description, title, year
+                | DROP description
+                | RERANK "italian food recipe" ON title WITH "reranking-inference-id"
+                """, "mapping-books.json");
+
+            Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
+            Rerank rerank = as(limit.child(), Rerank.class);
+            EsqlProject keep = as(rerank.child(), EsqlProject.class);
+            EsqlProject drop = as(keep.child(), EsqlProject.class);
+            Filter filter = as(drop.child(), Filter.class);
+            EsRelation relation = as(filter.child(), EsRelation.class);
+
+            Attribute titleAttribute = relation.output().stream().filter(attribute -> attribute.name().equals("title")).findFirst().get();
+            assertThat(titleAttribute, notNullValue());
+
+            assertThat(rerank.queryText(), equalTo(string("italian food recipe")));
+            assertThat(rerank.inferenceId(), equalTo(string("reranking-inference-id")));
+            assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", titleAttribute))));
+        }
+
+        {
+            // Multiple fields.
+            LogicalPlan plan = analyze(
+                """
+                    FROM books
+                    | WHERE title:"italian food recipe"
+                    | RERANK "italian food recipe" ON title, description=SUBSTRING(description, 0, 100), yearRenamed=year WITH "reranking-inference-id"
+                    """,
+                "mapping-books.json"
+            );
+
+            Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
+            Rerank rerank = as(limit.child(), Rerank.class);
+            Filter filter = as(rerank.child(), Filter.class);
+            EsRelation relation = as(filter.child(), EsRelation.class);
+
+            assertThat(rerank.queryText(), equalTo(string("italian food recipe")));
+            assertThat(rerank.inferenceId(), equalTo(string("reranking-inference-id")));
+
+            assertThat(rerank.rerankFields(), hasSize(3));
+            Attribute titleAttribute = relation.output().stream().filter(attribute -> attribute.name().equals("title")).findFirst().get();
+            assertThat(titleAttribute, notNullValue());
+            assertThat(rerank.rerankFields().get(0), equalTo(alias("title", titleAttribute)));
+
+            Attribute descriptionAttribute = relation.output()
+                .stream()
+                .filter(attribute -> attribute.name().equals("description"))
+                .findFirst()
+                .get();
+            assertThat(descriptionAttribute, notNullValue());
+            Alias descriptionAlias = rerank.rerankFields().get(1);
+            assertThat(descriptionAlias.name(), equalTo("description"));
+            assertThat(
+                as(descriptionAlias.child(), Substring.class).children(),
+                equalTo(List.of(descriptionAttribute, literal(0), literal(100)))
+            );
+
+            Attribute yearAttribute = relation.output().stream().filter(attribute -> attribute.name().equals("year")).findFirst().get();
+            assertThat(yearAttribute, notNullValue());
+            assertThat(rerank.rerankFields().get(2), equalTo(alias("yearRenamed", yearAttribute)));
+        }
+
+        {
+            VerificationException ve = expectThrows(
+                VerificationException.class,
+                () -> analyze(
+                    "FROM books | RERANK \"italian food recipe\" ON missingField WITH \"reranking-inference-id\"",
+                    "mapping-books.json"
+                )
+
+            );
+            assertThat(ve.getMessage(), containsString("Unknown column [missingField]"));
+        }
     }
 
     @Override

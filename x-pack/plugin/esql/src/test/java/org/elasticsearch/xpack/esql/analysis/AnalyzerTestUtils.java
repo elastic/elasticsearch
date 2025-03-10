@@ -8,12 +8,15 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -73,7 +76,7 @@ public final class AnalyzerTestUtils {
                 indexResolution,
                 lookupResolution,
                 defaultEnrichResolution(),
-                emptyInferenceResolution()
+                defaultInferenceResolution()
             ),
             verifier
         );
@@ -87,7 +90,7 @@ public final class AnalyzerTestUtils {
                 indexResolution,
                 defaultLookupResolution(),
                 defaultEnrichResolution(),
-                emptyInferenceResolution()
+                defaultInferenceResolution()
             ),
             verifier
         );
@@ -101,7 +104,7 @@ public final class AnalyzerTestUtils {
                 analyzerDefaultMapping(),
                 defaultLookupResolution(),
                 defaultEnrichResolution(),
-                emptyInferenceResolution()
+                defaultInferenceResolution()
             ),
             verifier
         );
@@ -171,6 +174,14 @@ public final class AnalyzerTestUtils {
             "mapping-airport_city_boundaries.json"
         );
         return enrichResolution;
+    }
+
+    private static InferenceResolution defaultInferenceResolution() {
+        return InferenceResolution.builder()
+            .withResolvedInference(new ResolvedInference("reranking-inference-id", TaskType.RERANK))
+            .withResolvedInference(new ResolvedInference("completion-inference-id", TaskType.COMPLETION))
+            .withError("error-inference-id", "error with inference resolution")
+            .build();
     }
 
     public static void loadEnrichPolicyResolution(

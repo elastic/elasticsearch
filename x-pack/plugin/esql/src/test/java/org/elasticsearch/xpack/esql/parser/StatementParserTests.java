@@ -3162,19 +3162,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testRerankNoFieldSpecified() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
-        var plan = parser.createStatement("row a = 1, b = \"foo\", c=true | RERANK \"query text\" WITH \"inferenceID\"");
-        var rerank = as(plan, Rerank.class);
-
-        assertThat(rerank.queryText(), equalTo(literalString("query text")));
-        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceID")));
-
-        // When no field are specified, all the fields are used.
-        assertThat(rerank.rerankFields(), contains(alias("a", attribute("a")), alias("b", attribute("b")), alias("c", attribute("c"))));
-    }
-
     public void testRerankWithPositionalParameters() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 

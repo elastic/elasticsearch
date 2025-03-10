@@ -112,15 +112,15 @@ public abstract class AbstractTestInferenceService implements InferenceService {
             TaskType taskType,
             String service,
             ServiceSettings serviceSettings,
-            TestTaskSettings taskSettings,
+            TaskSettings taskSettings,
             TestSecretSettings secretSettings
         ) {
             super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
         }
 
         @Override
-        public TestTaskSettings getTaskSettings() {
-            return (TestTaskSettings) super.getTaskSettings();
+        public TaskSettings getTaskSettings() {
+            return super.getTaskSettings();
         }
 
         @Override

@@ -10,15 +10,24 @@ package org.elasticsearch.xpack.esql.inference;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 
 public class InferenceResolution {
 
-    public static final InferenceResolution EMPTY = new InferenceResolution();
+    public static final InferenceResolution EMPTY = new InferenceResolution.Builder().build();
 
-    private final Map<String, ResolvedInference> resolvedInferences = ConcurrentCollections.newConcurrentMap();
+    public static InferenceResolution.Builder builder() {
+        return new Builder();
+    }
 
-    private final Map<String, String> errors = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, ResolvedInference> resolvedInferences;
+    private final Map<String, String> errors;
+
+    private InferenceResolution(Map<String, ResolvedInference> resolvedInferences, Map<String, String> errors) {
+        this.resolvedInferences = Collections.unmodifiableMap(resolvedInferences);
+        this.errors = Collections.unmodifiableMap(errors);
+    }
 
     public ResolvedInference getResolvedInference(String inferenceId) {
         return resolvedInferences.get(inferenceId);
@@ -33,16 +42,32 @@ public class InferenceResolution {
         if (error != null) {
             return error;
         } else {
-            assert false : "unresolved inference [" + inferenceId + "]";
             return "unresolved inference [" + inferenceId + "]";
         }
     }
 
-    public void addResolvedInference(ResolvedInference resolvedInference) {
-        resolvedInferences.putIfAbsent(resolvedInference.inferenceId(), resolvedInference);
-    }
+    public static class Builder {
 
-    public void addError(String inferenceId, String reason) {
-        errors.putIfAbsent(inferenceId, reason);
+        private final Map<String, ResolvedInference> resolvedInferences;
+        private final Map<String, String> errors;
+
+        private Builder() {
+            this.resolvedInferences = ConcurrentCollections.newConcurrentMap();
+            this.errors = ConcurrentCollections.newConcurrentMap();
+        }
+
+        public Builder withResolvedInference(ResolvedInference resolvedInference) {
+            resolvedInferences.putIfAbsent(resolvedInference.inferenceId(), resolvedInference);
+            return this;
+        }
+
+        public Builder withError(String inferenceId, String reason) {
+            errors.putIfAbsent(inferenceId, reason);
+            return this;
+        }
+
+        public InferenceResolution build() {
+            return new InferenceResolution(resolvedInferences, errors);
+        }
     }
 }

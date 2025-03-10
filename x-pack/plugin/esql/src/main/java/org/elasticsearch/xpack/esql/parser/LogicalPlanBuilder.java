@@ -695,17 +695,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source, "RERANK is in preview and only available in SNAPSHOT build");
         }
 
-        return p -> {
-            List<Alias> rerankFields = new ArrayList<>();
-            if (ctx.fields() != null) {
-                rerankFields = visitFields(ctx.fields());
-            } else {
-                for (var attribute : p.output()) {
-                    rerankFields.add(new Alias(Source.EMPTY, attribute.name(), new UnresolvedAttribute(Source.EMPTY, attribute.name())));
-                }
-            }
-
-            return new Rerank(source, p, visitStringOrParameter(ctx.inferenceId), visitStringOrParameter(ctx.queryText), rerankFields);
-        };
+        return p -> new Rerank(
+            source,
+            p,
+            visitStringOrParameter(ctx.inferenceId),
+            visitStringOrParameter(ctx.queryText),
+            visitFields(ctx.fields())
+        );
     }
 }

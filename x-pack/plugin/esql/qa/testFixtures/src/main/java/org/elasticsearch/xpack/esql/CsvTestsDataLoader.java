@@ -357,7 +357,7 @@ public class CsvTestsDataLoader {
     }
 
     /** The semantic_text mapping type require an inference endpoint that needs to be setup before creating the index. */
-    public static void createInferenceEndpoint(RestClient client) throws IOException {
+    public static void createInferenceEndpoints(RestClient client) throws IOException {
         Request request = new Request("PUT", "_inference/sparse_embedding/test_sparse_inference");
         request.setJsonEntity("""
                   {
@@ -369,6 +369,22 @@ public class CsvTestsDataLoader {
                    "task_settings": {
                    }
                  }
+            """);
+        client.performRequest(request);
+
+
+        request = new Request("PUT", "_inference/rerank/test_reranker");
+        request.setJsonEntity("""
+            {
+                "service": "test_reranking_service",
+                "service_settings": {
+                    "model_id": "my_model",
+                    "api_key": "abc64"
+                },
+                "task_settings": {
+                    "min_score": 0
+                }
+            }
             """);
         client.performRequest(request);
     }

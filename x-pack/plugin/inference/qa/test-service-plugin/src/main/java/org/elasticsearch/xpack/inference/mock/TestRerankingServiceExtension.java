@@ -26,6 +26,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
@@ -58,6 +59,57 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
     }
 
+    public record TestRerankingTaskSettings(Float minScore) implements TaskSettings {
+
+        static final String NAME = "test_reranking_task_settings";
+
+        public static TestRerankingTaskSettings fromMap(Map<String, Object> map) {
+            Float minScore = map.containsKey("min_score") ? Float.valueOf(String.valueOf(map.remove("min_score"))) : null;
+
+            return new TestRerankingTaskSettings(minScore);
+        }
+
+        public TestRerankingTaskSettings(StreamInput in) throws IOException {
+            this(in.readOptionalFloat());
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return minScore == null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalFloat(minScore);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (minScore != null) {
+                builder.field("min_score", minScore);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
+        }
+
+        @Override
+        public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+            return fromMap(new HashMap<>(newSettings));
+        }
+    }
+
+
     public static class TestInferenceService extends AbstractTestInferenceService {
         public static final String NAME = "test_reranking_service";
 
@@ -83,7 +135,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             var secretSettings = TestSecretSettings.fromMap(serviceSettingsMap);
 
             var taskSettingsMap = getTaskSettingsMap(config);
-            var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
+            var taskSettings = TestRerankingTaskSettings.fromMap(taskSettingsMap);
 
             parsedModelListener.onResponse(new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings));
         }
@@ -110,7 +162,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case ANY, RERANK -> listener.onResponse(makeResults(input));
+                case ANY, RERANK -> listener.onResponse(makeResults(input, taskSettings));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -148,7 +200,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             );
         }
 
-        private RankedDocsResults makeResults(List<String> input) {
+        private RankedDocsResults makeResults(List<String> input, Map<String, Object> taskSettings) {
             int totalResults = input.size();
             try {
                 List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
@@ -158,7 +210,8 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 return new RankedDocsResults(results.stream().sorted(Comparator.reverseOrder()).toList());
             } catch (NumberFormatException ex) {
                 List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
-                float minScore = random.nextFloat(-1f, 1f);
+
+                float minScore = 0; //(Float) taskSettings.getOrDefault("min_score", random.nextFloat(-1f, 1f));
                 float resultDiff = 0.2f;
                 for (int i = 0; i < input.size(); i++) {
                     results.add(

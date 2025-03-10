@@ -341,45 +341,11 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send VoyageAI embeddings request. Cause: failed"));
     }
 
-    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled_WhenUrlIsNull() {
-        var sender = mock(Sender.class);
-
-        doAnswer(invocation -> {
-            ActionListener<HttpResult> listener = invocation.getArgument(3);
-            listener.onFailure(new IllegalStateException("failed"));
-
-            return Void.TYPE;
-        }).when(sender).send(any(), any(), any(), any());
-
-        var action = createAction(null, "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
-
-        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
-
-        var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-
-        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send VoyageAI embeddings request. Cause: failed"));
-    }
-
     public void testExecute_ThrowsException() {
         var sender = mock(Sender.class);
         doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any(), any());
 
         var action = createAction(getUrl(webServer), "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
-
-        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
-
-        var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-
-        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send VoyageAI embeddings request. Cause: failed"));
-    }
-
-    public void testExecute_ThrowsExceptionWithNullUrl() {
-        var sender = mock(Sender.class);
-        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any(), any());
-
-        var action = createAction(null, "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);

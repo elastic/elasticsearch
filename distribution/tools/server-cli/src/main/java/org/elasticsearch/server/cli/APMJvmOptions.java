@@ -75,7 +75,7 @@ class APMJvmOptions {
 
         // Logging configuration. Unless you need detailed logs about what the APM
         // is doing, leave this value alone.
-        "log_level", "warn",
+        "log_level", "debug",
         "log_format_file", "JSON",
         "application_packages", "org.elasticsearch,org.apache.lucene",
         "metrics_interval", "120s",
@@ -329,7 +329,7 @@ class APMJvmOptions {
 
         try (var apmStream = Files.list(apmModule)) {
             final List<Path> paths = apmStream.filter(
-                path -> path.getFileName().toString().matches("elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar")
+                path -> path.getFileName().toString().matches("elastic-apm-agent-\\d+\\.\\d+\\.\\d+(-SNAPSHOT)?\\.jar")
             ).toList();
 
             if (paths.size() > 1) {

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.rank.rrf;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.rank.RankBuilder;
@@ -18,12 +17,13 @@ import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.rank.hybrid.HybridRetrieverBuilder;
 import org.elasticsearch.xpack.rank.linear.LinearRankDoc;
 import org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder;
 
 import java.util.List;
 
-public class RRFRankPlugin extends Plugin implements SearchPlugin, ExtensiblePlugin {
+public class RRFRankPlugin extends Plugin implements SearchPlugin {
 
     public static final LicensedFeature.Momentary RANK_RRF_FEATURE = LicensedFeature.momentary(
         null,
@@ -58,7 +58,8 @@ public class RRFRankPlugin extends Plugin implements SearchPlugin, ExtensiblePlu
     public List<RetrieverSpec<?>> getRetrievers() {
         return List.of(
             new RetrieverSpec<>(new ParseField(NAME), RRFRetrieverBuilder::fromXContent),
-            new RetrieverSpec<>(new ParseField(LinearRetrieverBuilder.NAME), LinearRetrieverBuilder::fromXContent)
+            new RetrieverSpec<>(new ParseField(LinearRetrieverBuilder.NAME), LinearRetrieverBuilder::fromXContent),
+            new RetrieverSpec<>(new ParseField(HybridRetrieverBuilder.NAME), HybridRetrieverBuilder::fromXContent)
         );
     }
 }

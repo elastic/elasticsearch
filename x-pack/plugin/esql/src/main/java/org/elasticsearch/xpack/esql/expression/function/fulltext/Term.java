@@ -141,7 +141,7 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
 
     @Override
     protected Query translate(TranslatorHandler handler) {
-        return new TermQuery(source(), ((FieldAttribute) field()).name(), queryAsObject());
+        return new TermQuery(source(), ((FieldAttribute) field()).name(), queryAsObject(), false, true);
     }
 
     @Override

@@ -19,16 +19,22 @@ public class TermQuery extends Query {
     private final String term;
     private final Object value;
     private final boolean caseInsensitive;
+    private final boolean scorable;
 
     public TermQuery(Source source, String term, Object value) {
         this(source, term, value, false);
     }
 
     public TermQuery(Source source, String term, Object value, boolean caseInsensitive) {
+        this(source, term, value, caseInsensitive, false);
+    }
+
+    public TermQuery(Source source, String term, Object value, boolean caseInsensitive, boolean scorable) {
         super(source);
         this.term = term;
         this.value = value;
         this.caseInsensitive = caseInsensitive;
+        this.scorable = scorable;
     }
 
     public String term() {
@@ -44,7 +50,7 @@ public class TermQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         TermQueryBuilder qb = termQuery(term, value);
         // ES does not allow case_insensitive to be set to "false", it should be either "true" or not specified
         return caseInsensitive == false ? qb : qb.caseInsensitive(caseInsensitive);
@@ -74,5 +80,10 @@ public class TermQuery extends Query {
     @Override
     protected String innerToString() {
         return term + ":" + value;
+    }
+
+    @Override
+    public boolean scorable() {
+        return scorable;
     }
 }

@@ -218,7 +218,7 @@ public class PlannerUtils {
                     }
                 }
                 if (matches.isEmpty() == false) {
-                    requestFilters.add(TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(matches)).asBuilder());
+                    requestFilters.add(TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(matches)).toQueryBuilder());
                 }
             });
         });

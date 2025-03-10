@@ -306,7 +306,6 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp.values());
             for (List<Object> value : values) {
                 Double score = (Double) value.get(1);
-                assertThat(score, greaterThan(0.0));
                 assertThat(expectedScores.get((Integer)value.get(0)), equalTo(score));
             }
         }

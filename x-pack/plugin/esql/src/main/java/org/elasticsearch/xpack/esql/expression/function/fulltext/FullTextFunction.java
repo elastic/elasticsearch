@@ -365,4 +365,6 @@ public abstract class FullTextFunction extends Function implements TranslationAw
         }
         return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
     }
+
+
 }

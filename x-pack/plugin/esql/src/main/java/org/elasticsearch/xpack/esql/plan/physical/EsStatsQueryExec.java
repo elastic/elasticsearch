@@ -58,7 +58,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
     ) {
         super(source);
         this.indexPattern = indexPattern;
-        this.query = query;
+        this.query = query.boost(0.0f);
         this.limit = limit;
         this.attrs = attributes;
         this.stats = stats;

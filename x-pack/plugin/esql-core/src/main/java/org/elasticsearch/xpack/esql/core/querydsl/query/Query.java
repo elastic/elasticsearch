@@ -44,11 +44,19 @@ public abstract class Query {
         return source;
     }
 
+    public final QueryBuilder toQueryBuilder() {
+        QueryBuilder builder = asBuilder();
+        if (scorable() == false) {
+            builder.boost(0.0f);
+        }
+        return builder;
+    }
+
     /**
      * Convert to an Elasticsearch {@link QueryBuilder} all set up to execute
      * the query.
      */
-    public abstract QueryBuilder asBuilder();
+    protected abstract QueryBuilder asBuilder();
 
     /**
      * Used by {@link Query#toString()} to produce a pretty string.

@@ -42,7 +42,7 @@ public class RegexQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         return regexpQuery(field, regex).caseInsensitive(caseInsensitive);
     }
 

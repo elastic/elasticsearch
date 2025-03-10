@@ -100,11 +100,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         List<Expression> newPushable = combineEligiblePushableToRange(pushable);
         if (newPushable.size() > 0) { // update the executable with pushable conditions
             Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(newPushable));
-            QueryBuilder planQuery = queryDSL.asBuilder();
-            Queries.Clause combiningQueryClauseType = queryExec.hasScoring() && queryDSL.scorable()
-                ? Queries.Clause.MUST
-                : Queries.Clause.FILTER;
-            var query = Queries.combine(combiningQueryClauseType, asList(queryExec.query(), planQuery));
+            QueryBuilder planQuery = queryDSL.toQueryBuilder();
+            var query = Queries.combine(Queries.Clause.MUST, asList(queryExec.query(), planQuery));
             queryExec = new EsQueryExec(
                 queryExec.source(),
                 queryExec.indexPattern(),

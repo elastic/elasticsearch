@@ -116,6 +116,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     }
 
     private static ContextIndexSearcher newContextSearcher(IndexReader reader) throws IOException {
+        //note that no executor is provided, as this test requires sequential execution
         return new ContextIndexSearcher(
             reader,
             IndexSearcher.getDefaultSimilarity(),
@@ -187,6 +188,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
 
                     @Override
                     public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                        //trigger the timeout as soon as the scorer supplier is request for the second segment
                         if (firstSegment == false && isTimeoutExpected) {
                             shouldTimeout = true;
                         }
@@ -266,6 +268,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
                         return new ScorerSupplier() {
                             @Override
                             public Scorer get(long leadCost) throws IOException {
+                                //trigger the timeout as soon as the scorer is requested for the second segment
                                 if (firstSegment == false && isTimeoutExpected) {
                                     shouldTimeout = true;
                                 }

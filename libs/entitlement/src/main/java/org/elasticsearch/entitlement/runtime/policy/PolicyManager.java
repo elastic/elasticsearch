@@ -441,6 +441,10 @@ public class PolicyManager {
         checkFlagEntitlement(classEntitlements, OutboundNetworkEntitlement.class, requestingClass, callerClass);
     }
 
+    public void checkUnsupportedURLProtocolConnection(Class<?> callerClass, String protocol) {
+        neverEntitled(callerClass, () -> Strings.format("unsupported URL protocol [%s]", protocol));
+    }
+
     private void checkFlagEntitlement(
         ModuleEntitlements classEntitlements,
         Class<? extends Entitlement> entitlementClass,

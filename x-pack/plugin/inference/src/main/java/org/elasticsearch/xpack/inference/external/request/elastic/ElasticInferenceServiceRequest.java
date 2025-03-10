@@ -51,6 +51,8 @@ public abstract class ElasticInferenceServiceRequest implements Request {
     protected abstract HttpRequestBase createHttpRequestBase();
 
     public static ElasticInferenceServiceRequestMetadata extractRequestMetadataFromThreadContext(ThreadContext context) {
+        // 'X-Elastic-Product-Origin' is an Elastic wide header and therefore present in the ES-wide generic Task class.
+        // 'X-Elastic-Product-Use-Case' is Elastic Inference Service specific and is therefore not propagated through the ES-wide Task.
         return new ElasticInferenceServiceRequestMetadata(
             context.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER),
             context.getHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER)

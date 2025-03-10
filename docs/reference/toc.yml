@@ -1,0 +1,797 @@
+toc:
+  - file: index.md
+  - file: elasticsearch/configuration-reference/index.md
+    children:
+      - file: elasticsearch/configuration-reference/circuit-breaker-settings.md
+      - file: elasticsearch/configuration-reference/auding-settings.md
+      - file: elasticsearch/configuration-reference/cluster-level-shard-allocation-routing-settings.md
+      - file: elasticsearch/configuration-reference/miscellaneous-cluster-settings.md
+      - file: elasticsearch/configuration-reference/cross-cluster-replication-settings.md
+      - file: elasticsearch/configuration-reference/discovery-cluster-formation-settings.md
+      - file: elasticsearch/configuration-reference/field-data-cache-settings.md
+      - file: elasticsearch/configuration-reference/health-diagnostic-settings.md
+      - file: elasticsearch/configuration-reference/index-lifecycle-management-settings.md
+      - file: elasticsearch/configuration-reference/data-stream-lifecycle-settings.md
+      - file: elasticsearch/configuration-reference/index-management-settings.md
+      - file: elasticsearch/configuration-reference/index-recovery-settings.md
+      - file: elasticsearch/configuration-reference/indexing-buffer-settings.md
+      - file: elasticsearch/configuration-reference/license-settings.md
+      - file: elasticsearch/configuration-reference/local-gateway.md
+      - file: elasticsearch/configuration-reference/machine-learning-settings.md
+      - file: elasticsearch/configuration-reference/inference-settings.md
+      - file: elasticsearch/configuration-reference/monitoring-settings.md
+      - file: elasticsearch/configuration-reference/node-settings.md
+      - file: elasticsearch/configuration-reference/networking-settings.md
+      - file: elasticsearch/configuration-reference/node-query-cache-settings.md
+      - file: elasticsearch/configuration-reference/search-settings.md
+      - file: elasticsearch/configuration-reference/security-settings.md
+      - file: elasticsearch/configuration-reference/shard-request-cache-settings.md
+      - file: elasticsearch/configuration-reference/snapshot-restore-settings.md
+      - file: elasticsearch/configuration-reference/transforms-settings.md
+      - file: elasticsearch/configuration-reference/thread-pool-settings.md
+      - file: elasticsearch/configuration-reference/watcher-settings.md
+      - file: elasticsearch/configuration-reference/elastic-cloud-hosted-elasticsearch-settings.md
+      - file: elasticsearch/configuration-reference/ece-elasticsearch-settings.md
+      - file: elasticsearch/configuration-reference/elastic-cloud-serverless-elasticsearch-settings.md
+  - file: elasticsearch/jvm-settings.md
+  - file: elasticsearch/roles.md
+  - file: elasticsearch/security-privileges.md
+  - file: elasticsearch/index-settings/index.md
+    children:
+        - file: elasticsearch/index-settings/data-tier-allocation.md
+        - file: elasticsearch/index-settings/index-modules.md
+        - file: elasticsearch/index-settings/history-retention.md
+        - file: elasticsearch/index-settings/index-block.md
+        - file: elasticsearch/index-settings/recovery-prioritization.md
+        - file: elasticsearch/index-settings/pressure.md
+        - file: elasticsearch/index-settings/mapping-limit.md
+        - file: elasticsearch/index-settings/merge.md
+        - file: elasticsearch/index-settings/path.md
+        - file: elasticsearch/index-settings/shard-allocation.md
+          children:
+            - file: elasticsearch/index-settings/total-shards-per-node.md
+        - file: elasticsearch/index-settings/similarity.md
+        - file: elasticsearch/index-settings/slow-log.md
+        - file: elasticsearch/index-settings/sorting.md
+          children:
+            - file: elasticsearch/index-settings/sorting-conjunctions.md
+        - file: elasticsearch/index-settings/store.md
+          children:
+            - file: elasticsearch/index-settings/preloading-data-into-file-system-cache.md
+        - file: elasticsearch/index-settings/time-series.md
+        - file: elasticsearch/index-settings/translog.md
+  - file: elasticsearch/index-lifecycle-actions/index.md
+    children:
+        - file: elasticsearch/index-lifecycle-actions/index.md
+        - file: elasticsearch/index-lifecycle-actions/ilm-allocate.md
+        - file: elasticsearch/index-lifecycle-actions/ilm-delete.md
+        - file: elasticsearch/index-lifecycle-actions/ilm-forcemerge.md
+        - file: elasticsearch/index-lifecycle-actions/ilm-migrate.md
+        - file: elasticsearch/index-lifecycle-actions/ilm-readonly.md
+        - file: elasticsearch/index-lifecycle-actions/ilm-rollover.md
+        - file: elasticsearch/index-lifecycle-actions/ilm-downsample.md
+        - file: elasticsearch/index-lifecycle-actions/ilm-searchable-snapshot.md
+        - file: elasticsearch/index-lifecycle-actions/ilm-set-priority.md
+        - file: elasticsearch/index-lifecycle-actions/ilm-shrink.md
+        - file: elasticsearch/index-lifecycle-actions/ilm-unfollow.md
+        - file: elasticsearch/index-lifecycle-actions/ilm-wait-for-snapshot.md
+  - file: elasticsearch/rest-apis/index.md
+    children:
+        - file: elasticsearch/rest-apis/api-conventions.md
+        - file: elasticsearch/rest-apis/common-options.md
+        - file: elasticsearch/rest-apis/compatibility.md
+        - file: elasticsearch/rest-apis/api-examples.md
+          children:
+            - file: elasticsearch/rest-apis/refresh-parameter.md
+            - file: elasticsearch/rest-apis/optimistic-concurrency-control.md
+            - file: elasticsearch/rest-apis/sort-search-results.md
+            - file: elasticsearch/rest-apis/paginate-search-results.md
+            - file: elasticsearch/rest-apis/retrieve-selected-fields.md
+            - file: elasticsearch/rest-apis/search-multiple-data-streams-indices.md
+            - file: elasticsearch/rest-apis/collapse-search-results.md
+            - file: elasticsearch/rest-apis/filter-search-results.md
+            - file: elasticsearch/rest-apis/highlighting.md
+            - file: elasticsearch/rest-apis/retrieve-inner-hits.md
+            - file: elasticsearch/rest-apis/search-shard-routing.md
+            - file: elasticsearch/rest-apis/searching-with-query-rules.md
+            - file: elasticsearch/rest-apis/reciprocal-rank-fusion.md
+            - file: elasticsearch/rest-apis/retrievers.md
+            - file: elasticsearch/rest-apis/reindex-data-stream.md
+            - file: elasticsearch/rest-apis/create-index-from-source.md
+            - file: elasticsearch/rest-apis/shard-request-cache.md
+            - file: elasticsearch/rest-apis/search-suggesters.md
+  - file: elasticsearch/mapping-reference/index.md
+    children:
+      - file: elasticsearch/mapping-reference/document-metadata-fields.md
+        children:
+          - file: elasticsearch/mapping-reference/mapping-doc-count-field.md
+          - file: elasticsearch/mapping-reference/mapping-field-names-field.md
+          - file: elasticsearch/mapping-reference/mapping-ignored-field.md
+          - file: elasticsearch/mapping-reference/mapping-id-field.md
+          - file: elasticsearch/mapping-reference/mapping-index-field.md
+          - file: elasticsearch/mapping-reference/mapping-meta-field.md
+          - file: elasticsearch/mapping-reference/mapping-routing-field.md
+          - file: elasticsearch/mapping-reference/mapping-source-field.md
+          - file: elasticsearch/mapping-reference/mapping-tier-field.md
+      - file: elasticsearch/mapping-reference/field-data-types.md
+        children:
+          - file: elasticsearch/mapping-reference/aggregate-metric-double.md
+          - file: elasticsearch/mapping-reference/field-alias.md
+          - file: elasticsearch/mapping-reference/array.md
+          - file: elasticsearch/mapping-reference/binary.md
+          - file: elasticsearch/mapping-reference/boolean.md
+          - file: elasticsearch/mapping-reference/completion.md
+          - file: elasticsearch/mapping-reference/date.md
+          - file: elasticsearch/mapping-reference/date_nanos.md
+          - file: elasticsearch/mapping-reference/dense-vector.md
+          - file: elasticsearch/mapping-reference/flattened.md
+          - file: elasticsearch/mapping-reference/geo-point.md
+          - file: elasticsearch/mapping-reference/geo-shape.md
+          - file: elasticsearch/mapping-reference/histogram.md
+          - file: elasticsearch/mapping-reference/ip.md
+          - file: elasticsearch/mapping-reference/parent-join.md
+          - file: elasticsearch/mapping-reference/keyword.md
+          - file: elasticsearch/mapping-reference/nested.md
+          - file: elasticsearch/mapping-reference/number.md
+          - file: elasticsearch/mapping-reference/object.md
+          - file: elasticsearch/mapping-reference/passthrough.md
+          - file: elasticsearch/mapping-reference/percolator.md
+          - file: elasticsearch/mapping-reference/point.md
+          - file: elasticsearch/mapping-reference/range.md
+          - file: elasticsearch/mapping-reference/rank-feature.md
+          - file: elasticsearch/mapping-reference/rank-features.md
+          - file: elasticsearch/mapping-reference/rank-vectors.md
+          - file: elasticsearch/mapping-reference/search-as-you-type.md
+          - file: elasticsearch/mapping-reference/semantic-text.md
+          - file: elasticsearch/mapping-reference/shape.md
+          - file: elasticsearch/mapping-reference/sparse-vector.md
+          - file: elasticsearch/mapping-reference/text.md
+          - file: elasticsearch/mapping-reference/token-count.md
+          - file: elasticsearch/mapping-reference/unsigned-long.md
+          - file: elasticsearch/mapping-reference/version.md
+      - file: elasticsearch/mapping-reference/mapping-parameters.md
+        children:
+          - file: elasticsearch/mapping-reference/analyzer.md
+          - file: elasticsearch/mapping-reference/coerce.md
+          - file: elasticsearch/mapping-reference/copy-to.md
+          - file: elasticsearch/mapping-reference/doc-values.md
+          - file: elasticsearch/mapping-reference/dynamic.md
+          - file: elasticsearch/mapping-reference/eager-global-ordinals.md
+          - file: elasticsearch/mapping-reference/enabled.md
+          - file: elasticsearch/mapping-reference/mapping-date-format.md
+          - file: elasticsearch/mapping-reference/ignore-above.md
+          - file: elasticsearch/mapping-reference/index-mapping-ignore-above.md
+          - file: elasticsearch/mapping-reference/ignore-malformed.md
+          - file: elasticsearch/mapping-reference/mapping-index.md
+          - file: elasticsearch/mapping-reference/index-options.md
+          - file: elasticsearch/mapping-reference/index-phrases.md
+          - file: elasticsearch/mapping-reference/index-prefixes.md
+          - file: elasticsearch/mapping-reference/mapping-field-meta.md
+          - file: elasticsearch/mapping-reference/multi-fields.md
+          - file: elasticsearch/mapping-reference/normalizer.md
+          - file: elasticsearch/mapping-reference/norms.md
+          - file: elasticsearch/mapping-reference/null-value.md
+          - file: elasticsearch/mapping-reference/position-increment-gap.md
+          - file: elasticsearch/mapping-reference/properties.md
+          - file: elasticsearch/mapping-reference/search-analyzer.md
+          - file: elasticsearch/mapping-reference/similarity.md
+          - file: elasticsearch/mapping-reference/mapping-store.md
+          - file: elasticsearch/mapping-reference/subobjects.md
+          - file: elasticsearch/mapping-reference/term-vector.md
+  - file: elasticsearch/elasticsearch-audit-events.md
+  - file: elasticsearch/command-line-tools/index.md
+    children:
+      - file: elasticsearch/command-line-tools/certgen.md
+      - file: elasticsearch/command-line-tools/certutil.md
+      - file: elasticsearch/command-line-tools/create-enrollment-token.md
+      - file: elasticsearch/command-line-tools/elasticsearch-croneval.md
+      - file: elasticsearch/command-line-tools/elasticsearch-keystore.md
+      - file: elasticsearch/command-line-tools/node-tool.md
+      - file: elasticsearch/command-line-tools/reconfigure-node.md
+      - file: elasticsearch/command-line-tools/reset-password.md
+      - file: elasticsearch/command-line-tools/saml-metadata.md
+      - file: elasticsearch/command-line-tools/service-tokens-command.md
+      - file: elasticsearch/command-line-tools/setup-passwords.md
+      - file: elasticsearch/command-line-tools/shard-tool.md
+      - file: elasticsearch/command-line-tools/syskeygen.md
+      - file: elasticsearch/command-line-tools/users-command.md
+  - file: community-contributed.md
+  - file: ingestion-tools/enrich-processor/index.md
+    children:
+      - file: ingestion-tools/enrich-processor/append-processor.md
+      - file: ingestion-tools/enrich-processor/attachment.md
+      - file: ingestion-tools/enrich-processor/bytes-processor.md
+      - file: ingestion-tools/enrich-processor/ingest-circle-processor.md
+      - file: ingestion-tools/enrich-processor/community-id-processor.md
+      - file: ingestion-tools/enrich-processor/convert-processor.md
+      - file: ingestion-tools/enrich-processor/csv-processor.md
+      - file: ingestion-tools/enrich-processor/date-processor.md
+      - file: ingestion-tools/enrich-processor/date-index-name-processor.md
+      - file: ingestion-tools/enrich-processor/dissect-processor.md
+      - file: ingestion-tools/enrich-processor/dot-expand-processor.md
+      - file: ingestion-tools/enrich-processor/drop-processor.md
+      - file: ingestion-tools/enrich-processor/enrich-processor.md
+      - file: ingestion-tools/enrich-processor/fail-processor.md
+      - file: ingestion-tools/enrich-processor/fingerprint-processor.md
+      - file: ingestion-tools/enrich-processor/foreach-processor.md
+      - file: ingestion-tools/enrich-processor/ingest-geo-grid-processor.md
+      - file: ingestion-tools/enrich-processor/geoip-processor.md
+      - file: ingestion-tools/enrich-processor/grok-processor.md
+      - file: ingestion-tools/enrich-processor/gsub-processor.md
+      - file: ingestion-tools/enrich-processor/htmlstrip-processor.md
+      - file: ingestion-tools/enrich-processor/inference-processor.md
+      - file: ingestion-tools/enrich-processor/ip-location-processor.md
+      - file: ingestion-tools/enrich-processor/join-processor.md
+      - file: ingestion-tools/enrich-processor/json-processor.md
+      - file: ingestion-tools/enrich-processor/kv-processor.md
+      - file: ingestion-tools/enrich-processor/lowercase-processor.md
+      - file: ingestion-tools/enrich-processor/network-direction-processor.md
+      - file: ingestion-tools/enrich-processor/pipeline-processor.md
+      - file: ingestion-tools/enrich-processor/redact-processor.md
+      - file: ingestion-tools/enrich-processor/registered-domain-processor.md
+      - file: ingestion-tools/enrich-processor/remove-processor.md
+      - file: ingestion-tools/enrich-processor/rename-processor.md
+      - file: ingestion-tools/enrich-processor/reroute-processor.md
+      - file: ingestion-tools/enrich-processor/script-processor.md
+      - file: ingestion-tools/enrich-processor/set-processor.md
+      - file: ingestion-tools/enrich-processor/ingest-node-set-security-user-processor.md
+      - file: ingestion-tools/enrich-processor/sort-processor.md
+      - file: ingestion-tools/enrich-processor/split-processor.md
+      - file: ingestion-tools/enrich-processor/terminate-processor.md
+      - file: ingestion-tools/enrich-processor/trim-processor.md
+      - file: ingestion-tools/enrich-processor/uppercase-processor.md
+      - file: ingestion-tools/enrich-processor/urldecode-processor.md
+      - file: ingestion-tools/enrich-processor/uri-parts-processor.md
+      - file: ingestion-tools/enrich-processor/user-agent-processor.md
+  - file: ingestion-tools/search-connectors/index.md
+    children:
+      - file: ingestion-tools/search-connectors/connector-reference.md
+        children:
+          - file: ingestion-tools/search-connectors/es-connectors-azure-blob.md
+          - file: ingestion-tools/search-connectors/es-connectors-box.md
+          - file: ingestion-tools/search-connectors/es-connectors-confluence.md
+          - file: ingestion-tools/search-connectors/es-connectors-dropbox.md
+          - file: ingestion-tools/search-connectors/es-connectors-github.md
+          - file: ingestion-tools/search-connectors/es-connectors-gmail.md
+          - file: ingestion-tools/search-connectors/es-connectors-google-cloud.md
+          - file: ingestion-tools/search-connectors/es-connectors-google-drive.md
+          - file: ingestion-tools/search-connectors/es-connectors-graphql.md
+          - file: ingestion-tools/search-connectors/es-connectors-jira.md
+          - file: ingestion-tools/search-connectors/es-connectors-ms-sql.md
+          - file: ingestion-tools/search-connectors/es-connectors-mongodb.md
+          - file: ingestion-tools/search-connectors/es-connectors-mysql.md
+          - file: ingestion-tools/search-connectors/es-connectors-network-drive.md
+          - file: ingestion-tools/search-connectors/es-connectors-notion.md
+          - file: ingestion-tools/search-connectors/es-connectors-onedrive.md
+          - file: ingestion-tools/search-connectors/es-connectors-opentext.md
+          - file: ingestion-tools/search-connectors/es-connectors-oracle.md
+          - file: ingestion-tools/search-connectors/es-connectors-outlook.md
+          - file: ingestion-tools/search-connectors/es-connectors-postgresql.md
+          - file: ingestion-tools/search-connectors/es-connectors-redis.md
+          - file: ingestion-tools/search-connectors/es-connectors-s3.md
+          - file: ingestion-tools/search-connectors/es-connectors-salesforce.md
+          - file: ingestion-tools/search-connectors/es-connectors-servicenow.md
+          - file: ingestion-tools/search-connectors/es-connectors-sharepoint-online.md
+          - file: ingestion-tools/search-connectors/es-connectors-sharepoint.md
+          - file: ingestion-tools/search-connectors/es-connectors-slack.md
+          - file: ingestion-tools/search-connectors/es-connectors-teams.md
+          - file: ingestion-tools/search-connectors/es-connectors-zoom.md
+      - file: ingestion-tools/search-connectors/self-managed-connectors.md
+        children:
+          - file: ingestion-tools/search-connectors/es-connectors-run-from-docker.md
+          - file: ingestion-tools/search-connectors/es-connectors-run-from-source.md
+          - file: ingestion-tools/search-connectors/es-connectors-docker-compose-quickstart.md
+          - file: ingestion-tools/search-connectors/es-postgresql-connector-client-tutorial.md
+      - file: ingestion-tools/search-connectors/elastic-managed-connectors.md # TODO: I should be deleted
+      - file: ingestion-tools/search-connectors/build-customize-connectors.md
+      - file: ingestion-tools/search-connectors/connectors-ui-in-kibana.md
+      # TO DO: Do we want this page? (It's not in the inventory.)
+      - file: ingestion-tools/search-connectors/es-connectors-apis.md
+        children:
+          - file: ingestion-tools/search-connectors/api-tutorial.md
+      - file: ingestion-tools/search-connectors/content-syncs.md
+      - file: ingestion-tools/search-connectors/extract-transform.md
+        children:
+          - file: ingestion-tools/search-connectors/es-connectors-content-extraction.md
+          - file: ingestion-tools/search-connectors/es-sync-rules.md
+      - file: ingestion-tools/search-connectors/document-level-security.md
+        children:
+          - file: ingestion-tools/search-connectors/es-dls-overview.md
+          - file: ingestion-tools/search-connectors/es-dls-e2e-guide.md
+      - file: ingestion-tools/search-connectors/management.md
+        children:
+          - file: ingestion-tools/search-connectors/es-connectors-scalability.md
+          - file: ingestion-tools/search-connectors/es-connectors-security.md
+          - file: ingestion-tools/search-connectors/es-connectors-troubleshooting.md
+          - file: ingestion-tools/search-connectors/es-connectors-logs.md
+      - file: ingestion-tools/search-connectors/use-cases.md
+        children:
+        - file: ingestion-tools/search-connectors/es-connectors-overview-architecture.md
+  - file: elasticsearch-plugins/index.md
+    children:
+      - file: elasticsearch-plugins/plugin-management.md
+        children:
+          - file: elasticsearch-plugins/installation.md
+          - file: elasticsearch-plugins/plugin-management-custom-url.md
+          - file: elasticsearch-plugins/installing-multiple-plugins.md
+          - file: elasticsearch-plugins/mandatory-plugins.md
+          - file: elasticsearch-plugins/listing-removing-updating.md
+          - file: elasticsearch-plugins/_other_command_line_parameters.md
+          - file: elasticsearch-plugins/_plugins_directory.md
+          - file: elasticsearch-plugins/manage-plugins-using-configuration-file.md
+          - file: elasticsearch-plugins/cloud/ec-adding-plugins.md
+            children:
+              - file: elasticsearch-plugins/cloud/ec-adding-elastic-plugins.md
+              - file: elasticsearch-plugins/cloud/ec-custom-bundles.md
+              - file: elasticsearch-plugins/cloud/ec-plugins-guide.md
+          - file: elasticsearch-plugins/cloud-enterprise/ece-add-plugins.md
+      - file: elasticsearch-plugins/api-extension-plugins.md
+      - file: elasticsearch-plugins/analysis-plugins.md
+        children:
+          - file: elasticsearch-plugins/analysis-icu.md
+            children:
+              - file: elasticsearch-plugins/analysis-icu-analyzer.md
+              - file: elasticsearch-plugins/analysis-icu-normalization-charfilter.md
+              - file: elasticsearch-plugins/analysis-icu-tokenizer.md
+              - file: elasticsearch-plugins/analysis-icu-normalization.md
+              - file: elasticsearch-plugins/analysis-icu-folding.md
+              - file: elasticsearch-plugins/analysis-icu-collation.md
+              - file: elasticsearch-plugins/analysis-icu-collation-keyword-field.md
+              - file: elasticsearch-plugins/analysis-icu-transform.md
+          - file: elasticsearch-plugins/analysis-kuromoji.md
+            children:
+              - file: elasticsearch-plugins/analysis-kuromoji-analyzer.md
+              - file: elasticsearch-plugins/analysis-kuromoji-charfilter.md
+              - file: elasticsearch-plugins/analysis-kuromoji-tokenizer.md
+              - file: elasticsearch-plugins/analysis-kuromoji-baseform.md
+              - file: elasticsearch-plugins/analysis-kuromoji-speech.md
+              - file: elasticsearch-plugins/analysis-kuromoji-readingform.md
+              - file: elasticsearch-plugins/analysis-kuromoji-stemmer.md
+              - file: elasticsearch-plugins/analysis-kuromoji-stop.md
+              - file: elasticsearch-plugins/analysis-kuromoji-number.md
+              - file: elasticsearch-plugins/analysis-kuromoji-hiragana-uppercase.md
+              - file: elasticsearch-plugins/analysis-kuromoji-katakana-uppercase.md
+              - file: elasticsearch-plugins/analysis-kuromoji-completion.md
+          - file: elasticsearch-plugins/analysis-nori.md
+            children:
+              - file: elasticsearch-plugins/analysis-nori-analyzer.md
+              - file: elasticsearch-plugins/analysis-nori-tokenizer.md
+              - file: elasticsearch-plugins/analysis-nori-speech.md
+              - file: elasticsearch-plugins/analysis-nori-readingform.md
+              - file: elasticsearch-plugins/analysis-nori-number.md
+          - file: elasticsearch-plugins/analysis-phonetic.md
+            children:
+              - file: elasticsearch-plugins/analysis-phonetic-token-filter.md
+          - file: elasticsearch-plugins/analysis-smartcn.md
+            children:
+              - file: elasticsearch-plugins/_reimplementing_and_extending_the_analyzers.md
+              - file: elasticsearch-plugins/analysis-smartcn_stop.md
+          - file: elasticsearch-plugins/analysis-stempel.md
+            children:
+              - file: elasticsearch-plugins/_reimplementing_and_extending_the_analyzers_2.md
+              - file: elasticsearch-plugins/analysis-polish-stop.md
+          - file: elasticsearch-plugins/analysis-ukrainian.md
+      - file: elasticsearch-plugins/discovery-plugins.md
+        children:
+          - file: elasticsearch-plugins/discovery-ec2.md
+            children:
+              - file: elasticsearch-plugins/discovery-ec2-usage.md
+              - file: elasticsearch-plugins/cloud-aws-best-practices.md
+          - file: elasticsearch-plugins/discovery-azure-classic.md
+            children:
+              - file: elasticsearch-plugins/discovery-azure-classic-usage.md
+              - file: elasticsearch-plugins/discovery-azure-classic-long.md
+              - file: elasticsearch-plugins/discovery-azure-classic-scale.md
+          - file: elasticsearch-plugins/discovery-gce.md
+            children:
+              - file: elasticsearch-plugins/discovery-gce-usage.md
+              - file: elasticsearch-plugins/discovery-gce-network-host.md
+              - file: elasticsearch-plugins/discovery-gce-usage-long.md
+              - file: elasticsearch-plugins/discovery-gce-usage-cloning.md
+              - file: elasticsearch-plugins/discovery-gce-usage-zones.md
+              - file: elasticsearch-plugins/discovery-gce-usage-tags.md
+              - file: elasticsearch-plugins/discovery-gce-usage-port.md
+              - file: elasticsearch-plugins/discovery-gce-usage-tips.md
+              - file: elasticsearch-plugins/discovery-gce-usage-testing.md
+      - file: elasticsearch-plugins/mapper-plugins.md
+        children:
+          - file: elasticsearch-plugins/mapper-size.md
+            children:
+              - file: elasticsearch-plugins/mapper-size-usage.md
+          - file: elasticsearch-plugins/mapper-murmur3.md
+            children:
+              - file: elasticsearch-plugins/mapper-murmur3-usage.md
+          - file: elasticsearch-plugins/mapper-annotated-text.md
+            children:
+              - file: elasticsearch-plugins/mapper-annotated-text-usage.md
+              - file: elasticsearch-plugins/mapper-annotated-text-tips.md
+              - file: elasticsearch-plugins/mapper-annotated-text-highlighter.md
+              - file: elasticsearch-plugins/mapper-annotated-text-limitations.md
+      - file: elasticsearch-plugins/snapshotrestore-repository-plugins.md
+        children:
+          - file: elasticsearch-plugins/repository-hdfs.md
+            children:
+              - file: elasticsearch-plugins/repository-hdfs-usage.md
+              - file: elasticsearch-plugins/repository-hdfs-config.md
+              - file: elasticsearch-plugins/repository-hdfs-security.md
+      - file: elasticsearch-plugins/store-plugins.md
+        children:
+          - file: elasticsearch-plugins/store-smb.md
+            children:
+              - file: elasticsearch-plugins/store-smb-usage.md
+      - file: elasticsearch-plugins/integrations.md
+  - file: query-languages/index.md
+    children:
+      - file: query-languages/querydsl.md
+        children:
+          - file: query-languages/query-filter-context.md
+          - file: query-languages/compound-queries.md
+            children:
+              - file: query-languages/query-dsl-bool-query.md
+              - file: query-languages/query-dsl-boosting-query.md
+              - file: query-languages/query-dsl-constant-score-query.md
+              - file: query-languages/query-dsl-dis-max-query.md
+              - file: query-languages/query-dsl-function-score-query.md
+          - file: query-languages/full-text-queries.md
+            children:
+              - file: query-languages/query-dsl-intervals-query.md
+              - file: query-languages/query-dsl-match-query.md
+              - file: query-languages/query-dsl-match-bool-prefix-query.md
+              - file: query-languages/query-dsl-match-query-phrase.md
+              - file: query-languages/query-dsl-match-query-phrase-prefix.md
+              - file: query-languages/query-dsl-combined-fields-query.md
+              - file: query-languages/query-dsl-multi-match-query.md
+              - file: query-languages/query-dsl-query-string-query.md
+              - file: query-languages/query-dsl-simple-query-string-query.md
+          - file: query-languages/geo-queries.md
+            children:
+              - file: query-languages/query-dsl-geo-bounding-box-query.md
+              - file: query-languages/query-dsl-geo-distance-query.md
+              - file: query-languages/query-dsl-geo-grid-query.md
+              - file: query-languages/query-dsl-geo-polygon-query.md
+              - file: query-languages/query-dsl-geo-shape-query.md
+          - file: query-languages/shape-queries.md
+            children:
+              - file: query-languages/query-dsl-shape-query.md
+          - file: query-languages/joining-queries.md
+            children:
+              - file: query-languages/query-dsl-nested-query.md
+              - file: query-languages/query-dsl-has-child-query.md
+              - file: query-languages/query-dsl-has-parent-query.md
+              - file: query-languages/query-dsl-parent-id-query.md
+          - file: query-languages/query-dsl-match-all-query.md
+          - file: query-languages/span-queries.md
+            children:
+              - file: query-languages/query-dsl-span-containing-query.md
+              - file: query-languages/query-dsl-span-field-masking-query.md
+              - file: query-languages/query-dsl-span-first-query.md
+              - file: query-languages/query-dsl-span-multi-term-query.md
+              - file: query-languages/query-dsl-span-near-query.md
+              - file: query-languages/query-dsl-span-not-query.md
+              - file: query-languages/query-dsl-span-query.md
+              - file: query-languages/query-dsl-span-term-query.md
+              - file: query-languages/query-dsl-span-within-query.md
+          - file: query-languages/vector-queries.md
+            children:
+              - file: query-languages/query-dsl-knn-query.md
+              - file: query-languages/query-dsl-sparse-vector-query.md
+              - file: query-languages/query-dsl-semantic-query.md
+              - file: query-languages/query-dsl-text-expansion-query.md
+              - file: query-languages/query-dsl-weighted-tokens-query.md
+          - file: query-languages/specialized-queries.md
+            children:
+              - file: query-languages/query-dsl-distance-feature-query.md
+              - file: query-languages/query-dsl-mlt-query.md
+              - file: query-languages/query-dsl-percolate-query.md
+              - file: query-languages/query-dsl-rank-feature-query.md
+              - file: query-languages/query-dsl-script-query.md
+              - file: query-languages/query-dsl-script-score-query.md
+              - file: query-languages/query-dsl-wrapper-query.md
+              - file: query-languages/query-dsl-pinned-query.md
+              - file: query-languages/query-dsl-rule-query.md
+          - file: query-languages/term-level-queries.md
+            children:
+              - file: query-languages/query-dsl-exists-query.md
+              - file: query-languages/query-dsl-fuzzy-query.md
+              - file: query-languages/query-dsl-ids-query.md
+              - file: query-languages/query-dsl-prefix-query.md
+              - file: query-languages/query-dsl-range-query.md
+              - file: query-languages/query-dsl-regexp-query.md
+              - file: query-languages/query-dsl-term-query.md
+              - file: query-languages/query-dsl-terms-query.md
+              - file: query-languages/query-dsl-terms-set-query.md
+              - file: query-languages/query-dsl-wildcard-query.md
+          - file: query-languages/query-dsl-minimum-should-match.md
+          - file: query-languages/query-dsl-multi-term-rewrite.md
+          - file: query-languages/regexp-syntax.md
+      - file: query-languages/esql.md
+        children:
+          - file: query-languages/esql/esql-syntax.md
+          - file: query-languages/esql/esql-commands.md
+          - file: query-languages/esql/esql-functions-operators.md
+          - file: query-languages/esql/esql-metadata-fields.md
+          - file: query-languages/esql/esql-multivalued-fields.md
+          - file: query-languages/esql/esql-process-data-with-dissect-grok.md
+          - file: query-languages/esql/esql-enrich-data.md
+          - file: query-languages/esql/esql-implicit-casting.md
+          - file: query-languages/esql/esql-time-spans.md
+          - file: query-languages/esql/limitations.md
+          - file: query-languages/esql/esql-examples.md
+      - file: query-languages/sql.md
+        children:
+          - file: query-languages/sql-spec.md
+            children:
+              - file: query-languages/sql-lexical-structure.md
+              - file: query-languages/sql-commands.md
+              - file: query-languages/sql-syntax-describe-table.md
+              - file: query-languages/sql-syntax-select.md
+              - file: query-languages/sql-syntax-show-catalogs.md
+              - file: query-languages/sql-syntax-show-columns.md
+              - file: query-languages/sql-syntax-show-functions.md
+              - file: query-languages/sql-syntax-show-tables.md
+              - file: query-languages/sql-data-types.md
+              - file: query-languages/sql-index-patterns.md
+              - file: query-languages/sql-index-frozen.md
+          - file: query-languages/sql-functions.md
+            children:
+              - file: query-languages/sql-operators.md
+              - file: query-languages/sql-operators-logical.md
+              - file: query-languages/sql-operators-math.md
+              - file: query-languages/sql-operators-cast.md
+              - file: query-languages/sql-like-rlike-operators.md
+              - file: query-languages/sql-functions-aggs.md
+              - file: query-languages/sql-functions-grouping.md
+              - file: query-languages/sql-functions-datetime.md
+              - file: query-languages/sql-functions-search.md
+              - file: query-languages/sql-functions-math.md
+              - file: query-languages/sql-functions-string.md
+              - file: query-languages/sql-functions-type-conversion.md
+              - file: query-languages/sql-functions-geo.md
+              - file: query-languages/sql-functions-conditional.md
+              - file: query-languages/sql-functions-system.md
+          - file: query-languages/sql-syntax-reserved.md
+          - file: query-languages/sql-limitations.md
+      - file: query-languages/eql.md
+        children:
+          - file: query-languages/eql-syntax.md
+          - file: query-languages/eql-function-ref.md
+          - file: query-languages/eql-pipe-ref.md
+          - file: query-languages/eql-ex-threat-detection.md
+      - file: query-languages/kql.md
+  - file: scripting-languages/index.md
+    children:
+      # - file: scripting-languages/reference/painless.md
+      - file: scripting-languages/painless/painless.md
+        children:
+          - file: scripting-languages/painless/brief-painless-walkthrough.md
+          - file: scripting-languages/painless/use-painless-scripts-in-runtime-fields.md
+          - file: scripting-languages/painless/using-datetime-in-painless.md
+          - file: scripting-languages/painless/how-painless-dispatches-function.md
+          - file: scripting-languages/painless/painless-debugging.md
+          - file: scripting-languages/painless/painless-api-examples.md
+          - file: scripting-languages/painless/using-ingest-processors-in-painless.md
+          - file: scripting-languages/painless/painless-language-specification.md
+            children:
+              - file: scripting-languages/painless/painless-comments.md
+              - file: scripting-languages/painless/painless-keywords.md
+              - file: scripting-languages/painless/painless-literals.md
+              - file: scripting-languages/painless/painless-identifiers.md
+              - file: scripting-languages/painless/painless-variables.md
+              - file: scripting-languages/painless/painless-types.md
+              - file: scripting-languages/painless/painless-casting.md
+              - file: scripting-languages/painless/painless-operators.md
+              - file: scripting-languages/painless/painless-operators-general.md
+              - file: scripting-languages/painless/painless-operators-numeric.md
+              - file: scripting-languages/painless/painless-operators-boolean.md
+              - file: scripting-languages/painless/painless-operators-reference.md
+              - file: scripting-languages/painless/painless-operators-array.md
+              - file: scripting-languages/painless/painless-statements.md
+              - file: scripting-languages/painless/painless-scripts.md
+              - file: scripting-languages/painless/painless-functions.md
+              - file: scripting-languages/painless/painless-lambdas.md
+              - file: scripting-languages/painless/painless-regexes.md
+          - file: scripting-languages/painless/painless-contexts.md
+            children:
+              - file: scripting-languages/painless/painless-context-examples.md
+              - file: scripting-languages/painless/painless-runtime-fields-context.md
+              - file: scripting-languages/painless/painless-ingest-processor-context.md
+              - file: scripting-languages/painless/painless-update-context.md
+              - file: scripting-languages/painless/painless-update-by-query-context.md
+              - file: scripting-languages/painless/painless-reindex-context.md
+              - file: scripting-languages/painless/painless-sort-context.md
+              - file: scripting-languages/painless/painless-similarity-context.md
+              - file: scripting-languages/painless/painless-weight-context.md
+              - file: scripting-languages/painless/painless-score-context.md
+              - file: scripting-languages/painless/painless-field-context.md
+              - file: scripting-languages/painless/painless-filter-context.md
+              - file: scripting-languages/painless/painless-min-should-match-context.md
+              - file: scripting-languages/painless/painless-metric-agg-init-context.md
+              - file: scripting-languages/painless/painless-metric-agg-map-context.md
+              - file: scripting-languages/painless/painless-metric-agg-combine-context.md
+              - file: scripting-languages/painless/painless-metric-agg-reduce-context.md
+              - file: scripting-languages/painless/painless-bucket-script-agg-context.md
+              - file: scripting-languages/painless/painless-bucket-selector-agg-context.md
+              - file: scripting-languages/painless/painless-analysis-predicate-context.md
+              - file: scripting-languages/painless/painless-watcher-condition-context.md
+              - file: scripting-languages/painless/painless-watcher-transform-context.md
+  - file: data-analysis/text-analysis/index.md
+    children:
+      - file: data-analysis/text-analysis/analyzer-reference.md
+        children:
+          - file: data-analysis/text-analysis/analysis-fingerprint-analyzer.md
+          - file: data-analysis/text-analysis/analysis-keyword-analyzer.md
+          - file: data-analysis/text-analysis/analysis-lang-analyzer.md
+          - file: data-analysis/text-analysis/analysis-pattern-analyzer.md
+          - file: data-analysis/text-analysis/analysis-simple-analyzer.md
+          - file: data-analysis/text-analysis/analysis-standard-analyzer.md
+          - file: data-analysis/text-analysis/analysis-stop-analyzer.md
+          - file: data-analysis/text-analysis/analysis-whitespace-analyzer.md
+      - file: data-analysis/text-analysis/tokenizer-reference.md
+        children:
+          - file: data-analysis/text-analysis/analysis-chargroup-tokenizer.md
+          - file: data-analysis/text-analysis/analysis-classic-tokenizer.md
+          - file: data-analysis/text-analysis/analysis-edgengram-tokenizer.md
+          - file: data-analysis/text-analysis/analysis-keyword-tokenizer.md
+          - file: data-analysis/text-analysis/analysis-letter-tokenizer.md
+          - file: data-analysis/text-analysis/analysis-lowercase-tokenizer.md
+          - file: data-analysis/text-analysis/analysis-ngram-tokenizer.md
+          - file: data-analysis/text-analysis/analysis-pathhierarchy-tokenizer.md
+          - file: data-analysis/text-analysis/analysis-pattern-tokenizer.md
+          - file: data-analysis/text-analysis/analysis-simplepattern-tokenizer.md
+          - file: data-analysis/text-analysis/analysis-simplepatternsplit-tokenizer.md
+          - file: data-analysis/text-analysis/analysis-standard-tokenizer.md
+          - file: data-analysis/text-analysis/analysis-thai-tokenizer.md
+          - file: data-analysis/text-analysis/analysis-uaxurlemail-tokenizer.md
+          - file: data-analysis/text-analysis/analysis-whitespace-tokenizer.md
+      - file: data-analysis/text-analysis/token-filter-reference.md
+        children:
+          - file: data-analysis/text-analysis/analysis-apostrophe-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-asciifolding-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-cjk-bigram-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-cjk-width-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-classic-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-common-grams-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-condition-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-decimal-digit-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-delimited-payload-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-dict-decomp-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-edgengram-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-elision-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-fingerprint-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-flatten-graph-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-hunspell-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-hyp-decomp-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-keep-types-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-keep-words-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-keyword-marker-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-keyword-repeat-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-kstem-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-length-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-limit-token-count-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-lowercase-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-minhash-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-multiplexer-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-ngram-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-normalization-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-pattern-capture-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-pattern_replace-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-phonetic-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-porterstem-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-predicatefilter-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-remove-duplicates-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-reverse-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-shingle-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-snowball-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-stemmer-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-stemmer-override-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-stop-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-synonym-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-synonym-graph-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-trim-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-truncate-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-unique-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-uppercase-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-word-delimiter-tokenfilter.md
+          - file: data-analysis/text-analysis/analysis-word-delimiter-graph-tokenfilter.md
+      - file: data-analysis/text-analysis/character-filter-reference.md
+        children:
+          - file: data-analysis/text-analysis/analysis-htmlstrip-charfilter.md
+          - file: data-analysis/text-analysis/analysis-mapping-charfilter.md
+          - file: data-analysis/text-analysis/analysis-pattern-replace-charfilter.md
+      - file: data-analysis/text-analysis/normalizers.md
+  - file: data-analysis/aggregations/index.md
+    children:
+      - file: data-analysis/aggregations/bucket.md
+        children:
+          - file: data-analysis/aggregations/search-aggregations-bucket-adjacency-matrix-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-autodatehistogram-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-categorize-text-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-children-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-composite-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-datehistogram-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-daterange-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-diversified-sampler-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-filter-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-filters-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-frequent-item-sets-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-geodistance-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-global-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-histogram-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-ipprefix-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-iprange-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-missing-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-multi-terms-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-nested-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-parent-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-random-sampler-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-range-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-rare-terms-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-reverse-nested-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-sampler-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-significantterms-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-significanttext-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-time-series-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-variablewidthhistogram-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-range-field-note.md
+      - file: data-analysis/aggregations/metrics.md
+        children:
+          - file: data-analysis/aggregations/search-aggregations-metrics-avg-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-boxplot-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-cardinality-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-extendedstats-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-geobounds-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-geocentroid-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-geo-line.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-cartesian-bounds-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-cartesian-centroid-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-matrix-stats-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-max-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-median-absolute-deviation-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-min-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-percentile-rank-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-percentile-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-rate-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-scripted-metric-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-stats-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-string-stats-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-sum-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-ttest-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-top-hits-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-top-metrics.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-valuecount-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-metrics-weight-avg-aggregation.md
+      # TO DO: Figure out how to pull these in... separate TOCs?
+      # - file: data-analysis/aggregations/data-analysis/observability/metrics-reference.md
+      # - file: data-analysis/aggregations/data-analysis/serverless/metrics-reference.md
+      #   children:
+      #     - file: data-analysis/aggregations/data-analysis/serverless/observability-host-metrics.md
+      #     - file: data-analysis/aggregations/data-analysis/serverless/observability-container-metrics.md
+      #     - file: data-analysis/aggregations/data-analysis/serverless/observability-kubernetes-pod-metrics.md
+      #     - file: data-analysis/aggregations/data-analysis/serverless/observability-aws-metrics.md
+      - file: data-analysis/aggregations/pipeline.md
+        children:
+          - file: data-analysis/aggregations/search-aggregations-pipeline-avg-bucket-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-bucket-script-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-count-ks-test-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-bucket-correlation-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-bucket-selector-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-bucket-sort-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-change-point-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-cumulative-cardinality-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-cumulative-sum-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-derivative-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-extended-stats-bucket-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-inference-bucket-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-max-bucket-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-min-bucket-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-movfn-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-moving-percentiles-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-normalize-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-percentiles-bucket-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-serialdiff-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-stats-bucket-aggregation.md
+          - file: data-analysis/aggregations/search-aggregations-pipeline-sum-bucket-aggregation.md

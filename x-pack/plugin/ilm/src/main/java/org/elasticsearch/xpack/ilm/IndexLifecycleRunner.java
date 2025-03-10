@@ -322,7 +322,11 @@ class IndexLifecycleRunner {
             logger.warn("current step [{}] for index [{}] with policy [{}] is not recognized", currentStepKey, index, policy);
             return;
         }
-
+        if (expectedStepKey.phase() == null && expectedStepKey.name() == null && expectedStepKey.action() == null) {
+            // ILM is stopped, so do not try to run async action
+            logger.debug("expected step for index [{}] with policy [{}] is [{}], not running async action", index, policy, expectedStepKey);
+            return;
+        }
         logger.trace(
             "[{}] maybe running async action step ({}) with current step {}",
             index,
@@ -461,7 +465,7 @@ class IndexLifecycleRunner {
                 newStepKey
             ),
             new MoveToNextStepUpdateTask(index, policy, currentStepKey, newStepKey, nowSupplier, stepRegistry, clusterState -> {
-                IndexMetadata indexMetadata = clusterState.metadata().index(index);
+                IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
                 registerSuccessfulOperation(indexMetadata);
                 if (newStepKey != null && newStepKey != TerminalPolicyStep.KEY && indexMetadata != null) {
                     maybeRunAsyncAction(clusterState, indexMetadata, policy, newStepKey);
@@ -481,7 +485,7 @@ class IndexLifecycleRunner {
         submitUnlessAlreadyQueued(
             Strings.format("ilm-move-to-error-step {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(), currentStepKey),
             new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, clusterState -> {
-                IndexMetadata indexMetadata = clusterState.metadata().index(index);
+                IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
                 registerFailedOperation(indexMetadata, e);
             })
         );
@@ -676,7 +680,7 @@ class IndexLifecycleRunner {
 
         @Override
         protected void onClusterStateProcessed(ClusterState newState) {
-            IndexMetadata newIndexMeta = newState.metadata().index(index);
+            IndexMetadata newIndexMeta = newState.metadata().getProject().index(index);
             if (newIndexMeta == null) {
                 // index was deleted
                 return;

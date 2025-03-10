@@ -132,7 +132,7 @@ public class SamlResponseHandlerTests extends SamlTestCase {
         final List<X509Credential> spEncryptionCredentials = buildOpenSamlCredential(spEncryptionCertificatePairs).stream()
             .map((cred) -> (X509Credential) cred)
             .collect(Collectors.<X509Credential>toList());
-        return new SpConfiguration(
+        return new SingleSamlSpConfiguration(
             SP_ENTITY_ID,
             SP_ACS_URL,
             SP_LOGOUT_URL,

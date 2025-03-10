@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
@@ -178,6 +179,11 @@ public class Verifier {
                 // only after that check the match fields
                 else {
                     lookup.matchFields().forEach(unresolvedExpressions);
+                }
+            } else if (p instanceof Fork fork) {
+                var subPlans = fork.subPlans();
+                for (var subPlan : subPlans) {
+                    checkUnresolvedAttributes(subPlan, failures);
                 }
             }
 

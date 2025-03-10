@@ -663,8 +663,6 @@ public abstract class TransportReplicationAction<
         // something we want to avoid at all costs
         private final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
         private final ConcreteReplicaRequest<ReplicaRequest> replicaRequest;
-        private final Supplier<Long> localCheckpointSupplier;
-        private final Supplier<Long> globalCheckpointSupplier;
 
         AsyncReplicaAction(
             ConcreteReplicaRequest<ReplicaRequest> replicaRequest,
@@ -677,9 +675,6 @@ public abstract class TransportReplicationAction<
             final ShardId shardId = replicaRequest.getRequest().shardId();
             assert shardId != null : "request shardId must be set";
             this.replica = getIndexShard(shardId);
-            this.localCheckpointSupplier = replica.getLocalCheckpointSupplier();
-            this.globalCheckpointSupplier = replica.getLastSyncedGlobalCheckpointSupplier();
-
         }
 
         @Override
@@ -690,7 +685,10 @@ public abstract class TransportReplicationAction<
                     replicaRequest.getRequest(),
                     replica,
                     ActionListener.wrap((replicaResult) -> replicaResult.runPostReplicaActions(ActionListener.wrap(r -> {
-                        final ReplicaResponse response = new ReplicaResponse(localCheckpointSupplier.get(), globalCheckpointSupplier.get());
+                        final ReplicaResponse response = new ReplicaResponse(
+                            replica.getLocalCheckpoint(),
+                            replica.getLastSyncedGlobalCheckpoint()
+                        );
                         releasable.close(); // release shard operation lock before responding to caller
                         if (logger.isTraceEnabled()) {
                             logger.trace(

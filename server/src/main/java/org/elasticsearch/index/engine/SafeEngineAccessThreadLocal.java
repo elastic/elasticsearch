@@ -82,7 +82,7 @@ public final class SafeEngineAccessThreadLocal {
     /**
      * Use this method to assert that the current thread has not entered a protected execution code block.
      */
-    public static boolean assertNoAccessByCurrentThread() {
+    public static void checkAccess() {
         ensureAssertionsEnabled();
         final var accessor = getAccessorSafe();
         if (accessor != null) {
@@ -90,7 +90,6 @@ public final class SafeEngineAccessThreadLocal {
             accessor.setFailure(new AssertionError(message)); // to be thrown later
             assert false : message;
         }
-        return true;
     }
 
     private static void ensureAssertionsEnabled() {

@@ -29,6 +29,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -40,7 +41,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
-import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
@@ -107,8 +108,9 @@ public class LifecycleLicenseIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String backingIndexName = getDataStreamBackingIndexNames(dataStream).getFirst();
-        assertThat(backingIndexName, endsWith("1"));
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndexName = backingIndices.getFirst();
         // the searchable_snapshot action should start failing (and retrying) due to invalid license
         assertBusy(() -> {
             Map<String, Object> explainIndex = explainIndex(client(), backingIndexName);

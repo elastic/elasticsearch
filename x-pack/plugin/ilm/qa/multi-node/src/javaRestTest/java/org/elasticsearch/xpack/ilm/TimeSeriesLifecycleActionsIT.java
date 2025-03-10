@@ -1229,8 +1229,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             fail("failed to perform search:" + e.getMessage());
         }
 
+        // Finally, check that the history index is in a good state
         String historyIndexName = getDataStreamBackingIndexNames("ilm-history-7").getFirst();
-        assertThat(historyIndexName, notNullValue());
         Response explainHistoryIndex = client().performRequest(new Request("GET", historyIndexName + "/_lifecycle/explain"));
         Map<String, Object> responseMap;
         try (InputStream is = explainHistoryIndex.getEntity().getContent()) {

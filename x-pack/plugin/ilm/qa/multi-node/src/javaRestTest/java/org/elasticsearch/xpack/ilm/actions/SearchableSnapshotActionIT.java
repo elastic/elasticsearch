@@ -62,7 +62,6 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.elasticsearch.xpack.core.ilm.DeleteAction.WITH_SNAPSHOT_DELETE;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -103,8 +102,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String backingIndexName = getDataStreamBackingIndexNames(dataStream).getFirst();
-        assertThat(backingIndexName, endsWith("1"));
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndexName = backingIndices.getFirst();
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
@@ -135,8 +135,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             indexDocument(client(), dataStream, true);
         }
 
-        String backingIndexName = getDataStreamBackingIndexNames(dataStream).getFirst();
-        assertThat(backingIndexName, endsWith("1"));
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        String backingIndexName = backingIndices.getFirst();
         Integer preLifecycleBackingIndexSegments = getNumberOfPrimarySegments(client(), backingIndexName);
         assertThat(preLifecycleBackingIndexSegments, greaterThanOrEqualTo(1));
 
@@ -210,8 +210,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String backingIndexName = getDataStreamBackingIndexNames(dataStream).getFirst();
-        assertThat(backingIndexName, endsWith("1"));
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndexName = backingIndices.getFirst();
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
 
         // let's wait for ILM to finish
@@ -923,8 +924,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String backingIndexName = getDataStreamBackingIndexNames(dataStream).getFirst();
-        assertThat(backingIndexName, endsWith("1"));
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndexName = backingIndices.getFirst();
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
@@ -1028,8 +1030,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String backingIndexName = getDataStreamBackingIndexNames(dataStream).getFirst();
-        assertThat(backingIndexName, endsWith("1"));
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndexName = backingIndices.getFirst();
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {

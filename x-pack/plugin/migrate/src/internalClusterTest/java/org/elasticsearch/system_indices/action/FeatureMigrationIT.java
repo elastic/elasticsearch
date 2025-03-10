@@ -15,8 +15,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.support.ActionFilter;
-import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -37,7 +35,6 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.system_indices.action.AbstractFeatureMigrationIntegTest.TestPlugin.BlockingActionFilter;
 import org.elasticsearch.system_indices.task.FeatureMigrationResults;
 import org.elasticsearch.system_indices.task.SingleFeatureMigrationResult;
-import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,14 +49,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
-import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
@@ -237,18 +231,6 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
     }
 
-    private static Metadata assertMetadataAfterMigration(String featureName) {
-        Metadata finalMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
-        // Check that the results metadata is what we expect.
-        FeatureMigrationResults currentResults = finalMetadata.custom(FeatureMigrationResults.TYPE);
-        assertThat(currentResults, notNullValue());
-        assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(1), hasKey(featureName)));
-        assertThat(currentResults.getFeatureStatuses().get(featureName).succeeded(), is(true));
-        assertThat(currentResults.getFeatureStatuses().get(featureName).getFailedIndexName(), nullValue());
-        assertThat(currentResults.getFeatureStatuses().get(featureName).getException(), nullValue());
-        return finalMetadata;
-    }
-
     public void testMigrateIndexWithWriteBlock() throws Exception {
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
 
@@ -272,18 +254,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
         ensureGreen();
 
-        // Block the alias request to simulate a failure
-        InternalTestCluster internalTestCluster = internalCluster();
-        ActionFilters actionFilters = internalTestCluster.getInstance(ActionFilters.class, internalTestCluster.getMasterName());
-        BlockingActionFilter blockingActionFilter = null;
-        for (ActionFilter filter : actionFilters.filters()) {
-            if (filter instanceof BlockingActionFilter) {
-                blockingActionFilter = (BlockingActionFilter) filter;
-                break;
-            }
-        }
-        assertNotNull("BlockingActionFilter should exist", blockingActionFilter);
-        blockingActionFilter.blockActions(TransportIndicesAliasesAction.NAME);
+        BlockingActionFilter blockingActionFilter = blockAction(TransportIndicesAliasesAction.NAME);
 
         // Start the migration
         client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT)).get();
@@ -305,7 +276,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertThat("Write block on old index should be removed on migration ERROR status", writeBlock, equalTo("false"));
 
         // Unblock the alias request
-        blockingActionFilter.blockActions();
+        blockingActionFilter.unblockAllActions();
 
         // Retry the migration
         client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT)).get();
@@ -377,28 +348,6 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
         });
-    }
-
-    private void executeMigration(String featureName) throws Exception {
-        PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT);
-        PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, migrationRequest).get();
-        assertThat(migrationResponse.getReason(), nullValue());
-        assertThat(migrationResponse.getElasticsearchException(), nullValue());
-        final Set<String> migratingFeatures = migrationResponse.getFeatures()
-            .stream()
-            .map(PostFeatureUpgradeResponse.Feature::getFeatureName)
-            .collect(Collectors.toSet());
-        assertThat(migratingFeatures, hasItem(featureName));
-
-        GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT);
-        // The feature upgrade may take longer than ten seconds when tests are running
-        // in parallel, so we give assertBusy a sixty-second timeout.
-        assertBusy(() -> {
-            GetFeatureUpgradeStatusResponse statusResponse = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest)
-                .get();
-            logger.info(Strings.toString(statusResponse));
-            assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
-        }, 60, TimeUnit.SECONDS);
     }
 
     public void testMigrateUsingScript() throws Exception {

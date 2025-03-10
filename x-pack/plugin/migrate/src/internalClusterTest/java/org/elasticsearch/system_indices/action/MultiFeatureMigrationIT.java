@@ -138,7 +138,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             assertThat(currentResults, notNullValue());
             assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(1), hasKey(FEATURE_NAME)));
             assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).succeeded(), is(true));
-            assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getFailedIndexName(), nullValue());
+            assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getFailedResourceName(), nullValue());
             assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getException(), nullValue());
 
             secondPluginPreMigrationHookCalled.set(true);
@@ -159,7 +159,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             assertThat(currentResults, notNullValue());
             assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(1), hasKey(FEATURE_NAME)));
             assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).succeeded(), is(true));
-            assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getFailedIndexName(), nullValue());
+            assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getFailedResourceName(), nullValue());
             assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getException(), nullValue());
 
             secondPluginPostMigrationHookCalled.set(true);
@@ -199,10 +199,10 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertThat(currentResults, notNullValue());
         assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(2), hasKey(FEATURE_NAME), hasKey(SECOND_FEATURE_NAME)));
         assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).succeeded(), is(true));
-        assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getFailedIndexName(), nullValue());
+        assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getFailedResourceName(), nullValue());
         assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getException(), nullValue());
         assertThat(currentResults.getFeatureStatuses().get(SECOND_FEATURE_NAME).succeeded(), is(true));
-        assertThat(currentResults.getFeatureStatuses().get(SECOND_FEATURE_NAME).getFailedIndexName(), nullValue());
+        assertThat(currentResults.getFeatureStatuses().get(SECOND_FEATURE_NAME).getFailedResourceName(), nullValue());
         assertThat(currentResults.getFeatureStatuses().get(SECOND_FEATURE_NAME).getException(), nullValue());
 
         // Finally, verify that all the indices exist and have the properties we expect.

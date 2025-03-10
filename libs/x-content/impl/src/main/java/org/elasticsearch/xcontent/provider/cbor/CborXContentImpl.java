@@ -10,6 +10,7 @@
 package org.elasticsearch.xcontent.provider.cbor;
 
 import com.fasterxml.jackson.core.JsonEncoding;
+import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
@@ -53,6 +54,8 @@ public final class CborXContentImpl implements XContent {
         cborFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         cborFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         cborFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
+        // Speeds up deserialization a lot.
+        cborFactory.configure(JsonFactory.Feature.CANONICALIZE_FIELD_NAMES, false);
         cborXContent = new CborXContentImpl();
     }
 

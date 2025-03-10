@@ -62,6 +62,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.ASYNC;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
+import static org.elasticsearch.xpack.esql.session.IndexResolver.WIDE_INDEX_DEFAULT_FIELD_NUMBER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsString;
@@ -69,6 +70,7 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -966,6 +968,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    public void testWideIndexWithFieldsTrimmed() throws IOException {
+        createWideIndex(10000);
+        var query = requestObjectBuilder().query(format(null, "from {}", testIndexName()));
+        Map<String, Object> result = runEsql(query);
+        var columns = as(result.get("columns"), List.class);
+        assertEquals(WIDE_INDEX_DEFAULT_FIELD_NUMBER, columns.size());
+    }
+
     private static String queryWithComplexFieldNames(int field) {
         StringBuilder query = new StringBuilder();
         query.append(" | keep ").append(randomAlphaOfLength(10)).append(1);
@@ -1529,5 +1539,18 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         bulk.setJsonEntity(b.toString());
         response = client().performRequest(bulk);
         Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+    }
+
+    private static void createWideIndex(int fieldNumber) throws IOException {
+        String settings = String.format("\"settings\":{\"index.mapping.total_fields.limit\":%d}", fieldNumber);
+        StringBuilder mappings = new StringBuilder();
+        mappings.append(String.format("\"mappings\": { \"properties\": {\"f%d\": {\"type\" : \"integer\"}", 1));
+        for (int i = 2; i <= fieldNumber; i++) {
+            mappings.append(String.format(", \"f%d\":{\"type\" : \"integer\"}", i));
+        }
+        mappings.append("}}");
+        Request request = new Request("PUT", "/" + testIndexName());
+        request.setJsonEntity("{" + settings + ", " + mappings + "}");
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }
 }

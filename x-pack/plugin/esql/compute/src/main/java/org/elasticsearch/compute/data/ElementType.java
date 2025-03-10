@@ -11,10 +11,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.Maps;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * The type of elements in {@link Block} and {@link Vector}
@@ -110,11 +112,10 @@ public enum ElementType {
 
     static {
         ElementType[] values = values();
-        fromLegacyNames = Maps.newMapWithExpectedSize(values.length);
         for (int i = 0; i < values.length; i++) {
             assert values[i].writableCode == i;
-            fromLegacyNames.put(values[i].legacyWritableName, values[i]);
         }
+        fromLegacyNames = Arrays.stream(values).collect(Collectors.toUnmodifiableMap(e -> e.legacyWritableName, Function.identity()));
     }
 
     /**

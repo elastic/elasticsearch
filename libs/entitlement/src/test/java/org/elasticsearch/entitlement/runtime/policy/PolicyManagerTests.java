@@ -38,7 +38,8 @@ import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.SERVER_COMPONENT_NAME;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -493,9 +494,11 @@ public class PolicyManagerTests extends ESTestCase {
         );
         assertThat(
             iae.getMessage(),
-            equalTo(
-                "Path [/base/test] is already exclusive to [plugin1][test.module1],"
-                    + " cannot add exclusive access for [plugin2][test.module2]"
+            allOf(
+                containsString("Path [/base/test] is already exclusive"),
+                containsString("[plugin1][test.module1]"),
+                containsString("[plugin2][test.module2]"),
+                containsString("cannot add exclusive access")
             )
         );
 

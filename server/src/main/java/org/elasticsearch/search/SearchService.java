@@ -1912,7 +1912,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             request.getRewriteable(),
             indicesService.getDataRewriteContext(request::nowInMillis),
             request.readerId() == null
-                ? listener.delegateFailureAndWrap((l, r) -> shard.ensureShardSearchActive(b -> l.onResponse(request)))
+                ? listener.delegateFailureAndWrap(
+                    (l, r) -> shard.ensureShardSearchActive(
+                        ignored -> threadPool.generic().execute(ActionRunnable.supply(l, () -> request))
+                    )
+                )
                 : listener.safeMap(r -> request)
         );
     }

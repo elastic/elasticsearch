@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocsV3SupportTests extends ESTestCase {
@@ -19,6 +21,18 @@ public class DocsV3SupportTests extends ESTestCase {
             + "also known as the 50% <<esql-percentile>>.";
         String expected = "The value that is greater than half of all values and less than half of all values, "
             + "also known as the 50% [`PERCENTILE`](/reference/query-languages/esql/esql-functions-operators.md#esql-percentile).";
+        assertThat(docs.replaceLinks(text), equalTo(expected));
+    }
+
+    public void testCommandLink() {
+        String text = "use a <<esql-where>> command to remove rows";
+        String expected = "use a [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) command to remove rows";
+        assertThat(docs.replaceLinks(text), equalTo(expected));
+    }
+
+    public void testStatsCommandLink() {
+        String text = "Combine `DATE_TRUNC` with <<esql-stats-by>>";
+        String expected = "Combine `DATE_TRUNC` with [`STATS`](/reference/query-languages/esql/esql-commands.md#esql-stats-by)";
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
@@ -102,5 +116,48 @@ public class DocsV3SupportTests extends ESTestCase {
             Match can use [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
             to specify additional options for the match query.""";
         assertThat(docs.replaceLinks(text), equalTo(expected));
+    }
+
+    public void testRenderingExample() throws IOException {
+        String expectedExample = """
+            ```esql
+            ROW wkt = "POINT(42.97109630194 14.7552534413725)"
+            | EVAL pt = TO_GEOPOINT(wkt)
+            ```
+            """;
+        String example = docs.loadExample("spatial.csv-spec", "to_geopoint-str");
+        assertThat(example, equalTo(expectedExample));
+    }
+
+    public void testRenderingExampleResult() throws IOException {
+        String expectedResults = """
+            | wkt:keyword | pt:geo_point |
+            | --- | --- |
+            | "POINT(42.97109630194 14.7552534413725)" | POINT(42.97109630194 14.7552534413725) |
+            """;
+        String results = docs.loadExample("spatial.csv-spec", "to_geopoint-str-result");
+        assertThat(results, equalTo(expectedResults));
+    }
+
+
+    public void testRenderingExample2() throws IOException {
+        String expectedExample = """
+            ```esql
+            ROW n=1
+            | STATS COUNT(n > 0 OR NULL), COUNT(n < 0 OR NULL)
+            ```
+            """;
+        String example = docs.loadExample("stats", "count-or-null");
+        assertThat(example, equalTo(expectedExample));
+    }
+
+    public void testRenderingExampleResult2() throws IOException {
+        String expectedResults = """
+            | COUNT(n > 0 OR NULL):long | COUNT(n < 0 OR NULL):long |
+            | --- | --- |
+            | 1 | 0 |
+            """;
+        String results = docs.loadExample("stats", "count-or-null-result");
+        assertThat(results, equalTo(expectedResults));
     }
 }

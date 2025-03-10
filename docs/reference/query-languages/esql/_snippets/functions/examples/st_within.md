@@ -10,6 +10,6 @@ FROM airport_city_boundaries
 
 | abbrev:keyword | airport:text | region:text | city:keyword | city_location:geo_point |
 | --- | --- | --- | --- | --- |
-| SYX | Sanya Phoenix Int’l | 天涯区 | Sanya | POINT(109.5036 18.2533) |
+| SYX | Sanya Phoenix Int'l | 天涯区 | Sanya | POINT(109.5036 18.2533) |
 
 

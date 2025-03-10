@@ -10,6 +10,6 @@ FROM airport_city_boundaries
 
 | abbrev:keyword | airport:text | region:text | city:keyword | city_location:geo_point |
 | --- | --- | --- | --- | --- |
-| ACA | General Juan N Alvarez Int’l | Acapulco de Juárez | Acapulco de Juárez | POINT (-99.8825 16.8636) |
+| ACA | General Juan N Alvarez Int'l | Acapulco de Juárez | Acapulco de Juárez | POINT (-99.8825 16.8636) |
 
 

@@ -6,10 +6,10 @@ matchWithField
 required_capability: match_function
 
 // tag::match-with-field[]
-FROM books 
+FROM books
 | WHERE MATCH(author, "Faulkner")
-| KEEP book_no, author 
-| SORT book_no 
+| KEEP book_no, author
+| SORT book_no
 | LIMIT 5
 // end::match-with-field[]
 ;
@@ -696,7 +696,7 @@ required_capability: match_function
 required_capability: match_function_options
 
 // tag::match-with-named-function-params[]
-FROM books 
+FROM books
 | WHERE MATCH(title, "Hobbit Back Again", {"operator": "AND"})
 | KEEP title;
 // end::match-with-named-function-params[]

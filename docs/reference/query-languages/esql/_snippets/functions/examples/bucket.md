@@ -2,9 +2,13 @@
 
 **Examples**
 
-`BUCKET` can work in two modes: one in which the size of the bucket is computed based on a buckets count recommendation (four parameters) and a range, and another in which the bucket size is provided directly (two parameters).
+`BUCKET` can work in two modes: one in which the size of the bucket is computed
+based on a buckets count recommendation (four parameters) and a range, and
+another in which the bucket size is provided directly (two parameters).
 
-Using a target number of buckets, a start of a range, and an end of a range, `BUCKET` picks an appropriate bucket size to generate the target number of buckets or fewer. For example, asking for at most 20 buckets over a year results in monthly buckets:
+Using a target number of buckets, a start of a range, and an end of a range,
+`BUCKET` picks an appropriate bucket size to generate the target number of buckets or fewer.
+For example, asking for at most 20 buckets over a year results in monthly buckets:
 
 ```esql
 FROM employees
@@ -22,9 +26,11 @@ FROM employees
 | [1985-10-14T00:00:00.000Z, 1985-10-20T00:00:00.000Z] | 1985-10-01T00:00:00.000Z |
 | [1985-11-19T00:00:00.000Z, 1985-11-20T00:00:00.000Z, 1985-11-21T00:00:00.000Z] | 1985-11-01T00:00:00.000Z |
 
-The goal isn’t to provide **exactly** the target number of buckets, it’s to pick a range that people are comfortable with that provides at most the target number of buckets.
 
-Combine `BUCKET` with an [aggregation](../../../esql-functions-operators.md#esql-agg-functions) to create a histogram:
+The goal isn’t to provide **exactly** the target number of buckets,
+it’s to pick a range that people are comfortable with that provides at most the target number of buckets.
+
+Combine `BUCKET` with an [aggregation](/reference/query-languages/esql/esql-functions-operators.md#esql-agg-functions) to create a histogram:
 
 ```esql
 FROM employees
@@ -42,12 +48,14 @@ FROM employees
 | 2 | 1985-10-01T00:00:00.000Z |
 | 4 | 1985-11-01T00:00:00.000Z |
 
+
 ::::{note}
-`BUCKET` does not create buckets that don’t match any documents. That’s why this example is missing `1985-03-01` and other dates.
+`BUCKET` does not create buckets that don’t match any documents.
+That’s why this example is missing `1985-03-01` and other dates.
 ::::
 
-
-Asking for more buckets can result in a smaller range. For example, asking for at most 100 buckets in a year results in weekly buckets:
+Asking for more buckets can result in a smaller range.
+For example, asking for at most 100 buckets in a year results in weekly buckets:
 
 ```esql
 FROM employees
@@ -65,12 +73,15 @@ FROM employees
 | 2 | 1985-10-14T00:00:00.000Z |
 | 4 | 1985-11-18T00:00:00.000Z |
 
+
 ::::{note}
-`BUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size. For rows with a value outside of the range, it returns a bucket value that corresponds to a bucket outside the range. Combine`BUCKET` with [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) to filter rows.
+`BUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size.
+For rows with a value outside of the range, it returns a bucket value that corresponds to a bucket outside the range.
+Combine `BUCKET` with [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) to filter rows.
 ::::
 
-
-If the desired bucket size is known in advance, simply provide it as the second argument, leaving the range out:
+If the desired bucket size is known in advance, simply provide it as the second
+argument, leaving the range out:
 
 ```esql
 FROM employees
@@ -88,10 +99,11 @@ FROM employees
 | 2 | 1985-10-14T00:00:00.000Z |
 | 4 | 1985-11-18T00:00:00.000Z |
 
-::::{note}
-When providing the bucket size as the second parameter, it must be a time duration or date period.
-::::
 
+::::{note}
+When providing the bucket size as the second parameter, it must be a time
+duration or date period.
+::::
 
 `BUCKET` can also operate on numeric fields. For example, to create a salary histogram:
 
@@ -114,9 +126,12 @@ FROM employees
 | 8 | 65000.0 |
 | 8 | 70000.0 |
 
-Unlike the earlier example that intentionally filters on a date range, you rarely want to filter on a numeric range. You have to find the `min` and `max` separately. {{esql}} doesn’t yet have an easy way to do that automatically.
 
-The range can be omitted if the desired bucket size is known in advance. Simply provide it as the second argument:
+Unlike the earlier example that intentionally filters on a date range, you rarely want to filter on a numeric range.
+You have to find the `min` and `max` separately. {{esql}} doesn’t yet have an easy way to do that automatically.
+
+The range can be omitted if the desired bucket size is known in advance. Simply
+provide it as the second argument:
 
 ```esql
 FROM employees
@@ -166,7 +181,10 @@ FROM employees
 | 51532.0 | 1985-10-01T00:00:00.000Z |
 | 54539.75 | 1985-11-01T00:00:00.000Z |
 
-`BUCKET` may be used in both the aggregating and grouping part of the [STATS …​ BY …​](/reference/query-languages/esql/esql-commands.md#esql-stats-by) command provided that in the aggregating part the function is referenced by an alias defined in the grouping part, or that it is invoked with the exact same expression:
+`BUCKET` may be used in both the aggregating and grouping part of the
+[STATS ... BY ...](/reference/query-languages/esql/esql-commands.md#esql-stats-by) command provided that in the aggregating
+part the function is referenced by an alias defined in the
+grouping part, or that it is invoked with the exact same expression:
 
 ```esql
 FROM employees
@@ -189,7 +207,12 @@ FROM employees
 | 751.0 | 750.0 | 1052.0 | 1050.0 |
 | 801.0 | 800.0 | 1052.0 | 1050.0 |
 
-Sometimes you need to change the start value of each bucket by a given duration (similar to date histogram aggregation’s [`offset`](/reference/data-analysis/aggregations/search-aggregations-bucket-histogram-aggregation.md) parameter). To do so, you will need to take into account how the language handles expressions within the `STATS` command: if these contain functions or arithmetic operators, a virtual `EVAL` is inserted before and/or after the `STATS` command. Consequently, a double compensation is needed to adjust the bucketed date value before the aggregation and then again after. For instance, inserting a negative offset of `1 hour` to buckets of `1 year` looks like this:
+Sometimes you need to change the start value of each bucket by a given duration (similar to date histogram
+aggregation’s [`offset`](/reference/data-analysis/aggregations/search-aggregations-bucket-histogram-aggregation.md) parameter). To do so, you will need to
+take into account how the language handles expressions within the `STATS` command: if these contain functions or
+arithmetic operators, a virtual `EVAL` is inserted before and/or after the `STATS` command. Consequently, a double
+compensation is needed to adjust the bucketed date value before the aggregation and then again after. For instance,
+inserting a negative offset of `1 hour` to buckets of `1 year` looks like this:
 
 ```esql
 FROM employees

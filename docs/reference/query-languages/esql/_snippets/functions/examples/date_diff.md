@@ -11,7 +11,8 @@ ROW date1 = TO_DATETIME("2023-12-02T11:00:00.000Z"), date2 = TO_DATETIME("2023-1
 | --- | --- | --- |
 | 2023-12-02T11:00:00.000Z | 2023-12-02T11:00:00.001Z | 1000 |
 
-When subtracting in calendar units - like year, month a.s.o. - only the fully elapsed units are counted. To avoid this and obtain also remainders, simply switch to the next smaller unit and do the date math accordingly.
+When subtracting in calendar units - like year, month a.s.o. - only the fully elapsed units are counted.
+To avoid this and obtain also remainders, simply switch to the next smaller unit and do the date math accordingly.
 
 ```esql
 ROW end_23=TO_DATETIME("2023-12-31T23:59:59.999Z"),

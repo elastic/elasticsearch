@@ -40,11 +40,10 @@ public class Median extends AggregateFunction implements SurrogateExpression {
             + "also known as the 50% <<esql-percentile>>.",
         note = "Like <<esql-percentile>>, `MEDIAN` is <<esql-percentile-approximate,usually approximate>>.",
         appendix = """
-            [WARNING]
-            ====
+            ::::{warning}
             `MEDIAN` is also {wikipedia}/Nondeterministic_algorithm[non-deterministic].
             This means you can get slightly different results using the same data.
-            ====""",
+            ::::""",
         type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats_percentile", tag = "median"),

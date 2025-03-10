@@ -21,3 +21,6 @@
 
 :::{include} ../examples/median.md
 :::
+
+:::{include} ../appendix/median.md
+:::

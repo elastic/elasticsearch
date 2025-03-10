@@ -21,3 +21,6 @@
 
 :::{include} ../examples/percentile.md
 :::
+
+:::{include} ../appendix/percentile.md
+:::

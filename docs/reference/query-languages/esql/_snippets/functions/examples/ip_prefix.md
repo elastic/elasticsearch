@@ -10,3 +10,5 @@ row ip4 = to_ip("1.2.3.4"), ip6 = to_ip("fe80::cae2:65ff:fece:feb9")
 | ip4:ip | ip6:ip | ip4_prefix:ip | ip6_prefix:ip |
 | --- | --- | --- | --- |
 | 1.2.3.4 | fe80::cae2:65ff:fece:feb9 | 1.2.3.0 | fe80::cae2:65ff:fece:0000 |
+
+

@@ -65,7 +65,7 @@ public class ToDatetime extends AbstractConvertFunction {
         examples = {
             @Example(file = "date", tag = "to_datetime-str", explanation = """
                 Note that in this example, the last value in the source multi-valued field has not been converted.
-                The reason being that if the date format is not respected, the conversion will result in a *null* value.
+                The reason being that if the date format is not respected, the conversion will result in a `null` value.
                 When this happens a _Warning_ header is added to the response.
                 The header will provide information on the source of the failure:
 

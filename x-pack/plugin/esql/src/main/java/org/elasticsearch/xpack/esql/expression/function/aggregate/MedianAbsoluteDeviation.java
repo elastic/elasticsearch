@@ -50,11 +50,10 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
             + "deviation is `median(|median(X) - X|)`.",
         note = "Like <<esql-percentile>>, `MEDIAN_ABSOLUTE_DEVIATION` is <<esql-percentile-approximate,usually approximate>>.",
         appendix = """
-            [WARNING]
-            ====
+            ::::{warning}
             `MEDIAN_ABSOLUTE_DEVIATION` is also {wikipedia}/Nondeterministic_algorithm[non-deterministic].
             This means you can get slightly different results using the same data.
-            ====""",
+            ::::""",
         type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "median_absolute_deviation", tag = "median-absolute-deviation"),

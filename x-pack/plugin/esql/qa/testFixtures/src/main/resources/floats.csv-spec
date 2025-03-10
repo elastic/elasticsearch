@@ -262,7 +262,7 @@ emp_no:integer | salary_change:double    | a1:double
 
 cos
 // tag::cos[]
-ROW a=1.8 
+ROW a=1.8
 | EVAL cos=COS(a)
 // end::cos[]
 ;
@@ -275,7 +275,7 @@ a:double | cos:double
 
 cosh
 // tag::cosh[]
-ROW a=1.8 
+ROW a=1.8
 | EVAL cosh=COSH(a)
 // end::cosh[]
 ;
@@ -312,7 +312,7 @@ a:double | acos:double
 
 sin
 // tag::sin[]
-ROW a=1.8 
+ROW a=1.8
 | EVAL sin=SIN(a)
 // end::sin[]
 ;
@@ -325,7 +325,7 @@ a:double | sin:double
 
 sinh
 // tag::sinh[]
-ROW a=1.8 
+ROW a=1.8
 | EVAL sinh=SINH(a)
 // end::sinh[]
 ;
@@ -362,7 +362,7 @@ a:double | asin:double
 
 tan
 // tag::tan[]
-ROW a=1.8 
+ROW a=1.8
 | EVAL tan=TAN(a)
 // end::tan[]
 ;
@@ -375,7 +375,7 @@ a:double | tan:double
 
 tanh
 // tag::tanh[]
-ROW a=1.8 
+ROW a=1.8
 | EVAL tanh=TANH(a)
 // end::tanh[]
 ;

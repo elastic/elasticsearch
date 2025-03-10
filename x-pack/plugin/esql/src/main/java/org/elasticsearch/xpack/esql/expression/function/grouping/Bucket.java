@@ -109,7 +109,7 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
                 file = "bucket",
                 tag = "docsBucketMonth",
                 explanation = """
-                    The goal isn’t to provide *exactly* the target number of buckets,
+                    The goal isn’t to provide **exactly** the target number of buckets,
                     it’s to pick a range that people are comfortable with that provides at most the target number of buckets."""
             ),
             @Example(
@@ -117,8 +117,10 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
                 file = "bucket",
                 tag = "docsBucketMonthlyHistogram",
                 explanation = """
-                    NOTE: `BUCKET` does not create buckets that don’t match any documents.
-                    That’s why this example is missing `1985-03-01` and other dates."""
+                    ::::{note}
+                    `BUCKET` does not create buckets that don’t match any documents.
+                    That’s why this example is missing `1985-03-01` and other dates.
+                    ::::"""
             ),
             @Example(
                 description = """
@@ -127,15 +129,19 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
                 file = "bucket",
                 tag = "docsBucketWeeklyHistogram",
                 explanation = """
-                    NOTE: `BUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size.
+                    ::::{note}
+                    `BUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size.
                     For rows with a value outside of the range, it returns a bucket value that corresponds to a bucket outside the range.
-                    Combine`BUCKET` with <<esql-where>> to filter rows."""
+                    Combine `BUCKET` with <<esql-where>> to filter rows.
+                    ::::"""
             ),
             @Example(description = """
                 If the desired bucket size is known in advance, simply provide it as the second
                 argument, leaving the range out:""", file = "bucket", tag = "docsBucketWeeklyHistogramWithSpan", explanation = """
-                NOTE: When providing the bucket size as the second parameter, it must be a time
-                duration or date period."""),
+                ::::{note}
+                When providing the bucket size as the second parameter, it must be a time
+                duration or date period.
+                ::::"""),
             @Example(
                 description = "`BUCKET` can also operate on numeric fields. For example, to create a salary histogram:",
                 file = "bucket",

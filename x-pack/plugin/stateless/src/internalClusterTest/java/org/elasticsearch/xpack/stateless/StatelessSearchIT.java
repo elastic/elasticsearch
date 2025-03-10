@@ -52,6 +52,7 @@ import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -1272,13 +1273,12 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             refresh(indexName);
         }
 
-        var exception = expectThrows(
-            Exception.class,
-            () -> client().prepareSearch(indexName)
-                .setWaitForCheckpoints(Map.of(indexName, new long[] { Long.MAX_VALUE }))
-                .setWaitForCheckpointsTimeout(TimeValue.timeValueMinutes(2))
-                .get()
-        );
+        var exception = expectThrows(Exception.class, () -> {
+            var request = new SearchRequest(indexName);
+            request.setWaitForCheckpoints(Map.of(indexName, new long[] { Long.MAX_VALUE }));
+            request.setWaitForCheckpointsTimeout(TimeValue.timeValueMinutes(2));
+            client().search(request).actionGet();
+        });
         assertThat(exception.getCause().getMessage(), containsString("Cannot wait for unissued seqNo checkpoint"));
     }
 

@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -842,9 +843,8 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
 
     void onRolloversBulkResponse(Collection<RolloverResponse> rolloverResponses) {
         for (RolloverResponse rolloverResponse : rolloverResponses) {
-            if (rolloverResponse.isRolledOver() == false) {
-                logger.warn("rollover of the [{}] index [{}] failed", getOrigin(), rolloverResponse.getOldIndex());
-            }
+            assert rolloverResponse.isLazy() && rolloverResponse.isRolledOver() == false
+                : Strings.format("Expected rollover of the [%s] index [%s] to be lazy", getOrigin(), rolloverResponse.getOldIndex());
         }
     }
 

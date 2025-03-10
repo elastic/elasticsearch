@@ -566,7 +566,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                     List.of(
                         new SparseEmbeddingResults.Chunk(
                             List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
-                            "input text",
                             new ChunkedInference.TextOffset(0, "input text".length())
                         )
                     )

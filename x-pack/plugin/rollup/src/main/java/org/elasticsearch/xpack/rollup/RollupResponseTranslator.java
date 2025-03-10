@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rollup;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.PhaseFailure;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.TriFunction;
@@ -353,6 +354,7 @@ public class RollupResponseTranslator {
             skippedShards,
             took,
             ShardSearchFailure.EMPTY_ARRAY,
+            PhaseFailure.EMPTY_ARRAY,
             rolledResponses.get(0).getClusters()
         );
     }

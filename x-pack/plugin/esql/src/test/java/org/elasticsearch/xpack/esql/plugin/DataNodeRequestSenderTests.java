@@ -346,7 +346,8 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         }));
         assertThat(sent.size(), equalTo(2));// onResponse() + onSkip()
         assertThat(response.totalShards, equalTo(5));
-        assertThat(response.successfulShards, equalTo(5));
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(response.skippedShards, equalTo(4));
         assertThat(response.failedShards, equalTo(0));
     }
 

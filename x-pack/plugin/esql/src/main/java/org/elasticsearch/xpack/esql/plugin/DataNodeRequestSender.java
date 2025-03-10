@@ -46,6 +46,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -62,6 +63,7 @@ abstract class DataNodeRequestSender {
     private final Queue<ShardId> pendingShardIds = ConcurrentCollections.newQueue();
     private final Map<DiscoveryNode, Semaphore> nodePermits = new HashMap<>();
     private final Map<ShardId, ShardFailure> shardFailures = ConcurrentCollections.newConcurrentMap();
+    private final AtomicInteger skippedShards = new AtomicInteger();
     private final AtomicBoolean changed = new AtomicBoolean();
     private boolean reportedFailure = false; // guarded by sendingLock
     private volatile boolean skipRemaining = false;
@@ -91,12 +93,13 @@ abstract class DataNodeRequestSender {
         final long startTimeInNanos = System.nanoTime();
         searchShards(rootTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(targetShards -> {
             try (var computeListener = new ComputeListener(transportService.getThreadPool(), runOnTaskFailure, listener.map(profiles -> {
+                var skipped = skippedShards.get() + pendingShardIds.size();
                 return new ComputeResponse(
                     profiles,
                     TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos),
                     targetShards.totalShards(),
-                    targetShards.totalShards() - shardFailures.size(),
-                    targetShards.skippedShards(),
+                    targetShards.totalShards() - shardFailures.size() - skipped,
+                    targetShards.skippedShards() + skipped,
                     shardFailures.size()
                 );
             }))) {
@@ -202,6 +205,7 @@ abstract class DataNodeRequestSender {
 
             @Override
             public void onSkip(boolean skipRemaining) {
+                DataNodeRequestSender.this.skippedShards.incrementAndGet();
                 if (skipRemaining) {
                     DataNodeRequestSender.this.skipRemaining = true;
                 }

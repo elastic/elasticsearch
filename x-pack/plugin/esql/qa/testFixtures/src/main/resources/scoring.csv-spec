@@ -378,14 +378,17 @@ scoresPushableFunctions
 required_capability: metadata_score
 
 from books metadata _score 
-| where length(title) > 100
+| where year >= 2017
 | keep book_no, _score
 | sort _score desc, book_no asc
 ;
 
-book_no:keyword |  _score:double
-2924            | 1.0
-8678            | 1.0
+book_no:keyword | _score:double
+6818            | 1.0
+7400            | 1.0
+8480            | 1.0
+8534            | 1.0
+8615            | 1.0
 ;
 
 conjunctionScoresPushableNonPushableFunctions

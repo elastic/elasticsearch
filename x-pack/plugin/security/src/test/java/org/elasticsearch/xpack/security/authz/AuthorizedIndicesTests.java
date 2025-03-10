@@ -55,7 +55,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             Metadata.EMPTY_METADATA.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
-        assertTrue(authorizedIndices.all(null).get().isEmpty());
+        assertTrue(authorizedIndices.all(null).isEmpty());
     }
 
     public void testAuthorizedIndicesUserWithSomeRoles() {
@@ -115,14 +115,14 @@ public class AuthorizedIndicesTests extends ESTestCase {
             metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
-        assertThat(authorizedIndices.all(null).get(), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
-        assertThat(authorizedIndices.all(null).get(), not(contains("bbbbb")));
+        assertThat(authorizedIndices.all(null), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
+        assertThat(authorizedIndices.all(null), not(contains("bbbbb")));
         assertThat(authorizedIndices.check("bbbbb", null), is(false));
-        assertThat(authorizedIndices.all(null).get(), not(contains("ba")));
+        assertThat(authorizedIndices.all(null), not(contains("ba")));
         assertThat(authorizedIndices.check("ba", null), is(false));
-        assertThat(authorizedIndices.all(null).get(), not(contains(internalSecurityIndex)));
+        assertThat(authorizedIndices.all(null), not(contains(internalSecurityIndex)));
         assertThat(authorizedIndices.check(internalSecurityIndex, null), is(false));
-        assertThat(authorizedIndices.all(null).get(), not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
+        assertThat(authorizedIndices.all(null), not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
         assertThat(authorizedIndices.check(SecuritySystemIndices.SECURITY_MAIN_ALIAS, null), is(false));
     }
 
@@ -134,7 +134,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             Metadata.EMPTY_METADATA.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
-        assertTrue(authorizedIndices.all(null).get().isEmpty());
+        assertTrue(authorizedIndices.all(null).isEmpty());
     }
 
     public void testSecurityIndicesAreRemovedFromRegularUser() {
@@ -145,7 +145,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             Metadata.EMPTY_METADATA.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
-        assertTrue(authorizedIndices.all(null).get().isEmpty());
+        assertTrue(authorizedIndices.all(null).isEmpty());
     }
 
     public void testSecurityIndicesAreRestrictedForDefaultRole() {
@@ -177,12 +177,12 @@ public class AuthorizedIndicesTests extends ESTestCase {
             metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
-        assertThat(authorizedIndices.all(null).get(), containsInAnyOrder("an-index", "another-index"));
+        assertThat(authorizedIndices.all(null), containsInAnyOrder("an-index", "another-index"));
         assertThat(authorizedIndices.check("an-index", null), is(true));
         assertThat(authorizedIndices.check("another-index", null), is(true));
-        assertThat(authorizedIndices.all(null).get(), not(contains(internalSecurityIndex)));
+        assertThat(authorizedIndices.all(null), not(contains(internalSecurityIndex)));
         assertThat(authorizedIndices.check(internalSecurityIndex, null), is(false));
-        assertThat(authorizedIndices.all(null).get(), not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
+        assertThat(authorizedIndices.all(null), not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
         assertThat(authorizedIndices.check(SecuritySystemIndices.SECURITY_MAIN_ALIAS, null), is(false));
     }
 
@@ -216,7 +216,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             () -> ignore -> {}
         );
         assertThat(
-            authorizedIndices.all(null).get(),
+            authorizedIndices.all(null),
             containsInAnyOrder("an-index", "another-index", SecuritySystemIndices.SECURITY_MAIN_ALIAS, internalSecurityIndex)
         );
 
@@ -227,7 +227,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             () -> ignore -> {}
         );
         assertThat(
-            authorizedIndicesSuperUser.all(null).get(),
+            authorizedIndicesSuperUser.all(null),
             containsInAnyOrder("an-index", "another-index", SecuritySystemIndices.SECURITY_MAIN_ALIAS, internalSecurityIndex)
         );
     }
@@ -297,21 +297,21 @@ public class AuthorizedIndicesTests extends ESTestCase {
             metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
-        assertThat(authorizedIndices.all(null).get(), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
+        assertThat(authorizedIndices.all(null), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
         for (String resource : List.of("a1", "a2", "aaaaaa", "b", "ab")) {
             assertThat(authorizedIndices.check(resource, null), is(true));
         }
-        assertThat(authorizedIndices.all(null).get(), not(contains("bbbbb")));
+        assertThat(authorizedIndices.all(null), not(contains("bbbbb")));
         assertThat(authorizedIndices.check("bbbbb", null), is(false));
-        assertThat(authorizedIndices.all(null).get(), not(contains("ba")));
+        assertThat(authorizedIndices.all(null), not(contains("ba")));
         assertThat(authorizedIndices.check("ba", null), is(false));
         // due to context, datastreams are excluded from wildcard expansion
-        assertThat(authorizedIndices.all(null).get(), not(contains("adatastream1")));
+        assertThat(authorizedIndices.all(null), not(contains("adatastream1")));
         // but they are authorized when explicitly tested (they are not "unavailable" for the Security filter)
         assertThat(authorizedIndices.check("adatastream1", null), is(true));
-        assertThat(authorizedIndices.all(null).get(), not(contains(internalSecurityIndex)));
+        assertThat(authorizedIndices.all(null), not(contains(internalSecurityIndex)));
         assertThat(authorizedIndices.check(internalSecurityIndex, null), is(false));
-        assertThat(authorizedIndices.all(null).get(), not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
+        assertThat(authorizedIndices.all(null), not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
         assertThat(authorizedIndices.check(SecuritySystemIndices.SECURITY_MAIN_ALIAS, null), is(false));
     }
 
@@ -382,14 +382,14 @@ public class AuthorizedIndicesTests extends ESTestCase {
             metadata.getProject().getIndicesLookup(),
             () -> ignore -> {}
         );
-        assertThat(authorizedIndices.all(null).get(), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab", "adatastream1", backingIndex));
-        assertThat(authorizedIndices.all(null).get(), not(contains("bbbbb")));
+        assertThat(authorizedIndices.all(null), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab", "adatastream1", backingIndex));
+        assertThat(authorizedIndices.all(null), not(contains("bbbbb")));
         assertThat(authorizedIndices.check("bbbbb", null), is(false));
-        assertThat(authorizedIndices.all(null).get(), not(contains("ba")));
+        assertThat(authorizedIndices.all(null), not(contains("ba")));
         assertThat(authorizedIndices.check("ba", null), is(false));
-        assertThat(authorizedIndices.all(null).get(), not(contains(internalSecurityIndex)));
+        assertThat(authorizedIndices.all(null), not(contains(internalSecurityIndex)));
         assertThat(authorizedIndices.check(internalSecurityIndex, null), is(false));
-        assertThat(authorizedIndices.all(null).get(), not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
+        assertThat(authorizedIndices.all(null), not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
         assertThat(authorizedIndices.check(SecuritySystemIndices.SECURITY_MAIN_ALIAS, null), is(false));
     }
 

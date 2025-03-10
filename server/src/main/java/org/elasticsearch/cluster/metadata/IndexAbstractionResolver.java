@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class IndexAbstractionResolver {
 
@@ -38,7 +37,7 @@ public class IndexAbstractionResolver {
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         ProjectMetadata projectMetadata,
-        Function<String, Supplier<Set<String>>> allAuthorizedAndAvailableBySelector,
+        Function<String, Set<String>> allAuthorizedAndAvailableBySelector,
         BiPredicate<String, String> isAuthorized,
         boolean includeDataStreams
     ) {
@@ -72,7 +71,7 @@ public class IndexAbstractionResolver {
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
-                for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selectorString).get()) {
+                for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selectorString)) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
                             indexAbstraction,

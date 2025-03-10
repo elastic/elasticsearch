@@ -49,7 +49,6 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiPredicate;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
@@ -323,7 +322,7 @@ class IndicesAndAliasesResolver {
                     );
                 }
                 if (indicesOptions.expandWildcardExpressions()) {
-                    for (String authorizedIndex : authorizedIndices.all(allIndicesPatternSelector).get()) {
+                    for (String authorizedIndex : authorizedIndices.all(allIndicesPatternSelector)) {
                         if (IndexAbstractionResolver.isIndexVisible(
                             "*",
                             allIndicesPatternSelector,
@@ -389,7 +388,7 @@ class IndicesAndAliasesResolver {
             if (aliasesRequest.expandAliasesWildcards()) {
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(
                     aliasesRequest.aliases(),
-                    loadAuthorizedAliases(authorizedIndices.all(null), projectMetadata)
+                    loadAuthorizedAliases(authorizedIndices, projectMetadata)
                 );
                 aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
             }
@@ -483,10 +482,13 @@ class IndicesAndAliasesResolver {
         return resolvedAliasOrIndex;
     }
 
-    private static List<String> loadAuthorizedAliases(Supplier<Set<String>> authorizedIndices, ProjectMetadata projectMetadata) {
+    private static List<String> loadAuthorizedAliases(
+        AuthorizationEngine.AuthorizedIndices authorizedIndices,
+        ProjectMetadata projectMetadata
+    ) {
         List<String> authorizedAliases = new ArrayList<>();
         SortedMap<String, IndexAbstraction> existingAliases = projectMetadata.getIndicesLookup();
-        for (String authorizedIndex : authorizedIndices.get()) {
+        for (String authorizedIndex : authorizedIndices.all(null)) {
             IndexAbstraction indexAbstraction = existingAliases.get(authorizedIndex);
             if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
                 authorizedAliases.add(authorizedIndex);

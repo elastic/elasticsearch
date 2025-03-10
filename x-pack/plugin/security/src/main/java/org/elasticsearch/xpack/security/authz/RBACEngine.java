@@ -1091,10 +1091,10 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         @Override
-        public Supplier<Set<String>> all(@Nullable String selector) {
+        public Set<String> all(@Nullable String selector) {
             return IndexComponentSelector.FAILURES.equals(IndexComponentSelector.getByKeyOrThrow(selector))
-                ? failureStoreAuthorizedAndAvailableSupplier
-                : authorizedAndAvailableSupplier;
+                ? failureStoreAuthorizedAndAvailableSupplier.get()
+                : authorizedAndAvailableSupplier.get();
         }
 
         @Override

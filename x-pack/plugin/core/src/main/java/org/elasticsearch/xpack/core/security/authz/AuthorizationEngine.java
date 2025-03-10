@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -290,8 +289,9 @@ public interface AuthorizationEngine {
         /**
          * Returns all the index-like resource names that are available and accessible for an action type and selector by a user,
          * at a fixed point in time (for a single cluster state view).
+         * The result is cached and subsequent calls to this method are idempotent.
          */
-        Supplier<Set<String>> all(@Nullable String selector);
+        Set<String> all(@Nullable String selector);
 
         /**
          * Checks if an index-like resource name is authorized, for an action by a user. The resource might or might not exist.

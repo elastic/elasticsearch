@@ -60,11 +60,6 @@ public class TransportVersions {
     public static final TransportVersion V_7_8_1 = def(7_08_01_99);
     public static final TransportVersion V_7_9_0 = def(7_09_00_99);
     public static final TransportVersion V_7_10_0 = def(7_10_00_99);
-    public static final TransportVersion V_7_15_0 = def(7_15_00_99);
-    public static final TransportVersion V_7_15_1 = def(7_15_01_99);
-    public static final TransportVersion V_7_17_0 = def(7_17_00_99);
-    public static final TransportVersion V_7_17_1 = def(7_17_01_99);
-    public static final TransportVersion V_7_17_8 = def(7_17_08_99);
     public static final TransportVersion V_8_0_0 = def(8_00_00_99);
     public static final TransportVersion V_8_1_0 = def(8_01_00_99);
     public static final TransportVersion V_8_2_0 = def(8_02_00_99);
@@ -184,6 +179,7 @@ public class TransportVersions {
     public static final TransportVersion INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM = def(9_023_0_00);
     public static final TransportVersion MAX_OPERATION_SIZE_REJECTIONS_ADDED = def(9_024_0_00);
     public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR = def(9_025_0_00);
+    public static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = def(9_026_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

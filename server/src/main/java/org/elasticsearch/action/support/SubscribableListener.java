@@ -586,4 +586,15 @@ public class SubscribableListener<T> implements ActionListener<T> {
     private Object compareAndExchangeState(Object expectedValue, Object newValue) {
         return VH_STATE_FIELD.compareAndExchange(this, expectedValue, newValue);
     }
+
+    @SuppressWarnings("rawtypes")
+    private static final SubscribableListener NULL_SUCCESS = newSucceeded(null);
+
+    /**
+     * Same as {@link #newSucceeded(Object)} but always returns the same instance with result value {@code null}.
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> SubscribableListener<T> nullSuccess() {
+        return NULL_SUCCESS;
+    }
 }

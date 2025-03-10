@@ -14,19 +14,28 @@ import org.apache.http.nio.entity.NByteArrayEntity;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.ErrorTraceHelper;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.Collection;
 import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 
 public class SearchErrorTraceIT extends HttpSmokeTestCase {
     private BooleanSupplier hasStackTrace;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), MockTransportService.TestPlugin.class);
+    }
 
     @Before
     public void setupMessageListener() {

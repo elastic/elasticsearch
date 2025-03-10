@@ -124,28 +124,19 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
      */
     public PinnedQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_7_15_0)) {
-            ids = in.readStringCollectionAsList();
-            docs = null;
-        } else {
-            ids = in.readOptionalStringCollectionAsList();
-            docs = in.readBoolean() ? in.readCollectionAsList(SpecifiedDocument::new) : null;
-        }
+        ids = in.readOptionalStringCollectionAsList();
+        docs = in.readBoolean() ? in.readCollectionAsList(SpecifiedDocument::new) : null;
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_7_15_0)) {
-            out.writeStringCollection(this.ids);
+        out.writeOptionalStringCollection(this.ids);
+        if (docs == null) {
+            out.writeBoolean(false);
         } else {
-            out.writeOptionalStringCollection(this.ids);
-            if (docs == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeCollection(docs);
-            }
+            out.writeBoolean(true);
+            out.writeCollection(docs);
         }
         out.writeNamedWriteable(organicQuery);
     }

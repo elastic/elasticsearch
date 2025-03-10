@@ -36,7 +36,6 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShutdownMetadata>, ToXContentObject {
 
-    public static final TransportVersion REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = TransportVersions.V_7_16_0;
     public static final TransportVersion SIGTERM_ADDED_VERSION = TransportVersions.V_8_9_X;
     public static final TransportVersion GRACE_PERIOD_ADDED_VERSION = TransportVersions.V_8_9_X;
 
@@ -180,11 +179,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         this.startedAtMillis = in.readVLong();
         this.nodeSeen = in.readBoolean();
         this.allocationDelay = in.readOptionalTimeValue();
-        if (in.getTransportVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
-            this.targetNodeName = in.readOptionalString();
-        } else {
-            this.targetNodeName = null;
-        }
+        this.targetNodeName = in.readOptionalString();
         if (in.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
             this.gracePeriod = in.readOptionalTimeValue();
         } else {
@@ -271,8 +266,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         if (out.getTransportVersion().onOrAfter(NODE_SHUTDOWN_EPHEMERAL_ID_ADDED)) {
             out.writeOptionalString(nodeEphemeralId);
         }
-        if ((out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION) && this.type == SingleNodeShutdownMetadata.Type.REPLACE)
-            || (out.getTransportVersion().before(SIGTERM_ADDED_VERSION) && this.type == Type.SIGTERM)) {
+        if (out.getTransportVersion().before(SIGTERM_ADDED_VERSION) && this.type == Type.SIGTERM) {
             out.writeEnum(SingleNodeShutdownMetadata.Type.REMOVE);
         } else {
             out.writeEnum(type);
@@ -281,9 +275,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         out.writeVLong(startedAtMillis);
         out.writeBoolean(nodeSeen);
         out.writeOptionalTimeValue(allocationDelay);
-        if (out.getTransportVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
-            out.writeOptionalString(targetNodeName);
-        }
+        out.writeOptionalString(targetNodeName);
         if (out.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
             out.writeOptionalTimeValue(gracePeriod);
         }

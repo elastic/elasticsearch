@@ -1,0 +1,6 @@
+pr: 124508
+summary: Trim fields of wide index if there is no field coded explicitly in the query
+  in `IndexResolver`
+area: ES|QL
+type: enhancement
+issues: []

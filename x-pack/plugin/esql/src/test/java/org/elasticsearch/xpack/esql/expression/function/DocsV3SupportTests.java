@@ -139,7 +139,6 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(results, equalTo(expectedResults));
     }
 
-
     public void testRenderingExample2() throws IOException {
         String expectedExample = """
             ```esql

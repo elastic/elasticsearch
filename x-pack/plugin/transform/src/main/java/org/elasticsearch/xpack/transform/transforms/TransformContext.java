@@ -48,6 +48,9 @@ public class TransformContext {
     private volatile boolean shouldRecreateDestinationIndex = false;
     private volatile AuthorizationState authState;
     private volatile int pageSize = 0;
+    private AtomicInteger skippedCheckpoints = new AtomicInteger(0);
+    private AtomicInteger totalTimeWasGreaterThanFrequency = new AtomicInteger(0);
+    private volatile Instant lastTotalTimeRecorded;
 
     /**
      * If the destination index is blocked (e.g. during a reindex), the Transform will fail to write to it.
@@ -271,6 +274,36 @@ public class TransformContext {
 
     boolean doesNotHaveFailures() {
         return getFailureCount() == 0 && getStatePersistenceFailureCount() == 0 && getStartUpFailureCount() == 0;
+    }
+
+    int skippedCheckpoints() {
+        return skippedCheckpoints.get();
+    }
+
+    void checkpointSkipped() {
+        skippedCheckpoints.incrementAndGet();
+    }
+
+    void resetSkippedCheckpoint() {
+        skippedCheckpoints.set(0);
+    }
+
+    int numberOfTimesTotalTimeWasGreaterThanFrequency() {
+        return totalTimeWasGreaterThanFrequency.get();
+    }
+
+    void totalTimeWasGreaterThanFrequency() {
+        totalTimeWasGreaterThanFrequency.incrementAndGet();
+        lastTotalTimeRecorded = Instant.now();
+    }
+
+    void totalTimeWasLessThanFrequency() {
+        totalTimeWasGreaterThanFrequency.decrementAndGet();
+        lastTotalTimeRecorded = Instant.now();
+    }
+
+    Instant lastTotalTimeRecorded() {
+        return lastTotalTimeRecorded;
     }
 
     void shutdown() {

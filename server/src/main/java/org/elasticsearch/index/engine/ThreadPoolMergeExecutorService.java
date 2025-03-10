@@ -250,6 +250,10 @@ public class ThreadPoolMergeExecutorService {
             ioRate = new AtomicLong(initialIORate);
         }
 
+        long get() {
+            return ioRate.get();
+        }
+
         // Exactly like {@link AtomicLong#updateAndGet} but calls the consumer rather than return the new (updated) value.
         // The consumer receives both the previous and the updated values (which can be equal).
         void update(LongUnaryOperator updateFunction, AtomicIORate.UpdateConsumer updateConsumer) {

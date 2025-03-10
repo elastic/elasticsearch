@@ -28,7 +28,7 @@ public class OldCodecsAvailableTests extends ESTestCase {
      */
     @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)
     public void testLuceneBWCCodecsAvailable() {
-        assertEquals("Add Lucene BWC codecs for Elasticsearch version 9", 9, Version.CURRENT.major);
+        assertEquals("Add Lucene BWC codecs for Elasticsearch version 8", 9, Version.CURRENT.major);
 
         String codecPathRegex = ".*[\\\\.](Lucene(8[0-9])Codec)";
         Pattern codecPathPattern = Pattern.compile(codecPathRegex);

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60MetadataOnlyPointsFormat;
 
 /**
+ * This is a fork of {@link org.apache.lucene.backward_codecs.lucene80.Lucene80Codec}
  * Implements the Lucene 8.0 index format. Loaded via SPI for indices created/written with Lucene 8.0.0-8.3.0
  * (Elasticsearch [7.0.0-7.5.2]), mounted as archive indices in Elasticsearch 8.x / 9.x.
  */
@@ -48,11 +49,7 @@ public class BWCLucene80Codec extends BWCCodec {
     // Needed for SPI loading
     @SuppressWarnings("unused")
     public BWCLucene80Codec() {
-        this("BWCLucene80Codec");
-    }
-
-    public BWCLucene80Codec(String name) {
-        super(name);
+        super("BWCLucene80Codec");
         this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
     }
 

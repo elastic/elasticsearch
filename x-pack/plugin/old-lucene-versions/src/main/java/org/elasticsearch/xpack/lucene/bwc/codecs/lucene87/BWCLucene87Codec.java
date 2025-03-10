@@ -27,31 +27,12 @@ import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene86.Lucene86MetadataOnlyPointsFormat;
 
-import java.util.Objects;
-
 /**
+ * This is a fork of {@link org.apache.lucene.backward_codecs.lucene87.Lucene87Codec}
  * Implements the Lucene 8.7 index format. Loaded via SPI for indices created/written with Lucene 8.7.0-8.11.3
  * (Elasticsearch [7.10.0-7-17.26]), mounted as archive indices in Elasticsearch 8.x / 9.x.
  */
 public class BWCLucene87Codec extends BWCCodec {
-
-    private enum Mode {
-        /** Trade compression ratio for retrieval speed. */
-        BEST_SPEED(Lucene87StoredFieldsFormat.Mode.BEST_SPEED, Lucene80DocValuesFormat.Mode.BEST_SPEED),
-        /** Trade retrieval speed for compression ratio. */
-        BEST_COMPRESSION(Lucene87StoredFieldsFormat.Mode.BEST_COMPRESSION, Lucene80DocValuesFormat.Mode.BEST_COMPRESSION);
-
-        /** compression mode for stored fields */
-        private final Lucene87StoredFieldsFormat.Mode storedMode;
-
-        /** compression mode for doc value fields */
-        private final Lucene80DocValuesFormat.Mode dvMode;
-
-        Mode(Lucene87StoredFieldsFormat.Mode storedMode, Lucene80DocValuesFormat.Mode dvMode) {
-            this.storedMode = Objects.requireNonNull(storedMode);
-            this.dvMode = Objects.requireNonNull(dvMode);
-        }
-    }
 
     private final LiveDocsFormat liveDocsFormat = new Lucene50LiveDocsFormat();
     private final CompoundFormat compoundFormat = new Lucene50CompoundFormat();
@@ -78,14 +59,10 @@ public class BWCLucene87Codec extends BWCCodec {
     // Needed for SPI loading
     @SuppressWarnings("unused")
     public BWCLucene87Codec() {
-        this("BWCLucene87Codec", Mode.BEST_COMPRESSION);
-    }
-
-    public BWCLucene87Codec(String name, Mode mode) {
-        super(name);
-        this.storedFieldsFormat = new Lucene87StoredFieldsFormat(mode.storedMode);
+        super("BWCLucene87Codec");
+        this.storedFieldsFormat = new Lucene87StoredFieldsFormat(Lucene87StoredFieldsFormat.Mode.BEST_COMPRESSION);
         this.defaultFormat = new Lucene84PostingsFormat();
-        this.defaultDVFormat = new Lucene80DocValuesFormat(mode.dvMode);
+        this.defaultDVFormat = new Lucene80DocValuesFormat(Lucene80DocValuesFormat.Mode.BEST_COMPRESSION);
     }
 
     @Override

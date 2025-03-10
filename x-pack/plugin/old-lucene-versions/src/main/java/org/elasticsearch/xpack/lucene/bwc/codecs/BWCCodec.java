@@ -28,6 +28,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene80.BWCLucene80Codec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene84.BWCLucene84Codec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene86.BWCLucene86Codec;
@@ -97,23 +98,60 @@ public abstract class BWCCodec extends Codec {
         return segmentInfosFormat;
     }
 
+    /**
+     * This method is not supported for archive indices and older codecs and will always throw an {@link UnsupportedOperationException}.
+     * This method is never called in practice, as we rewrite field infos to override the info about which features are present in
+     * the index. Even if norms are present, field info lies about it.
+     *
+     * @return nothing, as this method always throws an exception
+     * @throws UnsupportedOperationException always thrown to indicate that this method is not supported
+     */
     @Override
     public final NormsFormat normsFormat() {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * This method is not supported for archive indices and older codecs and will always throw an {@link UnsupportedOperationException}.
+     * This method is never called in practice, as we rewrite field infos to override the info about which features are present in
+     * the index. Even if term vectors are present, field info lies about it.
+     *
+     * @return nothing, as this method always throws an exception
+     * @throws UnsupportedOperationException always thrown to indicate that this method is not supported
+     */
     @Override
     public final TermVectorsFormat termVectorsFormat() {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * This method is not supported for archive indices and older codecs and will always throw an {@link UnsupportedOperationException}.
+     * The knn vectors can't be present because it is not supported yet in any of the lucene versions that we support for archive indices.
+     *
+     * @return nothing, as this method always throws an exception
+     * @throws UnsupportedOperationException always thrown to indicate that this method is not supported
+     */
     @Override
     public final KnnVectorsFormat knnVectorsFormat() {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Returns the original {@link SegmentInfoFormat} used by this codec.
+     * This method should be implemented by subclasses to provide the specific
+     * {@link SegmentInfoFormat} that this codec is intended to use.
+     *
+     * @return the original {@link SegmentInfoFormat} used by this codec
+     */
     protected abstract SegmentInfoFormat originalSegmentInfoFormat();
 
+    /**
+     * Returns the original {@link FieldInfosFormat} used by this codec.
+     * This method should be implemented by subclasses to provide the specific
+     * {@link FieldInfosFormat} that this codec is intended to use.
+     *
+     * @return the original {@link FieldInfosFormat} used by this codec
+     */
     protected abstract FieldInfosFormat originalFieldInfosFormat();
 
     // mark all fields as no term vectors, no norms, no payloads, and no vectors.
@@ -170,8 +208,12 @@ public abstract class BWCCodec extends Codec {
         return segmentInfo1;
     }
 
-    // Special handling for Lucene8xCodecs (which are currently bundled with Lucene)
-    // Use BWCLucene8xCodec instead as that one extends BWCCodec (similar to all other older codecs)
+    /**
+     * Returns a backward-compatible codec for the given codec. If the codec is one of the known Lucene 8.x codecs,
+     * it returns a corresponding read-only backward-compatible codec. Otherwise, it returns the original codec.
+     * This switch if for indices created in ES 6.x, that may have some of their segments written with ES 7.x, hence Lucene 8.x.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)
     private static Codec getBackwardCompatibleCodec(Codec codec) {
         if (codec == null) return null;
 

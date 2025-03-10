@@ -18,6 +18,9 @@ import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.elasticsearch.test.ESTestCase;
 
+/**
+ * Unit tests for the {@link BWCCodec} class.
+ */
 public class BWCCodecTests extends ESTestCase {
 
     private final Codec codec;
@@ -66,14 +69,23 @@ public class BWCCodecTests extends ESTestCase {
         };
     }
 
+    /**
+     * Tests that the {@link Codec#normsFormat()} method throws an {@link UnsupportedOperationException}.
+     */
     public void testNormsFormatUnsupportedOperation() {
         assertThrows(UnsupportedOperationException.class, codec::normsFormat);
     }
 
+    /**
+     * Tests that the {@link Codec#termVectorsFormat()} method throws an {@link UnsupportedOperationException}.
+     */
     public void testTermVectorsFormatUnsupportedOperation() {
         assertThrows(UnsupportedOperationException.class, codec::termVectorsFormat);
     }
 
+    /**
+     * Tests that the {@link Codec#knnVectorsFormat()} method throws an {@link UnsupportedOperationException}.
+     */
     public void testKnnVectorsFormatUnsupportedOperation() {
         assertThrows(UnsupportedOperationException.class, codec::knnVectorsFormat);
     }

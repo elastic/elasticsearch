@@ -257,6 +257,7 @@ class Elasticsearch {
                 nodeEnv.repoDirs(),
                 nodeEnv.configDir(),
                 nodeEnv.libDir(),
+                nodeEnv.modulesDir(),
                 nodeEnv.pluginsDir(),
                 sourcePaths,
                 nodeEnv.logsDir(),

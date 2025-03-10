@@ -365,17 +365,17 @@ public class FileAccessTreeTests extends ESTestCase {
 
     public void testDuplicateExclusivePaths() {
         // Bunch o' handy definitions
-        var originalFileData = FileData.ofPath(path("/a/b"), READ).withExclusive(true);
-        var fileDataWithWriteMode = FileData.ofPath(path("/a/b"), READ_WRITE).withExclusive(true);
+        var pathAB = path("/a/b");
+        var pathCD = path("/c/d");
+        var originalFileData = FileData.ofPath(pathAB, READ).withExclusive(true);
+        var fileDataWithWriteMode = FileData.ofPath(pathAB, READ_WRITE).withExclusive(true);
         var original = new ExclusiveFileEntitlement("component1", "module1", new FilesEntitlement(List.of(originalFileData)));
         var differentComponent = new ExclusiveFileEntitlement("component2", original.moduleName(), original.filesEntitlement());
         var differentModule = new ExclusiveFileEntitlement(original.componentName(), "module2", original.filesEntitlement());
         var differentPath = new ExclusiveFileEntitlement(
             original.componentName(),
             original.moduleName(),
-            new FilesEntitlement(
-                List.of(FileData.ofPath(path("/c/d"), originalFileData.mode()).withExclusive(originalFileData.exclusive()))
-            )
+            new FilesEntitlement(List.of(FileData.ofPath(pathCD, originalFileData.mode()).withExclusive(originalFileData.exclusive())))
         );
         var differentMode = new ExclusiveFileEntitlement(
             original.componentName(),
@@ -387,7 +387,7 @@ public class FileAccessTreeTests extends ESTestCase {
             original.moduleName(),
             new FilesEntitlement(List.of(originalFileData.withPlatform(WINDOWS)))
         );
-        var originalExclusivePath = new ExclusivePath("component1", Set.of("module1"), normalizePath(path("/a/b")));
+        var originalExclusivePath = new ExclusivePath("component1", Set.of("module1"), normalizePath(pathAB));
 
         // Some basic tests
 
@@ -409,12 +409,17 @@ public class FileAccessTreeTests extends ESTestCase {
             originalExclusivePath,
             new ExclusivePath("component2", Set.of(original.moduleName()), originalExclusivePath.path()),
             new ExclusivePath(original.componentName(), Set.of("module2"), originalExclusivePath.path()),
-            new ExclusivePath(original.componentName(), Set.of(original.moduleName()), normalizePath(path("/c/d")))
+            new ExclusivePath(original.componentName(), Set.of(original.moduleName()), normalizePath(pathCD))
         );
         var iae = expectThrows(IllegalArgumentException.class, () -> buildExclusivePathList(distinctEntitlements, TEST_PATH_LOOKUP));
+        var pathABString = pathAB.toAbsolutePath().toString();
         assertThat(
             iae.getMessage(),
-            equalTo("Path [/a/b] is already exclusive to [component1][module1], cannot add exclusive access for [component2][module1]")
+            equalTo(
+                "Path ["
+                    + pathABString
+                    + "] is already exclusive to [component1][module1], cannot add exclusive access for [component2][module1]"
+            )
         );
 
         var equivalentEntitlements = List.of(original, differentMode, differentPlatform);

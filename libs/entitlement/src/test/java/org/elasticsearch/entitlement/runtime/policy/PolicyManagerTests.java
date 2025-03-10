@@ -29,6 +29,7 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -448,41 +449,45 @@ public class PolicyManagerTests extends ESTestCase {
         var baseTestPath = Path.of("/base").toAbsolutePath();
         var testPath1 = Path.of("/base/test").toAbsolutePath();
         var testPath2 = Path.of("/base/test/foo").toAbsolutePath();
+        var plugins = new LinkedHashMap<String, Policy>();
+        plugins.put(
+            "plugin1",
+            new Policy(
+                "test",
+                List.of(
+                    new Scope(
+                        "test.module1",
+                        List.of(
+                            new FilesEntitlement(
+                                List.of(FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ).withExclusive(true))
+                            )
+                        )
+                    )
+                )
+            )
+        );
+        plugins.put(
+            "plugin2",
+            new Policy(
+                "test",
+                List.of(
+                    new Scope(
+                        "test.module2",
+                        List.of(
+                            new FilesEntitlement(
+                                List.of(FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ).withExclusive(true))
+                            )
+                        )
+                    )
+                )
+            )
+        );
         var iae = expectThrows(
             IllegalArgumentException.class,
             () -> new PolicyManager(
                 createEmptyTestServerPolicy(),
                 List.of(),
-                Map.of(
-                    "plugin1",
-                    new Policy(
-                        "test",
-                        List.of(
-                            new Scope(
-                                "test.module1",
-                                List.of(
-                                    new FilesEntitlement(
-                                        List.of(FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ).withExclusive(true))
-                                    )
-                                )
-                            )
-                        )
-                    ),
-                    "plugin2",
-                    new Policy(
-                        "test",
-                        List.of(
-                            new Scope(
-                                "test.module2",
-                                List.of(
-                                    new FilesEntitlement(
-                                        List.of(FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ).withExclusive(true))
-                                    )
-                                )
-                            )
-                        )
-                    )
-                ),
+                plugins,
                 c -> "",
                 Map.of("plugin1", Path.of("modules", "plugin1"), "plugin2", Path.of("modules", "plugin2")),
                 TEST_AGENTS_PACKAGE_NAME,

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -71,27 +72,25 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
     }
 
     @Override
-    protected void authenticate(
-        final String securityAction,
-        final TransportRequest request,
-        final ActionListener<Authentication> authenticationListener
-    ) {
+    protected ListenableFuture<Authentication> authenticate(final String securityAction, final TransportRequest request) {
+        final ListenableFuture<Authentication> listener = new ListenableFuture<>();
         if (false == Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.check(licenseState)) {
             onFailureWithDebugLog(
                 securityAction,
                 request,
-                authenticationListener,
+                listener,
                 LicenseUtils.newComplianceException(Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.getName())
             );
         } else {
             try {
                 validateHeaders();
             } catch (Exception ex) {
-                onFailureWithDebugLog(securityAction, request, authenticationListener, ex);
-                return;
+                onFailureWithDebugLog(securityAction, request, listener, ex);
+                return listener;
             }
-            crossClusterAccessAuthcService.authenticate(securityAction, request, authenticationListener);
+            crossClusterAccessAuthcService.authenticate(securityAction, request, listener);
         }
+        return listener;
     }
 
     private void validateHeaders() {

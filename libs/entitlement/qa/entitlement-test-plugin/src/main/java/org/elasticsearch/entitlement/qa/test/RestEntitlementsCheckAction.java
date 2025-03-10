@@ -55,7 +55,10 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_ALLOWED;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.SERVER_ONLY;
 import static org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction.CheckAction.alwaysDenied;
 import static org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction.CheckAction.deniedToPlugins;
 import static org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction.CheckAction.forPlugins;
@@ -65,20 +68,20 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestEntitlementsCheckAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestEntitlementsCheckAction.class);
 
-    record CheckAction(CheckedRunnable<Exception> action, boolean isAlwaysDeniedToPlugins, Integer fromJavaVersion) {
+    record CheckAction(CheckedRunnable<Exception> action, EntitlementTest.ExpectedAccess expectedAccess, Integer fromJavaVersion) {
         /**
          * These cannot be granted to plugins, so our test plugins cannot test the "allowed" case.
          */
         static CheckAction deniedToPlugins(CheckedRunnable<Exception> action) {
-            return new CheckAction(action, true, null);
+            return new CheckAction(action, SERVER_ONLY, null);
         }
 
         static CheckAction forPlugins(CheckedRunnable<Exception> action) {
-            return new CheckAction(action, false, null);
+            return new CheckAction(action, PLUGINS, null);
         }
 
         static CheckAction alwaysDenied(CheckedRunnable<Exception> action) {
-            return new CheckAction(action, true, null);
+            return new CheckAction(action, ALWAYS_DENIED, null);
         }
     }
 
@@ -125,7 +128,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             entry("responseCache_setDefault", alwaysDenied(RestEntitlementsCheckAction::setDefaultResponseCache)),
             entry(
                 "createInetAddressResolverProvider",
-                new CheckAction(VersionSpecificNetworkChecks::createInetAddressResolverProvider, true, 18)
+                new CheckAction(VersionSpecificNetworkChecks::createInetAddressResolverProvider, SERVER_ONLY, 18)
             ),
             entry("createURLStreamHandlerProvider", alwaysDenied(RestEntitlementsCheckAction::createURLStreamHandlerProvider)),
             entry("createURLWithURLStreamHandler", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler)),
@@ -194,6 +197,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         getTestEntries(PathActions.class),
         getTestEntries(SpiActions.class),
         getTestEntries(SystemActions.class),
+        getTestEntries(URLConnectionFileActions.class),
         getTestEntries(URLConnectionNetworkActions.class)
     )
         .flatMap(Function.identity())
@@ -232,9 +236,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                     }
                 }
             };
-            boolean deniedToPlugins = testAnnotation.expectedAccess() != PLUGINS;
             Integer fromJavaVersion = testAnnotation.fromJavaVersion() == -1 ? null : testAnnotation.fromJavaVersion();
-            entries.add(entry(method.getName(), new CheckAction(runnable, deniedToPlugins, fromJavaVersion)));
+            entries.add(entry(method.getName(), new CheckAction(runnable, testAnnotation.expectedAccess(), fromJavaVersion)));
         }
         return entries.stream();
     }
@@ -397,13 +400,17 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     public static Set<String> getCheckActionsAllowedInPlugins() {
         return checkActions.entrySet()
             .stream()
-            .filter(kv -> kv.getValue().isAlwaysDeniedToPlugins() == false)
+            .filter(kv -> kv.getValue().expectedAccess().equals(PLUGINS) || kv.getValue().expectedAccess().equals(ALWAYS_ALLOWED))
             .map(Entry::getKey)
             .collect(Collectors.toSet());
     }
 
-    public static Set<String> getAllCheckActions() {
-        return checkActions.keySet();
+    public static Set<String> getDeniableCheckActions() {
+        return checkActions.entrySet()
+            .stream()
+            .filter(kv -> kv.getValue().expectedAccess().equals(ALWAYS_ALLOWED) == false)
+            .map(Entry::getKey)
+            .collect(Collectors.toSet());
     }
 
     @Override

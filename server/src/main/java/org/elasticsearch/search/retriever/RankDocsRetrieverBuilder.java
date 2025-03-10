@@ -93,7 +93,8 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         var explainQuery = new RankDocsQueryBuilder(
             rankDocs.get(),
             sources.stream().map(RetrieverBuilder::explainQuery).toArray(QueryBuilder[]::new),
-            true
+            true,
+            Float.MIN_VALUE
         );
         explainQuery.queryName(retrieverName());
         return explainQuery;
@@ -113,17 +114,19 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
                 rankQuery = new RankDocsQueryBuilder(
                     rankDocResults,
                     sources.stream().map(RetrieverBuilder::topDocsQuery).toArray(QueryBuilder[]::new),
-                    false
+                    false,
+                    Float.MIN_VALUE
                 );
             } else {
                 rankQuery = new RankDocsQueryBuilder(
                     rankDocResults,
                     sources.stream().map(RetrieverBuilder::explainQuery).toArray(QueryBuilder[]::new),
-                    false
+                    false,
+                    Float.MIN_VALUE
                 );
             }
         } else {
-            rankQuery = new RankDocsQueryBuilder(rankDocResults, null, false);
+            rankQuery = new RankDocsQueryBuilder(rankDocResults, null, false, Float.MIN_VALUE);
         }
         rankQuery.queryName(retrieverName());
         // ignore prefilters of this level, they were already propagated to children

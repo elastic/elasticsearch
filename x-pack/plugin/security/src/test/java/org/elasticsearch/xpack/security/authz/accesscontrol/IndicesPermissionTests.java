@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -755,6 +756,75 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(predicate.test(concreteIndexB), is(true));
         assertThat(predicate.test(concreteIndexC), is(true));
         assertThat(predicate.test(concreteIndexD), is(true));
+    }
+
+    public void testResourceAuthorizedPredicateAndWithFailures() {
+        IndicesPermission.IsResourceAuthorizedPredicate predicate1 = new IndicesPermission.IsResourceAuthorizedPredicate(
+            StringMatcher.of("c", "a"),
+            StringMatcher.of("e", "f"),
+            StringMatcher.of("b", "d")
+        );
+        IndicesPermission.IsResourceAuthorizedPredicate predicate2 = new IndicesPermission.IsResourceAuthorizedPredicate(
+            StringMatcher.of("c", "b"),
+            StringMatcher.of("a", "f", "g"),
+            StringMatcher.of("a", "d")
+        );
+        Metadata.Builder mb = Metadata.builder(
+            DataStreamTestHelper.getClusterStateWithDataStreams(
+                List.of(
+                    Tuple.tuple("a", 1),
+                    Tuple.tuple("b", 1),
+                    Tuple.tuple("c", 1),
+                    Tuple.tuple("d", 1),
+                    Tuple.tuple("e", 1),
+                    Tuple.tuple("f", 1)
+                ),
+                List.of(),
+                Instant.now().toEpochMilli(),
+                builder().build(),
+                1
+            ).getMetadata()
+        );
+        DataStream dataStreamA = mb.dataStream("a");
+        DataStream dataStreamB = mb.dataStream("b");
+        DataStream dataStreamC = mb.dataStream("c");
+        DataStream dataStreamD = mb.dataStream("d");
+        DataStream dataStreamE = mb.dataStream("e");
+        DataStream dataStreamF = mb.dataStream("f");
+        IndexAbstraction concreteIndexA = concreteIndexAbstraction("a");
+        IndexAbstraction concreteIndexB = concreteIndexAbstraction("b");
+        IndexAbstraction concreteIndexC = concreteIndexAbstraction("c");
+        IndexAbstraction concreteIndexD = concreteIndexAbstraction("d");
+        IndexAbstraction concreteIndexE = concreteIndexAbstraction("e");
+        IndexAbstraction concreteIndexF = concreteIndexAbstraction("f");
+        IndicesPermission.IsResourceAuthorizedPredicate predicate = predicate1.and(predicate2);
+        assertThat(predicate.test(dataStreamA), is(false));
+        assertThat(predicate.test(dataStreamB), is(false));
+        assertThat(predicate.test(dataStreamC), is(true));
+        assertThat(predicate.test(dataStreamD), is(false));
+        assertThat(predicate.test(dataStreamE), is(false));
+        assertThat(predicate.test(dataStreamF), is(false));
+
+        assertThat(predicate.test(dataStreamA, IndexComponentSelector.FAILURES), is(false));
+        assertThat(predicate.test(dataStreamB, IndexComponentSelector.FAILURES), is(false));
+        assertThat(predicate.test(dataStreamC, IndexComponentSelector.FAILURES), is(false));
+        assertThat(predicate.test(dataStreamD, IndexComponentSelector.FAILURES), is(false));
+        assertThat(predicate.test(dataStreamE, IndexComponentSelector.FAILURES), is(false));
+        assertThat(predicate.test(dataStreamF, IndexComponentSelector.FAILURES), is(true));
+
+        assertThat(predicate.test(concreteIndexA), is(true));
+        assertThat(predicate.test(concreteIndexB), is(true));
+        assertThat(predicate.test(concreteIndexC), is(true));
+        assertThat(predicate.test(concreteIndexD), is(true));
+        assertThat(predicate.test(concreteIndexE), is(false));
+        assertThat(predicate.test(concreteIndexF), is(false));
+
+        assertThat(predicate.test(concreteIndexA, IndexComponentSelector.FAILURES), is(false));
+        assertThat(predicate.test(concreteIndexB, IndexComponentSelector.FAILURES), is(false));
+        assertThat(predicate.test(concreteIndexC, IndexComponentSelector.FAILURES), is(false));
+        assertThat(predicate.test(concreteIndexD, IndexComponentSelector.FAILURES), is(false));
+        assertThat(predicate.test(concreteIndexE, IndexComponentSelector.FAILURES), is(false));
+        assertThat(predicate.test(concreteIndexF, IndexComponentSelector.FAILURES), is(true));
     }
 
     private static IndexAbstraction concreteIndexAbstraction(String name) {

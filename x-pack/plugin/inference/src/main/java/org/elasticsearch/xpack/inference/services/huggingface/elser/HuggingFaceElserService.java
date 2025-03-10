@@ -121,7 +121,6 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
                         List.of(
                             new TextEmbeddingFloatResults.Chunk(
                                 textEmbeddingResults.embeddings().get(i).values(),
-                                inputs.getInputs().get(i),
                                 new ChunkedInference.TextOffset(0, inputs.getInputs().get(i).length())
                             )
                         )

@@ -911,7 +911,7 @@ public record IndicesOptions(
         }
         if (out.getTransportVersion()
             .between(TransportVersions.V_8_16_0, TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
-            if (out.getTransportVersion().before(TransportVersions.INTRODUCE_ALL_APPLICABLE_SELECTOR)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_17_0)) {
                 out.writeVInt(1); // Enum set sized 1
                 out.writeVInt(0); // ordinal 0 (::data selector)
             } else {
@@ -955,7 +955,7 @@ public record IndicesOptions(
         if (in.getTransportVersion()
             .between(TransportVersions.V_8_16_0, TransportVersions.REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX)) {
             // Reading from an older node, which will be sending either an enum set or a single byte that needs to be read out and ignored.
-            if (in.getTransportVersion().before(TransportVersions.INTRODUCE_ALL_APPLICABLE_SELECTOR)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_17_0)) {
                 int size = in.readVInt();
                 for (int i = 0; i < size; i++) {
                     in.readVInt();

@@ -528,7 +528,11 @@ public class PolicyManager {
         var exception = new NotEntitledException(message);
         // Don't emit a log for muted classes, e.g. classes containing self tests
         if (mutedClasses.contains(callerClass) == false) {
-            logger.warn(message, exception);
+            String frameInfoSuffix = StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
+                .walk(this::findRequestingFrame)
+                .map(StackFrame::toString)
+                .orElse("");
+            logger.info(message + frameInfoSuffix);
         }
         throw exception;
     }

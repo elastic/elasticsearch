@@ -563,7 +563,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             }
                             continue;
                         }
-                        ensureResponseAccumulatorSlot(itemIndex);
+                        var slot = ensureResponseAccumulatorSlot(itemIndex);
                         final List<String> values;
                         try {
                             values = SemanticTextUtils.nodeStringValues(field, valueObj);
@@ -580,7 +580,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
                         int offsetAdjustment = 0;
                         for (String v : values) {
-                            fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment));
+                            if (v.isBlank()) {
+                                slot.addOrUpdateResponse(
+                                    new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
+                                );
+                            } else {
+                                fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment));
+                            }
 
                             // When using the inference metadata fields format, all the input values are concatenated so that the
                             // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment

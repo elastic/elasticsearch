@@ -21,7 +21,7 @@ import static org.hamcrest.CoreMatchers.is;
 
 public class AzureAiStudioEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_WritesUserWhenDefined() throws IOException {
-        var entity = new AzureAiStudioEmbeddingsRequestEntity(List.of("abc"), InputType.SEARCH, "testuser", null, false);
+        var entity = new AzureAiStudioEmbeddingsRequestEntity(List.of("abc"), null, "testuser", null, false);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -75,4 +75,25 @@ public class AzureAiStudioEmbeddingsRequestEntityTests extends ESTestCase {
             {"input":["abc"],"dimensions":100}"""));
     }
 
+    public void testXContent_WritesInputTypeWhenDefined() throws IOException {
+        var entity = new AzureAiStudioEmbeddingsRequestEntity(List.of("abc"), InputType.SEARCH, "testuser", null, false);
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is("""
+            {"input":["abc"],"user":"testuser","input_type":"query"}"""));
+    }
+
+    public void testXContent_WritesInternalInputTypeWhenDefined() throws IOException {
+        var entity = new AzureAiStudioEmbeddingsRequestEntity(List.of("abc"), InputType.INTERNAL_INGEST, "testuser", null, false);
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is("""
+            {"input":["abc"],"user":"testuser","input_type":"document"}"""));
+    }
 }

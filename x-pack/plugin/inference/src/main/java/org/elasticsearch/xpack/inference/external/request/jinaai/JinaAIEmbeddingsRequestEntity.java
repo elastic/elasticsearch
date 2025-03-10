@@ -54,9 +54,9 @@ public record JinaAIEmbeddingsRequestEntity(
         }
 
         // prefer the root level inputType over task settings input type
-        if (inputType != null) {
+        if (InputType.isSpecified(inputType)) {
             builder.field(TASK_TYPE_FIELD, convertToString(inputType));
-        } else if (taskSettings.getInputType() != null) {
+        } else if (InputType.isSpecified(taskSettings.getInputType())) {
             builder.field(TASK_TYPE_FIELD, convertToString(taskSettings.getInputType()));
         }
 
@@ -65,7 +65,7 @@ public record JinaAIEmbeddingsRequestEntity(
     }
 
     // default for testing
-    static String convertToString(InputType inputType) {
+    public static String convertToString(InputType inputType) {
         return switch (inputType) {
             case INGEST, INTERNAL_INGEST -> SEARCH_DOCUMENT;
             case SEARCH, INTERNAL_SEARCH -> SEARCH_QUERY;

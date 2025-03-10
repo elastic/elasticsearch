@@ -52,9 +52,9 @@ public record CohereEmbeddingsRequestEntity(
         }
 
         // prefer the root level inputType over task settings input type
-        if (inputType != null) {
+        if (InputType.isSpecified(inputType)) {
             builder.field(INPUT_TYPE_FIELD, convertToString(inputType));
-        } else if (taskSettings.getInputType() != null) {
+        } else if (InputType.isSpecified(taskSettings.getInputType())) {
             builder.field(INPUT_TYPE_FIELD, convertToString(taskSettings.getInputType()));
         }
 

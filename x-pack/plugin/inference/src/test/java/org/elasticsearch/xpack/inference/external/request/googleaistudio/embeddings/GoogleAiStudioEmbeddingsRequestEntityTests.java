@@ -41,7 +41,8 @@ public class GoogleAiStudioEmbeddingsRequestEntityTests extends ESTestCase {
                                 }
                             ]
                         },
-                        "outputDimensionality": 8
+                        "outputDimensionality": 8,
+                        "taskType": "RETRIEVAL_QUERY"
                     }
                 ]
             }
@@ -145,7 +146,7 @@ public class GoogleAiStudioEmbeddingsRequestEntityTests extends ESTestCase {
             """));
     }
 
-    public void testXContent_SingleRequest_WritesInputTypeIfDefined() throws IOException {
+    public void testXContent_SingleRequest_WritesInternalInputTypeIfDefined() throws IOException {
         var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc"), InputType.INTERNAL_INGEST, "model", null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

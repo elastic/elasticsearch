@@ -75,7 +75,7 @@ public record GoogleAiStudioEmbeddingsRequestEntity(List<String> inputs, InputTy
                 builder.field(OUTPUT_DIMENSIONALITY_FIELD, dimensions);
             }
 
-            if (inputType != null) {
+            if (InputType.isSpecified(inputType)) {
                 builder.field(TASK_TYPE_FIELD, convertToString(inputType));
             }
 

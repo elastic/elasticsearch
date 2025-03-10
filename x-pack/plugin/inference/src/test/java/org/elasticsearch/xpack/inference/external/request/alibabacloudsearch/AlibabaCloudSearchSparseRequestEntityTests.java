@@ -34,7 +34,7 @@ public class AlibabaCloudSearchSparseRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"input_type":"document","return_token":true}"""));
+            {"input":["abc"],"input_type":"query","return_token":true}"""));
     }
 
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
@@ -46,5 +46,20 @@ public class AlibabaCloudSearchSparseRequestEntityTests extends ESTestCase {
 
         MatcherAssert.assertThat(xContentResult, is("""
             {"input":["abc"]}"""));
+    }
+
+    public void testXContent_InputType_Internal() throws IOException {
+        var entity = new AlibabaCloudSearchSparseRequestEntity(
+            List.of("abc"),
+            InputType.INTERNAL_INGEST,
+            new AlibabaCloudSearchSparseTaskSettings(InputType.INGEST, true)
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"input_type":"document","return_token":true}"""));
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.alibabacloudsearch.AlibabaCloudSearchAccount;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModelTests;
@@ -25,14 +26,17 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.external.request.alibabacloudsearch.AlibabaCloudSearchEmbeddingsRequestEntity.convertToString;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class AlibabaCloudSearchEmbeddingsRequestTests extends ESTestCase {
     public void testCreateRequest() throws IOException {
+        var inputType = InputTypeTests.randomSearchAndIngestWithNull();
         var request = createRequest(
             List.of("abc"),
+            inputType,
             AlibabaCloudSearchEmbeddingsModelTests.createModel(
                 "embedding_test",
                 TaskType.TEXT_EMBEDDING,
@@ -54,17 +58,19 @@ public class AlibabaCloudSearchEmbeddingsRequestTests extends ESTestCase {
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"))));
+        AlibabaCloudSearchEmbeddingsRequestTests.validateInputType(requestMap, null, inputType);
     }
 
-    public void testCreateRequest_WithInputType_Search() throws IOException {
+    public void testCreateRequest_WithTaskSettingInputType() throws IOException {
+        var inputType = InputTypeTests.randomSearchAndIngestWithNull();
         var request = createRequest(
             List.of("abc"),
+            null,
             AlibabaCloudSearchEmbeddingsModelTests.createModel(
                 "embedding_test",
                 TaskType.TEXT_EMBEDDING,
                 AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("embeddings_test", "host", "default"),
-                AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH),
+                AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(inputType),
                 getSecretSettingsMap("secret")
             )
         );
@@ -81,17 +87,20 @@ public class AlibabaCloudSearchEmbeddingsRequestTests extends ESTestCase {
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "input_type", "query")));
+        AlibabaCloudSearchEmbeddingsRequestTests.validateInputType(requestMap, inputType, null);
     }
 
-    public void testCreateRequest_WithInputType_InternalIngest() throws IOException {
+    public void testCreateRequest_RequestInputTypeTakesPrecedence() throws IOException {
+        var requestInputType = InputTypeTests.randomSearchAndIngestWithNull();
+        var taskSettingInputType = InputTypeTests.randomSearchAndIngestWithNull();
         var request = createRequest(
             List.of("abc"),
+            requestInputType,
             AlibabaCloudSearchEmbeddingsModelTests.createModel(
                 "embedding_test",
                 TaskType.TEXT_EMBEDDING,
                 AlibabaCloudSearchEmbeddingsServiceSettingsTests.getServiceSettingsMap("embeddings_test", "host", "default"),
-                AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.INTERNAL_INGEST),
+                AlibabaCloudSearchEmbeddingsTaskSettingsTests.getTaskSettingsMap(taskSettingInputType),
                 getSecretSettingsMap("secret")
             )
         );
@@ -108,11 +117,27 @@ public class AlibabaCloudSearchEmbeddingsRequestTests extends ESTestCase {
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "input_type", "document")));
+        AlibabaCloudSearchEmbeddingsRequestTests.validateInputType(requestMap, taskSettingInputType, requestInputType);
     }
 
-    public static AlibabaCloudSearchEmbeddingsRequest createRequest(List<String> input, AlibabaCloudSearchEmbeddingsModel model) {
+    public static AlibabaCloudSearchEmbeddingsRequest createRequest(
+        List<String> input,
+        InputType inputType,
+        AlibabaCloudSearchEmbeddingsModel model
+    ) {
         var account = new AlibabaCloudSearchAccount(model.getSecretSettings().apiKey());
-        return new AlibabaCloudSearchEmbeddingsRequest(account, input, InputType.SEARCH, model);
+        return new AlibabaCloudSearchEmbeddingsRequest(account, input, inputType, model);
+    }
+
+    public static void validateInputType(Map<String, Object> requestMap, InputType taskSettingsInputType, InputType requestInputType) {
+        if (InputType.isSpecified(requestInputType)) {
+            var convertedInputType = convertToString(requestInputType);
+            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "input_type", convertedInputType)));
+        } else if (InputType.isSpecified(taskSettingsInputType)) {
+            var convertedInputType = convertToString(taskSettingsInputType);
+            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "input_type", convertedInputType)));
+        } else {
+            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"))));
+        }
     }
 }

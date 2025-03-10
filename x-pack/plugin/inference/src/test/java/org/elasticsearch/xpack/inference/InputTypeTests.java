@@ -47,6 +47,12 @@ public class InputTypeTests extends ESTestCase {
             : randomFrom(InputType.UNSPECIFIED, InputType.INGEST, InputType.SEARCH, InputType.INTERNAL_SEARCH, InputType.INTERNAL_INGEST);
     }
 
+    public static InputType randomSearchAndIngestWithNullWithoutUnspecified() {
+        return randomBoolean()
+            ? null
+            : randomFrom(InputType.INGEST, InputType.SEARCH, InputType.INTERNAL_SEARCH, InputType.INTERNAL_INGEST);
+    }
+
     public static InputType randomWithIngestAndSearch() {
         return randomFrom(InputType.INGEST, InputType.SEARCH, InputType.INTERNAL_SEARCH, InputType.INTERNAL_INGEST);
     }

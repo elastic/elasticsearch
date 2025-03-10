@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.inference.external.response.voyageai;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIEmbeddingsRequest;
 
@@ -50,7 +50,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            InputType.SEARCH,
+            InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
 
@@ -96,7 +96,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            null,
+            InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
 
@@ -139,7 +139,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            null,
+            InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
 
@@ -177,7 +177,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            null,
+            InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
 
@@ -215,7 +215,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            null,
+            InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
 
@@ -252,7 +252,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            null,
+            InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
 
@@ -289,7 +289,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            null,
+            InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
 
@@ -326,7 +326,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            null,
+            InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
 
@@ -363,7 +363,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            null,
+            InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
 
@@ -418,7 +418,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            null,
+            InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
 

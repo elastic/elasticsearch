@@ -51,9 +51,9 @@ public record GoogleVertexAiEmbeddingsRequestEntity(
                 builder.field(CONTENT_FIELD, input);
 
                 // prefer the root level inputType over task settings input type
-                if (inputType != null) {
+                if (InputType.isSpecified(inputType)) {
                     builder.field(TASK_TYPE_FIELD, convertToString(inputType));
-                } else if (taskSettings.getInputType() != null) {
+                } else if (InputType.isSpecified(taskSettings.getInputType())) {
                     builder.field(TASK_TYPE_FIELD, convertToString(taskSettings.getInputType()));
                 }
             }
@@ -74,7 +74,7 @@ public record GoogleVertexAiEmbeddingsRequestEntity(
         return builder;
     }
 
-    static String convertToString(InputType inputType) {
+    public static String convertToString(InputType inputType) {
         return switch (inputType) {
             case INGEST, INTERNAL_INGEST -> RETRIEVAL_DOCUMENT_TASK_TYPE;
             case SEARCH, INTERNAL_SEARCH -> RETRIEVAL_QUERY_TASK_TYPE;

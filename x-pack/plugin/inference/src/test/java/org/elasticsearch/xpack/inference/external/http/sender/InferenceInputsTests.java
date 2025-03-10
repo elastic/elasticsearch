@@ -10,13 +10,14 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.hamcrest.Matchers;
 
 import java.util.List;
 
 public class InferenceInputsTests extends ESTestCase {
     public void testCastToSucceeds() {
-        InferenceInputs inputs = new EmbeddingsInput(List.of(), null, false);
+        InferenceInputs inputs = new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull(), false);
         assertThat(inputs.castTo(EmbeddingsInput.class), Matchers.instanceOf(EmbeddingsInput.class));
 
         var emptyRequest = new UnifiedCompletionRequest(List.of(), null, null, null, null, null, null, null);

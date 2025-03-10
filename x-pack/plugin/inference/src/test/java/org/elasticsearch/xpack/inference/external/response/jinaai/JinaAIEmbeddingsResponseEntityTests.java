@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.jinaai.JinaAIEmbeddingsRequestTests;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
@@ -54,6 +55,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
         InferenceServiceResults parsedResults = JinaAIEmbeddingsResponseEntity.fromResponse(
             JinaAIEmbeddingsRequestTests.createRequest(
                 List.of("abc"),
+                InputTypeTests.randomWithNull(),
                 JinaAIEmbeddingsModelTests.createModel(
                     "url",
                     "secret",
@@ -107,6 +109,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
         InferenceServiceResults parsedResults = JinaAIEmbeddingsResponseEntity.fromResponse(
             JinaAIEmbeddingsRequestTests.createRequest(
                 List.of("abc"),
+                InputTypeTests.randomWithNull(),
                 JinaAIEmbeddingsModelTests.createModel(
                     "url",
                     "secret",
@@ -159,6 +162,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
             () -> JinaAIEmbeddingsResponseEntity.fromResponse(
                 JinaAIEmbeddingsRequestTests.createRequest(
                     List.of("abc"),
+                    InputTypeTests.randomWithNull(),
                     JinaAIEmbeddingsModelTests.createModel(
                         "url",
                         "secret",
@@ -203,6 +207,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
             () -> JinaAIEmbeddingsResponseEntity.fromResponse(
                 JinaAIEmbeddingsRequestTests.createRequest(
                     List.of("abc"),
+                    InputTypeTests.randomWithNull(),
                     JinaAIEmbeddingsModelTests.createModel(
                         "url",
                         "secret",
@@ -250,6 +255,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
             () -> JinaAIEmbeddingsResponseEntity.fromResponse(
                 JinaAIEmbeddingsRequestTests.createRequest(
                     List.of("abc"),
+                    InputTypeTests.randomWithNull(),
                     JinaAIEmbeddingsModelTests.createModel(
                         "url",
                         "secret",
@@ -293,6 +299,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
             () -> JinaAIEmbeddingsResponseEntity.fromResponse(
                 JinaAIEmbeddingsRequestTests.createRequest(
                     List.of("abc"),
+                    InputTypeTests.randomWithNull(),
                     JinaAIEmbeddingsModelTests.createModel(
                         "url",
                         "secret",
@@ -341,6 +348,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
         InferenceServiceResults parsedResults = JinaAIEmbeddingsResponseEntity.fromResponse(
             JinaAIEmbeddingsRequestTests.createRequest(
                 List.of("abc"),
+                InputTypeTests.randomWithNull(),
                 JinaAIEmbeddingsModelTests.createModel(
                     "url",
                     "secret",
@@ -388,6 +396,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
         InferenceServiceResults parsedResults = JinaAIEmbeddingsResponseEntity.fromResponse(
             JinaAIEmbeddingsRequestTests.createRequest(
                 List.of("abc"),
+                InputTypeTests.randomWithNull(),
                 JinaAIEmbeddingsModelTests.createModel(
                     "url",
                     "secret",
@@ -433,6 +442,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
             () -> JinaAIEmbeddingsResponseEntity.fromResponse(
                 JinaAIEmbeddingsRequestTests.createRequest(
                     List.of("abc"),
+                    InputTypeTests.randomWithNull(),
                     JinaAIEmbeddingsModelTests.createModel(
                         "url",
                         "secret",
@@ -497,6 +507,7 @@ public class JinaAIEmbeddingsResponseEntityTests extends ESTestCase {
         TextEmbeddingFloatResults parsedResults = (TextEmbeddingFloatResults) JinaAIEmbeddingsResponseEntity.fromResponse(
             JinaAIEmbeddingsRequestTests.createRequest(
                 List.of("abc"),
+                InputTypeTests.randomWithNull(),
                 JinaAIEmbeddingsModelTests.createModel(
                     "url",
                     "secret",

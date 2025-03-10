@@ -18,10 +18,10 @@ import static org.hamcrest.Matchers.is;
 
 public class AmazonBedrockCohereEmbeddingsRequestEntityTests extends ESTestCase {
     public void testRequestEntity_GeneratesExpectedJsonBody() throws IOException {
-        var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(List.of("test input"), null);
+        var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(List.of("test input"), InputType.CLASSIFICATION);
         var builder = new AmazonBedrockJsonBuilder(entity);
         var result = builder.getStringContent();
-        assertThat(result, is("{\"texts\":[\"test input\"],\"input_type\":\"search_document\"}"));
+        assertThat(result, is("{\"texts\":[\"test input\"],\"input_type\":\"classification\"}"));
     }
 
     public void testRequestEntity_GeneratesExpectedJsonBody_WithInternalInputType() throws IOException {
@@ -31,10 +31,10 @@ public class AmazonBedrockCohereEmbeddingsRequestEntityTests extends ESTestCase 
         assertThat(result, is("{\"texts\":[\"test input\"],\"input_type\":\"search_query\"}"));
     }
 
-    public void testRequestEntity_GeneratesExpectedJsonBody_WithInputType() throws IOException {
-        var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(List.of("test input"), InputType.CLASSIFICATION);
+    public void testRequestEntity_GeneratesExpectedJsonBody_WithoutInputType() throws IOException {
+        var entity = new AmazonBedrockCohereEmbeddingsRequestEntity(List.of("test input"), null);
         var builder = new AmazonBedrockJsonBuilder(entity);
         var result = builder.getStringContent();
-        assertThat(result, is("{\"texts\":[\"test input\"],\"input_type\":\"classification\"}"));
+        assertThat(result, is("{\"texts\":[\"test input\"],\"input_type\":\"search_document\"}"));
     }
 }

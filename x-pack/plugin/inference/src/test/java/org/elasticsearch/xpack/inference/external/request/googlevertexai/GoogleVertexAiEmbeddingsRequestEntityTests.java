@@ -25,8 +25,8 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
     public void testToXContent_SingleEmbeddingRequest_WritesAllFields() throws IOException {
         var entity = new GoogleVertexAiEmbeddingsRequestEntity(
             List.of("abc"),
-            InputType.INGEST,
-            new GoogleVertexAiEmbeddingsTaskSettings(true, InputType.SEARCH)
+            null,
+            new GoogleVertexAiEmbeddingsTaskSettings(true, InputType.CLUSTERING)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -38,7 +38,7 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
                 "instances": [
                     {
                         "content": "abc",
-                        "task_type": "RETRIEVAL_QUERY"
+                        "task_type": "CLUSTERING"
                     }
                 ],
                 "parameters": {
@@ -51,8 +51,8 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
     public void testToXContent_SingleEmbeddingRequest_DoesNotWriteAutoTruncationIfNotDefined() throws IOException {
         var entity = new GoogleVertexAiEmbeddingsRequestEntity(
             List.of("abc"),
-            InputType.INGEST,
-            new GoogleVertexAiEmbeddingsTaskSettings(null, InputType.INGEST)
+            InputType.INTERNAL_INGEST,
+            new GoogleVertexAiEmbeddingsTaskSettings(null, null)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -95,7 +95,7 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
     public void testToXContent_MultipleEmbeddingsRequest_WritesAllFields() throws IOException {
         var entity = new GoogleVertexAiEmbeddingsRequestEntity(
             List.of("abc", "def"),
-            InputType.INGEST,
+            InputType.INTERNAL_SEARCH,
             new GoogleVertexAiEmbeddingsTaskSettings(true, InputType.CLUSTERING)
         );
 
@@ -108,11 +108,11 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
                 "instances": [
                     {
                         "content": "abc",
-                        "task_type": "CLUSTERING"
+                        "task_type": "RETRIEVAL_QUERY"
                     },
                     {
                         "content": "def",
-                        "task_type": "CLUSTERING"
+                        "task_type": "RETRIEVAL_QUERY"
                     }
                 ],
                 "parameters": {
@@ -153,7 +153,7 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
     public void testToXContent_MultipleEmbeddingsRequest_DoesNotWriteAutoTruncationIfNotDefined() throws IOException {
         var entity = new GoogleVertexAiEmbeddingsRequestEntity(
             List.of("abc", "def"),
-            InputType.CLASSIFICATION,
+            null,
             new GoogleVertexAiEmbeddingsTaskSettings(null, InputType.CLASSIFICATION)
         );
 
@@ -175,71 +175,6 @@ public class GoogleVertexAiEmbeddingsRequestEntityTests extends ESTestCase {
                 ]
             }
             """));
-    }
-
-    public void testToXContent_InputType_InternalSearch() throws IOException {
-        var entity = new GoogleVertexAiEmbeddingsRequestEntity(
-            List.of("abc", "def"),
-            InputType.INTERNAL_SEARCH,
-            new GoogleVertexAiEmbeddingsTaskSettings(null, InputType.INTERNAL_SEARCH)
-        );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
-            {
-                "instances": [
-                    {
-                        "content": "abc",
-                        "task_type": "RETRIEVAL_QUERY"
-                    },
-                    {
-                        "content": "def",
-                        "task_type": "RETRIEVAL_QUERY"
-                    }
-                ]
-            }
-            """));
-    }
-
-    public void testToXContent_InputType_InternalIngest() throws IOException {
-        var entity = new GoogleVertexAiEmbeddingsRequestEntity(
-            List.of("abc", "def"),
-            InputType.INTERNAL_INGEST,
-            new GoogleVertexAiEmbeddingsTaskSettings(null, InputType.INTERNAL_INGEST)
-        );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
-            {
-                "instances": [
-                    {
-                        "content": "abc",
-                        "task_type": "RETRIEVAL_DOCUMENT"
-                    },
-                    {
-                        "content": "def",
-                        "task_type": "RETRIEVAL_DOCUMENT"
-                    }
-                ]
-            }
-            """));
-    }
-
-    public void testToXContent_ThrowsIfInputIsNull() {
-        expectThrows(
-            NullPointerException.class,
-            () -> new GoogleVertexAiEmbeddingsRequestEntity(
-                null,
-                null,
-                new GoogleVertexAiEmbeddingsTaskSettings(null, InputType.CLASSIFICATION)
-            )
-        );
     }
 
     public void testToXContent_ThrowsIfTaskSettingsIsNull() {

@@ -36,7 +36,7 @@ public record AmazonBedrockCohereEmbeddingsRequestEntity(List<String> input, @Nu
         builder.startObject();
         builder.field(TEXTS_FIELD, input);
 
-        if (inputType != null) {
+        if (InputType.isSpecified(inputType)) {
             builder.field(INPUT_TYPE_FIELD, convertToString(inputType));
         } else {
             // input_type is required so default to document

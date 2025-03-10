@@ -26,7 +26,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_WritesAllFields_WhenTheyAreDefined() throws IOException {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of("abc"),
-            InputType.INGEST,
+            InputType.INTERNAL_INGEST,
             new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
             "model",
             JinaAIEmbeddingType.FLOAT
@@ -60,7 +60,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_EmbeddingTypesBit() throws IOException {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of("abc"),
-            null,
+            InputType.CLUSTERING,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
             JinaAIEmbeddingType.BIT
@@ -71,7 +71,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","embedding_type":"binary"}"""));
+            {"input":["abc"],"model":"model","embedding_type":"binary","task":"separation"}"""));
     }
 
     public void testXContent_EmbeddingTypesBinary() throws IOException {
@@ -88,48 +88,6 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","embedding_type":"binary"}"""));
-    }
-
-    public void testXContent_InputType_InternalSearch() throws IOException {
-        var entity = new JinaAIEmbeddingsRequestEntity(
-            List.of("abc"),
-            InputType.INTERNAL_INGEST,
-            new JinaAIEmbeddingsTaskSettings(InputType.INTERNAL_SEARCH),
-            "model",
-            JinaAIEmbeddingType.BINARY
-        );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        MatcherAssert.assertThat(xContentResult, is("""
             {"input":["abc"],"model":"model","embedding_type":"binary","task":"retrieval.query"}"""));
-    }
-
-    public void testXContent_InputType_InternalIngest() throws IOException {
-        var entity = new JinaAIEmbeddingsRequestEntity(
-            List.of("abc"),
-            InputType.INTERNAL_INGEST,
-            new JinaAIEmbeddingsTaskSettings(InputType.INTERNAL_INGEST),
-            "model",
-            JinaAIEmbeddingType.BINARY
-        );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","embedding_type":"binary","task":"retrieval.passage"}"""));
-    }
-
-    public void testConvertToString_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
-        var thrownException = expectThrows(
-            AssertionError.class,
-            () -> JinaAIEmbeddingsRequestEntity.convertToString(InputType.UNSPECIFIED)
-        );
-        MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
     }
 }

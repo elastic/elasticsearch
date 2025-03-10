@@ -885,7 +885,8 @@ public class RBACEngine implements AuthorizationEngine {
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    // TODO clean this up and explain
+                    // failure indices are special: when accessed directly (not through ::failures on parent data stream) they are accessed
+                    // as implicitly as data. However, authz to the parent data stream happens via the failures selector
                     if (indexAbstraction.isFailureIndexOfDataStream()
                         && predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES)) {
                         indicesAndAliases.add(indexAbstraction.getName());
@@ -927,8 +928,8 @@ public class RBACEngine implements AuthorizationEngine {
                         }
                     }
                 }
-                timeChecker.accept(indicesAndAliases);
             }
+            timeChecker.accept(indicesAndAliases);
             return indicesAndAliases;
         }, (name, selectorString) -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);

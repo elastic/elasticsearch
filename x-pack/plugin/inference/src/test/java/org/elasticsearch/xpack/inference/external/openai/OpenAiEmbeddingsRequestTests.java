@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.request.openai;
+package org.elasticsearch.xpack.inference.external.openai;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
@@ -21,7 +21,7 @@ import java.net.URISyntaxException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
-import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
+import static org.elasticsearch.xpack.inference.external.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel.buildDefaultUri;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;

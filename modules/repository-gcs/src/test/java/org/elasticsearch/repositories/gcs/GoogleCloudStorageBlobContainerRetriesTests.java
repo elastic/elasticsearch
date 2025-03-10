@@ -19,6 +19,7 @@ import com.google.cloud.storage.StorageRetryStrategy;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -273,8 +274,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     }
 
     public void testWriteLargeBlob() throws IOException {
-        // See {@link BaseWriteChannel#DEFAULT_CHUNK_SIZE}
-        final int defaultChunkSize = 60 * 256 * 1024;
+        // See {@link com.google.cloud.storage.BaseStorageWriteChannel.BaseStorageWriteChannel}
+        final int defaultChunkSize = Math.toIntExact(ByteSizeValue.ofMb(16).getBytes());
         final int nbChunks = randomIntBetween(3, 5);
         final int lastChunkSize = randomIntBetween(1, defaultChunkSize - 1);
         final int totalChunks = nbChunks + 1;
@@ -358,13 +359,16 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     }
                 }
 
-                final String range = exchange.getRequestHeaders().getFirst("Content-Range");
-                assertTrue(Strings.hasLength(range));
+                final String contentRangeHeaderValue = exchange.getRequestHeaders().getFirst("Content-Range");
+                final HttpHeaderParser.ContentRange contentRange = HttpHeaderParser.parseContentRangeHeader(contentRangeHeaderValue);
+                assertNotNull("Invalid content range header: " + contentRangeHeaderValue, contentRange);
 
-                if (range.equals("bytes */*")) {
+                if (contentRange.hasRange() == false) {
+                    // Content-Range: */... is a status check
+                    // https://cloud.google.com/storage/docs/performing-resumable-uploads#status-check
                     final int receivedSoFar = bytesReceived.get();
                     if (receivedSoFar > 0) {
-                        exchange.getResponseHeaders().add("Range", Strings.format("bytes=0-%d", receivedSoFar));
+                        exchange.getResponseHeaders().add("Range", Strings.format("bytes=0-%s", receivedSoFar));
                     }
                     exchange.getResponseHeaders().add("Content-Length", "0");
                     exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);
@@ -375,7 +379,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
                     assertThat(Math.toIntExact(requestBody.length()), anyOf(equalTo(defaultChunkSize), equalTo(lastChunkSize)));
 
-                    final HttpHeaderParser.ContentRange contentRange = HttpHeaderParser.parseContentRangeHeader(range);
                     final int rangeStart = Math.toIntExact(contentRange.start());
                     final int rangeEnd = Math.toIntExact(contentRange.end());
                     assertThat(rangeEnd + 1 - rangeStart, equalTo(Math.toIntExact(requestBody.length())));
@@ -383,19 +386,22 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                     bytesReceived.updateAndGet(existing -> Math.max(existing, rangeEnd));
 
                     if (contentRange.size() != null) {
+                        exchange.getResponseHeaders().add("x-goog-stored-content-length", String.valueOf(bytesReceived.get() + 1));
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                         return;
                     } else {
-                        exchange.getResponseHeaders().add("Range", Strings.format("bytes=%d/%d", rangeStart, rangeEnd));
+                        exchange.getResponseHeaders().add("Range", Strings.format("bytes=%s-%s", rangeStart, rangeEnd));
                         exchange.getResponseHeaders().add("Content-Length", "0");
                         exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);
                         return;
                     }
                 }
-            }
 
-            if (randomBoolean()) {
                 exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
+            } else {
+                ExceptionsHelper.maybeDieOnAnotherThread(
+                    new AssertionError("Unexpected request" + exchange.getRequestMethod() + " " + exchange.getRequestURI())
+                );
             }
         }));
 

@@ -1,0 +1,5 @@
+pr: 123712
+summary: Process ILM cluster state updates on another thread
+area: ILM+SLM
+type: enhancement
+issues: []

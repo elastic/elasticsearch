@@ -295,7 +295,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             targetShard(shard5, node5)
         );
 
-        var concurrency = randomIntBetween(1, targetShards.size() - 1);
+        var concurrency = randomIntBetween(1, 2);
         AtomicInteger maxConcurrentRequests = new AtomicInteger(0);
         AtomicInteger concurrentRequests = new AtomicInteger(0);
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
@@ -340,11 +340,11 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                 if (processed.incrementAndGet() == 1) {
                     listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
                 } else {
-                    listener.onSkip(true);
+                    listener.onSkip();
                 }
             });
         }));
-        assertThat(sent.size(), equalTo(2));// onResponse() + onSkip()
+        assertThat(sent.size(), equalTo(5));
         assertThat(response.totalShards, equalTo(5));
         assertThat(response.successfulShards, equalTo(1));
         assertThat(response.skippedShards, equalTo(4));

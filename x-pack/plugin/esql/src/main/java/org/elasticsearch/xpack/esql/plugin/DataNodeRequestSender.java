@@ -66,7 +66,6 @@ abstract class DataNodeRequestSender {
     private final AtomicInteger skippedShards = new AtomicInteger();
     private final AtomicBoolean changed = new AtomicBoolean();
     private boolean reportedFailure = false; // guarded by sendingLock
-    private volatile boolean skipRemaining = false;
 
     DataNodeRequestSender(
         TransportService transportService,
@@ -93,13 +92,12 @@ abstract class DataNodeRequestSender {
         final long startTimeInNanos = System.nanoTime();
         searchShards(rootTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(targetShards -> {
             try (var computeListener = new ComputeListener(transportService.getThreadPool(), runOnTaskFailure, listener.map(profiles -> {
-                var skipped = skippedShards.get() + pendingShardIds.size();
                 return new ComputeResponse(
                     profiles,
                     TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos),
                     targetShards.totalShards(),
-                    targetShards.totalShards() - shardFailures.size() - skipped,
-                    targetShards.skippedShards() + skipped,
+                    targetShards.totalShards() - shardFailures.size() - skippedShards.get(),
+                    targetShards.skippedShards() + skippedShards.get(),
                     shardFailures.size()
                 );
             }))) {
@@ -138,7 +136,7 @@ abstract class DataNodeRequestSender {
                         || (allowPartialResults == false && shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal))) {
                         reportedFailure = true;
                         reportFailures(computeListener);
-                    } else if (skipRemaining == false) {
+                    } else {
                         for (NodeRequest request : selectNodeRequests(targetShards)) {
                             sendOneNodeRequest(targetShards, computeListener, request);
                         }
@@ -204,11 +202,8 @@ abstract class DataNodeRequestSender {
             }
 
             @Override
-            public void onSkip(boolean skipRemaining) {
-                DataNodeRequestSender.this.skippedShards.incrementAndGet();
-                if (skipRemaining) {
-                    DataNodeRequestSender.this.skipRemaining = true;
-                }
+            public void onSkip() {
+                skippedShards.incrementAndGet();
                 onAfter(List.of());
             }
         });
@@ -221,7 +216,7 @@ abstract class DataNodeRequestSender {
 
         void onFailure(Exception e, boolean receivedData);
 
-        void onSkip(boolean skipRemaining);
+        void onSkip();
     }
 
     private static Exception unwrapFailure(Exception e) {

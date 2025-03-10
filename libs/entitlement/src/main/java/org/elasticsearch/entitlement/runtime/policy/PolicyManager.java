@@ -31,6 +31,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.StackWalker.StackFrame;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
@@ -325,6 +326,10 @@ public class PolicyManager {
     }
 
     public void checkFileRead(Class<?> callerClass, Path path) {
+        checkFileRead(callerClass, path, false);
+    }
+
+    public void checkFileRead(Class<?> callerClass, Path path, boolean followLinks) {
         if (isPathOnDefaultFilesystem(path) == false) {
             return;
         }
@@ -334,14 +339,28 @@ public class PolicyManager {
         }
 
         ModuleEntitlements entitlements = getEntitlements(requestingClass);
-        if (entitlements.fileAccess().canRead(path) == false) {
+
+        Path realPath = null;
+        boolean canRead = entitlements.fileAccess().canRead(path);
+        if (canRead && followLinks) {
+            try {
+                realPath = path.toRealPath();
+            } catch (IOException e) {
+                // target not found or other IO error
+            }
+            if (realPath != null && realPath.equals(path) == false) {
+                canRead = entitlements.fileAccess().canRead(realPath);
+            }
+        }
+
+        if (canRead == false) {
             notEntitled(
                 Strings.format(
                     "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
                     entitlements.componentName(),
                     requestingClass.getModule().getName(),
                     requestingClass,
-                    path
+                    realPath == null ? path : Strings.format("%s -> %s", path, realPath)
                 ),
                 callerClass
             );
@@ -439,6 +458,10 @@ public class PolicyManager {
         var classEntitlements = getEntitlements(requestingClass);
         checkFlagEntitlement(classEntitlements, InboundNetworkEntitlement.class, requestingClass, callerClass);
         checkFlagEntitlement(classEntitlements, OutboundNetworkEntitlement.class, requestingClass, callerClass);
+    }
+
+    public void checkUnsupportedURLProtocolConnection(Class<?> callerClass, String protocol) {
+        neverEntitled(callerClass, () -> Strings.format("unsupported URL protocol [%s]", protocol));
     }
 
     private void checkFlagEntitlement(

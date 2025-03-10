@@ -54,6 +54,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -931,6 +932,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         when(shard.getPendingPrimaryTerm()).thenReturn(primaryTerm);
         when(shard.routingEntry()).thenReturn(routingEntry);
         when(shard.isRelocatedPrimary()).thenReturn(false);
+        when(shard.getLocalCheckpointSupplier()).thenReturn(() -> SequenceNumbers.UNASSIGNED_SEQ_NO);
+        when(shard.getLastSyncedGlobalCheckpointSupplier()).thenReturn(() -> SequenceNumbers.UNASSIGNED_SEQ_NO);
         IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().shardRoutingTable(shardId);
         Set<String> inSyncIds = randomBoolean()
             ? singleton(routingEntry.allocationId().getId())
@@ -1631,7 +1634,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         when(indexShard.getPendingPrimaryTerm()).thenAnswer(
             i -> clusterService.state().metadata().getProject().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id())
         );
-
+        when(indexShard.getLocalCheckpointSupplier()).thenReturn(() -> SequenceNumbers.UNASSIGNED_SEQ_NO);
+        when(indexShard.getLastSyncedGlobalCheckpointSupplier()).thenReturn(() -> SequenceNumbers.UNASSIGNED_SEQ_NO);
         ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
         when(indexShard.getReplicationGroup()).thenReturn(replicationGroup);
         return indexShard;

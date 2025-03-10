@@ -134,7 +134,7 @@ class SortedNumericWithOffsetsDocValuesSyntheticFieldLoader extends SourceLoader
                 b.endArray();
             } else if (offsetToOrd != null) {
                 // in cased all values are NULLs
-                b.startArray();
+                b.startArray(fieldName);
                 for (int offset : offsetToOrd) {
                     assert offset == -1;
                     b.nullValue();

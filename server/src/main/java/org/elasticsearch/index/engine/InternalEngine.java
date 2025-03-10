@@ -394,14 +394,7 @@ public class InternalEngine extends Engine {
                     final IndexCommitRef indexCommitRef = acquireIndexCommitRef(() -> commit);
                     var primaryTerm = config().getPrimaryTermSupplier().getAsLong();
                     assert indexCommitRef.getIndexCommit() == commit;
-                    wrappedListener.onNewCommit(
-                        shardId,
-                        store,
-                        primaryTerm,
-                        indexCommitRef,
-                        additionalFiles,
-                        getPreCommitData(commit)
-                    );
+                    wrappedListener.onNewCommit(shardId, store, primaryTerm, indexCommitRef, additionalFiles, getPreCommitData(commit));
                 }
 
                 @Override

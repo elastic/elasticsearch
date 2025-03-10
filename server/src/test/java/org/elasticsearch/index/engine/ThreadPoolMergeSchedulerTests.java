@@ -44,7 +44,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -57,13 +56,10 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
     public void testMergesExecuteInSizeOrder() throws IOException {
         DeterministicTaskQueue threadPoolTaskQueue = new DeterministicTaskQueue();
         Settings settingsWithMergeScheduler = Settings.builder()
-                .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
-                .build();
-        ThreadPoolMergeExecutorService threadPoolMergeExecutorService =
-                ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
-                threadPoolTaskQueue.getThreadPool(),
-                settingsWithMergeScheduler
-        );
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .build();
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
+            .maybeCreateThreadPoolMergeExecutorService(threadPoolTaskQueue.getThreadPool(), settingsWithMergeScheduler);
         try (
             ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                 new ShardId("index", "_na_", 1),
@@ -103,9 +99,9 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
     public void testSimpleMergeTaskBacklogging() {
         int mergeExecutorThreadCount = randomIntBetween(1, 5);
         Settings settingsWithMergeScheduler = Settings.builder()
-                .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
-                .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), mergeExecutorThreadCount)
-                .build();
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), mergeExecutorThreadCount)
+            .build();
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
         // close method waits for running merges to finish, but this test leaves running merges around
         ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
@@ -114,7 +110,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
             threadPoolMergeExecutorService
         );
         // more merge tasks than merge threads
-        int mergeCount = mergeExecutorThreadCount +  randomIntBetween(1, 5);
+        int mergeCount = mergeExecutorThreadCount + randomIntBetween(1, 5);
         for (int i = 0; i < mergeCount; i++) {
             MergeSource mergeSource = mock(MergeSource.class);
             OneMerge oneMerge = mock(OneMerge.class);
@@ -137,20 +133,20 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
     public void testSimpleMergeTaskReEnqueueingBySize() {
         int mergeExecutorThreadCount = randomIntBetween(1, 5);
         Settings settingsWithMergeScheduler = Settings.builder()
-                .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
-                .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), mergeExecutorThreadCount)
-                .build();
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), mergeExecutorThreadCount)
+            .build();
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
         // close method waits for running merges to finish, but this test leaves running merges around
         ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
-                new ShardId("index", "_na_", 1),
-                IndexSettingsModule.newIndexSettings("index", settingsWithMergeScheduler),
-                threadPoolMergeExecutorService
+            new ShardId("index", "_na_", 1),
+            IndexSettingsModule.newIndexSettings("index", settingsWithMergeScheduler),
+            threadPoolMergeExecutorService
         );
         // sort backlogged merges by size
         PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>(16, Comparator.comparingLong(MergeTask::estimatedMergeSize));
         // more merge tasks than merge threads
-        int mergeCount = mergeExecutorThreadCount +  randomIntBetween(2, 10);
+        int mergeCount = mergeExecutorThreadCount + randomIntBetween(2, 10);
         for (int i = 0; i < mergeCount; i++) {
             MergeSource mergeSource = mock(MergeSource.class);
             OneMerge oneMerge = mock(OneMerge.class);

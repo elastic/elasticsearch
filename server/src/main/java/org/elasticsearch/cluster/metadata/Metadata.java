@@ -1125,6 +1125,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         builder.persistentSettings(readSettingsFromStream(in));
         builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
         if (in.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
+            final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
+            builder.put(projectBuilder);
             final Function<String, MappingMetadata> mappingLookup;
             final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
             if (mappingMetadataMap.isEmpty() == false) {
@@ -1134,11 +1136,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
-                builder.put(IndexMetadata.readFrom(in, mappingLookup), false);
+                projectBuilder.put(IndexMetadata.readFrom(in, mappingLookup), false);
             }
             size = in.readVInt();
             for (int i = 0; i < size; i++) {
-                builder.put(IndexTemplateMetadata.readFrom(in));
+                projectBuilder.put(IndexTemplateMetadata.readFrom(in));
             }
             readBwcCustoms(in, builder);
 
@@ -1736,6 +1738,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
+            /**
+             * Used when reading BWC fields from when indices etc used to be directly on metadata
+             */
+            final ProjectMetadata.Builder projectBuilderForBwc = ProjectMetadata.builder(ProjectId.DEFAULT);
+
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -1758,12 +1765,14 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                         /* BwC Top-level project things */
                         case "indices" -> {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                builder.put(IndexMetadata.Builder.fromXContent(parser), false);
+                                projectBuilderForBwc.put(IndexMetadata.Builder.fromXContent(parser), false);
+                                builder.put(projectBuilderForBwc);
                             }
                         }
                         case "templates" -> {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                builder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
+                                projectBuilderForBwc.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
+                                builder.put(projectBuilderForBwc);
                             }
                         }
                         /* Cluster customs (and project customs in older formats) */
@@ -1780,12 +1789,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                                         assert PersistentTasksCustomMetadata.TYPE.equals(name)
                                             : name + " != " + PersistentTasksCustomMetadata.TYPE;
                                         final var tuple = persistentTasksCustomMetadata.split();
-                                        builder.putProjectCustom(PersistentTasksCustomMetadata.TYPE, tuple.v2());
+                                        projectBuilderForBwc.putCustom(PersistentTasksCustomMetadata.TYPE, tuple.v2());
                                         builder.putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tuple.v1());
                                     } else {
-                                        builder.putProjectCustom(name, projectCustom);
+                                        projectBuilderForBwc.putCustom(name, projectCustom);
                                     }
                                 });
+                                builder.put(projectBuilderForBwc);
                             } else {
                                 logger.warn("Skipping unknown custom object with type {}", currentFieldName);
                                 parser.skipChildren();

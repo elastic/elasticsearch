@@ -19,7 +19,9 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 
@@ -148,7 +150,23 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
         IndexMetadata sourceIndexMeta,
         IndexMetadata downsampleIndexMeta
     ) {
-        Metadata.Builder newMetaData = Metadata.builder(state.getMetadata());
+        @FixForMultiProject
+        final ProjectMetadata updatedProject = addDownsampleIndexToDataStream(
+            state.metadata().getProject(),
+            dataStream,
+            sourceIndexMeta,
+            downsampleIndexMeta
+        );
+        return ClusterState.builder(state).putProjectMetadata(updatedProject).build();
+    }
+
+    private static ProjectMetadata addDownsampleIndexToDataStream(
+        ProjectMetadata project,
+        DataStream dataStream,
+        IndexMetadata sourceIndexMeta,
+        IndexMetadata downsampleIndexMeta
+    ) {
+        ProjectMetadata.Builder newProject = ProjectMetadata.builder(project);
         TimeValue generationLifecycleDate = dataStream.getGenerationLifecycleDate(sourceIndexMeta);
         // the generation lifecycle date is null only for the write index
         // we fail already if attempting to delete/downsample the write index, so the following assertion just re-inforces that
@@ -159,10 +177,10 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
             generationLifecycleDate.millis()
         );
 
-        newMetaData.put(updatedDownsampleMetadata, true);
+        newProject.put(updatedDownsampleMetadata, true);
         // we deleted the source already so let's add the downsample index to the data stream
-        newMetaData.put(dataStream.addBackingIndex(state.metadata().getProject(), downsampleIndexMeta.getIndex()));
-        return ClusterState.builder(state).metadata(newMetaData).build();
+        newProject.put(dataStream.addBackingIndex(project, downsampleIndexMeta.getIndex()));
+        return newProject.build();
     }
 
     /**

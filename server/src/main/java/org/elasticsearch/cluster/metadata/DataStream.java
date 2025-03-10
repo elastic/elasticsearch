@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle.DownsamplingRound;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -967,7 +967,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      *
      * An empty list is returned for indices that are not time series.
      */
-    public List<Round> getDownsamplingRoundsFor(
+    public List<DownsamplingRound> getDownsamplingRoundsFor(
         Index index,
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier
@@ -986,8 +986,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (indexGenerationTime != null) {
             long nowMillis = nowSupplier.getAsLong();
             long indexGenerationTimeMillis = indexGenerationTime.millis();
-            List<Round> orderedRoundsForIndex = new ArrayList<>(lifecycle.getDownsamplingRounds().size());
-            for (Round round : lifecycle.getDownsamplingRounds()) {
+            List<DownsamplingRound> orderedRoundsForIndex = new ArrayList<>(lifecycle.getDownsamplingRounds().size());
+            for (DownsamplingRound round : lifecycle.getDownsamplingRounds()) {
                 if (nowMillis >= indexGenerationTimeMillis + round.after().getMillis()) {
                     orderedRoundsForIndex.add(round);
                 }

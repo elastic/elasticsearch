@@ -59,8 +59,14 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
             .downsampling(
                 new Downsampling(
                     List.of(
-                        new Downsampling.Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))),
-                        new Downsampling.Round(TimeValue.timeValueSeconds(10), new DownsampleConfig(new DateHistogramInterval("10m")))
+                        new DataStreamLifecycle.DownsamplingRound(
+                            TimeValue.timeValueMillis(0),
+                            new DownsampleConfig(new DateHistogramInterval("5m"))
+                        ),
+                        new DataStreamLifecycle.DownsamplingRound(
+                            TimeValue.timeValueSeconds(10),
+                            new DownsampleConfig(new DateHistogramInterval("10m"))
+                        )
                     )
                 )
             )
@@ -128,10 +134,16 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
             .downsampling(
                 new Downsampling(
                     List.of(
-                        new Downsampling.Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))),
+                        new DataStreamLifecycle.DownsamplingRound(
+                            TimeValue.timeValueMillis(0),
+                            new DownsampleConfig(new DateHistogramInterval("5m"))
+                        ),
                         // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
                         // least 2 seconds since rollover. only the 10 seconds round should be executed.
-                        new Downsampling.Round(TimeValue.timeValueMillis(10), new DownsampleConfig(new DateHistogramInterval("10m")))
+                        new DataStreamLifecycle.DownsamplingRound(
+                            TimeValue.timeValueMillis(10),
+                            new DownsampleConfig(new DateHistogramInterval("10m"))
+                        )
                     )
                 )
             )
@@ -192,10 +204,16 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
             .downsampling(
                 new Downsampling(
                     List.of(
-                        new Downsampling.Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))),
+                        new DataStreamLifecycle.DownsamplingRound(
+                            TimeValue.timeValueMillis(0),
+                            new DownsampleConfig(new DateHistogramInterval("5m"))
+                        ),
                         // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
                         // least 2 seconds since rollover. only the 10 seconds round should be executed.
-                        new Downsampling.Round(TimeValue.timeValueMillis(10), new DownsampleConfig(new DateHistogramInterval("10m")))
+                        new DataStreamLifecycle.DownsamplingRound(
+                            TimeValue.timeValueMillis(10),
+                            new DownsampleConfig(new DateHistogramInterval("10m"))
+                        )
                     )
                 )
             )
@@ -251,7 +269,12 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
         DataStreamLifecycle updatedLifecycle = DataStreamLifecycle.newBuilder()
             .downsampling(
                 new Downsampling(
-                    List.of(new Downsampling.Round(TimeValue.timeValueMillis(10), new DownsampleConfig(new DateHistogramInterval("20m"))))
+                    List.of(
+                        new DataStreamLifecycle.DownsamplingRound(
+                            TimeValue.timeValueMillis(10),
+                            new DownsampleConfig(new DateHistogramInterval("20m"))
+                        )
+                    )
                 )
             )
             .build();

@@ -123,11 +123,11 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
             .downsampling(
                 new DataStreamLifecycle.Downsampling(
                     List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.DownsamplingRound(
                             TimeValue.timeValueMillis(0),
                             new DownsampleConfig(new DateHistogramInterval("5m"))
                         ),
-                        new DataStreamLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.DownsamplingRound(
                             TimeValue.timeValueSeconds(10),
                             new DownsampleConfig(new DateHistogramInterval("10m"))
                         )
@@ -415,11 +415,11 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
             .downsampling(
                 new DataStreamLifecycle.Downsampling(
                     List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.DownsamplingRound(
                             TimeValue.timeValueMillis(0),
                             new DownsampleConfig(new DateHistogramInterval("5m"))
                         ),
-                        new DataStreamLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.DownsamplingRound(
                             TimeValue.timeValueSeconds(10),
                             new DownsampleConfig(new DateHistogramInterval("10m"))
                         )

@@ -1645,15 +1645,15 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                     .downsampling(
                         new DataStreamLifecycle.Downsampling(
                             List.of(
-                                new DataStreamLifecycle.Downsampling.Round(
+                                new DataStreamLifecycle.DownsamplingRound(
                                     TimeValue.timeValueMillis(2000),
                                     new DownsampleConfig(new DateHistogramInterval("10m"))
                                 ),
-                                new DataStreamLifecycle.Downsampling.Round(
+                                new DataStreamLifecycle.DownsamplingRound(
                                     TimeValue.timeValueMillis(3200),
                                     new DownsampleConfig(new DateHistogramInterval("100m"))
                                 ),
-                                new DataStreamLifecycle.Downsampling.Round(
+                                new DataStreamLifecycle.DownsamplingRound(
                                     TimeValue.timeValueMillis(3500),
                                     new DownsampleConfig(new DateHistogramInterval("1000m"))
                                 )
@@ -1667,7 +1667,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             // generation time is now - 2000
             String thirdGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 3);
             Index thirdIndex = metadata.getProject().index(thirdGeneration).getIndex();
-            List<DataStreamLifecycle.Downsampling.Round> roundsForThirdIndex = dataStream.getDownsamplingRoundsFor(
+            List<DataStreamLifecycle.DownsamplingRound> roundsForThirdIndex = dataStream.getDownsamplingRoundsFor(
                 thirdIndex,
                 metadata.getProject()::index,
                 () -> now
@@ -1679,7 +1679,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             // generation time is now - 40000
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
             Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
-            List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
+            List<DataStreamLifecycle.DownsamplingRound> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
                 metadata.getProject()::index,
                 () -> now
@@ -1688,7 +1688,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             assertThat(roundsForFirstIndex.size(), is(3));
             // assert the order is maintained
             assertThat(
-                roundsForFirstIndex.stream().map(DataStreamLifecycle.Downsampling.Round::after).toList(),
+                roundsForFirstIndex.stream().map(DataStreamLifecycle.DownsamplingRound::after).toList(),
                 is(List.of(TimeValue.timeValueMillis(2000), TimeValue.timeValueMillis(3200), TimeValue.timeValueMillis(3500)))
             );
         }
@@ -1706,15 +1706,15 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                     .downsampling(
                         new DataStreamLifecycle.Downsampling(
                             List.of(
-                                new DataStreamLifecycle.Downsampling.Round(
+                                new DataStreamLifecycle.DownsamplingRound(
                                     TimeValue.timeValueMillis(2000),
                                     new DownsampleConfig(new DateHistogramInterval("10m"))
                                 ),
-                                new DataStreamLifecycle.Downsampling.Round(
+                                new DataStreamLifecycle.DownsamplingRound(
                                     TimeValue.timeValueMillis(3200),
                                     new DownsampleConfig(new DateHistogramInterval("100m"))
                                 ),
-                                new DataStreamLifecycle.Downsampling.Round(
+                                new DataStreamLifecycle.DownsamplingRound(
                                     TimeValue.timeValueMillis(3500),
                                     new DownsampleConfig(new DateHistogramInterval("1000m"))
                                 )
@@ -1728,7 +1728,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             // generation time is now - 40000
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
             Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
-            List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
+            List<DataStreamLifecycle.DownsamplingRound> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
                 metadata.getProject()::index,
                 () -> now
@@ -1752,7 +1752,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             // generation time is now - 40000
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
             Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
-            List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
+            List<DataStreamLifecycle.DownsamplingRound> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
                 metadata.getProject()::index,
                 () -> now
@@ -1775,7 +1775,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
             Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
-            List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
+            List<DataStreamLifecycle.DownsamplingRound> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
                 metadata.getProject()::index,
                 () -> now

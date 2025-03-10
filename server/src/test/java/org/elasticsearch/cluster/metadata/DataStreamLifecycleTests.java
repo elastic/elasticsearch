@@ -180,11 +180,11 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                 IllegalArgumentException.class,
                 () -> new DataStreamLifecycle.Downsampling(
                     List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.DownsamplingRound(
                             TimeValue.timeValueDays(10),
                             new DownsampleConfig(new DateHistogramInterval("2h"))
                         ),
-                        new DataStreamLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.DownsamplingRound(
                             TimeValue.timeValueDays(3),
                             new DownsampleConfig(new DateHistogramInterval("2h"))
                         )
@@ -201,11 +201,11 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                 IllegalArgumentException.class,
                 () -> new DataStreamLifecycle.Downsampling(
                     List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.DownsamplingRound(
                             TimeValue.timeValueDays(10),
                             new DownsampleConfig(new DateHistogramInterval("2h"))
                         ),
-                        new DataStreamLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.DownsamplingRound(
                             TimeValue.timeValueDays(30),
                             new DownsampleConfig(new DateHistogramInterval("2h"))
                         )
@@ -219,11 +219,11 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                 IllegalArgumentException.class,
                 () -> new DataStreamLifecycle.Downsampling(
                     List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.DownsamplingRound(
                             TimeValue.timeValueDays(10),
                             new DownsampleConfig(new DateHistogramInterval("2h"))
                         ),
-                        new DataStreamLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.DownsamplingRound(
                             TimeValue.timeValueDays(30),
                             new DownsampleConfig(new DateHistogramInterval("3h"))
                         )
@@ -246,7 +246,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                     Stream.iterate(1, i -> i * 2)
                         .limit(12)
                         .map(
-                            i -> new DataStreamLifecycle.Downsampling.Round(
+                            i -> new DataStreamLifecycle.DownsamplingRound(
                                 TimeValue.timeValueDays(i),
                                 new DownsampleConfig(new DateHistogramInterval(i + "h"))
                             )
@@ -262,7 +262,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                 IllegalArgumentException.class,
                 () -> new DataStreamLifecycle.Downsampling(
                     List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.DownsamplingRound(
                             TimeValue.timeValueDays(10),
                             new DownsampleConfig(new DateHistogramInterval("2m"))
                         )
@@ -419,14 +419,14 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             case 1 -> DataStreamLifecycle.Downsampling.NULL;
             default -> {
                 var count = randomIntBetween(0, 9);
-                List<DataStreamLifecycle.Downsampling.Round> rounds = new ArrayList<>();
-                var previous = new DataStreamLifecycle.Downsampling.Round(
+                List<DataStreamLifecycle.DownsamplingRound> rounds = new ArrayList<>();
+                var previous = new DataStreamLifecycle.DownsamplingRound(
                     randomTimeValue(1, 365, TimeUnit.DAYS),
                     new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
                 );
                 rounds.add(previous);
                 for (int i = 0; i < count; i++) {
-                    DataStreamLifecycle.Downsampling.Round round = nextRound(previous);
+                    DataStreamLifecycle.DownsamplingRound round = nextRound(previous);
                     rounds.add(round);
                     previous = round;
                 }
@@ -435,11 +435,11 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         };
     }
 
-    private static DataStreamLifecycle.Downsampling.Round nextRound(DataStreamLifecycle.Downsampling.Round previous) {
+    private static DataStreamLifecycle.DownsamplingRound nextRound(DataStreamLifecycle.DownsamplingRound previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
         var fixedInterval = new DownsampleConfig(
             new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
         );
-        return new DataStreamLifecycle.Downsampling.Round(after, fixedInterval);
+        return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
     }
 }

@@ -117,7 +117,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
                 return Downsampling.NULL;
             } else {
-                return new Downsampling(AbstractObjectParser.parseArray(p, c, Downsampling.Round::fromXContent));
+                return new Downsampling(AbstractObjectParser.parseArray(p, c, DownsamplingRound::fromXContent));
             }
         }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
@@ -263,7 +263,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * not configured then it returns null.
      */
     @Nullable
-    public List<Downsampling.Round> getDownsamplingRounds() {
+    public List<DownsamplingRound> getDownsamplingRounds() {
         return downsampling == null ? null : downsampling.rounds();
     }
 
@@ -471,112 +471,17 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * @param rounds is a list of downsampling configuration which instructs when a backing index should be downsampled (`after`) and at
      *               which interval (`fixed_interval`). Null represents an explicit no downsampling during template composition.
      */
-    public record Downsampling(@Nullable List<Round> rounds) implements Writeable, ToXContentFragment {
-
-        public static final long FIVE_MINUTES_MILLIS = TimeValue.timeValueMinutes(5).getMillis();
-
-        /**
-         * A round represents the configuration for when and how elasticsearch will downsample a backing index.
-         * @param after is a TimeValue configuring how old (based on generation age) should a backing index be before downsampling
-         * @param config contains the interval that the backing index is going to be downsampled.
-         */
-        public record Round(TimeValue after, DownsampleConfig config) implements Writeable, ToXContentObject {
-
-            public static final ParseField AFTER_FIELD = new ParseField("after");
-            public static final ParseField FIXED_INTERVAL_FIELD = new ParseField("fixed_interval");
-
-            private static final ConstructingObjectParser<Round, Void> PARSER = new ConstructingObjectParser<>(
-                "downsampling_round",
-                false,
-                (args, unused) -> new Round((TimeValue) args[0], new DownsampleConfig((DateHistogramInterval) args[1]))
-            );
-
-            static {
-                PARSER.declareString(
-                    ConstructingObjectParser.optionalConstructorArg(),
-                    value -> TimeValue.parseTimeValue(value, AFTER_FIELD.getPreferredName()),
-                    AFTER_FIELD
-                );
-                PARSER.declareField(
-                    constructorArg(),
-                    p -> new DateHistogramInterval(p.text()),
-                    new ParseField(FIXED_INTERVAL_FIELD.getPreferredName()),
-                    ObjectParser.ValueType.STRING
-                );
-            }
-
-            public static Round read(StreamInput in) throws IOException {
-                return new Round(in.readTimeValue(), new DownsampleConfig(in));
-            }
-
-            public Round {
-                if (config.getFixedInterval().estimateMillis() < FIVE_MINUTES_MILLIS) {
-                    throw new IllegalArgumentException(
-                        "A downsampling round must have a fixed interval of at least five minutes but found: " + config.getFixedInterval()
-                    );
-                }
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeTimeValue(after);
-                out.writeWriteable(config);
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject();
-                builder.field(AFTER_FIELD.getPreferredName(), after.getStringRep());
-                config.toXContentFragment(builder);
-                builder.endObject();
-                return builder;
-            }
-
-            public static Round fromXContent(XContentParser parser, Void context) throws IOException {
-                return PARSER.parse(parser, context);
-            }
-
-            @Override
-            public String toString() {
-                return Strings.toString(this, true, true);
-            }
-        }
+    public record Downsampling(@Nullable List<DownsamplingRound> rounds) implements Writeable, ToXContentFragment {
 
         // For testing
         public static final Downsampling NULL = new Downsampling(null);
 
         public Downsampling {
-            if (rounds != null) {
-                if (rounds.isEmpty()) {
-                    throw new IllegalArgumentException("Downsampling configuration should have at least one round configured.");
-                }
-                if (rounds.size() > 10) {
-                    throw new IllegalArgumentException(
-                        "Downsampling configuration supports maximum 10 configured rounds. Found: " + rounds.size()
-                    );
-                }
-                Round previous = null;
-                for (Round round : rounds) {
-                    if (previous == null) {
-                        previous = round;
-                    } else {
-                        if (round.after.compareTo(previous.after) < 0) {
-                            throw new IllegalArgumentException(
-                                "A downsampling round must have a later 'after' value than the proceeding, "
-                                    + round.after.getStringRep()
-                                    + " is not after "
-                                    + previous.after.getStringRep()
-                                    + "."
-                            );
-                        }
-                        DownsampleConfig.validateSourceAndTargetIntervals(previous.config(), round.config());
-                    }
-                }
-            }
+            DownsamplingRound.validateRounds(rounds);
         }
 
         public static Downsampling read(StreamInput in) throws IOException {
-            return new Downsampling(in.readOptionalCollectionAsList(Round::read));
+            return new Downsampling(in.readOptionalCollectionAsList(DownsamplingRound::read));
         }
 
         @Override
@@ -590,7 +495,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 builder.nullValue();
             } else {
                 builder.startArray();
-                for (Round round : rounds) {
+                for (DownsamplingRound round : rounds) {
                     round.toXContent(builder, params);
                 }
                 builder.endArray();
@@ -609,6 +514,105 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
         public String displayName() {
             return this.toString().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    /**
+     * A round represents the configuration for when and how elasticsearch will downsample a backing index.
+     * @param after is a TimeValue configuring how old (based on generation age) should a backing index be before downsampling
+     * @param config contains the interval that the backing index is going to be downsampled.
+     */
+    public record DownsamplingRound(TimeValue after, DownsampleConfig config) implements Writeable, ToXContentObject {
+
+        public static final ParseField AFTER_FIELD = new ParseField("after");
+        public static final ParseField FIXED_INTERVAL_FIELD = new ParseField("fixed_interval");
+        public static final long FIVE_MINUTES_MILLIS = TimeValue.timeValueMinutes(5).getMillis();
+
+        private static final ConstructingObjectParser<DownsamplingRound, Void> PARSER = new ConstructingObjectParser<>(
+            "downsampling_round",
+            false,
+            (args, unused) -> new DownsamplingRound((TimeValue) args[0], new DownsampleConfig((DateHistogramInterval) args[1]))
+        );
+
+        static {
+            PARSER.declareString(
+                ConstructingObjectParser.optionalConstructorArg(),
+                value -> TimeValue.parseTimeValue(value, AFTER_FIELD.getPreferredName()),
+                AFTER_FIELD
+            );
+            PARSER.declareField(
+                constructorArg(),
+                p -> new DateHistogramInterval(p.text()),
+                new ParseField(FIXED_INTERVAL_FIELD.getPreferredName()),
+                ObjectParser.ValueType.STRING
+            );
+        }
+
+        static void validateRounds(List<DownsamplingRound> rounds) {
+            if (rounds == null) {
+                return;
+            }
+            if (rounds.isEmpty()) {
+                throw new IllegalArgumentException("Downsampling configuration should have at least one round configured.");
+            }
+            if (rounds.size() > 10) {
+                throw new IllegalArgumentException(
+                    "Downsampling configuration supports maximum 10 configured rounds. Found: " + rounds.size()
+                );
+            }
+            DownsamplingRound previous = null;
+            for (DownsamplingRound round : rounds) {
+                if (previous == null) {
+                    previous = round;
+                } else {
+                    if (round.after.compareTo(previous.after) < 0) {
+                        throw new IllegalArgumentException(
+                            "A downsampling round must have a later 'after' value than the proceeding, "
+                                + round.after.getStringRep()
+                                + " is not after "
+                                + previous.after.getStringRep()
+                                + "."
+                        );
+                    }
+                    DownsampleConfig.validateSourceAndTargetIntervals(previous.config(), round.config());
+                }
+            }
+        }
+
+        public static DownsamplingRound read(StreamInput in) throws IOException {
+            return new DownsamplingRound(in.readTimeValue(), new DownsampleConfig(in));
+        }
+
+        public DownsamplingRound {
+            if (config.getFixedInterval().estimateMillis() < FIVE_MINUTES_MILLIS) {
+                throw new IllegalArgumentException(
+                    "A downsampling round must have a fixed interval of at least five minutes but found: " + config.getFixedInterval()
+                );
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeTimeValue(after);
+            out.writeWriteable(config);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(AFTER_FIELD.getPreferredName(), after.getStringRep());
+            config.toXContentFragment(builder);
+            builder.endObject();
+            return builder;
+        }
+
+        public static DownsamplingRound fromXContent(XContentParser parser, Void context) throws IOException {
+            return PARSER.parse(parser, context);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
         }
     }
 }

@@ -68,7 +68,7 @@ public class PutDataStreamLifecycleAction {
                 if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
                     return Downsampling.NULL;
                 } else {
-                    return new Downsampling(AbstractObjectParser.parseArray(p, null, Downsampling.Round::fromXContent));
+                    return new Downsampling(AbstractObjectParser.parseArray(p, null, DataStreamLifecycle.DownsamplingRound::fromXContent));
                 }
             }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
         }

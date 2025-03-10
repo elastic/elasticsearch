@@ -40,7 +40,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle.DownsamplingRound;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -1227,7 +1227,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             DataStreamLifecycle.newBuilder()
                 .downsampling(
                     new Downsampling(
-                        List.of(new Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
+                        List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
                     )
                 )
                 .dataRetention(TimeValue.MAX_VALUE)
@@ -1365,7 +1365,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             DataStreamLifecycle.newBuilder()
                 .downsampling(
                     new Downsampling(
-                        List.of(new Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
+                        List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
                     )
                 )
                 .dataRetention(TimeValue.MAX_VALUE)
@@ -1616,7 +1616,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             DataStreamLifecycle.newBuilder()
                 .downsampling(
                     new Downsampling(
-                        List.of(new Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
+                        List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
                     )
                 )
                 .dataRetention(TimeValue.timeValueMillis(1))

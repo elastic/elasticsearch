@@ -68,7 +68,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
             .downsampling(
                 new DataStreamLifecycle.Downsampling(
                     List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
+                        new DataStreamLifecycle.DownsamplingRound(
                             TimeValue.timeValueMillis(0),
                             new DownsampleConfig(new DateHistogramInterval("5m"))
                         )

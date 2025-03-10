@@ -151,14 +151,14 @@ public class DataStreamLifecycleFixtures {
             case 1 -> DataStreamLifecycle.Downsampling.NULL;
             default -> {
                 var count = randomIntBetween(0, 9);
-                List<DataStreamLifecycle.Downsampling.Round> rounds = new ArrayList<>();
-                var previous = new DataStreamLifecycle.Downsampling.Round(
+                List<DataStreamLifecycle.DownsamplingRound> rounds = new ArrayList<>();
+                var previous = new DataStreamLifecycle.DownsamplingRound(
                     TimeValue.timeValueDays(randomIntBetween(1, 365)),
                     new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
                 );
                 rounds.add(previous);
                 for (int i = 0; i < count; i++) {
-                    DataStreamLifecycle.Downsampling.Round round = nextRound(previous);
+                    DataStreamLifecycle.DownsamplingRound round = nextRound(previous);
                     rounds.add(round);
                     previous = round;
                 }
@@ -167,11 +167,11 @@ public class DataStreamLifecycleFixtures {
         };
     }
 
-    private static DataStreamLifecycle.Downsampling.Round nextRound(DataStreamLifecycle.Downsampling.Round previous) {
+    private static DataStreamLifecycle.DownsamplingRound nextRound(DataStreamLifecycle.DownsamplingRound previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
         var fixedInterval = new DownsampleConfig(
             new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
         );
-        return new DataStreamLifecycle.Downsampling.Round(after, fixedInterval);
+        return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
     }
 }

@@ -13,6 +13,7 @@ module org.elasticsearch.rank.rrf {
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcore;
+    requires org.elasticsearch.inference;
 
     exports org.elasticsearch.xpack.rank;
     exports org.elasticsearch.xpack.rank.rrf;

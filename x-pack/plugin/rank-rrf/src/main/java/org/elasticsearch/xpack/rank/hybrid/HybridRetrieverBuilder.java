@@ -60,7 +60,7 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
         PARSER.declareStringArray(constructorArg(), FIELDS_FIELD);
         PARSER.declareString(constructorArg(), QUERY_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
-        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
     public HybridRetrieverBuilder(List<String> fields, String query, int rankWindowSize) {

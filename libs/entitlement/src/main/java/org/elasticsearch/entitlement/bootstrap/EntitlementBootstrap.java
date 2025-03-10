@@ -40,6 +40,7 @@ public class EntitlementBootstrap {
         Path[] sharedRepoDirs,
         Path configDir,
         Path libDir,
+        Path modulesDir,
         Path pluginsDir,
         Map<String, Path> sourcePaths,
         Path logsDir,
@@ -58,6 +59,7 @@ public class EntitlementBootstrap {
             requireNonNull(sharedRepoDirs);
             requireNonNull(configDir);
             requireNonNull(libDir);
+            requireNonNull(modulesDir);
             requireNonNull(pluginsDir);
             requireNonNull(sourcePaths);
             requireNonNull(logsDir);
@@ -83,6 +85,7 @@ public class EntitlementBootstrap {
      * @param sharedRepoDirs shared repository directories for Elasticsearch
      * @param configDir      the config directory for Elasticsearch
      * @param libDir         the lib directory for Elasticsearch
+     * @param modulesDir     the directory where Elasticsearch modules are
      * @param pluginsDir     the directory where plugins are installed for Elasticsearch
      * @param sourcePaths    a map holding the path to each plugin or module jars, by plugin (or module) name.
      * @param tempDir        the temp directory for Elasticsearch
@@ -98,6 +101,7 @@ public class EntitlementBootstrap {
         Path[] sharedRepoDirs,
         Path configDir,
         Path libDir,
+        Path modulesDir,
         Path pluginsDir,
         Map<String, Path> sourcePaths,
         Path logsDir,
@@ -117,6 +121,7 @@ public class EntitlementBootstrap {
             sharedRepoDirs,
             configDir,
             libDir,
+            modulesDir,
             pluginsDir,
             sourcePaths,
             logsDir,

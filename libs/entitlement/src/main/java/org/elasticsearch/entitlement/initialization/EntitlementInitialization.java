@@ -154,8 +154,10 @@ public class EntitlementInitialization {
             serverModuleFileDatas,
             // Base ES directories
             FileData.ofPath(bootstrapArgs.pluginsDir(), READ),
+            FileData.ofPath(bootstrapArgs.modulesDir(), READ),
             FileData.ofPath(bootstrapArgs.configDir(), READ),
             FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+            FileData.ofPath(bootstrapArgs.libDir(), READ),
             FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
             FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
 

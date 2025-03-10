@@ -24,7 +24,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
@@ -49,31 +48,20 @@ import static org.mockito.Mockito.when;
 
 public class ThreadPoolMergeSchedulerTests extends ESTestCase {
 
-    DeterministicTaskQueue deterministicTaskQueue;
-    ThreadPool mergesExecutorThreadPool;
-    Settings settingsWithMergeScheduler;
-    IndexSettings indexSettings;
-    ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
-
-    @Before
-    public void setUpThreadPool() {
-        deterministicTaskQueue = new DeterministicTaskQueue();
-        mergesExecutorThreadPool = deterministicTaskQueue.getThreadPool();
-        settingsWithMergeScheduler = Settings.builder()
-            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
-            .build();
-        indexSettings = IndexSettingsModule.newIndexSettings("index", settingsWithMergeScheduler);
-        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
-            mergesExecutorThreadPool,
-            settingsWithMergeScheduler
-        );
-    }
-
     public void testMergesExecuteInSizeOrder() throws IOException {
+        DeterministicTaskQueue threadPoolTaskQueue = new DeterministicTaskQueue();
+        Settings settingsWithMergeScheduler = Settings.builder()
+                .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+                .build();
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService =
+                ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+                threadPoolTaskQueue.getThreadPool(),
+                settingsWithMergeScheduler
+        );
         try (
             ThreadPoolMergeScheduler threadPoolMergeScheduler = new ThreadPoolMergeScheduler(
                 new ShardId("index", "_na_", 1),
-                indexSettings,
+                IndexSettingsModule.newIndexSettings("index", settingsWithMergeScheduler),
                 threadPoolMergeExecutorService
             )
         ) {
@@ -93,7 +81,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
                 }).when(mergeSource).merge(any(OneMerge.class));
                 threadPoolMergeScheduler.merge(mergeSource, randomFrom(MergeTrigger.values()));
             }
-            deterministicTaskQueue.runAllTasks();
+            threadPoolTaskQueue.runAllTasks();
             assertThat(executedMergesList.size(), is(mergeCount));
             // assert merges are executed in ascending size order
             for (int i = 1; i < mergeCount; i++) {
@@ -110,7 +98,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         // test with min 2 allowed concurrent merges
         int mergeExecutorThreadCount = randomIntBetween(2, 5);
         Settings settings = Settings.builder()
-            .put(settingsWithMergeScheduler)
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
             .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), mergeExecutorThreadCount)
             .build();
@@ -182,7 +170,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         // the merge executor has at least 1 extra thread available
         int mergeExecutorThreadCount = mergeSchedulerMaxThreadCount + randomIntBetween(1, 3);
         Settings settings = Settings.builder()
-            .put(settingsWithMergeScheduler)
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
             .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), mergeSchedulerMaxThreadCount)
             .build();
@@ -269,7 +257,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
         int mergeSchedulerMaxThreadCount = randomIntBetween(1, 3);
         int mergeExecutorThreadCount = randomIntBetween(1, 3);
         Settings settings = Settings.builder()
-            .put(settingsWithMergeScheduler)
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
             .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), mergeSchedulerMaxThreadCount)
             .build();
@@ -334,7 +322,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
     public void testAutoIOThrottleForMergeTasksWhenSchedulerDisablesIt() throws Exception {
         // merge scheduler configured with auto IO throttle disabled
         Settings settings = Settings.builder()
-            .put(settingsWithMergeScheduler)
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
             .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), false)
             .build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
@@ -361,16 +349,12 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
 
     public void testAutoIOThrottleForMergeTasks() throws Exception {
         // merge scheduler configured with auto IO throttle disabled
-        final Settings settings;
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true);
         if (randomBoolean()) {
-            settings = Settings.builder()
-                .put(settingsWithMergeScheduler)
-                .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), true)
-                .build();
-        } else {
-            settings = Settings.builder().put(settingsWithMergeScheduler).build();
+            settingsBuilder.put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), true);
         }
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settingsBuilder.build());
         MergePolicy.OneMergeProgress oneMergeProgress = new MergePolicy.OneMergeProgress();
         OneMerge oneMerge = mock(OneMerge.class);
         // forced merge with a set number of segments

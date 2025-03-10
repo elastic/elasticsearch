@@ -981,11 +981,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
-            var opsListener = readerContext.indexShard().getSearchOperationListener();
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.FETCH, false);) {
+                var opsListener = readerContext.indexShard().getSearchOperationListener();
+                final long beforeQueryTime = System.nanoTime();
                 final long afterQueryTime;
                 try {
-                    final long beforeQueryTime = System.nanoTime();
                     opsListener.onPreQueryPhase(searchContext);
                     searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(null));
                     searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));

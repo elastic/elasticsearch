@@ -368,8 +368,9 @@ public interface AuthorizationEngine {
             }
             if (index != null) {
                 for (RoleDescriptor.IndicesPrivileges indexPrivilege : index) {
-                    if (Arrays.stream(indexPrivilege.getPrivileges())
-                        .anyMatch(p -> "read_failure_store".equals(p) || "manage_failure_store".equals(p))) {
+                    if (indexPrivilege.getPrivileges() != null
+                        && Arrays.stream(indexPrivilege.getPrivileges())
+                            .anyMatch(p -> "read_failure_store".equals(p) || "manage_failure_store".equals(p))) {
                         validationException = addValidationError("checking failure store privileges is not supported", validationException);
                     }
                 }

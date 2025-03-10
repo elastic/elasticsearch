@@ -11,17 +11,24 @@ package org.elasticsearch.entitlement.qa;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.entitlement.qa.EntitlementsTestRule.PolicyBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractEntitlementsIT extends ESRestTestCase {
+
+    static final PolicyBuilder ALWAYS_ALLOWED_TEST_ENTITLEMENTS = (builder, tempDir) -> builder.value(
+        Map.of("files", List.of(Map.of("path", tempDir.resolve("read_dir").resolve("always_allowed"), "mode", "read")))
+    );
 
     static final PolicyBuilder ALLOWED_TEST_ENTITLEMENTS = (builder, tempDir) -> {
         builder.value("create_class_loader");
@@ -69,8 +76,28 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
             Response result = executeCheck();
             assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
         } else {
-            var exception = expectThrows(IOException.class, this::executeCheck);
-            assertThat(exception.getMessage(), containsString("not_entitled_exception"));
+            var exception = expectThrows(ResponseException.class, this::executeCheck);
+            assertThat(exception, FORBIDDEN_STATUS_CODE_MATCHER);
         }
     }
+
+    private static final Matcher<ResponseException> FORBIDDEN_STATUS_CODE_MATCHER = new TypeSafeMatcher<>() {
+        @Override
+        protected boolean matchesSafely(ResponseException item) {
+            return item.getResponse().getStatusLine().getStatusCode() == 403;
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("403 (FORBIDDEN)");
+        }
+
+        @Override
+        protected void describeMismatchSafely(ResponseException item, Description description) {
+            description.appendText("was ")
+                .appendValue(item.getResponse().getStatusLine().getStatusCode())
+                .appendText("\n")
+                .appendValue(item.getMessage());
+        }
+    };
 }

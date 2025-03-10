@@ -18,7 +18,7 @@ import org.junit.ClassRule;
 public class EntitlementsDeniedIT extends AbstractEntitlementsIT {
 
     @ClassRule
-    public static EntitlementsTestRule testRule = new EntitlementsTestRule(true, null);
+    public static EntitlementsTestRule testRule = new EntitlementsTestRule(true, ALWAYS_ALLOWED_TEST_ENTITLEMENTS);
 
     public EntitlementsDeniedIT(@Name("actionName") String actionName) {
         super(actionName, false);

@@ -62,6 +62,10 @@ class FileCheckActions {
         return testRootDir.resolve("read_file");
     }
 
+    static Path readFileAlwaysAllowed() {
+        return readDir().resolve("always_allowed");
+    }
+
     static Path readWriteFile() {
         return testRootDir.resolve("read_write_file");
     }

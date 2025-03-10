@@ -14,8 +14,10 @@ import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.WatchEvent;
 
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
 @SuppressWarnings({ "unused" /* called via reflection */, "rawtypes" })
@@ -24,6 +26,12 @@ class PathActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkToRealPath() throws IOException {
         FileCheckActions.readFile().toRealPath();
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = NoSuchFileException.class)
+    static void checkToRealPathForInvalidTarget() throws IOException {
+        EntitledActions.createTempSymbolicLink(FileCheckActions.readFileAlwaysAllowed(), FileCheckActions.readDir().resolve("invalid"))
+            .toRealPath();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)

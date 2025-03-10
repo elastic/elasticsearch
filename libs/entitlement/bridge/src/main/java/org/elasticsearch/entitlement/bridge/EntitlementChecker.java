@@ -64,6 +64,7 @@ import java.nio.file.FileStore;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitor;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.WatchEvent;
@@ -1203,7 +1204,7 @@ public interface EntitlementChecker {
     void checkType(Class<?> callerClass, FileStore that);
 
     // path
-    void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options);
+    void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) throws NoSuchFileException;
 
     void checkPathRegister(Class<?> callerClass, Path that, WatchService watcher, WatchEvent.Kind<?>... events);
 

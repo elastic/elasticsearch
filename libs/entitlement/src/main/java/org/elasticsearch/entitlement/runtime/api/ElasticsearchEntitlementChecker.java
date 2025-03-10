@@ -74,6 +74,7 @@ import java.nio.file.FileStore;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitor;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -2744,7 +2745,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) {
+    public void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) throws NoSuchFileException {
         boolean followLinks = true;
         for (LinkOption option : options) {
             if (option == LinkOption.NOFOLLOW_LINKS) {

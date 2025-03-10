@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.lang.StackWalker.StackFrame;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -326,10 +327,17 @@ public class PolicyManager {
     }
 
     public void checkFileRead(Class<?> callerClass, Path path) {
-        checkFileRead(callerClass, path, false);
+        try {
+            checkFileRead(callerClass, path, false);
+        } catch (NoSuchFileException e) {
+            assert false : "NoSuchFileException should only be thrown when following links";
+            var notEntitledException = new NotEntitledException(e.getMessage());
+            notEntitledException.addSuppressed(e);
+            throw notEntitledException;
+        }
     }
 
-    public void checkFileRead(Class<?> callerClass, Path path, boolean followLinks) {
+    public void checkFileRead(Class<?> callerClass, Path path, boolean followLinks) throws NoSuchFileException {
         if (isPathOnDefaultFilesystem(path) == false) {
             return;
         }
@@ -345,11 +353,13 @@ public class PolicyManager {
         if (canRead && followLinks) {
             try {
                 realPath = path.toRealPath();
+                if (realPath.equals(path) == false) {
+                    canRead = entitlements.fileAccess().canRead(realPath);
+                }
+            } catch (NoSuchFileException e) {
+                throw e; // rethrow
             } catch (IOException e) {
-                // target not found or other IO error
-            }
-            if (realPath != null && realPath.equals(path) == false) {
-                canRead = entitlements.fileAccess().canRead(realPath);
+                canRead = false;
             }
         }
 

@@ -52,7 +52,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -285,13 +284,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
-                        StringSortScript leafScript = leafScripts.computeIfAbsent(context.id(), o -> {
-                            try {
-                                return searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        });
+                        // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
+                        StringSortScript leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        leafScripts.put(context.id(), leafScript);
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
 
@@ -340,14 +335,10 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     final Map<Object, NumberSortScript> leafScripts = ConcurrentCollections.newConcurrentMap();
 
                     @Override
-                    protected SortedNumericDoubleValues getValues(LeafReaderContext context) {
-                        NumberSortScript leafScript = leafScripts.computeIfAbsent(context.id(), o -> {
-                            try {
-                                return numberSortScriptFactory.newInstance(new DocValuesDocReader(searchLookup, context));
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        });
+                    protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
+                        // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
+                        NumberSortScript leafScript = numberSortScriptFactory.newInstance(new DocValuesDocReader(searchLookup, context));
+                        leafScripts.put(context.id(), leafScript);
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
                             public boolean advanceExact(int doc) {
@@ -377,13 +368,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
-                        BytesRefSortScript leafScript = leafScripts.computeIfAbsent(context.id(), o -> {
-                            try {
-                                return searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        });
+                        // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
+                        BytesRefSortScript leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        leafScripts.put(context.id(), leafScript);
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
 
                             @Override

@@ -64,7 +64,7 @@ public final class RescorerRetrieverBuilder extends CompoundRetrieverBuilder<Res
                 );
             }
         }, RESCORE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
-        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
     public static RescorerRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {

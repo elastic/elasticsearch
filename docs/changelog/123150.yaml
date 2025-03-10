@@ -1,5 +1,5 @@
 pr: 123150
-summary: Add `max.chunks` to `EmbeddingRequestChunker` to prevent OOM
+summary: Limit the number of chunks for semantic text to prevent high memory usage
 area: Machine Learning
 type: feature
 issues: []

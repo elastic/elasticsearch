@@ -126,7 +126,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     }
 
     /**
-     * Test that a timeout is appropriately handled when the directory reader raises it while loading terms enum
+     * Test that a timeout is appropriately handled when the (exitable) directory reader raises it while loading terms enum
      * as the scorer supplier is requested.
      */
     public void testScorerSupplierTimeoutTerms() throws IOException {
@@ -139,7 +139,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     }
 
     /**
-     * Test that a timeout is appropriately handled when the directory reader raises it while loading points
+     * Test that a timeout is appropriately handled when the (exitable) directory reader raises it while loading points
      * as the scorer supplier is requested.
      */
     public void testScorerSupplierTimeoutPoints() throws IOException {
@@ -201,7 +201,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     }
 
     /**
-     * Test that a timeout is appropriately handled when the directory reader raises it while loading terms enum
+     * Test that a timeout is appropriately handled when the (exitable) directory reader raises it while loading terms enum
      * as the scorer is retrieved from the scorer supplier
      */
     public void testScorerGetTimeoutTerms() throws IOException {
@@ -214,7 +214,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     }
 
     /**
-     * Test that a timeout is appropriately handled when the directory reader raises it while loading points
+     * Test that a timeout is appropriately handled when the (exitable) directory reader raises it while loading points
      * as the scorer is retrieved from the scorer supplier
      */
     public void testScorerGetTimeoutPoints() throws IOException {
@@ -375,6 +375,9 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader)) {
             @Override
             public long getRelativeTimeInMillis() {
+                // this controls whether a timeout is raised or not. We abstract time away by pretending that the clock stops
+                // when a timeout is not expected. The tiniest increment to relative time in millis triggers a timeout.
+                // See QueryPhase#getTimeoutCheck
                 return query.shouldTimeout ? 1L : 0L;
             }
         };

@@ -1578,15 +1578,15 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static void createLoadIndexWithFieldAndDocumentCounts(int fieldCount, int documentCount) throws IOException {
-        String settings = String.format("\"settings\":{\"index.mapping.total_fields.limit\":%d}", fieldCount);
-        StringBuilder mappings = new StringBuilder();
-        mappings.append(String.format("\"mappings\": { \"properties\": {\"f%d\": {\"type\" : \"integer\"}", 1));
+        StringBuilder schema = new StringBuilder();
+        schema.append(String.format(Locale.ROOT, "{\"settings\":{\"index.mapping.total_fields.limit\":%d},", fieldCount));
+        schema.append(String.format(Locale.ROOT, "\"mappings\":{\"properties\":{\"f%d\":{\"type\":\"integer\"}", 1));
         for (int i = 2; i <= fieldCount; i++) {
-            mappings.append(String.format(", \"f%d\":{\"type\" : \"integer\"}", i));
+            schema.append(String.format(Locale.ROOT, ",\"f%d\":{\"type\":\"integer\"}", i));
         }
-        mappings.append("}}");
+        schema.append(String.format(Locale.ROOT, "}}}"));
         Request request = new Request("PUT", "/" + testIndexName());
-        request.setJsonEntity("{" + settings + ", " + mappings + "}");
+        request.setJsonEntity(schema.toString());
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
 
         if (documentCount > 0) {
@@ -1595,12 +1595,16 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
             StringBuilder bulk = new StringBuilder();
             for (int i = 1; i <= documentCount; i++) {
-                bulk.append("{\"index\":{}}\n");
-                bulk.append(String.format("{\"f%d\":%d", 1, 1));
+                bulk.append(String.format(Locale.ROOT, """
+                    {"index":{}}
+                    """));
+                bulk.append(String.format(Locale.ROOT, "{\"f%d\":%d", 1, 1));
                 for (int j = 2; j <= fieldCount; j++) {
-                    bulk.append(String.format(",\"f%d\":%d", j, j));
+                    bulk.append(String.format(Locale.ROOT, ",\"f%d\":%d", j, j));
                 }
-                bulk.append("}\n");
+                bulk.append(String.format(Locale.ROOT, """
+                    }
+                    """));
             }
             request.setJsonEntity(bulk.toString());
             assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());

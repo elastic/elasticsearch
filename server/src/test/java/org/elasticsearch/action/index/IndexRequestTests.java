@@ -9,7 +9,6 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
@@ -243,11 +242,7 @@ public class IndexRequestTests extends ESTestCase {
                 .boxed()
                 .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
             indexRequest.setDynamicTemplates(dynamicTemplates);
-            TransportVersion ver = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.V_7_13_0,
-                TransportVersion.current()
-            );
+            TransportVersion ver = TransportVersionUtils.randomCompatibleVersion(random());
             BytesStreamOutput out = new BytesStreamOutput();
             out.setTransportVersion(ver);
             indexRequest.writeTo(out);

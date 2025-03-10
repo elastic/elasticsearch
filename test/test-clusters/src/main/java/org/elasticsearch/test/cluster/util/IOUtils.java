@@ -15,9 +15,12 @@ import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Comparator;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
@@ -118,36 +121,34 @@ public final class IOUtils {
 
     private static void sync(Path sourceRoot, Path destinationRoot, BiConsumer<Path, Path> syncMethod) {
         assert Files.exists(destinationRoot) == false;
-        try (Stream<Path> stream = Files.walk(sourceRoot)) {
-            stream.forEach(source -> {
-                try {
-                    Path relativeDestination = sourceRoot.relativize(source);
+        try {
+            Files.walkFileTree(sourceRoot, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    Files.createDirectories(dir);
+                    return FileVisitResult.CONTINUE;
+                }
 
+                @Override
+                public FileVisitResult visitFile(Path source, BasicFileAttributes attrs) {
+                    Path relativeDestination = sourceRoot.relativize(source);
                     Path destination = destinationRoot.resolve(relativeDestination);
-                    if (Files.isDirectory(source)) {
-                        try {
-                            Files.createDirectories(destination);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
-                        }
-                    } else {
-                        try {
-                            Files.createDirectories(destination.getParent());
-                        } catch (IOException e) {
-                            throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
-                        }
-                        syncMethod.accept(destination, source);
-                    }
-                } catch (UncheckedIOException e) {
-                    if (e.getCause() instanceof NoSuchFileException cause) {
+                    syncMethod.accept(destination, source);
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                    if (exc.getCause() instanceof NoSuchFileException cause) {
                         // Ignore these files that are sometimes left behind by the JVM
                         if (cause.getFile() != null && cause.getFile().contains(".attach_pid")) {
                             LOGGER.info("Ignoring file left behind by JVM: {}", cause.getFile());
+                            return FileVisitResult.CONTINUE;
                         } else {
-                            throw e;
+                            throw exc;
                         }
                     } else {
-                        throw e;
+                        throw exc;
                     }
                 }
             });

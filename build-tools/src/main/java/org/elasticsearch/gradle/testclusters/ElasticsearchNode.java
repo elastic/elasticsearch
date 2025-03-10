@@ -61,11 +61,14 @@ import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1295,41 +1298,34 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void sync(Path sourceRoot, Path destinationRoot, BiConsumer<Path, Path> syncMethod) {
         assert Files.exists(destinationRoot) == false;
-        try (Stream<Path> stream = Files.walk(sourceRoot)) {
-            stream.forEach(source -> {
-                try {
-                    Path relativeDestination = sourceRoot.relativize(source);
-                    if (relativeDestination.getNameCount() <= 1) {
-                        return;
-                    }
-                    // Throw away the first name as the archives have everything in a single top level folder we are not interested in
-                    relativeDestination = relativeDestination.subpath(1, relativeDestination.getNameCount());
+        try {
+            Files.walkFileTree(sourceRoot, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    Files.createDirectories(dir);
+                    return FileVisitResult.CONTINUE;
+                }
 
+                @Override
+                public FileVisitResult visitFile(Path source, BasicFileAttributes attrs) {
+                    Path relativeDestination = sourceRoot.relativize(source);
                     Path destination = destinationRoot.resolve(relativeDestination);
-                    if (Files.isDirectory(source)) {
-                        try {
-                            Files.createDirectories(destination);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
-                        }
-                    } else {
-                        try {
-                            Files.createDirectories(destination.getParent());
-                        } catch (IOException e) {
-                            throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
-                        }
-                        syncMethod.accept(destination, source);
-                    }
-                } catch (UncheckedIOException e) {
-                    if (e.getCause() instanceof NoSuchFileException cause) {
+                    syncMethod.accept(destination, source);
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                    if (exc.getCause() instanceof NoSuchFileException cause) {
                         // Ignore these files that are sometimes left behind by the JVM
                         if (cause.getFile() != null && cause.getFile().contains(".attach_pid")) {
                             LOGGER.info("Ignoring file left behind by JVM: {}", cause.getFile());
+                            return FileVisitResult.CONTINUE;
                         } else {
-                            throw new UncheckedIOException(cause);
+                            throw exc;
                         }
                     } else {
-                        throw e;
+                        throw exc;
                     }
                 }
             });

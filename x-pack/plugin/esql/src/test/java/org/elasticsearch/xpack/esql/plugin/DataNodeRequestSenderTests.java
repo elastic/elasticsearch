@@ -299,7 +299,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         AtomicInteger maxConcurrentRequests = new AtomicInteger(0);
         AtomicInteger concurrentRequests = new AtomicInteger(0);
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
-        var future = sendRequests(targetShards, randomBoolean(), concurrency, (node, shardIds, aliasFilters, listener) -> {
+        var response = safeGet(sendRequests(targetShards, randomBoolean(), concurrency, (node, shardIds, aliasFilters, listener) -> {
             concurrentRequests.incrementAndGet();
 
             while (true) {
@@ -315,10 +315,39 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                 concurrentRequests.decrementAndGet();
                 listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
             });
-        });
-        safeGet(future);
+        }));
         assertThat(sent.size(), equalTo(5));
         assertThat(maxConcurrentRequests.get(), equalTo(concurrency));
+        assertThat(response.totalShards, equalTo(5));
+        assertThat(response.successfulShards, equalTo(5));
+        assertThat(response.failedShards, equalTo(0));
+    }
+
+    public void testDoesNotSendMoreRequestsAfterNodeIsSkipped() {
+        var targetShards = List.of(
+            targetShard(shard1, node1),
+            targetShard(shard2, node2),
+            targetShard(shard3, node3),
+            targetShard(shard4, node4),
+            targetShard(shard5, node5)
+        );
+
+        AtomicInteger processed = new AtomicInteger(0);
+        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        var response = safeGet(sendRequests(targetShards, randomBoolean(), 1, (node, shardIds, aliasFilters, listener) -> {
+            sent.add(new NodeRequest(node, shardIds, aliasFilters));
+            runWithDelay(() -> {
+                if (processed.incrementAndGet() == 1) {
+                    listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                } else {
+                    listener.onSkip(true);
+                }
+            });
+        }));
+        assertThat(sent.size(), equalTo(2));// onResponse() + onSkip()
+        assertThat(response.totalShards, equalTo(5));
+        assertThat(response.successfulShards, equalTo(5));
+        assertThat(response.failedShards, equalTo(0));
     }
 
     static DataNodeRequestSender.TargetShard targetShard(ShardId shardId, DiscoveryNode... nodes) {

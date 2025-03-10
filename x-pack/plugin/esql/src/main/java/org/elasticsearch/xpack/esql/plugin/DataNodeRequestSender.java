@@ -64,6 +64,7 @@ abstract class DataNodeRequestSender {
     private final Map<ShardId, ShardFailure> shardFailures = ConcurrentCollections.newConcurrentMap();
     private final AtomicBoolean changed = new AtomicBoolean();
     private boolean reportedFailure = false; // guarded by sendingLock
+    private volatile boolean skipRemaining = false;
 
     DataNodeRequestSender(
         TransportService transportService,
@@ -134,7 +135,7 @@ abstract class DataNodeRequestSender {
                         || (allowPartialResults == false && shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal))) {
                         reportedFailure = true;
                         reportFailures(computeListener);
-                    } else {
+                    } else if (skipRemaining == false) {
                         for (NodeRequest request : selectNodeRequests(targetShards)) {
                             sendOneNodeRequest(targetShards, computeListener, request);
                         }
@@ -200,7 +201,10 @@ abstract class DataNodeRequestSender {
             }
 
             @Override
-            public void onSkip() {
+            public void onSkip(boolean skipRemaining) {
+                if (skipRemaining) {
+                    DataNodeRequestSender.this.skipRemaining = true;
+                }
                 onAfter(List.of());
             }
         });
@@ -213,7 +217,7 @@ abstract class DataNodeRequestSender {
 
         void onFailure(Exception e, boolean receivedData);
 
-        void onSkip();
+        void onSkip(boolean skipRemaining);
     }
 
     private static Exception unwrapFailure(Exception e) {

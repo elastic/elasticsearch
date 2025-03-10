@@ -16,7 +16,7 @@ Shingles are often used to help speed up phrase queries, such as [`match_phrase`
 ::::
 
 
-This filter uses Lucene’s [ShingleFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/shingle/ShingleFilter.md).
+This filter uses Lucene’s [ShingleFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/shingle/ShingleFilter.html).
 
 ## Example [analysis-shingle-tokenfilter-analyze-ex]
 

@@ -48,8 +48,7 @@ public class FilesEntitlementTests extends ESTestCase {
         new Path[] { Path.of("/data1"), Path.of("/data2") },
         new Path[] { Path.of("/shared1"), Path.of("/shared2") },
         Path.of("/tmp"),
-        setting -> settings.get(setting),
-        glob -> settings.getGlobValues(glob)
+        pattern -> settings.getValues(pattern)
     );
 
     public void testEmptyBuild() {
@@ -98,25 +97,47 @@ public class FilesEntitlementTests extends ESTestCase {
     }
 
     public void testPathSettingResolve() {
-        var entitlement = FilesEntitlement.build(List.of(Map.of("path_setting", "foo.bar", "mode", "read")));
+        var entitlement = FilesEntitlement.build(
+            List.of(Map.of("path_setting", "foo.bar", "basedir_if_relative", "config", "mode", "read"))
+        );
         var filesData = entitlement.filesData();
-        assertThat(filesData, contains(FileData.ofPathSetting("foo.bar", READ, false)));
+        assertThat(filesData, contains(FileData.ofPathSetting("foo.bar", CONFIG, READ)));
 
-        var fileData = FileData.ofPathSetting("foo.bar", READ, false);
+        var fileData = FileData.ofPathSetting("foo.bar", CONFIG, READ);
         // empty settings
         assertThat(fileData.resolvePaths(TEST_PATH_LOOKUP).toList(), empty());
 
-        fileData = FileData.ofPathSetting("foo.bar", READ, false);
+        fileData = FileData.ofPathSetting("foo.bar", CONFIG, READ);
         settings = Settings.builder().put("foo.bar", "/setting/path").build();
         assertThat(fileData.resolvePaths(TEST_PATH_LOOKUP).toList(), contains(Path.of("/setting/path")));
 
-        fileData = FileData.ofPathSetting("foo.*.bar", READ, false);
+        fileData = FileData.ofPathSetting("foo.*.bar", CONFIG, READ);
         settings = Settings.builder().put("foo.baz.bar", "/setting/path").build();
         assertThat(fileData.resolvePaths(TEST_PATH_LOOKUP).toList(), contains(Path.of("/setting/path")));
 
-        fileData = FileData.ofPathSetting("foo.*.bar", READ, false);
+        fileData = FileData.ofPathSetting("foo.*.bar", CONFIG, READ);
         settings = Settings.builder().put("foo.baz.bar", "/setting/path").put("foo.baz2.bar", "/other/path").build();
         assertThat(fileData.resolvePaths(TEST_PATH_LOOKUP).toList(), containsInAnyOrder(Path.of("/setting/path"), Path.of("/other/path")));
+
+        fileData = FileData.ofPathSetting("foo.bar", CONFIG, READ);
+        settings = Settings.builder().put("foo.bar", "relative_path").build();
+        assertThat(fileData.resolvePaths(TEST_PATH_LOOKUP).toList(), contains(Path.of("/config/relative_path")));
+    }
+
+    public void testPathSettingBasedirValidation() {
+        var e = expectThrows(
+            PolicyValidationException.class,
+            () -> FilesEntitlement.build(List.of(Map.of("path", "/foo", "mode", "read", "basedir_if_relative", "config")))
+        );
+        assertThat(e.getMessage(), is("'basedir_if_relative' may only be used with 'path_setting'"));
+
+        e = expectThrows(
+            PolicyValidationException.class,
+            () -> FilesEntitlement.build(
+                List.of(Map.of("relative_path", "foo", "relative_to", "config", "mode", "read", "basedir_if_relative", "config"))
+            )
+        );
+        assertThat(e.getMessage(), is("'basedir_if_relative' may only be used with 'path_setting'"));
     }
 
     public void testExclusiveParsing() throws Exception {
@@ -137,33 +158,5 @@ public class FilesEntitlementTests extends ESTestCase {
             )
         );
         assertEquals(expected, parsedPolicy);
-    }
-
-    public void testPathSettingIgnoreUrl() {
-        var fileData = FileData.ofPathSetting("foo.*.bar", READ, true);
-        settings = Settings.builder().put("foo.nonurl.bar", "/setting/path").put("foo.url.bar", "https://mysite").build();
-        assertThat(fileData.resolvePaths(TEST_PATH_LOOKUP).toList(), contains(Path.of("/setting/path")));
-    }
-
-    public void testRelativePathSettingIgnoreUrl() {
-        var fileData = FileData.ofRelativePathSetting("foo.*.bar", CONFIG, READ, true);
-        settings = Settings.builder().put("foo.nonurl.bar", "path").put("foo.url.bar", "https://mysite").build();
-        assertThat(fileData.resolvePaths(TEST_PATH_LOOKUP).toList(), contains(Path.of("/config/path")));
-    }
-
-    public void testIgnoreUrlValidation() {
-        var e = expectThrows(
-            PolicyValidationException.class,
-            () -> FilesEntitlement.build(List.of(Map.of("path", "/foo", "mode", "read", "ignore_url", true)))
-        );
-        assertThat(e.getMessage(), is("'ignore_url' may only be used with `path_setting` or `relative_path_setting`"));
-
-        e = expectThrows(
-            PolicyValidationException.class,
-            () -> FilesEntitlement.build(
-                List.of(Map.of("relative_path", "foo", "relative_to", "config", "mode", "read", "ignore_url", true))
-            )
-        );
-        assertThat(e.getMessage(), is("'ignore_url' may only be used with `path_setting` or `relative_path_setting`"));
     }
 }

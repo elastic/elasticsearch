@@ -121,6 +121,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.jdk.RuntimeVersionFeature;
+import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
@@ -231,7 +232,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
-@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class, NettyGlobalThreadsFilter.class })
+@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class, NettyGlobalThreadsFilter.class, JnaCleanerThreadsFilter.class })
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting
 // assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.
@@ -575,6 +576,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    private static org.elasticsearch.logging.Level capturedLogLevel = null;
+
+    // just capture the expected level once before the suite starts
+    @BeforeClass
+    public static void captureLoggingLevel() {
+        capturedLogLevel = LoggerFactory.provider().getRootLevel();
+    }
+
+    @AfterClass
+    public static void restoreLoggingLevel() {
+        if (capturedLogLevel != null) {
+            // log level might not have been captured if suite was skipped
+            LoggerFactory.provider().setRootLevel(capturedLogLevel);
+            capturedLogLevel = null;
+        }
+    }
+
     @Before
     public final void before() {
         LeakTracker.setContextHint(getTestName());
@@ -683,15 +701,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final DeprecationWarning... warnings) {
         assertWarnings(true, Stream.concat(Arrays.stream(settings).map(setting -> {
-            String warningMessage = String.format(
-                Locale.ROOT,
-                "[%s] setting was deprecated in Elasticsearch and will be removed in a future release.",
-                setting.getKey()
+            Level level = setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.CRITICAL : Level.WARN;
+            String warningMessage = Strings.format(
+                "[%s] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the %s documentation for the next major version.",
+                setting.getKey(),
+                (level == Level.WARN) ? "deprecation" : "breaking changes"
             );
-            return new DeprecationWarning(
-                setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.CRITICAL : Level.WARN,
-                warningMessage
-            );
+            return new DeprecationWarning(level, warningMessage);
         }), Arrays.stream(warnings)).toArray(DeprecationWarning[]::new));
     }
 
@@ -1266,14 +1283,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Returns a project id. This may be {@link Metadata#DEFAULT_PROJECT_ID}, or it may be a randomly-generated id.
      */
     public static ProjectId randomProjectIdOrDefault() {
-        return randomBoolean() ? Metadata.DEFAULT_PROJECT_ID : new ProjectId(randomUUID());
+        return randomBoolean() ? Metadata.DEFAULT_PROJECT_ID : randomUniqueProjectId();
     }
 
     /**
      * Returns a new randomly-generated project id
      */
     public static ProjectId randomUniqueProjectId() {
-        return new ProjectId(randomUUID());
+        return ProjectId.fromId(randomUUID());
     }
 
     public static String randomUUID() {
@@ -2412,6 +2429,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Await on the given {@link CountDownLatch} with a supplied timeout, preserving the thread's interrupt status
      * flag and asserting that the latch is indeed completed before the timeout.
+     * <p>
+     * Prefer {@link #safeAwait(CountDownLatch)} (with the default 10s timeout) wherever possible. It's very unusual to need to block a
+     * test for more than 10s, and such slow tests are a big problem for overall test suite performance. In almost all cases it's possible
+     * to find a different way to write the test which doesn't need such a long wait.
      */
     public static void safeAwait(CountDownLatch countDownLatch, TimeValue timeout) {
         try {

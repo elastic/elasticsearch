@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
+import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
+
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
@@ -22,6 +24,11 @@ class PathActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkToRealPath() throws IOException {
         FileCheckActions.readFile().toRealPath();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void checkToRealPathWithK8sLikeMount() throws IOException, Exception {
+        EntitledActions.createK8sLikeMount().toRealPath();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)

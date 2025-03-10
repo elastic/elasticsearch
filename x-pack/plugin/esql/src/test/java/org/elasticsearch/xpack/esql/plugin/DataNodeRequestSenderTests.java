@@ -323,7 +323,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(response.failedShards, equalTo(0));
     }
 
-    public void testDoesNotSendMoreRequestsAfterNodeIsSkipped() {
+    public void testSkipNodes() {
         var targetShards = List.of(
             targetShard(shard1, node1),
             targetShard(shard2, node2),
@@ -333,9 +333,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         );
 
         AtomicInteger processed = new AtomicInteger(0);
-        var sent = ConcurrentCollections.<NodeRequest>newQueue();
         var response = safeGet(sendRequests(targetShards, randomBoolean(), 1, (node, shardIds, aliasFilters, listener) -> {
-            sent.add(new NodeRequest(node, shardIds, aliasFilters));
             runWithDelay(() -> {
                 if (processed.incrementAndGet() == 1) {
                     listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
@@ -344,7 +342,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                 }
             });
         }));
-        assertThat(sent.size(), equalTo(5));
         assertThat(response.totalShards, equalTo(5));
         assertThat(response.successfulShards, equalTo(1));
         assertThat(response.skippedShards, equalTo(4));

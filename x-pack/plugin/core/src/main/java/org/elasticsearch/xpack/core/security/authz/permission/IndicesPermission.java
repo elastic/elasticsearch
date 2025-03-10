@@ -517,20 +517,6 @@ public final class IndicesPermission {
         public boolean canHaveBackingIndices() {
             return indexAbstraction != null && indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX;
         }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            IndexResource that = (IndexResource) o;
-            return name.equals(that.name)
-                && Objects.equals(selector, that.selector)
-                && Objects.equals(indexAbstraction, that.indexAbstraction);
-        }
-
-        public int hashCode() {
-            return Objects.hash(name, selector, indexAbstraction);
-        }
     }
 
     /**

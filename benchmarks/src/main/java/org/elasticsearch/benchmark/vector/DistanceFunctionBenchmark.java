@@ -56,9 +56,23 @@ public class DistanceFunctionBenchmark {
         LogConfigurator.configureESLogging();
     }
 
-    public enum VectorType { FLOAT, BYTE }
-    public enum Function { DOT, COSINE, L1, L2, HAMMING }
-    public enum Implementation { KNN, BINARY }
+    public enum VectorType {
+        FLOAT,
+        BYTE
+    }
+
+    public enum Function {
+        DOT,
+        COSINE,
+        L1,
+        L2,
+        HAMMING
+    }
+
+    public enum Implementation {
+        KNN,
+        BINARY
+    }
 
     @Param
     private VectorType docType;

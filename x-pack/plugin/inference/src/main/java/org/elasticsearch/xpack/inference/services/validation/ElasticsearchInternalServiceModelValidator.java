@@ -12,18 +12,19 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
 
-public class SimpleModelValidator implements ModelValidator {
+public class ElasticsearchInternalServiceModelValidator implements ModelValidator {
 
-    private final ServiceIntegrationValidator serviceIntegrationValidator;
+    ModelValidator modelValidator;
 
-    public SimpleModelValidator(ServiceIntegrationValidator serviceIntegrationValidator) {
-        this.serviceIntegrationValidator = serviceIntegrationValidator;
+    public ElasticsearchInternalServiceModelValidator(ModelValidator modelValidator) {
+        this.modelValidator = modelValidator;
     }
 
     @Override
     public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<Model> listener) {
-        serviceIntegrationValidator.validate(service, model, timeout, listener.delegateFailureAndWrap((delegate, r) -> {
-            delegate.onResponse(model);
+        modelValidator.validate(service, model, timeout, listener.delegateResponse((l, exception) -> {
+            // TODO: Cleanup the below code
+            service.stop(model, ActionListener.wrap((v) -> listener.onFailure(exception), (e) -> listener.onFailure(exception)));
         }));
     }
 }

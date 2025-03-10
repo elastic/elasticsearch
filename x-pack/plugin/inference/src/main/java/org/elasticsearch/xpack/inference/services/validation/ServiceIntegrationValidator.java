@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.inference.services.validation;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 
 public interface ServiceIntegrationValidator {
-    void validate(InferenceService service, Model model, ActionListener<InferenceServiceResults> listener);
+    void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
 }

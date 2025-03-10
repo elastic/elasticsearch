@@ -77,7 +77,8 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
             // streaming is not supported yet for transport traffic
             this.stream = false;
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X)) {
                 this.context = new InferenceContext(in);
             } else {
                 this.context = InferenceContext.EMPTY_INSTANCE;
@@ -126,7 +127,8 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
             XContentHelper.writeTo(out, contentType);
             out.writeTimeValue(timeout);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X)) {
                 context.writeTo(out);
             }
         }

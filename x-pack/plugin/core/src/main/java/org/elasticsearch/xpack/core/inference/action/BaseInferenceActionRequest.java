@@ -42,7 +42,8 @@ public abstract class BaseInferenceActionRequest extends ActionRequest {
             this.hasBeenRerouted = true;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X)) {
             this.context = new InferenceContext(in);
         } else {
             this.context = InferenceContext.EMPTY_INSTANCE;
@@ -74,7 +75,8 @@ public abstract class BaseInferenceActionRequest extends ActionRequest {
             out.writeBoolean(hasBeenRerouted);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X)) {
             context.writeTo(out);
         }
     }

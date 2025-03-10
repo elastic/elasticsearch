@@ -36,7 +36,8 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
     public static final TimeValue WAIT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
     static DownsampleAction randomInstance() {
-        return new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT);
+        Integer forceMergeMaxNumSegments = randomBoolean() ? null : randomIntBetween(-1, 128);
+        return new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT, forceMergeMaxNumSegments);
     }
 
     @Override
@@ -66,7 +67,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
 
     @Override
     public void testToSteps() {
-        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT);
+        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT, null);
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
@@ -144,7 +145,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
 
     public void testDownsamplingPrerequisitesStep() {
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
-        DownsampleAction action = new DownsampleAction(fixedInterval, WAIT_TIMEOUT);
+        DownsampleAction action = new DownsampleAction(fixedInterval, WAIT_TIMEOUT, null);
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
@@ -233,11 +234,15 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
     }
 
     DownsampleAction copy(DownsampleAction downsampleAction) {
-        return new DownsampleAction(downsampleAction.fixedInterval(), downsampleAction.waitTimeout());
+        return new DownsampleAction(
+            downsampleAction.fixedInterval(),
+            downsampleAction.waitTimeout(),
+            downsampleAction.getForceMergeMaxNumSegments()
+        );
     }
 
     DownsampleAction notCopy(DownsampleAction downsampleAction) {
         DateHistogramInterval fixedInterval = randomValueOtherThan(downsampleAction.fixedInterval(), ConfigTestHelpers::randomInterval);
-        return new DownsampleAction(fixedInterval, WAIT_TIMEOUT);
+        return new DownsampleAction(fixedInterval, WAIT_TIMEOUT, null);
     }
 }

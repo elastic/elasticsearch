@@ -195,7 +195,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, q, i);
             ByteVector bv = ByteVector.fromArray(BYTE_FOR_FLOAT_SPECIES, d, i);
             // no separate parts needed for the cast, as we've used a byte vector size 1/4th the float vector size
-            vSum = qv.mul(bv.castShape(qv.species(), 0)).add(vSum);
+            vSum = qv.fma(bv.castShape(qv.species(), 0), vSum);
         }
 
         float sum = vSum.reduceLanes(VectorOperators.ADD);

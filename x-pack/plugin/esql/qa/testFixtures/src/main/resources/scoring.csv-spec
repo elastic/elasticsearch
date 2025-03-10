@@ -394,6 +394,7 @@ book_no:keyword | _score:double
 conjunctionScoresPushableNonPushableFunctions
 
 required_capability: metadata_score
+required_capability: match_function
 
 from books metadata _score 
 | where match(title, "Lord") and length(title) > 20
@@ -411,6 +412,7 @@ book_no:keyword |  _score:double
 conjunctionScoresPushableFunctions
 
 required_capability: metadata_score
+required_capability: match_function
 
 from books metadata _score 
 | where match(title, "Lord") and ratings > 4.6
@@ -426,6 +428,7 @@ book_no:keyword |  _score:double
 disjunctionScoresPushableNonPushableFunctions
 
 required_capability: metadata_score
+required_capability: match_operator_colon
 required_capability: full_text_functions_disjunctions_score
 
 from books metadata _score 
@@ -447,6 +450,7 @@ book_no:keyword |  _score:double
 disjunctionScoresMultipleClauses
 
 required_capability: metadata_score
+required_capability: match_operator_colon
 required_capability: full_text_functions_disjunctions_score
 
 from books metadata _score 

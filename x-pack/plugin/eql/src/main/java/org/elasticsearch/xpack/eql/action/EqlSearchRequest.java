@@ -121,9 +121,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         size = in.readVInt();
         fetchSize = in.readVInt();
         query = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_15_0)) {
-            this.ccsMinimizeRoundtrips = in.readBoolean();
-        }
+        this.ccsMinimizeRoundtrips = in.readBoolean();
         this.waitForCompletionTimeout = in.readOptionalTimeValue();
         this.keepAlive = in.readOptionalTimeValue();
         this.keepOnCompletion = in.readBoolean();
@@ -482,9 +480,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         out.writeVInt(size);
         out.writeVInt(fetchSize);
         out.writeString(query);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_15_0)) {
-            out.writeBoolean(ccsMinimizeRoundtrips);
-        }
+        out.writeBoolean(ccsMinimizeRoundtrips);
         out.writeOptionalTimeValue(waitForCompletionTimeout);
         out.writeOptionalTimeValue(keepAlive);
         out.writeBoolean(keepOnCompletion);

@@ -8,6 +8,11 @@ package org.elasticsearch.xpack.esql.expression.predicate.logical;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -22,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -29,7 +35,10 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoolean;
 
-public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boolean, BinaryLogicOperation> implements TranslationAware {
+public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boolean, BinaryLogicOperation>
+    implements
+        TranslationAware,
+        ExpressionScoreMapper {
 
     protected BinaryLogic(Source source, Expression left, Expression right, BinaryLogicOperation operation) {
         super(source, left, right, operation);
@@ -107,5 +116,34 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
             queries = Arrays.asList(left, right);
         }
         return new BoolQuery(source, isAnd, queries);
+    }
+
+    @Override
+    public ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
+        return context -> new BinaryLogicScorer(context, toScorer.toScorer(left()).get(context), toScorer.toScorer(right()).get(context));
+    }
+
+    /**
+     * Binary logic adds together scores coming from the left and right expressions, both for conjunctions and disjunctions
+     */
+    private record BinaryLogicScorer(DriverContext driverContext, ScoreOperator.ExpressionScorer left, ScoreOperator.ExpressionScorer right)
+        implements
+            ScoreOperator.ExpressionScorer {
+        @Override
+        public DoubleBlock score(Page page) {
+            DoubleVector.Builder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(page.getPositionCount());
+            try (DoubleVector leftVector = left.score(page).asVector(); DoubleVector rightVector = right.score(page).asVector()) {
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    builder.appendDouble(leftVector.getDouble(i) + rightVector.getDouble(i));
+                }
+            }
+            return builder.build().asBlock();
+        }
+
+        @Override
+        public void close() {
+            left.close();
+            right.close();
+        }
     }
 }

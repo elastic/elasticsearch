@@ -16,15 +16,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.get.GetResult;
@@ -49,42 +50,47 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
     public static final Logger logger = LogManager.getLogger(TransportGetFromTranslogAction.class);
 
     private final IndicesService indicesService;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportGetFromTranslogAction(TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
         super(NAME, transportService, actionFilters, Request::new, transportService.getThreadPool().executor(ThreadPool.Names.GET));
         this.indicesService = indicesService;
+        this.threadPool = transportService.getThreadPool();
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final GetRequest getRequest = request.getRequest();
-        final ShardId shardId = request.shardId();
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
-        assert indexShard.routingEntry().isPromotableToPrimary() : "not an indexing shard" + indexShard.routingEntry();
         assert getRequest.realtime();
-        ActionListener.completeWith(listener, () -> {
-            var result = indexShard.getService()
-                .getFromTranslog(
-                    getRequest.id(),
-                    getRequest.storedFields(),
-                    getRequest.realtime(),
-                    getRequest.version(),
-                    getRequest.versionType(),
-                    getRequest.fetchSourceContext(),
-                    getRequest.isForceSyntheticSource()
-                );
-            long segmentGeneration = -1;
-            if (result == null) {
-                Engine engine = indexShard.getEngineOrNull();
-                if (engine == null) {
-                    throw new AlreadyClosedException("engine closed");
+
+        SubscribableListener.<IndexShard>newForked(l -> {
+            var indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
+            assert indexShard.routingEntry().isPromotableToPrimary() : "not an indexing shard" + indexShard.routingEntry();
+            indexShard.ensureMutable(l.map(unused -> indexShard));
+        }).<Response>andThen((l, indexShard) -> {
+            threadPool.executor(ThreadPool.Names.GET).execute(ActionRunnable.supply(l, () -> {
+                var result = indexShard.getService()
+                    .getFromTranslog(
+                        getRequest.id(),
+                        getRequest.storedFields(),
+                        getRequest.realtime(),
+                        getRequest.version(),
+                        getRequest.versionType(),
+                        getRequest.fetchSourceContext(),
+                        getRequest.isForceSyntheticSource()
+                    );
+                long segmentGeneration = -1;
+                if (result == null) {
+                    Engine engine = indexShard.getEngineOrNull();
+                    if (engine == null) {
+                        throw new AlreadyClosedException("engine closed");
+                    }
+                    segmentGeneration = engine.getLastUnsafeSegmentGenerationForGets();
                 }
-                segmentGeneration = engine.getLastUnsafeSegmentGenerationForGets();
-            }
-            return new Response(result, indexShard.getOperationPrimaryTerm(), segmentGeneration);
-        });
+                return new Response(result, indexShard.getOperationPrimaryTerm(), segmentGeneration);
+            }));
+        }).addListener(listener);
     }
 
     public static class Request extends ActionRequest implements IndicesRequest {

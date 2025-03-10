@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InferenceResults;
@@ -36,6 +37,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -52,7 +54,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.En
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.CLASSIFICATION_WEIGHTS;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.TRAINED_MODELS;
 
-public class EnsembleInferenceModel implements InferenceModel {
+public class EnsembleInferenceModel implements InferenceModel, BoundedInferenceModel {
 
     public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(EnsembleInferenceModel.class);
     private static final Logger LOGGER = LogManager.getLogger(EnsembleInferenceModel.class);
@@ -97,6 +99,7 @@ public class EnsembleInferenceModel implements InferenceModel {
     private final List<String> classificationLabels;
     private final double[] classificationWeights;
     private volatile boolean preparedForInference = false;
+    private final Supplier<double[]> predictedValuesBoundariesSupplier;
 
     private EnsembleInferenceModel(
         List<InferenceModel> models,
@@ -112,6 +115,7 @@ public class EnsembleInferenceModel implements InferenceModel {
         this.classificationWeights = classificationWeights == null
             ? null
             : classificationWeights.stream().mapToDouble(Double::doubleValue).toArray();
+        this.predictedValuesBoundariesSupplier = CachedSupplier.wrap(this::initModelBoundaries);
     }
 
     @Override
@@ -328,21 +332,57 @@ public class EnsembleInferenceModel implements InferenceModel {
 
     @Override
     public String toString() {
-        return "EnsembleInferenceModel{"
-            + "featureNames="
-            + Arrays.toString(featureNames)
-            + ", models="
-            + models
-            + ", outputAggregator="
-            + outputAggregator
-            + ", targetType="
-            + targetType
-            + ", classificationLabels="
-            + classificationLabels
-            + ", classificationWeights="
-            + Arrays.toString(classificationWeights)
-            + ", preparedForInference="
-            + preparedForInference
-            + '}';
+        StringBuilder builder = new StringBuilder("EnsembleInferenceModel{");
+
+        builder.append("featureNames=")
+            .append(Arrays.toString(featureNames))
+            .append(", models=")
+            .append(models)
+            .append(", outputAggregator=")
+            .append(outputAggregator)
+            .append(", targetType=")
+            .append(targetType);
+
+        if (targetType == TargetType.CLASSIFICATION) {
+            builder.append(", classificationLabels=")
+                .append(classificationLabels)
+                .append(", classificationWeights=")
+                .append(Arrays.toString(classificationWeights));
+        } else if (targetType == TargetType.REGRESSION) {
+            builder.append(", minPredictedValue=")
+                .append(getMinPredictedValue())
+                .append(", maxPredictedValue=")
+                .append(getMaxPredictedValue());
+        }
+
+        builder.append(", preparedForInference=").append(preparedForInference);
+
+        return builder.append('}').toString();
+    }
+
+    @Override
+    public double getMinPredictedValue() {
+        return this.predictedValuesBoundariesSupplier.get()[0];
+    }
+
+    @Override
+    public double getMaxPredictedValue() {
+        return this.predictedValuesBoundariesSupplier.get()[1];
+    }
+
+    private double[] initModelBoundaries() {
+        double[] modelsMinBoundaries = new double[models.size()];
+        double[] modelsMaxBoundaries = new double[models.size()];
+        int i = 0;
+        for (InferenceModel model : models) {
+            if (model instanceof BoundedInferenceModel boundedInferenceModel) {
+                modelsMinBoundaries[i] = boundedInferenceModel.getMinPredictedValue();
+                modelsMaxBoundaries[i++] = boundedInferenceModel.getMaxPredictedValue();
+            } else {
+                throw new IllegalStateException("All submodels have to be bounded");
+            }
+        }
+
+        return new double[] { outputAggregator.aggregate(modelsMinBoundaries), outputAggregator.aggregate(modelsMaxBoundaries) };
     }
 }

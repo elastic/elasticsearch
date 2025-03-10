@@ -56,7 +56,7 @@ public final class Alias extends NamedExpression {
     }
 
     public Alias(Source source, @Nullable String qualifier, String name, Expression child, @Nullable NameId id) {
-        this(source, name, qualifier, child, id, false);
+        this(source, qualifier, name, child, id, false);
     }
 
     public Alias(Source source, @Nullable String qualifier, String name, Expression child, @Nullable NameId id, boolean synthetic) {

@@ -20,6 +20,7 @@ A `max_bucket` aggregation looks like this in isolation:
   }
 }
 ```
+%  NOTCONSOLE
 
 $$$max-bucket-params$$$
 
@@ -59,7 +60,7 @@ POST /sales/_search
 ```
 
 1. `buckets_path` instructs this max_bucket aggregation that we want the maximum value of the `sales` aggregation in the `sales_per_month` date histogram.
-
+%  TEST[setup:sales]
 
 And the following may be the response:
 
@@ -107,6 +108,9 @@ And the following may be the response:
 ```
 
 1. `keys` is an array of strings since the maximum value may be present in multiple buckets
+%  TESTRESPONSE[s/"took": 11/"took": $body.took/]
+%  TESTRESPONSE[s/"_shards": .../"_shards": $body._shards/]
+%  TESTRESPONSE[s/"hits": .../"hits": $body.hits/]
 
 
 

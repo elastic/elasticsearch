@@ -14,11 +14,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializationTestCase<UnifiedCompletionAction.Request> {
@@ -85,8 +87,36 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
         assertTrue(deserializedInstance.hasBeenRerouted());
     }
 
+    public void testWriteTo_WhenVersionIsBeforeInferenceContext_ShouldSetContextToEmptyContext() throws IOException {
+        var instance = new UnifiedCompletionAction.Request(
+            "model",
+            TaskType.ANY,
+            UnifiedCompletionRequest.of(List.of(UnifiedCompletionRequestTests.randomMessage())),
+            InferenceContext.EMPTY_INSTANCE,
+            TimeValue.timeValueSeconds(10)
+        );
+
+        UnifiedCompletionAction.Request deserializedInstance = copyWriteable(
+            instance,
+            getNamedWriteableRegistry(),
+            instanceReader(),
+            TransportVersions.ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION
+        );
+        assertThat(deserializedInstance.getContext(), equalTo(InferenceContext.EMPTY_INSTANCE));
+    }
+
     @Override
     protected UnifiedCompletionAction.Request mutateInstanceForVersion(UnifiedCompletionAction.Request instance, TransportVersion version) {
+        if (version.before(TransportVersions.INFERENCE_CONTEXT)) {
+            return new UnifiedCompletionAction.Request(
+                instance.getInferenceEntityId(),
+                instance.getTaskType(),
+                instance.getUnifiedCompletionRequest(),
+                InferenceContext.EMPTY_INSTANCE,
+                instance.getTimeout()
+            );
+        }
+
         return instance;
     }
 
@@ -101,6 +131,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             randomAlphaOfLength(10),
             randomFrom(TaskType.values()),
             UnifiedCompletionRequestTests.randomUnifiedCompletionRequest(),
+            InferenceContext.EMPTY_INSTANCE,
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
     }

@@ -8,14 +8,24 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceRequestMetadata;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext;
+
 public abstract class ElasticInferenceServiceRequestManager extends BaseRequestManager {
+
+    private final ElasticInferenceServiceRequestMetadata requestMetadata;
 
     protected ElasticInferenceServiceRequestManager(ThreadPool threadPool, ElasticInferenceServiceModel model) {
         super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitServiceSettings().rateLimitSettings());
+        this.requestMetadata = extractRequestMetadataFromThreadContext(threadPool.getThreadContext());
+    }
+
+    public ElasticInferenceServiceRequestMetadata requestMetadata() {
+        return requestMetadata;
     }
 
     record RateLimitGrouping(int modelIdHash) {

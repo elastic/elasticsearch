@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
 import static org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceSparseEmbeddingsRequest.inputTypeToUsageContext;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -123,7 +124,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
             embeddingsModel,
             new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-            randomAlphaOfLength(10),
+            randomElasticInferenceServiceRequestMetadata(),
             inputType
         );
     }

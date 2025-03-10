@@ -732,19 +732,15 @@ public final class IndexSettings {
         Setting.Property.ServerlessPublic
     );
 
-    public static final FeatureFlag RECOVERY_USE_SYNTHETIC_SOURCE = new FeatureFlag("index_recovery_use_synthetic_source");
     public static final Setting<Boolean> RECOVERY_USE_SYNTHETIC_SOURCE_SETTING = Setting.boolSetting(
         "index.recovery.use_synthetic_source",
         settings -> {
-            boolean isSyntheticSourceRecoveryFeatureFlagEnabled = RECOVERY_USE_SYNTHETIC_SOURCE.isEnabled();
             boolean isNewIndexVersion = SETTING_INDEX_VERSION_CREATED.get(settings)
                 .onOrAfter(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT);
             boolean isIndexVersionInBackportRange = SETTING_INDEX_VERSION_CREATED.get(settings)
                 .between(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
 
-            boolean useSyntheticRecoverySource = isSyntheticSourceRecoveryFeatureFlagEnabled
-                && (isNewIndexVersion || isIndexVersionInBackportRange);
-
+            boolean useSyntheticRecoverySource = isNewIndexVersion || isIndexVersionInBackportRange;
             return String.valueOf(
                 useSyntheticRecoverySource
                     && Objects.equals(INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings), SourceFieldMapper.Mode.SYNTHETIC)

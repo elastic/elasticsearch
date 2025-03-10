@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.MockAppender;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -41,6 +42,7 @@ public class EsqlSlowLogTests extends ESTestCase {
             .put(EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "30ms")
             .put(EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "20ms")
             .put(EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "10ms")
+            .put(EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_INCLUDE_USER_SETTING.getKey(), true)
 
             .build(),
         new HashSet<>(
@@ -48,7 +50,8 @@ public class EsqlSlowLogTests extends ESTestCase {
                 EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
                 EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
                 EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
-                EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING
+                EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
+                EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_INCLUDE_USER_SETTING
             )
         )
     );

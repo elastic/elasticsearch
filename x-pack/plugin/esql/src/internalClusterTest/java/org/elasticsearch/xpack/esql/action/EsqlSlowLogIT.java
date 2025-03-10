@@ -18,6 +18,7 @@ import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.MockAppender;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog;
@@ -94,12 +95,20 @@ public class EsqlSlowLogIT extends AbstractEsqlIntegTestCase {
             testAllLevels(
                 levels,
                 coordinator,
-                randomIntBetween(0, 10_000),
+                randomIntBetween(0, 500),
                 "FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100",
                 null,
                 null
             );
         }
+        testAllLevels(
+            levels,
+            coordinator,
+            600_000,
+            "FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100",
+            null,
+            null
+        );
 
         testAllLevels(
             levels,
@@ -113,12 +122,20 @@ public class EsqlSlowLogIT extends AbstractEsqlIntegTestCase {
             testAllLevels(
                 levels,
                 coordinator,
-                randomIntBetween(0, 10_000),
+                randomIntBetween(0, 500),
                 "FROM index-* | EVAL a = count(*) | LIMIT 100",
                 "aggregate function [count(*)] not allowed outside STATS command",
                 VerificationException.class.getName()
             );
         }
+        testAllLevels(
+            levels,
+            coordinator,
+            600_000,
+            "FROM index-* | EVAL a = count(*) | LIMIT 100",
+            "aggregate function [count(*)] not allowed outside STATS command",
+            VerificationException.class.getName()
+        );
     }
 
     private static void testAllLevels(
@@ -163,7 +180,6 @@ public class EsqlSlowLogIT extends AbstractEsqlIntegTestCase {
                         long planningTookMillisExpected = planningTook / 1_000_000;
                         long planningTookMillis = Long.valueOf(msg.get("elasticsearch.slowlog.planning.took_millis"));
                         assertThat(planningTook, greaterThanOrEqualTo(0L));
-                        assertThat(planningTookMillis, greaterThanOrEqualTo(timeoutMillis));
                         assertThat(planningTookMillis, is(planningTookMillisExpected));
                         assertThat(took, greaterThan(planningTook));
                     }

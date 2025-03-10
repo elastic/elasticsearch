@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.action;
+package org.elasticsearch.xpack.esql;
 
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
@@ -24,11 +24,11 @@ public class MockAppender extends AbstractAppender {
         lastEvent = event.toImmutable();
     }
 
-    Message lastMessage() {
+    public Message lastMessage() {
         return lastEvent.getMessage();
     }
 
-    LogEvent lastEvent() {
+    public LogEvent lastEvent() {
         return lastEvent;
     }
 

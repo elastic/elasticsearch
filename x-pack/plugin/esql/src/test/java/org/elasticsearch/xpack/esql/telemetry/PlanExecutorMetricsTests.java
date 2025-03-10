@@ -92,7 +92,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
                     EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
                     EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
-                    EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING
+                    EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
+                    EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_INCLUDE_USER_SETTING
                 )
             )
         );

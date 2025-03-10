@@ -51,6 +51,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
@@ -147,6 +148,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Boolean> ESQL_SLOWLOG_THRESHOLD_INCLUDE_USER_SETTING = Setting.boolSetting(
+        "esql.slowlog.include.user",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     @Override
     public Collection<?> createComponents(Plugin.PluginServices services) {
         CircuitBreaker circuitBreaker = services.indicesService().getBigArrays().breakerService().getBreaker("request");
@@ -164,7 +172,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 new IndexResolver(services.client()),
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
-                new EsqlSlowLog(services.clusterService().getClusterSettings())
+                new EsqlSlowLog(
+                    services.clusterService().getClusterSettings(),
+                    new SecurityContext(Settings.EMPTY, services.threadPool().getThreadContext())
+                )
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -208,7 +219,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
             ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
             ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
-            ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING
+            ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
+            ESQL_SLOWLOG_THRESHOLD_INCLUDE_USER_SETTING
         );
     }
 

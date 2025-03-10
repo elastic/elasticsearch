@@ -18,7 +18,7 @@ import org.junit.ClassRule;
 public class EntitlementsDeniedNonModularIT extends AbstractEntitlementsIT {
 
     @ClassRule
-    public static EntitlementsTestRule testRule = new EntitlementsTestRule(false, null);
+    public static EntitlementsTestRule testRule = new EntitlementsTestRule(false, ALWAYS_ALLOWED_TEST_ENTITLEMENTS);
 
     public EntitlementsDeniedNonModularIT(@Name("actionName") String actionName) {
         super(actionName, false);

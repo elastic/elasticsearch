@@ -129,7 +129,7 @@ public final class Alias extends NamedExpression {
         if (lazyAttribute == null) {
             lazyAttribute = resolved()
                 ? new ReferenceAttribute(source(), qualifier(), name(), dataType(), nullable(), id(), synthetic())
-                : new UnresolvedAttribute(source(), qualifier(), name());
+                : new UnresolvedAttribute(source(), null, qualifier(), name());
         }
         return lazyAttribute;
     }

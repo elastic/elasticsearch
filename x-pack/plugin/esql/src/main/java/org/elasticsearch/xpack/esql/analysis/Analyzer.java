@@ -345,7 +345,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             } else {
                 String error = context.enrichResolution().getError(policyName, plan.mode());
-                var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, error);
+                var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), null, policyName, error);
                 return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, plan.matchField(), null, Map.of(), List.of());
             }
         }
@@ -390,7 +390,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (CollectionUtils.isEmpty(similar) == false) {
                     msg += ", did you mean " + (similar.size() == 1 ? "[" + similar.get(0) + "]" : "any of " + similar) + "?";
                 }
-                return new UnresolvedAttribute(source, enrichFieldName, msg);
+                return new UnresolvedAttribute(source, null, enrichFieldName, msg);
             } else {
                 return new ReferenceAttribute(source, null, enrichFieldName, mappedField.dataType(), Nullability.TRUE, null, false);
             }
@@ -415,7 +415,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (CollectionUtils.isEmpty(potentialMatches) == false) {
                     message = UnresolvedAttribute.errorMessage(tableName, potentialMatches).replace("column", "table");
                 }
-                tableNameExpression = new UnresolvedAttribute(tableNameExpression.source(), tableName, message);
+                tableNameExpression = new UnresolvedAttribute(tableNameExpression.source(), null, tableName, message);
             }
             // wrap the table in a local relationship for idiomatic field resolution
             else {
@@ -668,6 +668,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     String name = cols.get(0).name();
                     UnresolvedAttribute errorAttribute = new UnresolvedAttribute(
                         join.source(),
+                        null,
                         name,
                         "Only LEFT join is supported with USING"
                     );
@@ -683,7 +684,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // everything else is unsupported for now
                 // LEFT can only happen by being mapped from a USING above. So we need to exclude this as well because this rule can be run
                 // more than once.
-                UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
+                UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), null, "unsupported", "Unsupported join type");
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
             }
@@ -1385,7 +1386,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 type,
                 (e instanceof ParsingException pe) ? pe.getErrorMessage() : e.getMessage()
             );
-            return new UnresolvedAttribute(value.source(), String.valueOf(value.fold(FoldContext.small() /* TODO remove me */)), message);
+            return new UnresolvedAttribute(
+                value.source(),
+                null,
+                String.valueOf(value.fold(FoldContext.small() /* TODO remove me */)),
+                message
+            );
         }
 
         private static Expression castStringLiteralToTemporalAmount(Expression from) {
@@ -1513,7 +1519,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         + "] must be a constant, received ["
                         + Expressions.name(fa)
                         + "]";
-                    Expression ua = new UnresolvedAttribute(fa.source(), fa.name(), unresolvedMessage);
+                    Expression ua = new UnresolvedAttribute(fa.source(), null, fa.name(), unresolvedMessage);
                     return fcf.replaceChildren(Collections.singletonList(ua));
                 }
                 imf.types().forEach(type -> {

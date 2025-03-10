@@ -430,7 +430,7 @@ tasks.named("updateDaemonJvm") {
   ]
   toolchainPlatforms.set(myPlatforms)
   languageVersion = JavaLanguageVersion.of(21)
-  vendor = JvmVendorSpec.ORACLE
+  vendor = JvmVendorSpec.ADOPTIUM
 }
 
 tasks.register("verifyBwcTestsEnabled") {

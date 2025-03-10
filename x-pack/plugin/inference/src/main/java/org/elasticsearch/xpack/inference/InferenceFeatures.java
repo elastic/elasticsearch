@@ -51,6 +51,8 @@ public class InferenceFeatures implements FeatureSpecification {
             SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT,
             SEMANTIC_KNN_FILTER_FIX,
             TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE,
+            SemanticTextFieldMapper.SEMANTIC_TEXT_BIT_VECTOR_SUPPORT,
+            SemanticTextFieldMapper.SEMANTIC_TEXT_HANDLE_EMPTY_INPUT,
             SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG
         );
     }

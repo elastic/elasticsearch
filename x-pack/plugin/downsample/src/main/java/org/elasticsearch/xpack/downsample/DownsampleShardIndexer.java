@@ -433,11 +433,10 @@ class DownsampleShardIndexer {
                         }
                         bucketsCreated++;
                     }
+                    buffer.buffer[buffer.elementsCount++] = docId;
                     if (buffer.size() == DOCID_BUFFER_SIZE) {
                         bulkCollection();
                     }
-
-                    buffer.buffer[buffer.elementsCount++] = docId;
                 }
 
                 @Override
@@ -456,9 +455,9 @@ class DownsampleShardIndexer {
 
                     downsampleBucketBuilder.collectDocCount(buffer, docCountProvider);
                     // Iterate over all field values and collect the doc_values for this docId
-                    for (int j = 0; j < fieldProducers.length; j++) {
-                        AbstractDownsampleFieldProducer fieldProducer = fieldProducers[j];
-                        FormattedDocValues docValues = formattedDocValues[j];
+                    for (int i = 0; i < fieldProducers.length; i++) {
+                        AbstractDownsampleFieldProducer fieldProducer = fieldProducers[i];
+                        FormattedDocValues docValues = formattedDocValues[i];
                         fieldProducer.collect(docValues, buffer);
                     }
 

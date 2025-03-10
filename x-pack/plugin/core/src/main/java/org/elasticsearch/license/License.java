@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -142,7 +142,7 @@ public class License implements ToXContentObject {
      * XContent param name to map the "enterprise" license type to "platinum"
      * for backwards compatibility with older clients
      */
-    @UpdateForV9(owner = UpdateForV9.Owner.SECURITY) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
+    @UpdateForV10(owner = UpdateForV10.Owner.SECURITY) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
     public static final String XCONTENT_HIDE_ENTERPRISE = "hide_enterprise";
 
     public static final Comparator<License> LATEST_ISSUE_DATE_FIRST = Comparator.comparing(License::issueDate).reversed();

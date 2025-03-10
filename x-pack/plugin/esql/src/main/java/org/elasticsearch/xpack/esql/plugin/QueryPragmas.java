@@ -128,7 +128,7 @@ public final class QueryPragmas implements Writeable {
     /**
      * The maximum number of nodes to be queried at once by this query. This is safeguard to avoid overloading the cluster.
      */
-    public int maxConcurrentNodePerCluster() {
+    public int maxConcurrentNodesPerCluster() {
         return MAX_CONCURRENT_NODES_PER_CLUSTER.get(settings);
     }
 

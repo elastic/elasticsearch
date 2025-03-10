@@ -103,7 +103,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             esqlExecutor,
             parentTask,
             configuration.allowPartialResults(),
-            configuration.pragmas().maxConcurrentNodePerCluster()
+            configuration.pragmas().maxConcurrentNodesPerCluster()
         ) {
             @Override
             protected void sendRequest(

@@ -50,7 +50,6 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     // Versions over the wire
     public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersions.V_8_10_X;
-    public static final String EFFECTIVE_RETENTION_REST_API_CAPABILITY = "data_stream_lifecycle_effective_retention";
 
     public static final String DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME = "data_streams.lifecycle_only.mode";
 
@@ -125,21 +124,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     /**
      * Returns true, if this data stream lifecycle configuration is enabled and false otherwise
      */
+    @Override
     public boolean isEnabled() {
         return enabled;
-    }
-
-    /**
-     * The least amount of time data should be kept by elasticsearch. The effective retention is a function with three parameters,
-     * the {@link DataStreamLifecycle#dataRetention}, the global retention and whether this lifecycle is associated with an internal
-     * data stream.
-     * @param globalRetention The global retention, or null if global retention does not exist.
-     * @param isInternalDataStream A flag denoting if this lifecycle is associated with an internal data stream or not
-     * @return the time period or null, null represents that data should never be deleted.
-     */
-    @Nullable
-    public TimeValue getEffectiveDataRetention(@Nullable DataStreamGlobalRetention globalRetention, boolean isInternalDataStream) {
-        return getEffectiveDataRetentionWithSource(globalRetention, isInternalDataStream).v1();
     }
 
     /**
@@ -148,6 +135,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * @return the time period or null, null represents that data should never be deleted.
      */
     @Nullable
+    @Override
     public TimeValue dataRetention() {
         return dataRetention == null ? null : dataRetention.value;
     }

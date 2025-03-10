@@ -28,6 +28,8 @@ import java.util.Map;
  */
 public interface BasicDataStreamLifecycle {
 
+    String EFFECTIVE_RETENTION_REST_API_CAPABILITY = "data_stream_lifecycle_effective_retention";
+
     // The following XContent params are used to enrich the DataStreamLifecycle json with effective retention information
     // This should be set only when the lifecycle is used in a response to the user and NEVER when we expect the json to
     // be deserialized.

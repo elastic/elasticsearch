@@ -56,20 +56,24 @@ public class DistanceFunctionBenchmark {
         LogConfigurator.configureESLogging();
     }
 
-    @Param({ "float", "byte" })
-    private String docType;
+    public enum VectorType { FLOAT, BYTE }
+    public enum Function { DOT, COSINE, L1, L2, HAMMING }
+    public enum Implementation { KNN, BINARY }
 
-    @Param({ "float", "byte" })
-    private String queryType;
+    @Param
+    private VectorType docType;
+
+    @Param
+    private VectorType queryType;
 
     @Param({ "96" })
     private int dims;
 
-    @Param({ "dot", "cosine", "l1", "l2", "hamming" })
-    private String function;
+    @Param
+    private Function function;
 
-    @Param({ "knn", "binary" })
-    private String type;
+    @Param
+    private Implementation type;
 
     private Runnable benchmarkImpl;
 
@@ -111,7 +115,12 @@ public class DistanceFunctionBenchmark {
     }
 
     private static BytesRef generateVectorData(byte[] vector) {
-        return new BytesRef(vector);
+        float mag = calculateMag(vector);
+
+        ByteBuffer buffer = ByteBuffer.allocate(vector.length + 4);
+        buffer.put(vector);
+        buffer.putFloat(mag);
+        return new BytesRef(buffer.array());
     }
 
     @Setup
@@ -132,17 +141,17 @@ public class DistanceFunctionBenchmark {
         }
 
         DenseVector vectorImpl = switch (docType) {
-            case "float" -> switch (type) {
-                case "knn" -> {
-                    if (function.equals("cosine")) {
+            case FLOAT -> switch (type) {
+                case KNN -> {
+                    if (function == Function.COSINE) {
                         normalizeVector(floatDocVector);
                         normalizeVector(floatQueryVector);
                     }
                     yield new KnnDenseVector(floatDocVector);
                 }
-                case "binary" -> {
+                case BINARY -> {
                     BytesRef vectorData;
-                    if (function.equals("cosine") || function.equals("l1") || function.equals("l2")) {
+                    if (function == Function.COSINE || function == Function.L1 || function == Function.L2) {
                         float mag = normalizeVector(floatDocVector);
                         vectorData = generateVectorData(floatDocVector, mag);
                         normalizeVector(floatQueryVector);
@@ -151,44 +160,48 @@ public class DistanceFunctionBenchmark {
                     }
                     yield new BinaryDenseVector(floatDocVector, vectorData, dims, IndexVersion.current());
                 }
-                default -> throw new UnsupportedOperationException("Unexpected type " + type);
             };
-            case "byte" -> switch (type) {
-                case "knn" -> new ByteKnnDenseVector(byteDocVector);
-                case "binary" -> {
+            case BYTE -> switch (type) {
+                case KNN -> new ByteKnnDenseVector(byteDocVector);
+                case BINARY -> {
                     BytesRef vectorData = generateVectorData(byteDocVector);
                     yield new ByteBinaryDenseVector(byteDocVector, vectorData, dims);
                 }
-                default -> throw new UnsupportedOperationException("Unexpected type " + type);
             };
-            default -> throw new UnsupportedOperationException("Unexpected docType " + docType);
         };
 
         benchmarkImpl = switch (queryType) {
-            case "float" -> switch (function) {
-                case "dot" -> () -> vectorImpl.dotProduct(floatQueryVector);
-                case "cosine" -> () -> vectorImpl.cosineSimilarity(floatQueryVector, false);
-                case "l1" -> () -> vectorImpl.l1Norm(floatQueryVector);
-                case "l2" -> () -> vectorImpl.l2Norm(floatQueryVector);
-                default -> throw new UnsupportedOperationException("Unexpected function " + function);
+            case FLOAT -> switch (function) {
+                case DOT -> () -> vectorImpl.dotProduct(floatQueryVector);
+                case COSINE -> () -> vectorImpl.cosineSimilarity(floatQueryVector, false);
+                case L1 -> () -> vectorImpl.l1Norm(floatQueryVector);
+                case L2 -> () -> vectorImpl.l2Norm(floatQueryVector);
+                case HAMMING -> throw new UnsupportedOperationException("Unsupported function " + function);
             };
-            case "byte" -> switch (function) {
-                case "dot" -> () -> vectorImpl.dotProduct(byteQueryVector);
-                case "cosine" -> {
+            case BYTE -> switch (function) {
+                case DOT -> () -> vectorImpl.dotProduct(byteQueryVector);
+                case COSINE -> {
                     float mag = calculateMag(byteQueryVector);
                     yield () -> vectorImpl.cosineSimilarity(byteQueryVector, mag);
                 }
-                case "l1" -> () -> vectorImpl.l1Norm(byteQueryVector);
-                case "l2" -> () -> vectorImpl.l2Norm(byteQueryVector);
-                case "hamming" -> () -> vectorImpl.hamming(byteQueryVector);
-                default -> throw new UnsupportedOperationException("Unexpected function " + function);
+                case L1 -> () -> vectorImpl.l1Norm(byteQueryVector);
+                case L2 -> () -> vectorImpl.l2Norm(byteQueryVector);
+                case HAMMING -> () -> vectorImpl.hamming(byteQueryVector);
             };
-            default -> throw new UnsupportedOperationException("Unexpected queryType " + queryType);
         };
     }
 
+    @Fork(1)
     @Benchmark
     public void benchmark() {
+        for (int i = 0; i < 25000; ++i) {
+            benchmarkImpl.run();
+        }
+    }
+
+    @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    @Benchmark
+    public void vectorBenchmark() {
         for (int i = 0; i < 25000; ++i) {
             benchmarkImpl.run();
         }

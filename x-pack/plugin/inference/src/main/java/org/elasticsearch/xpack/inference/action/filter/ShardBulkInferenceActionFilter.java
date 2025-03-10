@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -46,6 +45,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
@@ -290,7 +290,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                         request.field
                                     );
                                 } else {
-                                    failure = new ElasticsearchException(
+                                    failure = new InferenceException(
                                         "Error loading inference for inference id [{}] on field [{}]",
                                         exc,
                                         inferenceId,
@@ -319,7 +319,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             var acc = inferenceResults.get(request.index);
                             if (result instanceof ChunkedInferenceError error) {
                                 acc.addFailure(
-                                    new ElasticsearchException(
+                                    new InferenceException(
                                         "Exception when running inference id [{}] on field [{}]",
                                         error.exception(),
                                         inferenceProvider.model.getInferenceEntityId(),
@@ -351,7 +351,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         for (FieldInferenceRequest request : requests) {
                             addInferenceResponseFailure(
                                 request.index,
-                                new ElasticsearchException(
+                                new InferenceException(
                                     "Exception when running inference id [{}] on field [{}]",
                                     exc,
                                     inferenceProvider.model.getInferenceEntityId(),
@@ -563,7 +563,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             }
                             continue;
                         }
-                        ensureResponseAccumulatorSlot(itemIndex);
+                        var slot = ensureResponseAccumulatorSlot(itemIndex);
                         final List<String> values;
                         try {
                             values = SemanticTextUtils.nodeStringValues(field, valueObj);
@@ -580,7 +580,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
                         int offsetAdjustment = 0;
                         for (String v : values) {
-                            fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment));
+                            if (v.isBlank()) {
+                                slot.addOrUpdateResponse(
+                                    new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
+                                );
+                            } else {
+                                fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment));
+                            }
 
                             // When using the inference metadata fields format, all the input values are concatenated so that the
                             // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment

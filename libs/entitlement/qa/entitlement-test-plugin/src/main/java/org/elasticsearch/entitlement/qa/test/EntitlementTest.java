@@ -21,7 +21,8 @@ public @interface EntitlementTest {
         PLUGINS,
         ES_MODULES_ONLY,
         SERVER_ONLY,
-        ALWAYS_DENIED
+        ALWAYS_DENIED,
+        ALWAYS_ALLOWED
     }
 
     ExpectedAccess expectedAccess();

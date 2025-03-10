@@ -968,11 +968,48 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testWideIndexWithFieldsTrimmed() throws IOException {
-        createWideIndex(10000);
+        createLoadIndexWithFieldAndDocumentCounts(10000, 1); // create an index with 10k fields and 1 document
         var query = requestObjectBuilder().query(format(null, "from {}", testIndexName()));
         Map<String, Object> result = runEsql(query);
         var columns = as(result.get("columns"), List.class);
+        var values = as(result.get("values"), List.class);
         assertEquals(WIDE_INDEX_DEFAULT_FIELD_NUMBER, columns.size());
+        assertEquals(1, values.size());
+
+        query = requestObjectBuilder().query(format(null, "from {} | keep f1, f2", testIndexName()));
+        result = runEsql(query);
+        columns = as(result.get("columns"), List.class);
+        values = as(result.get("values"), List.class);
+        assertEquals(2, columns.size());
+        assertEquals(1, values.size());
+
+        query = requestObjectBuilder().query(format(null, "from {} | drop f1, f2", testIndexName()));
+        result = runEsql(query);
+        columns = as(result.get("columns"), List.class);
+        values = as(result.get("values"), List.class);
+        assertEquals(9998, columns.size());
+        assertEquals(1, values.size());
+
+        query = requestObjectBuilder().query(format(null, "from {} | where f1 > 0", testIndexName()));
+        result = runEsql(query);
+        columns = as(result.get("columns"), List.class);
+        values = as(result.get("values"), List.class);
+        assertEquals(10000, columns.size());
+        assertEquals(1, values.size());
+
+        query = requestObjectBuilder().query(format(null, "from {} | eval x = 0", testIndexName()));
+        result = runEsql(query);
+        columns = as(result.get("columns"), List.class);
+        values = as(result.get("values"), List.class);
+        assertEquals(10001, columns.size());
+        assertEquals(1, values.size());
+
+        query = requestObjectBuilder().query(format(null, "from {} | stats max(f1)", testIndexName()));
+        result = runEsql(query);
+        columns = as(result.get("columns"), List.class);
+        values = as(result.get("values"), List.class);
+        assertEquals(1, columns.size());
+        assertEquals(1, values.size());
     }
 
     private static String queryWithComplexFieldNames(int field) {
@@ -1540,16 +1577,33 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
     }
 
-    private static void createWideIndex(int fieldNumber) throws IOException {
-        String settings = String.format("\"settings\":{\"index.mapping.total_fields.limit\":%d}", fieldNumber);
+    private static void createLoadIndexWithFieldAndDocumentCounts(int fieldCount, int documentCount) throws IOException {
+        String settings = String.format("\"settings\":{\"index.mapping.total_fields.limit\":%d}", fieldCount);
         StringBuilder mappings = new StringBuilder();
         mappings.append(String.format("\"mappings\": { \"properties\": {\"f%d\": {\"type\" : \"integer\"}", 1));
-        for (int i = 2; i <= fieldNumber; i++) {
+        for (int i = 2; i <= fieldCount; i++) {
             mappings.append(String.format(", \"f%d\":{\"type\" : \"integer\"}", i));
         }
         mappings.append("}}");
         Request request = new Request("PUT", "/" + testIndexName());
         request.setJsonEntity("{" + settings + ", " + mappings + "}");
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        if (documentCount > 0) {
+            request = new Request("POST", "/" + testIndexName() + "/_bulk");
+            request.addParameter("refresh", "true");
+
+            StringBuilder bulk = new StringBuilder();
+            for (int i = 1; i <= documentCount; i++) {
+                bulk.append("{\"index\":{}}\n");
+                bulk.append(String.format("{\"f%d\":%d", 1, 1));
+                for (int j = 2; j <= fieldCount; j++) {
+                    bulk.append(String.format(",\"f%d\":%d", j, j));
+                }
+                bulk.append("}\n");
+            }
+            request.setJsonEntity(bulk.toString());
+            assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+        }
     }
 }

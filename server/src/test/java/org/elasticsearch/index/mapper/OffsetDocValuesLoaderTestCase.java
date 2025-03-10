@@ -159,25 +159,27 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
     }
 
     public void testOffsetArrayRandom() throws Exception {
-        StringBuilder values = new StringBuilder();
+        String values;
         int numValues = randomIntBetween(0, 256);
-        for (int i = 0; i < numValues; i++) {
-            if (randomInt(10) == 1) {
-                values.append("null");
-            } else {
-                String randomValue = randomValue();
-                values.append('"').append(randomValue).append('"');
+
+        try (XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());) {
+            b.startArray();
+            for (int i = 0; i < numValues; i++) {
+                if (randomInt(10) == 1) {
+                    b.nullValue();
+                } else {
+                    randomValue(b);
+                }
             }
-            if (i != (numValues - 1)) {
-                values.append(',');
-            }
+            b.endArray();
+            values = Strings.toString(b);
         }
-        verifyOffsets("{\"field\":[" + values + "]}");
+        verifyOffsets("{\"field\":" + values + "}");
     }
 
     protected abstract String getFieldTypeName();
 
-    protected abstract String randomValue();
+    protected abstract void randomValue(XContentBuilder b) throws IOException;
 
     protected void verifyOffsets(String source) throws IOException {
         verifyOffsets(source, source);

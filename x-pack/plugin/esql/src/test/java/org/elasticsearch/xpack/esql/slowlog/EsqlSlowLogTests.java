@@ -1,0 +1,170 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.slowlog;
+
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.session.Result;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+
+public class EsqlSlowLogTests extends ESTestCase {
+    private static ClusterSettings settings = new ClusterSettings(
+        Settings.builder()
+            .put(EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "40ms")
+            .put(EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "30ms")
+            .put(EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "20ms")
+            .put(EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "10ms")
+
+            .build(),
+        new HashSet<>(
+            Arrays.asList(
+                EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
+                EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
+                EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
+                EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING
+            )
+        )
+    );
+
+    static MockAppender appender;
+    static Logger queryLog = LogManager.getLogger(EsqlSlowLog.SLOWLOG_PREFIX + ".query");
+    static Level origQueryLogLevel = queryLog.getLevel();
+
+    @BeforeClass
+    public static void init() throws IllegalAccessException {
+        appender = new MockAppender("test_appender");
+        appender.start();
+        Loggers.addAppender(queryLog, appender);
+
+        Loggers.setLevel(queryLog, Level.TRACE);
+    }
+
+    @AfterClass
+    public static void cleanup() {
+        Loggers.removeAppender(queryLog, appender);
+        appender.stop();
+        Loggers.setLevel(queryLog, origQueryLogLevel);
+    }
+
+    public void testPrioritiesOnSuccess() {
+        EsqlSlowLog slowLog = new EsqlSlowLog(settings);
+        String query = "from " + randomAlphaOfLength(10);
+
+        long[] actualTook = {
+            randomLongBetween(10_000_000, 20_000_000),
+            randomLongBetween(20_000_000, 30_000_000),
+            randomLongBetween(30_000_000, 40_000_000),
+            randomLongBetween(40_000_000, 50_000_000),
+            randomLongBetween(0, 9_999_999) };
+        long[] actualPlanningTook = {
+            randomLongBetween(0, 1_000_000),
+            randomLongBetween(0, 1_000_000),
+            randomLongBetween(0, 1_000_000),
+            randomLongBetween(0, 1_000_000),
+            randomLongBetween(0, 1_000_000), };
+        Level[] expectedLevel = { Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, null };
+
+        for (int i = 0; i < actualTook.length; i++) {
+            EsqlExecutionInfo warnQuery = getEsqlExecutionInfo(actualTook[i], actualPlanningTook[i]);
+            slowLog.onQueryPhase(new Result(List.of(), List.of(), List.of(), warnQuery), query);
+            if (expectedLevel[i] != null) {
+                assertThat(appender.lastEvent(), is(not(nullValue())));
+                var msg = (ESLogMessage) appender.lastMessage();
+                long took = Long.valueOf(msg.get("elasticsearch.slowlog.took"));
+                long tookMillisExpected = took / 1_000_000L;
+                long tookMillis = Long.valueOf(msg.get("elasticsearch.slowlog.took_millis"));
+                assertThat(took, is(actualTook[i]));
+                assertThat(tookMillis, is(tookMillisExpected));
+
+                long planningTook = Long.valueOf(msg.get("elasticsearch.slowlog.planning.took"));
+                long planningTookMillisExpected = planningTook / 1_000_000;
+                long planningTookMillis = Long.valueOf(msg.get("elasticsearch.slowlog.planning.took_millis"));
+                assertThat(planningTook, is(actualPlanningTook[i]));
+                assertThat(planningTookMillis, is(planningTookMillisExpected));
+                assertThat(took, greaterThan(planningTook));
+                assertThat(msg.get("elasticsearch.slowlog.query"), is(query));
+                assertThat(appender.getLastEventAndReset().getLevel(), equalTo(expectedLevel[i]));
+            } else {
+                assertThat(appender.lastEvent(), is(nullValue()));
+            }
+
+        }
+    }
+
+    public void testPrioritiesOnFailure() {
+        EsqlSlowLog slowLog = new EsqlSlowLog(settings);
+        String query = "from " + randomAlphaOfLength(10);
+
+        long[] actualTook = {
+            randomLongBetween(10_000_000, 20_000_000),
+            randomLongBetween(20_000_000, 30_000_000),
+            randomLongBetween(30_000_000, 40_000_000),
+            randomLongBetween(40_000_000, 50_000_000),
+            randomLongBetween(0, 9_999_999) };
+
+        Level[] expectedLevel = { Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, null };
+
+        String validationError = randomAlphaOfLength(10);
+        ValidationException ex = new ValidationException().addValidationError(validationError);
+        for (int i = 0; i < actualTook.length; i++) {
+            slowLog.onQueryFailure(query, ex, actualTook[i]);
+            if (expectedLevel[i] != null) {
+                assertThat(appender.lastEvent(), is(not(nullValue())));
+                var msg = (ESLogMessage) appender.lastMessage();
+                long took = Long.valueOf(msg.get("elasticsearch.slowlog.took"));
+                long tookMillisExpected = took / 1_000_000L;
+                long tookMillis = Long.valueOf(msg.get("elasticsearch.slowlog.took_millis"));
+                assertThat(took, is(actualTook[i]));
+                assertThat(tookMillis, is(tookMillisExpected));
+                assertThat(msg.get("elasticsearch.slowlog.planning.took"), is(nullValue()));
+                assertThat(msg.get("elasticsearch.slowlog.planning.took_millis"), is(nullValue()));
+                assertThat(msg.get("elasticsearch.slowlog.query"), is(query));
+                assertThat(appender.getLastEventAndReset().getLevel(), equalTo(expectedLevel[i]));
+            } else {
+                assertThat(appender.lastEvent(), is(nullValue()));
+            }
+        }
+    }
+
+    private static EsqlExecutionInfo getEsqlExecutionInfo(long tookNanos, long planningTookNanos) {
+        EsqlExecutionInfo info = new EsqlExecutionInfo(false) {
+            @Override
+            public TimeValue overallTook() {
+                return new TimeValue(tookNanos, TimeUnit.NANOSECONDS);
+            }
+
+            @Override
+            public TimeValue planningTookTime() {
+                return new TimeValue(planningTookNanos, TimeUnit.NANOSECONDS);
+            }
+        };
+        return info;
+    }
+}

@@ -77,23 +77,25 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public Attribute withLocation(Source source) {
-        return Objects.equals(source(), source) ? this : clone(source, name(), dataType(), nullable(), id(), synthetic());
+        return Objects.equals(source(), source) ? this : clone(source, qualifier(), name(), dataType(), nullable(), id(), synthetic());
     }
 
     public Attribute withName(String name) {
-        return Objects.equals(name(), name) ? this : clone(source(), name, dataType(), nullable(), id(), synthetic());
+        return Objects.equals(name(), name) ? this : clone(source(), qualifier(), name, dataType(), nullable(), id(), synthetic());
     }
 
     public Attribute withNullability(Nullability nullability) {
-        return Objects.equals(nullable(), nullability) ? this : clone(source(), name(), dataType(), nullability, id(), synthetic());
+        return Objects.equals(nullable(), nullability)
+            ? this
+            : clone(source(), qualifier(), name(), dataType(), nullability, id(), synthetic());
     }
 
     public Attribute withId(NameId id) {
-        return clone(source(), name(), dataType(), nullable(), id, synthetic());
+        return clone(source(), qualifier(), name(), dataType(), nullable(), id, synthetic());
     }
 
     public Attribute withDataType(DataType type) {
-        return Objects.equals(dataType(), type) ? this : clone(source(), name(), type, nullable(), id(), synthetic());
+        return Objects.equals(dataType(), type) ? this : clone(source(), qualifier(), name(), type, nullable(), id(), synthetic());
     }
 
     protected abstract Attribute clone(
@@ -123,7 +125,7 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     protected Expression canonicalize() {
-        return clone(Source.EMPTY, name(), dataType(), nullability, id(), synthetic());
+        return clone(Source.EMPTY, qualifier(), name(), dataType(), nullability, id(), synthetic());
     }
 
     @Override

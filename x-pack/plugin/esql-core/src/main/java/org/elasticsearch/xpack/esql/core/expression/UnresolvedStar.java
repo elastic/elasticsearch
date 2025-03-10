@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
@@ -35,7 +34,7 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
 
     @Override
     protected NodeInfo<UnresolvedStar> info() {
-        return NodeInfo.create(this, UnresolvedStar::new, qualifier);
+        return NodeInfo.create(this);
     }
 
     @Override
@@ -48,25 +47,8 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
         throw new UnresolvedException("nullable", this);
     }
 
-    @Override
-    public boolean equals(Object obj) {
-        /*
-         * Intentionally not calling the superclass
-         * equals because it uses id which we always
-         * mutate when we make a clone. So we need
-         * to ignore it in equals for the transform
-         * tests to pass.
-         */
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-
-        UnresolvedStar other = (UnresolvedStar) obj;
-        return Objects.equals(qualifier, other.qualifier);
-    }
-
     private String message() {
-        return (qualifier() != null ? qualifier().name() + "." : "") + "*";
+        return (qualifier() != null ? qualifier() + " " : "") + "*";
     }
 
     @Override

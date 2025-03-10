@@ -60,7 +60,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected NodeInfo<UnresolvedAttribute> info() {
-        return NodeInfo.create(this, UnresolvedAttribute::new, name(), id(), unresolvedMsg, resolutionMetadata);
+        return NodeInfo.create(this, UnresolvedAttribute::new, qualifier(), name(), id(), unresolvedMsg, resolutionMetadata);
     }
 
     public Object resolutionMetadata() {
@@ -77,12 +77,20 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType dataType, Nullability nullability, NameId id, boolean synthetic) {
+    protected Attribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType dataType,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
         return this;
     }
 
     public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {
-        return new UnresolvedAttribute(source(), name(), id(), unresolvedMessage, resolutionMetadata());
+        return new UnresolvedAttribute(source(), qualifier(), name(), id(), unresolvedMessage, resolutionMetadata());
     }
 
     @Override

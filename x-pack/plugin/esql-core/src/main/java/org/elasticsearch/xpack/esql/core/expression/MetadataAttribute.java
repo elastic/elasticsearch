@@ -141,7 +141,15 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     @Override
-    protected MetadataAttribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
+    protected MetadataAttribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType type,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
         return new MetadataAttribute(source, name, type, null, nullability, id, synthetic, searchable);
     }
 

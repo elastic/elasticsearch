@@ -1,0 +1,5 @@
+pr: 122991
+summary: "GCS blob store: add `OperationPurpose/Operation` stats counters"
+area: Snapshot/Restore
+type: enhancement
+issues: []

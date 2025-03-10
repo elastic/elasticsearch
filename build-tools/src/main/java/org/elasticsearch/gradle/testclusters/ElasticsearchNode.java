@@ -988,7 +988,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         Process esProcess = testClustersRegistryProvider.get().getProcess(id());
         if (esProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
-            // Another exception here would eat the orriginal.
+            // Another exception here would eat the original.
             return;
         }
         LOGGER.info("Stopping `{}`, tailLogs: {}", this, tailLogs);

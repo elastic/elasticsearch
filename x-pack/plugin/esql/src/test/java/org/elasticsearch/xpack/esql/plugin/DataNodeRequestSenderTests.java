@@ -51,9 +51,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_COLD_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_ROLE;
 import static org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeRequest;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -72,8 +75,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     private final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node-2").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
     private final DiscoveryNode node3 = DiscoveryNodeUtils.builder("node-3").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
     private final DiscoveryNode node4 = DiscoveryNodeUtils.builder("node-4").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
-    private final DiscoveryNode node5 = DiscoveryNodeUtils.builder("node-5").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
-    private final DiscoveryNode warmNode1 = DiscoveryNodeUtils.builder("node-1-warm").roles(Set.of(DATA_FROZEN_NODE_ROLE)).build();
     private final ShardId shard1 = new ShardId("index", "n/a", 1);
     private final ShardId shard2 = new ShardId("index", "n/a", 2);
     private final ShardId shard3 = new ShardId("index", "n/a", 3);
@@ -278,7 +279,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
     public void testDoNotRetryCircuitBreakerException() {
         var targetShards = List.of(targetShard(shard1, node1, node2));
-        var sent = ConcurrentCollections.newQueue();
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
         var future = sendRequests(targetShards, false, (node, shardIds, aliasFilters, listener) -> {
             sent.add(new NodeRequest(node, shardIds, aliasFilters));
             runWithDelay(() -> listener.onFailure(new CircuitBreakingException("cbe", randomFrom(Durability.values())), false));
@@ -291,20 +292,31 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var targetShards = shuffledList(
             List.of(
                 targetShard(shard1, node1),
-                targetShard(shard2, node2),
-                targetShard(shard3, node3),
-                targetShard(shard4, node4),
-                targetShard(shard5, warmNode1)
+                targetShard(shard2, DiscoveryNodeUtils.builder("node-2").roles(Set.of(DATA_WARM_NODE_ROLE)).build()),
+                targetShard(shard3, DiscoveryNodeUtils.builder("node-3").roles(Set.of(DATA_COLD_NODE_ROLE)).build()),
+                targetShard(shard4, DiscoveryNodeUtils.builder("node-4").roles(Set.of(DATA_FROZEN_NODE_ROLE)).build())
             )
         );
-        var sent = Collections.synchronizedList(new ArrayList<NodeRequest>());
-        var future = sendRequests(targetShards, randomBoolean(), (node, shardIds, aliasFilters, listener) -> {
+        var sent = Collections.synchronizedList(new ArrayList<String>());
+        safeGet(sendRequests(targetShards, randomBoolean(), (node, shardIds, aliasFilters, listener) -> {
+            sent.add(node.getId());
+            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
+        }));
+        assertThat(sent, equalTo(List.of("node-1", "node-2", "node-3", "node-4")));
+    }
+
+    public void testQueryHotShardsFirstWhenIlmMovesShard() {
+        var warmNode2 = DiscoveryNodeUtils.builder("node-2").roles(Set.of(DATA_WARM_NODE_ROLE)).build();
+        var targetShards = shuffledList(
+            List.of(targetShard(shard1, node1), targetShard(shard2, shuffledList(List.of(node2, warmNode2)).toArray(DiscoveryNode[]::new)))
+        );
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        safeGet(sendRequests(targetShards, randomBoolean(), (node, shardIds, aliasFilters, listener) -> {
             sent.add(new NodeRequest(node, shardIds, aliasFilters));
             runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
-        });
-        safeGet(future);
-        assertThat(sent.size(), equalTo(5));
-        assertThat(sent.getLast().node(), equalTo(warmNode1));
+        }));
+        assertThat(groupRequests(sent, 1), equalTo(Map.of(node1, List.of(shard1))));
+        assertThat(groupRequests(sent, 1), anyOf(equalTo(Map.of(node2, List.of(shard2))), equalTo(Map.of(warmNode2, List.of(shard2)))));
     }
 
     static DataNodeRequestSender.TargetShard targetShard(ShardId shardId, DiscoveryNode... nodes) {

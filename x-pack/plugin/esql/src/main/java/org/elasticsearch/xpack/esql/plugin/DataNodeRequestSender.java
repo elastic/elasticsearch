@@ -58,6 +58,8 @@ import java.util.concurrent.locks.ReentrantLock;
 abstract class DataNodeRequestSender {
 
     private static final String[] NODE_QUERY_ORDER = new String[] {
+        DiscoveryNodeRole.SEARCH_ROLE.roleName(),
+        DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE.roleName(),
         DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName(),
         DiscoveryNodeRole.DATA_WARM_NODE_ROLE.roleName(),
         DiscoveryNodeRole.DATA_COLD_NODE_ROLE.roleName(),
@@ -114,19 +116,22 @@ abstract class DataNodeRequestSender {
 
     private static List<ShardId> order(TargetShards targetShards) {
         var ordered = new ArrayList<>(targetShards.shards.keySet());
-        ordered.sort(Comparator.comparingInt(shardId -> nodeOrder(targetShards.getShard(shardId).remainingNodes)));
+        ordered.sort(Comparator.comparingInt(shardId -> nodesOrder(targetShards.getShard(shardId).remainingNodes)));
         return ordered;
     }
 
-    private static int nodeOrder(List<DiscoveryNode> nodes) {
+    private static int nodesOrder(List<DiscoveryNode> nodes) {
         if (nodes.isEmpty()) {
             return Integer.MAX_VALUE;
         }
-        // assumes all shard nodes have same roles
-        var node = nodes.getFirst();
-        if (node.hasRole(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE.roleName()) || node.hasRole(DiscoveryNodeRole.DATA_ROLE.roleName())) {
-            return 0;
+        var order = 0;
+        for (var node : nodes) {
+            order = Math.max(order, nodeOrder(node));
         }
+        return order;
+    }
+
+    private static int nodeOrder(DiscoveryNode node) {
         for (int i = 0; i < NODE_QUERY_ORDER.length; i++) {
             if (node.hasRole(NODE_QUERY_ORDER[i])) {
                 return i;

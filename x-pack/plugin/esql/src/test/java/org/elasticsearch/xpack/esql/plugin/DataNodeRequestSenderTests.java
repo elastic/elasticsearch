@@ -295,10 +295,11 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             targetShard(shard5, node5)
         );
 
+        var concurrency = randomIntBetween(1, targetShards.size() - 1);
         AtomicInteger maxConcurrentRequests = new AtomicInteger(0);
         AtomicInteger concurrentRequests = new AtomicInteger(0);
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
-        var future = sendRequests(targetShards, randomBoolean(), 2, (node, shardIds, aliasFilters, listener) -> {
+        var future = sendRequests(targetShards, randomBoolean(), concurrency, (node, shardIds, aliasFilters, listener) -> {
             concurrentRequests.incrementAndGet();
 
             while (true) {
@@ -317,7 +318,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         });
         safeGet(future);
         assertThat(sent.size(), equalTo(5));
-        assertThat(maxConcurrentRequests.get(), equalTo(2));
+        assertThat(maxConcurrentRequests.get(), equalTo(concurrency));
     }
 
     static DataNodeRequestSender.TargetShard targetShard(ShardId shardId, DiscoveryNode... nodes) {

@@ -20,6 +20,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.ArgumentCaptor;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -29,6 +30,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -73,6 +75,92 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         verify(mergeTask, times(0)).run();
         verify(mergeTask, times(1)).abort();
         assertTrue(threadPoolMergeExecutorService.allDone());
+    }
+
+    public void testEnqueuedAndBackloggedMergesAreStillExecutedWhenThreadPoolIsShutdown() throws Exception {
+        int mergeExecutorThreadCount = randomIntBetween(1, 5);
+        // more merges than threads so that some are enqueued
+        int mergesToSubmit = mergeExecutorThreadCount + randomIntBetween(1, 5);
+        Settings settings = Settings.builder()
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            .build();
+        TestThreadPool testThreadPool = new TestThreadPool("test", settings);
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
+            .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
+        assertNotNull(threadPoolMergeExecutorService);
+        assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
+        Semaphore runMergeSemaphore = new Semaphore(0);
+        ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
+        AtomicInteger doneMergesCount = new AtomicInteger(0);
+        // submit more merge tasks than there are threads so that some are enqueued
+        for (int i = 0; i < mergesToSubmit; i++) {
+            MergeTask mergeTask = mock(MergeTask.class);
+            when(mergeTask.supportsIOThrottling()).thenReturn(randomBoolean());
+            Schedule runOrAbort = randomFrom(RUN, ABORT);
+            doAnswer(mock -> {
+                // merges can be backlogged, but will be re-enqueued
+                Schedule schedule = randomFrom(BACKLOG, runOrAbort);
+                if (schedule == BACKLOG) {
+                    // reenqueue backlogged merge task
+                    new Thread(() -> { threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(mergeTask); }).start();
+                }
+                return schedule;
+            }).when(mergeTask).schedule();
+            doAnswer(mock -> {
+                // wait to be signalled before completing
+                runMergeSemaphore.acquireUninterruptibly();
+                if (runOrAbort == ABORT) {
+                    fail("merge task ran but it should've aborted instead");
+                }
+                doneMergesCount.incrementAndGet();
+                return null;
+            }).when(mergeTask).run();
+            doAnswer(mock -> {
+                // wait to be signalled before completing
+                runMergeSemaphore.acquireUninterruptibly();
+                if (runOrAbort == RUN) {
+                    fail("merge task aborted but it should've ran instead");
+                }
+                doneMergesCount.incrementAndGet();
+                return null;
+            }).when(mergeTask).abort();
+            threadPoolMergeExecutorService.submitMergeTask(mergeTask);
+        }
+        // assert merges are running and enqueued
+        assertBusy(() -> {
+            // assert that there are merge tasks running concurrently at the max allowed concurrency rate
+            assertThat(threadPoolExecutor.getActiveCount(), is(mergeExecutorThreadCount));
+            // with the other merge tasks enqueued
+            assertThat(threadPoolExecutor.getQueue().size(), is(mergesToSubmit - mergeExecutorThreadCount));
+        });
+        // shutdown prevents new merge tasks to be enqueued but existing ones should be allowed to continue
+        testThreadPool.shutdown();
+        for (int i = 0; i < mergesToSubmit; i++) {
+            // closing the thread pool fails because there are running and/or enqueued merge tasks
+            assertFalse(testThreadPool.awaitTermination(1, TimeUnit.NANOSECONDS));
+            // let merges run one by one and check thread pool
+            runMergeSemaphore.release();
+            int completedMergesCount = i + 1;
+            assertBusy(() -> {
+                assertThat(doneMergesCount.get(), is(completedMergesCount));
+                assertThat(threadPoolExecutor.getCompletedTaskCount(), is((long) completedMergesCount));
+                // active threads still working on the remaining merges
+                assertThat(
+                    threadPoolExecutor.getActiveCount(),
+                    is(Math.min(mergeExecutorThreadCount, mergesToSubmit - completedMergesCount))
+                );
+                // with any of the other merges still enqueued
+                assertThat(
+                    threadPoolExecutor.getQueue().size(),
+                    is(Math.max(mergesToSubmit - mergeExecutorThreadCount - completedMergesCount, 0))
+                );
+            });
+        }
+        assertBusy(() -> {
+            assertTrue(testThreadPool.awaitTermination(1, TimeUnit.NANOSECONDS));
+            assertTrue(threadPoolMergeExecutorService.allDone());
+        });
     }
 
     public void testTargetIORateChangesWhenSubmittingMergeTasks() throws Exception {

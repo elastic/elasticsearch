@@ -145,37 +145,34 @@ public class ThreadPoolMergeExecutorService {
     private boolean enqueueMergeTaskExecution() {
         try {
             executorService.execute(() -> {
-                boolean interrupted = false;
                 // one such runnable always executes a SINGLE merge task from the queue
                 // this is important for merge queue statistics, i.e. the executor's queue size represents the current amount of merges
-                try {
-                    while (true) {
-                        MergeTask smallestMergeTask = null;
-                        try {
-                            // will block if there are backlogged merges until they're enqueued again
-                            smallestMergeTask = queuedMergeTasks.take();
-                        } catch (InterruptedException e) {
-                            interrupted = true;
-                            // this runnable must always run exactly one merge task
-                            continue;
-                        }
-                        // let the task's scheduler decide if it can actually run the merge task now
-                        ThreadPoolMergeScheduler.Schedule schedule = smallestMergeTask.schedule();
-                        if (schedule == RUN) {
-                            runMergeTask(smallestMergeTask);
-                            break;
-                        } else if (schedule == ABORT) {
-                            abortMergeTask(smallestMergeTask);
-                            break;
-                        } else {
-                            assert schedule == BACKLOG;
-                            // the merge task is backlogged by the merge scheduler, try to get the next smallest one
-                            // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when it can be run
-                        }
+                while (true) {
+                    MergeTask smallestMergeTask;
+                    try {
+                        // will block if there are backlogged merges until they're enqueued again
+                        smallestMergeTask = queuedMergeTasks.take();
+                    } catch (InterruptedException e) {
+                        // An active worker thread has been interrupted while waiting for backlogged merges to be re-enqueued.
+                        // In this case, we terminate the worker thread promptly and forget about the backlogged merges.
+                        // It is OK to forget about merges in this case, because active worker threads are only interrupted
+                        // when the node is shutting down, in which case in-memory accounting of merging activity is not relevant.
+                        // As part of {@link java.util.concurrent.ThreadPoolExecutor#shutdownNow()} the thread pool's work queue
+                        // is also drained, so any queued merge tasks are also forgotten.
+                        break;
                     }
-                } finally {
-                    if (interrupted) {
-                        Thread.currentThread().interrupt();
+                    // let the task's scheduler decide if it can actually run the merge task now
+                    ThreadPoolMergeScheduler.Schedule schedule = smallestMergeTask.schedule();
+                    if (schedule == RUN) {
+                        runMergeTask(smallestMergeTask);
+                        break;
+                    } else if (schedule == ABORT) {
+                        abortMergeTask(smallestMergeTask);
+                        break;
+                    } else {
+                        assert schedule == BACKLOG;
+                        // the merge task is backlogged by the merge scheduler, try to get the next smallest one
+                        // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when it can be run
                     }
                 }
             });

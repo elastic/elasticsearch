@@ -204,7 +204,7 @@ abstract class DataNodeRequestSender {
             @Override
             public void onSkip() {
                 skippedShards.incrementAndGet();
-                onAfter(List.of());
+                onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
             }
         });
     }

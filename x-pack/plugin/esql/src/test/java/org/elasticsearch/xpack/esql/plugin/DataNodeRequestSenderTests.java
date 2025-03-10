@@ -249,7 +249,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
     public void testNonFatalErrorIsRetriedOnAnotherShard() {
         var targetShards = List.of(targetShard(shard1, node1, node2));
-        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
         var response = safeGet(sendRequests(targetShards, false, -1, (node, shardIds, aliasFilters, listener) -> {
             sent.add(new NodeRequest(node, shardIds, aliasFilters));
             if (Objects.equals(node1, node)) {
@@ -266,7 +266,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
     public void testNonFatalFailedOnAllNodes() {
         var targetShards = List.of(targetShard(shard1, node1, node2));
-        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
         var future = sendRequests(targetShards, false, -1, (node, shardIds, aliasFilters, listener) -> {
             sent.add(new NodeRequest(node, shardIds, aliasFilters));
             runWithDelay(() -> listener.onFailure(new RuntimeException("test request level non fatal failure"), false));
@@ -277,7 +277,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
     public void testDoNotRetryCircuitBreakerException() {
         var targetShards = List.of(targetShard(shard1, node1, node2));
-        var sent = ConcurrentCollections.newQueue();
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
         var future = sendRequests(targetShards, false, -1, (node, shardIds, aliasFilters, listener) -> {
             sent.add(new NodeRequest(node, shardIds, aliasFilters));
             runWithDelay(() -> listener.onFailure(new CircuitBreakingException("cbe", randomFrom(Durability.values())), false));
@@ -298,7 +298,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var concurrency = randomIntBetween(1, 2);
         AtomicInteger maxConcurrentRequests = new AtomicInteger(0);
         AtomicInteger concurrentRequests = new AtomicInteger(0);
-        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
         var response = safeGet(sendRequests(targetShards, randomBoolean(), concurrency, (node, shardIds, aliasFilters, listener) -> {
             concurrentRequests.incrementAndGet();
 
@@ -333,7 +333,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         );
 
         AtomicInteger processed = new AtomicInteger(0);
-        Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
         var response = safeGet(sendRequests(targetShards, randomBoolean(), 1, (node, shardIds, aliasFilters, listener) -> {
             sent.add(new NodeRequest(node, shardIds, aliasFilters));
             runWithDelay(() -> {
@@ -348,6 +348,29 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         assertThat(response.totalShards, equalTo(5));
         assertThat(response.successfulShards, equalTo(1));
         assertThat(response.skippedShards, equalTo(4));
+        assertThat(response.failedShards, equalTo(0));
+    }
+
+    public void testSkipRemovesPriorNonFatalErrors() {
+        var targetShards = List.of(targetShard(shard1, node1, node2), targetShard(shard2, node3));
+
+        var sent = ConcurrentCollections.<NodeRequest>newQueue();
+        var response = safeGet(sendRequests(targetShards, randomBoolean(), 1, (node, shardIds, aliasFilters, listener) -> {
+            sent.add(new NodeRequest(node, shardIds, aliasFilters));
+            runWithDelay(() -> {
+                if (Objects.equals(node.getId(), node1.getId()) && shardIds.equals(List.of(shard1))) {
+                    listener.onFailure(new RuntimeException("test request level non fatal failure"), false);
+                } else if (Objects.equals(node.getId(), node3.getId()) && shardIds.equals(List.of(shard2))) {
+                    listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                } else if (Objects.equals(node.getId(), node2.getId()) && shardIds.equals(List.of(shard1))) {
+                    listener.onSkip();
+                }
+            });
+        }));
+        assertThat(sent.size(), equalTo(3));
+        assertThat(response.totalShards, equalTo(2));
+        assertThat(response.successfulShards, equalTo(1));
+        assertThat(response.skippedShards, equalTo(1));
         assertThat(response.failedShards, equalTo(0));
     }
 

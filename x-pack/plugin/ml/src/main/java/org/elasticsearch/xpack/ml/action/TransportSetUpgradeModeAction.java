@@ -170,11 +170,19 @@ public class TransportSetUpgradeModeAction extends AbstractTransportSetUpgradeMo
             isolateDatafeeds(tasksCustomMetadata, isolateDatafeedListener);
         } else {
             logger.info("Disabling upgrade mode, must wait for tasks to not have AWAITING_UPGRADE assignment");
+            @FixForMultiProject
+            final var projectId = Metadata.DEFAULT_PROJECT_ID;
             persistentTasksService.waitForPersistentTasksCondition(
                 // Wait for jobs, datafeeds and analytics not to be "Awaiting upgrade"
-                persistentTasksCustomMetadata -> persistentTasksCustomMetadata.tasks()
-                    .stream()
-                    .noneMatch(t -> ML_TASK_NAMES.contains(t.getTaskName()) && t.getAssignment().equals(AWAITING_UPGRADE)),
+                projectId,
+                persistentTasksCustomMetadata -> {
+                    if (persistentTasksCustomMetadata == null) {
+                        return true;
+                    }
+                    return persistentTasksCustomMetadata.tasks()
+                        .stream()
+                        .noneMatch(t -> ML_TASK_NAMES.contains(t.getTaskName()) && t.getAssignment().equals(AWAITING_UPGRADE));
+                },
                 request.ackTimeout(),
                 ActionListener.wrap(r -> {
                     logger.info("Done waiting for tasks to be out of AWAITING_UPGRADE");

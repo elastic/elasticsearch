@@ -97,6 +97,7 @@ public class FieldArrayContext {
             && sourceKeepMode == Mapper.SourceKeepMode.ARRAYS
             && hasDocValues
             && isStored == false
+            && context.isInNestedContext() == false
             && fieldMapperBuilder.copyTo.copyToFields().isEmpty()
             && fieldMapperBuilder.multiFieldsBuilder.hasMultiFields() == false
             && indexVersionSupportStoringArraysNatively(indexCreatedVersion, minSupportedVersionMain)) {

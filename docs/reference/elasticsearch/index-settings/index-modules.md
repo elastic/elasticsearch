@@ -72,6 +72,10 @@ Index mode supports the following values:
 `standard`
 :   Standard indexing with default settings.
 
+`lookup`
+: Index that can be used for lookup joins in ES|QL. Limited to 1 shard.
+
+
 `time_series`
 :   *(data streams only)* Index mode optimized for storage of metrics. For more information, see [Time series index settings](time-series.md).
 

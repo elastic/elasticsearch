@@ -6,7 +6,6 @@ mapped_pages:
 
 # {{esql}} commands [esql-commands]
 
-
 ## Source commands [esql-source-commands]
 
 An {{esql}} source command produces a table, typically with data from {{es}}. An {{esql}} query must start with a source command.
@@ -39,6 +38,7 @@ An {{esql}} source command produces a table, typically with data from {{es}}. An
 * [`GROK`](#esql-grok)
 * [`KEEP`](#esql-keep)
 * [`LIMIT`](#esql-limit)
+* [preview] [`LOOKUP JOIN`](#esql-lookup-join)
 * [preview] [`MV_EXPAND`](#esql-mv_expand)
 * [`RENAME`](#esql-rename)
 * [`SORT`](#esql-sort)
@@ -663,6 +663,66 @@ FROM employees
 | LIMIT 5
 ```
 
+## `LOOKUP JOIN` [esql-lookup-join]
+
+`LOOKUP JOIN` enables you to add data from another index, AKA a 'lookup' index, to your {esql} query results, simplifying data enrichment and analysis workflows.
+
+**Syntax**
+
+```esql
+FROM firewall_logs
+| LOOKUP JOIN threat_list ON source.IP
+| WHERE threat_level IS NOT NULL
+```
+
+**Parameters**
+
+TBD
+
+**Description**
+
+The `LOOKUP JOIN` command adds new columns to your {esql} query results table by finding documents in a lookup index that share the same join field value as your result rows.
+
+For each row in your results table that matches a document in the lookup index based on the join field, all fields from the matching document are added as new columns to that row.
+If multiple documents in the lookup index match a single row in your results, the output will contain one row for each matching combination.
+
+**Examples**
+
+**IP Threat correlation**: This query would allow you to see if any source IPs match known malicious addresses.
+
+```esql
+FROM firewall_logs
+| LOOKUP JOIN threat_list ON source.IP
+```
+
+**Host metadata correlation**: This query pulls in environment or ownership details for each host to correlate with your metrics data.
+
+```esql
+FROM system_metrics
+| LOOKUP JOIN host_inventory ON host.name
+| LOOKUP JOIN employees ON host.name
+```
+
+**Service ownership mapping**: This query would show logs with the owning team or escalation information for faster triage and incident response.
+
+```esql
+FROM app_logs
+| LOOKUP JOIN service_owners ON service_id
+```
+
+In case of name collisions, the newly created columns will override existing columns.
+
+```esql
+FROM Left
+| WHERE Language IS NOT NULL // works and filter TLD UK
+| LOOKUP JOIN Right ON Key
+
+// same semantics and result when moving the WHERE clause after the filter
+// in fact the optimizer will move the filter before the lookup
+FROM Left
+| LOOKUP JOIN Right ON Key
+| WHERE Language IS NOT NULL 
+```
 
 ## `MV_EXPAND` [esql-mv_expand]
 

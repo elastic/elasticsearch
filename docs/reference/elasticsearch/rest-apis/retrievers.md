@@ -637,8 +637,7 @@ score = ln(score), if score < 0
 `allow_rerank_failures`
 :   (Optional, `boolean`)
 
-    If `true`, a failure during reranking will not fail the whole query. Instead, the documents from the preceding steps are passed-through unmodified
-    to subsequent retriever steps. The failure exception will be available in the <<search-api-phase-failures, `phase_failures`>> field of the search response.
+    If `true`, a failure during reranking will not fail the whole query. Instead, the documents from the preceding steps are passed-through unmodified to subsequent retriever steps. The failure exception will be available in the `phase_failures` field of the search response.
     Defaults to `false`.
 
 

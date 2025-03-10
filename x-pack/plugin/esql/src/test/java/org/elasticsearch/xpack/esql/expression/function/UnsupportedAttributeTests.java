@@ -23,7 +23,8 @@ public class UnsupportedAttributeTests extends AbstractAttributeTestCase<Unsuppo
         UnsupportedEsField field = UnsupportedEsFieldTests.randomUnsupportedEsField(4);
         String customMessage = randomBoolean() ? null : randomAlphaOfLength(9);
         NameId id = new NameId();
-        return new UnsupportedAttribute(Source.EMPTY, name, field, customMessage, id);
+        // TODO: Definitely should consider non-null qualifiers
+        return new UnsupportedAttribute(Source.EMPTY, null, name, field, customMessage, id);
     }
 
     @Override
@@ -38,6 +39,6 @@ public class UnsupportedAttributeTests extends AbstractAttributeTestCase<Unsuppo
             case 2 -> customMessage = randomValueOtherThan(customMessage, () -> randomBoolean() ? null : randomAlphaOfLength(9));
             default -> throw new IllegalArgumentException();
         }
-        return new UnsupportedAttribute(source, name, field, customMessage, new NameId());
+        return new UnsupportedAttribute(source, null, name, field, customMessage, new NameId());
     }
 }

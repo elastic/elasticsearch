@@ -43,6 +43,14 @@ public final class Alias extends NamedExpression {
      */
     private Attribute lazyAttribute;
 
+    /**
+     * Sets the qualifier to {@code null}.
+     * Mostly for tests and convenience wherever qualifiers aren't required.
+     */
+    public Alias(Source source, String name, Expression child) {
+        this(source, null, name, child, null);
+    }
+
     public Alias(Source source, @Nullable String qualifier, String name, Expression child) {
         this(source, qualifier, name, child, null);
     }
@@ -51,7 +59,6 @@ public final class Alias extends NamedExpression {
         this(source, name, qualifier, child, id, false);
     }
 
-    // TODO: flip order of name and qualifier
     public Alias(Source source, @Nullable String qualifier, String name, Expression child, @Nullable NameId id, boolean synthetic) {
         super(source, qualifier, name, singletonList(child), id, synthetic);
         this.child = child;

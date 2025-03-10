@@ -25,6 +25,14 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     private final boolean customMessage;
     private final Object resolutionMetadata;
 
+    /**
+     * Sets the qualifier to {@code null}.
+     * Mostly for tests and convenience wherever qualifiers aren't required.
+     */
+    public UnresolvedAttribute(Source source, String name) {
+        this(source, null, name, null);
+    }
+
     public UnresolvedAttribute(Source source, @Nullable String qualifier, String name) {
         this(source, qualifier, name, null);
     }

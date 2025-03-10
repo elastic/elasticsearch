@@ -44,6 +44,14 @@ public class FieldAttribute extends TypedAttribute {
     private final String parentName;
     private final EsField field;
 
+    /**
+     * Sets the qualifier to {@code null}.
+     * Mostly for tests and convenience wherever qualifiers aren't required.
+     */
+    public FieldAttribute(Source source, String name, EsField field) {
+        this(source, null, null, name, field);
+    }
+
     public FieldAttribute(Source source, @Nullable String qualifier, String name, EsField field) {
         this(source, null, qualifier, name, field);
     }

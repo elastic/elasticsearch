@@ -31,7 +31,8 @@ public class AliasTests extends AbstractWireTestCase<Alias> {
         // TODO better randomChild
         Expression child = ReferenceAttributeTests.randomReferenceAttribute(false);
         boolean synthetic = randomBoolean();
-        return new Alias(source, name, child, new NameId(), synthetic);
+        // TODO: Definitely should consider non-null qualifiers
+        return new Alias(source, null, name, child, new NameId(), synthetic);
     }
 
     @Override
@@ -50,7 +51,7 @@ public class AliasTests extends AbstractWireTestCase<Alias> {
             case 1 -> child = randomValueOtherThan(child, () -> ReferenceAttributeTests.randomReferenceAttribute(false));
             case 2 -> synthetic = false == synthetic;
         }
-        return new Alias(source, name, child, instance.id(), synthetic);
+        return new Alias(source, null, name, child, instance.id(), synthetic);
     }
 
     @Override

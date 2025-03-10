@@ -28,8 +28,31 @@ public class ReferenceAttribute extends TypedAttribute {
         ReferenceAttribute::readFrom
     );
 
+    /**
+     * Sets the qualifier to {@code null}.
+     * Mostly for tests and convenience wherever qualifiers aren't required.
+     */
+    public ReferenceAttribute(Source source, String name, DataType dataType) {
+        this(source, null, name, dataType, Nullability.FALSE, null, false);
+    }
+
     public ReferenceAttribute(Source source, @Nullable String qualifier, String name, DataType dataType) {
         this(source, qualifier, name, dataType, Nullability.FALSE, null, false);
+    }
+
+    /**
+     * Sets the qualifier to {@code null}.
+     * Mostly for tests and convenience wherever qualifiers aren't required.
+     */
+    public ReferenceAttribute(
+        Source source,
+        String name,
+        DataType dataType,
+        Nullability nullability,
+        @Nullable NameId id,
+        boolean synthetic
+    ) {
+        this(source, null, name, dataType, nullability, id, synthetic);
     }
 
     public ReferenceAttribute(

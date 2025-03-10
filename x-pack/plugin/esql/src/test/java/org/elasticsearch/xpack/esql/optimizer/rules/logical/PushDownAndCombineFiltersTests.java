@@ -92,9 +92,10 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         FieldAttribute b = getFieldAttribute("b");
         EsRelation relation = relation(List.of(a, b));
 
-        Alias aRenamed = new Alias(EMPTY, "a_renamed", a);
-        Alias aRenamedTwice = new Alias(EMPTY, "a_renamed_twice", aRenamed.toAttribute());
-        Alias bRenamed = new Alias(EMPTY, "b_renamed", b);
+        // TODO: definitely test with renames containing qualifiers - also in other places in this file.
+        Alias aRenamed = new Alias(EMPTY, null, "a_renamed", a);
+        Alias aRenamedTwice = new Alias(EMPTY, null, "a_renamed_twice", aRenamed.toAttribute());
+        Alias bRenamed = new Alias(EMPTY, null, "b_renamed", b);
 
         Project project = new Project(EMPTY, relation, List.of(aRenamed, aRenamedTwice, bRenamed));
 
@@ -121,10 +122,10 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         FieldAttribute b = getFieldAttribute("b");
         EsRelation relation = relation(List.of(a, b));
 
-        Alias aRenamed = new Alias(EMPTY, "a_renamed", a);
-        Alias aRenamedTwice = new Alias(EMPTY, "a_renamed_twice", aRenamed.toAttribute());
-        Alias bRenamed = new Alias(EMPTY, "b_renamed", b);
-        Alias aSquared = new Alias(EMPTY, "a_squared", new Pow(EMPTY, a, TWO));
+        Alias aRenamed = new Alias(EMPTY, null, "a_renamed", a);
+        Alias aRenamedTwice = new Alias(EMPTY, null, "a_renamed_twice", aRenamed.toAttribute());
+        Alias bRenamed = new Alias(EMPTY, null, "b_renamed", b);
+        Alias aSquared = new Alias(EMPTY, null, "a_squared", new Pow(EMPTY, a, TWO));
         Eval eval = new Eval(EMPTY, relation, List.of(aRenamed, aRenamedTwice, aSquared, bRenamed));
 
         // We'll construct a Filter after the Eval that has conditions that can or cannot be pushed before the Eval.

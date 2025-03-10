@@ -630,7 +630,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
 
             if (missingStackTraces.isEmpty() == false) {
                 StringBuilder stringBuilder = new StringBuilder();
-                Strings.collectionToDelimitedStringWithLimit(missingStackTraces, ",", "", "", 80, stringBuilder);
+                Strings.collectionToDelimitedStringWithLimit(missingStackTraces, ",", 80, stringBuilder);
                 log.warn("CO2/cost calculator: missing trace events for StackTraceID [" + stringBuilder + "].");
             }
         }

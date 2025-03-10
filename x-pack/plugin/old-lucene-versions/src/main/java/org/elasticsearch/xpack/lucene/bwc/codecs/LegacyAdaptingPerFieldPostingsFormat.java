@@ -51,7 +51,6 @@ import java.util.TreeMap;
  * This class can be removed once Elasticsearch gets upgraded to Lucene 11 and Lucene50PostingsFormat is no longer
  * shipped as part of bwc jars.
  */
-@UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)
 public final class LegacyAdaptingPerFieldPostingsFormat extends PostingsFormat {
     /** Name of this {@link PostingsFormat}. */
     public static final String PER_FIELD_NAME = "PerField40";

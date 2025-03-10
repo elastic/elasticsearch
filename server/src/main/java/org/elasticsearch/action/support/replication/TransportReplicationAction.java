@@ -50,6 +50,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -78,6 +79,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -507,7 +509,8 @@ public abstract class TransportReplicationAction<
 
                         if (syncGlobalCheckpointAfterOperation) {
                             try {
-                                primaryShardReference.indexShard.maybeSyncGlobalCheckpoint("post-operation");
+                                var seqNoStats = primaryShardReference.seqNoStatsSupplier.get();
+                                primaryShardReference.indexShard.maybeSyncGlobalCheckpoint("post-operation", seqNoStats);
                             } catch (final Exception e) {
                                 // only log non-closed exceptions
                                 if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
@@ -1136,10 +1139,16 @@ public abstract class TransportReplicationAction<
 
         protected final IndexShard indexShard;
         private final Releasable operationLock;
+        private final Supplier<SeqNoStats> seqNoStatsSupplier;
+        private final Supplier<Long> localCheckpointSupplier;
+        private final Supplier<Long> globalCheckpointSupplier;
 
         PrimaryShardReference(IndexShard indexShard, Releasable operationLock) {
             this.indexShard = indexShard;
             this.operationLock = operationLock;
+            this.seqNoStatsSupplier = indexShard.getSeqNoStatsSupplier();
+            this.localCheckpointSupplier = indexShard.getLocalCheckpointSupplier();
+            this.globalCheckpointSupplier = indexShard.getLastSyncedGlobalCheckpointSupplier();
         }
 
         @Override
@@ -1189,12 +1198,12 @@ public abstract class TransportReplicationAction<
 
         @Override
         public long localCheckpoint() {
-            return indexShard.getLocalCheckpoint();
+            return localCheckpointSupplier.get();
         }
 
         @Override
         public long globalCheckpoint() {
-            return indexShard.getLastSyncedGlobalCheckpoint();
+            return globalCheckpointSupplier.get();
         }
 
         @Override

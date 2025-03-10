@@ -1351,6 +1351,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
     }
 
+    /**
+     * Returns a supplier that supplies the {@link SeqNoStats} of the engine that is referenced at the time this method is called.
+     * Uses this method in place where the current engine reference cannot be resolved directly.
+     *
+     * @return a supplier of {@link SeqNoStats}
+     * @throws AlreadyClosedException if shard is closed
+     */
+    public Supplier<SeqNoStats> getSeqNoStatsSupplier() {
+        var engine = getEngine();
+        return () -> engine.getSeqNoStats(replicationTracker.getGlobalCheckpoint());
+    }
+
     public IndexingStats indexingStats() {
         Engine engine = getEngineOrNull();
         final boolean throttled;
@@ -2975,6 +2987,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Returns a supplier that supplies the local checkpoint of the engine that is referenced at the time this method is called.
+     * Uses this method in place where the current engine reference cannot be resolved directly.
+     *
+     * @return a supplier of the local checkpoint
+     * @throws AlreadyClosedException if shard is closed
+     */
+    public Supplier<Long> getLocalCheckpointSupplier() {
+        var engine = getEngine();
+        return () -> engine.getPersistedLocalCheckpoint();
+    }
+
+    /**
      * Returns the global checkpoint for the shard.
      *
      * @return the global checkpoint
@@ -2988,6 +3012,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public long getLastSyncedGlobalCheckpoint() {
         return getEngine().getLastSyncedGlobalCheckpoint();
+    }
+
+    /**
+     * Returns a supplier that supplies the latest global checkpoint of the engine that is referenced at the time this method is called.
+     * Uses this method in place where the current engine reference cannot be resolved directly.
+     *
+     * @return a supplier of the latest global checkpoint value that has been persisted in the underlying storage
+     * @throws AlreadyClosedException if shard is closed
+     */
+    public Supplier<Long> getLastSyncedGlobalCheckpointSupplier() {
+        var engine = getEngine();
+        return () -> engine.getLastSyncedGlobalCheckpoint();
     }
 
     /**
@@ -3012,8 +3048,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return;
         }
         assert assertPrimaryMode();
-        // only sync if there are no operations in flight, or when using async durability
         final SeqNoStats stats = getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
+        doMaybeSyncGlobalCheckpoint(reason, stats);
+    }
+
+    public void maybeSyncGlobalCheckpoint(final String reason, final SeqNoStats stats) {
+        verifyNotClosed();
+        assert shardRouting.primary() : "only call maybeSyncGlobalCheckpoint on primary shard";
+        if (replicationTracker.isPrimaryMode() == false) {
+            return;
+        }
+        assert assertPrimaryMode();
+        doMaybeSyncGlobalCheckpoint(reason, stats);
+    }
+
+    private void doMaybeSyncGlobalCheckpoint(final String reason, final SeqNoStats stats) {
+        // only sync if there are no operations in flight, or when using async durability
         final boolean asyncDurability = indexSettings().getTranslogDurability() == Translog.Durability.ASYNC;
         if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint() || asyncDurability) {
             final var trackedGlobalCheckpointsNeedSync = replicationTracker.trackedGlobalCheckpointsNeedSync();

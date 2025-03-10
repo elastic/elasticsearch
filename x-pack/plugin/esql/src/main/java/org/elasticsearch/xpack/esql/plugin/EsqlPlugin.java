@@ -23,7 +23,6 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
-import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
@@ -216,7 +215,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
 
-        entries.addAll(BlockWritables.getNamedWriteables());
         entries.addAll(ExpressionWritables.getNamedWriteables());
         entries.addAll(PlanWritables.getNamedWriteables());
         return entries;

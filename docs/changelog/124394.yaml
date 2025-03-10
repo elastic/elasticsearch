@@ -1,0 +1,5 @@
+pr: 124394
+summary: Avoid `NamedWritable` in block serialization
+area: ES|QL
+type: enhancement
+issues: []

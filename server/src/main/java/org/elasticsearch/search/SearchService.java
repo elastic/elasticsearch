@@ -1158,7 +1158,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Engine.SearcherSupplier searcherSupplier = null;
             ReaderContext readerContext = null;
             try {
-                searcherSupplier = shard.acquireSearcherSupplier();
+                searcherSupplier = shard.acquireSearcherSupplier(); // TODO I think we need to fork here
                 final ShardSearchContextId id = new ShardSearchContextId(
                     sessionId,
                     idGenerator.incrementAndGet(),
@@ -1949,9 +1949,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Rewriteable.rewriteAndFetch(
             request.getRewriteable(),
             indicesService.getDataRewriteContext(request::nowInMillis),
-            request.readerId() == null
-                ? listener.delegateFailureAndWrap((l, r) -> shard.ensureShardSearchActive(b -> l.onResponse(request)))
-                : listener.safeMap(r -> request)
+            request.readerId() == null ? listener.delegateFailureAndWrap((l, r) -> shard.ensureShardSearchActive(waitedForRefresh -> {
+                if (waitedForRefresh) {
+                    // for to generic in case the listener accesses the engine
+                    threadPool.generic().execute(ActionRunnable.supply(l, () -> request));
+                } else {
+                    l.onResponse(request);
+                }
+            })) : listener.safeMap(r -> request)
         );
     }
 

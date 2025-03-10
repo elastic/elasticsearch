@@ -34,7 +34,6 @@ import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.LegacyAdaptingPerFieldPostingsFormat;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.BWCLucene50PostingsFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.Lucene50SegmentInfoFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene54.Lucene54DocValuesFormat;
 
@@ -57,16 +56,7 @@ public class Lucene60Codec extends BWCCodec {
             return defaultDocValuesFormat;
         }
     };
-    private final PostingsFormat postingsFormat = new LegacyAdaptingPerFieldPostingsFormat() {
-        @Override
-        protected PostingsFormat getPostingsFormat(String formatName) {
-            if (formatName.equals("Lucene50")) {
-                return new BWCLucene50PostingsFormat();
-            } else {
-                return new EmptyPostingsFormat();
-            }
-        }
-    };
+    private final PostingsFormat postingsFormat = new LegacyAdaptingPerFieldPostingsFormat();
 
     /**
      * Instantiates a new codec. Called by SPI.

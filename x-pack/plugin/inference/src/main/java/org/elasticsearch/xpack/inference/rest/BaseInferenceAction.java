@@ -81,6 +81,6 @@ abstract class BaseInferenceAction extends BaseRestHandler {
         }
 
         // We always get the first value as the header doesn't allow multiple values
-        return productUseCaseHeaders.getFirst();
+        return productUseCaseHeaders.get(0);
     }
 }

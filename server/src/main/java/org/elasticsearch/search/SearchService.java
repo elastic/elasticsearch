@@ -1914,7 +1914,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             request.readerId() == null
                 ? listener.delegateFailureAndWrap(
                     (l, r) -> shard.ensureShardSearchActive(
-                        ignored -> threadPool.generic().execute(ActionRunnable.supply(l, () -> request))
+                        waitedForRefresh -> {
+                            if (waitedForRefresh) {
+                                // for to generic in case the listener accesses the engine
+                                threadPool.generic().execute(ActionRunnable.supply(l, () -> request));
+                            } else {
+                                l.onResponse(request);
+                            }
+                        }
                     )
                 )
                 : listener.safeMap(r -> request)

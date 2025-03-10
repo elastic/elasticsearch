@@ -113,9 +113,7 @@ dependencies {
   filebeat_x86_64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
   metricbeat_aarch64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
   metricbeat_x86_64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
-  fips "org.bouncycastle:bcpg-fips:1.0.7.1"
   fips "org.bouncycastle:bc-fips:1.0.2.5"
-  fips "org.bouncycastle:bcpkix-fips:1.0.7"
   fips "org.bouncycastle:bctls-fips:1.0.19"
 }
 
@@ -467,66 +465,66 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
   }
 }
 
-void addBuildFipsDockerImageTasks(Architecture architecture) {
-  DockerBase dockerBase = DockerBase.FIPS
-  final Path projectDir = project.projectDir.toPath()
-  String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
-  String contextDir = "${project.buildDir}/docker-context/elasticsearch${dockerBase.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
+// void addBuildFipsDockerImageTasks(Architecture architecture) {
+//   DockerBase dockerBase = DockerBase.FIPS
+//   final Path projectDir = project.projectDir.toPath()
+//   String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
+//   String contextDir = "${project.buildDir}/docker-context/elasticsearch${dockerBase.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
 
-  final TaskProvider<Sync> buildContextTask =
-    tasks.register(taskName('build', architecture, dockerBase, 'DockerContext'), Sync) {
-      into contextDir
+//   final TaskProvider<Sync> buildContextTask =
+//     tasks.register(taskName('build', architecture, dockerBase, 'DockerContext'), Sync) {
+//       into contextDir
 
-      into("fips") {
-        into("libs") {
-          from configurations.fips
-        }
-        into("resources") {
-          from tasks.named('fipsResources')
-        }
-      }
+//       into("fips") {
+//         into("libs") {
+//           from configurations.fips
+//         }
+//         into("resources") {
+//           from tasks.named('fipsResources')
+//         }
+//       }
 
-      String baseSuffix = DockerBase.CLOUD_ESS.suffix
-      from(projectDir.resolve("src/docker/Dockerfile.fips")) {
-        expand(
-          [
-            base_image : "elasticsearch${baseSuffix}:${architecture.classifier}",
-            docker_base: "${dockerBase.name().toLowerCase()}",
-            version    : "${VersionProperties.elasticsearch}",
-            retry      : ShellRetry
-          ]
-        )
-        filter SquashNewlinesFilter
-        rename ~/Dockerfile\.fips$/, 'Dockerfile'
-      }
-    }
+//       String baseSuffix = DockerBase.CLOUD_ESS.suffix
+//       from(projectDir.resolve("src/docker/Dockerfile.fips")) {
+//         expand(
+//           [
+//             base_image : "elasticsearch${baseSuffix}:${architecture.classifier}",
+//             docker_base: "${dockerBase.name().toLowerCase()}",
+//             version    : "${VersionProperties.elasticsearch}",
+//             retry      : ShellRetry
+//           ]
+//         )
+//         filter SquashNewlinesFilter
+//         rename ~/Dockerfile\.fips$/, 'Dockerfile'
+//       }
+//     }
 
-  final TaskProvider<DockerBuildTask> buildDockerImageTask =
-    tasks.register(taskName("build", architecture, dockerBase, "DockerImage"), DockerBuildTask) {
+//   final TaskProvider<DockerBuildTask> buildDockerImageTask =
+//     tasks.register(taskName("build", architecture, dockerBase, "DockerImage"), DockerBuildTask) {
 
-      DockerBase base = DockerBase.WOLFI
+//       DockerBase base = DockerBase.WOLFI
 
-      TaskProvider<DockerBuildTask> buildBaseTask = tasks.named(taskName("build", architecture, base, "DockerImage"))
-      inputs.files(buildBaseTask)
+//       TaskProvider<DockerBuildTask> buildBaseTask = tasks.named(taskName("build", architecture, base, "DockerImage"))
+//       inputs.files(buildBaseTask)
 
-      dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
+//       dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
 
-      noCache = buildParams.isCi()
-      baseImages = []
-      tags = generateTags(dockerBase, architecture)
-      platforms.add(architecture.dockerPlatform)
-      Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(
-        project.gradle.sharedServices,
-        DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
-      )
-      onlyIf("$architecture supported") { serviceProvider.get().isArchitectureSupported(architecture) }
+//       noCache = buildParams.isCi()
+//       baseImages = []
+//       tags = generateTags(dockerBase, architecture)
+//       platforms.add(architecture.dockerPlatform)
+//       Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(
+//         project.gradle.sharedServices,
+//         DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
+//       )
+//       onlyIf("$architecture supported") { serviceProvider.get().isArchitectureSupported(architecture) }
 
-    }
+//     }
 
-  tasks.named("assemble").configure {
-    dependsOn(buildDockerImageTask)
-  }
-}
+//   tasks.named("assemble").configure {
+//     dependsOn(buildDockerImageTask)
+//   }
+// }
 
 
 void addBuildCloudDockerImageTasks(Architecture architecture) {
@@ -601,7 +599,7 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
 
 // fips
 String javaSecurityFilename = buildParams.runtimeJavaDetails.get().toLowerCase().contains('oracle') ? 'fips_java_oracle.security' : 'fips_java.security'
-//String javaSecurityFilename = 'fips_java.security'
+// String javaSecurityFilename = 'fips_java.security'
 File fipsResourcesDir = new File(project.buildDir, 'fips-resources')
 File fipsSecurity = new File(fipsResourcesDir, javaSecurityFilename)
 File fipsPolicy = new File(fipsResourcesDir, 'fips_java.policy')

@@ -51,6 +51,8 @@ In some parts of the search request and when requesting field capabilities, fiel
 GET trips/_field_caps?fields=route_*,transit_mode
 ```
 
+%  TEST[continued]
+
 ## Alias targets [alias-targets]
 
 There are a few restrictions on the target of an alias:
@@ -79,6 +81,8 @@ GET /_search
   "_source": "route_length_miles"
 }
 ```
+
+%  TEST[continued]
 
 Currently only the search and field capabilities APIs will accept and resolve field aliases. Other APIs that accept field names, such as [term vectors](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-termvectors), cannot be used with field aliases.
 

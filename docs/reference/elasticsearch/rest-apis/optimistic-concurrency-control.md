@@ -39,11 +39,17 @@ You can see the assigned sequence number and primary term in the `_seq_no` and `
 }
 ```
 
+%  TESTRESPONSE[s/"_seq_no": 362/"_seq_no": $body._seq_no/]
+
+%  TESTRESPONSE[s/"_primary_term": 2/"_primary_term": $body._primary_term/]
+
 Elasticsearch keeps tracks of the sequence number and primary term of the last operation to have changed each of the documents it stores. The sequence number and primary term are returned in the `_seq_no` and `_primary_term` fields in the response of the [GET API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get):
 
 ```console
 GET products/_doc/1567
 ```
+
+%  TEST[continued]
 
 returns:
 
@@ -62,6 +68,10 @@ returns:
 }
 ```
 
+%  TESTRESPONSE[s/"_seq_no": 362/"_seq_no": $body._seq_no/]
+
+%  TESTRESPONSE[s/"_primary_term": 2/"_primary_term": $body._primary_term/]
+
 Note: The [Search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) can return the `_seq_no` and `_primary_term` for each search hit by setting [`seq_no_primary_term` parameter](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#request-body-search-seq-no-primary-term).
 
 The sequence number and the primary term uniquely identify a change. By noting down the sequence number and primary term returned, you can make sure to only change the document if no other change was made to it since you retrieved it. This is done by setting the `if_seq_no` and `if_primary_term` parameters of the [index API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-create), [update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update), or [delete API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete).
@@ -76,4 +86,8 @@ PUT products/_doc/1567?if_seq_no=362&if_primary_term=2
   "tags": [ "droid" ]
 }
 ```
+
+%  TEST[continued]
+
+%  TEST[catch: conflict]
 

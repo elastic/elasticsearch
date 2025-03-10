@@ -38,6 +38,42 @@ The filter produces the following tokens:
 [ THE, QUICK, FOX, JUMPS ]
 ```
 
+% [source,console-result]
+% --------------------------------------------------
+% {
+%   "tokens" : [
+%     {
+%       "token" : "THE",
+%       "start_offset" : 0,
+%       "end_offset" : 3,
+%       "type" : "<ALPHANUM>",
+%       "position" : 0
+%     },
+%     {
+%       "token" : "QUICK",
+%       "start_offset" : 4,
+%       "end_offset" : 9,
+%       "type" : "<ALPHANUM>",
+%       "position" : 1
+%     },
+%     {
+%       "token" : "FOX",
+%       "start_offset" : 10,
+%       "end_offset" : 13,
+%       "type" : "<ALPHANUM>",
+%       "position" : 2
+%     },
+%     {
+%       "token" : "JUMPS",
+%       "start_offset" : 14,
+%       "end_offset" : 19,
+%       "type" : "<ALPHANUM>",
+%       "position" : 3
+%     }
+%   ]
+% }
+% --------------------------------------------------
+
 
 ## Add to an analyzer [analysis-uppercase-tokenfilter-analyzer-ex]
 

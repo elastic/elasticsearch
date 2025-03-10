@@ -1,7 +1,5 @@
 ---
 navigation_title: "Search-as-you-type"
-mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-as-you-type.html
 ---
 
 # Search-as-you-type field type [search-as-you-type]
@@ -51,6 +49,8 @@ PUT my-index-000001/_doc/1?refresh
 }
 ```
 
+%  TEST[continued]
+
 The most efficient way of querying to serve a search-as-you-type use case is usually a [`multi_match`](/reference/query-languages/query-dsl-multi-match-query.md) query of type [`bool_prefix`](/reference/query-languages/query-dsl-match-bool-prefix-query.md) that targets the root `search_as_you_type` field and its shingle subfields. This can match the query terms in any order, but will score documents higher if they contain the terms in order in a shingle subfield.
 
 ```console
@@ -76,6 +76,8 @@ GET my-index-000001/_search
   }
 }
 ```
+
+%  TEST[continued]
 
 1. Adding "my_field._index_prefix" to the `matched_fields` allows to highlight "my_field" also based on matches from "my_field._index_prefix" field.
 
@@ -115,6 +117,12 @@ GET my-index-000001/_search
 }
 ```
 
+%  TESTRESPONSE[s/"took" : 44/"took" : $body.took/]
+
+%  TESTRESPONSE[s/"max_score" : 0.8630463/"max_score" : $body.hits.max_score/]
+
+%  TESTRESPONSE[s/"_score" : 0.8630463/"_score" : $body.hits.hits.0._score/]
+
 To search for documents that strictly match the query terms in order, or to search using other properties of phrase queries, use a [`match_phrase_prefix` query](/reference/query-languages/query-dsl-match-query-phrase-prefix.md) on the root field. A [`match_phrase` query](/reference/query-languages/query-dsl-match-query-phrase.md) can also be used if the last term should be matched exactly, and not as a prefix. Using phrase queries may be less efficient than using the `match_bool_prefix` query.
 
 ```console
@@ -127,6 +135,8 @@ GET my-index-000001/_search
   }
 }
 ```
+
+%  TEST[continued]
 
 ## Parameters specific to the `search_as_you_type` field [specific-params]
 
@@ -146,30 +156,30 @@ More subfields enables more specific queries but increases index size.
 The following parameters are accepted in a mapping for the `search_as_you_type` field due to its nature as a text-like field, and behave similarly to their behavior when configuring a field of the [`text`](/reference/elasticsearch/mapping-reference/text.md) data type. Unless otherwise noted, these options configure the root fields subfields in the same way.
 
 [`analyzer`](/reference/elasticsearch/mapping-reference/analyzer.md)
-:   The [analyzer](docs-content://manage-data/data-store/text-analysis.md) which should be used for `text` fields, both at index-time and at search-time (unless overridden by the [`search_analyzer`](/reference/elasticsearch/mapping-reference/search-analyzer.md)). Defaults to the default index analyzer, or the [`standard` analyzer](/reference/data-analysis/text-analysis/analysis-standard-analyzer.md).
+: The [analyzer](docs-content://manage-data/data-store/text-analysis.md) which should be used for `text` fields, both at index-time and at search-time (unless overridden by the [`search_analyzer`](/reference/elasticsearch/mapping-reference/search-analyzer.md)). Defaults to the default index analyzer, or the [`standard` analyzer](/reference/data-analysis/text-analysis/analysis-standard-analyzer.md).
 
 [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md)
 :   Should the field be searchable? Accepts `true` (default) or `false`.
 
-[`index_options`](/reference/elasticsearch/mapping-reference/index-options.md)
+[`index_options`](index-options.md)
 :   What information should be stored in the index, for search and highlighting purposes. Defaults to `positions`.
 
-[`norms`](/reference/elasticsearch/mapping-reference/norms.md)
+[`norms`](norms.md)
 :   Whether field-length should be taken into account when scoring queries. Accepts `true` or `false`. This option configures the root field and shingle subfields, where its default is `true`. It does not configure the prefix subfield, where it is `false`.
 
-[`store`](/reference/elasticsearch/mapping-reference/mapping-store.md)
-:   Whether the field value should be stored and retrievable separately from the [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) field. Accepts `true` or `false` (default). This option only configures the root field, and does not configure any subfields.
+[`store`](mapping-store.md)
+:   Whether the field value should be stored and retrievable separately from the [`_source`](mapping-source-field.md) field. Accepts `true` or `false` (default). This option only configures the root field, and does not configure any subfields.
 
-[`search_analyzer`](/reference/elasticsearch/mapping-reference/search-analyzer.md)
-:   The [`analyzer`](/reference/elasticsearch/mapping-reference/analyzer.md) that should be used at search time on [`text`](/reference/elasticsearch/mapping-reference/text.md) fields. Defaults to the `analyzer` setting.
+[`search_analyzer`](search-analyzer.md)
+:   The [`analyzer`](analyzer.md) that should be used at search time on [`text`](text.md) fields. Defaults to the `analyzer` setting.
 
-[`search_quote_analyzer`](/reference/elasticsearch/mapping-reference/analyzer.md#search-quote-analyzer)
-:   The [`analyzer`](/reference/elasticsearch/mapping-reference/analyzer.md) that should be used at search time when a phrase is encountered. Defaults to the `search_analyzer` setting.
+[`search_quote_analyzer`](analyzer.md#search-quote-analyzer)
+:   The [`analyzer`](analyzer.md) that should be used at search time when a phrase is encountered. Defaults to the `search_analyzer` setting.
 
-[`similarity`](/reference/elasticsearch/mapping-reference/similarity.md)
+[`similarity`](similarity.md)
 :   Which scoring algorithm or *similarity* should be used. Defaults to `BM25`.
 
-[`term_vector`](/reference/elasticsearch/mapping-reference/term-vector.md)
+[`term_vector`](term-vector.md)
 :   Whether term vectors should be stored for the field. Defaults to `no`. This option configures the root field and shingle subfields, but not the prefix subfield.
 
 
@@ -181,12 +191,12 @@ The analyzer of the `._index_prefix` subfield slightly modifies the shingle-buil
 
 ### Synthetic `_source` [search-as-you-type-synthetic-source]
 
-::::{important}
+::::{important} 
 Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
 ::::
 
 
-`search_as_you_type` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) in their default configuration.
+`search_as_you_type` fields support [synthetic `_source`](mapping-source-field.md#synthetic-source) in their default configuration.
 
 
 

@@ -64,6 +64,7 @@ PUT /example
   }
 }
 ```
+%  TESTSETUP
 
 
 ### Input Structure [input-structure]
@@ -298,7 +299,7 @@ POST /example/_doc
 ```
 
 
-#### [Geometry Collection](http://geojson.org/geojson-spec.md#geometrycollection) [geo-geometry_collection]
+#### [Geometry Collection](http://geojson.org/geojson-spec.md#geometrycollection) [geo-geometry_collection] 
 
 The following is an example of a collection of GeoJSON geometry objects:
 
@@ -331,7 +332,7 @@ POST /example/_doc
 ```
 
 
-#### Envelope [_envelope]
+#### Envelope [_envelope] 
 
 Elasticsearch supports an `envelope` type, which consists of coordinates for upper left and lower right points of the shape to represent a bounding rectangle in the format `[[minLon, maxLat], [maxLon, minLat]]`:
 
@@ -357,18 +358,18 @@ POST /example/_doc
 ```
 
 
-#### Circle [_circle]
+#### Circle [_circle] 
 
-Neither GeoJSON nor WKT supports a point-radius circle type. Instead, use a [circle ingest processor](/reference/ingestion-tools/enrich-processor/ingest-circle-processor.md) to approximate the circle as a [`polygon`](#geo-polygon).
+Neither GeoJSON nor WKT supports a point-radius circle type. Instead, use a [circle ingest processor](ingest-circle-processor.md) to approximate the circle as a [`polygon`](geo-shape.md#geo-polygon).
 
 
-### Sorting and Retrieving index Shapes [_sorting_and_retrieving_index_shapes]
+### Sorting and Retrieving index Shapes [_sorting_and_retrieving_index_shapes] 
 
 Due to the complex input structure and index representation of shapes, it is not currently possible to sort shapes or retrieve their fields directly. The `geo_shape` value is only retrievable through the `_source` field.
 
 ## Synthetic source [geo-shape-synthetic-source]
 
-::::{important}
+::::{important} 
 Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
 ::::
 

@@ -30,6 +30,35 @@ The filter produces the following tokens:
 [ 1-one, two-2, 3]
 ```
 
+% [source,console-result]
+% --------------------------------------------------
+% {
+%   "tokens" : [
+%     {
+%       "token" : "1-one",
+%       "start_offset" : 0,
+%       "end_offset" : 5,
+%       "type" : "word",
+%       "position" : 0
+%     },
+%     {
+%       "token" : "two-2",
+%       "start_offset" : 6,
+%       "end_offset" : 11,
+%       "type" : "word",
+%       "position" : 1
+%     },
+%     {
+%       "token" : "3",
+%       "start_offset" : 12,
+%       "end_offset" : 13,
+%       "type" : "word",
+%       "position" : 2
+%     }
+%   ]
+% }
+% --------------------------------------------------
+
 
 ## Add to an analyzer [analysis-decimal-digit-tokenfilter-analyzer-ex]
 

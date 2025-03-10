@@ -122,7 +122,7 @@ The following parameters are accepted by `keyword` fields:
 
 ## Synthetic `_source` [keyword-synthetic-source]
 
-::::{important}
+::::{important} 
 Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
 ::::
 
@@ -155,6 +155,8 @@ PUT idx/_doc/1
 }
 ```
 
+%  TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
 Will become:
 
 ```console-result
@@ -162,6 +164,8 @@ Will become:
   "kwd": ["bar", "baz", "foo"]
 }
 ```
+
+%  TEST[s/^/{"_source":/ s/\n$/}/]
 
 If a `keyword` field sets `store` to `true` then order and duplicates are preserved. For example:
 
@@ -191,6 +195,8 @@ PUT idx/_doc/1
 }
 ```
 
+%  TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
 Will become:
 
 ```console-result
@@ -198,6 +204,8 @@ Will become:
   "kwd": ["foo", "foo", "bar", "baz"]
 }
 ```
+
+%  TEST[s/^/{"_source":/ s/\n$/}/]
 
 Values longer than `ignore_above` are preserved but sorted to the end. For example:
 
@@ -227,6 +235,8 @@ PUT idx/_doc/1
 }
 ```
 
+%  TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
 Will become:
 
 ```console-result
@@ -234,6 +244,8 @@ Will become:
   "kwd": ["bar", "baz", "foo", "bang"]
 }
 ```
+
+%  TEST[s/^/{"_source":/ s/\n$/}/]
 
 
 ## Constant keyword field type [constant-keyword-field-type]
@@ -278,6 +290,8 @@ POST logs-debug/_doc
   "message": "Starting up Elasticsearch"
 }
 ```
+
+% TEST[continued]
 
 However providing a value that is different from the one configured in the mapping is disallowed.
 
@@ -415,6 +429,8 @@ PUT idx/_doc/1
 }
 ```
 
+%  TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
 Will become:
 
 ```console-result
@@ -422,3 +438,7 @@ Will become:
   "card": ["ace", "jack", "king"]
 }
 ```
+
+%  TEST[s/^/{"_source":/ s/\n$/}/]
+
+

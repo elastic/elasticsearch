@@ -39,6 +39,73 @@ The filter produces the following tokens:
 [ the, the_quick, quick, fox, fox_is, is, is_brown, brown ]
 ```
 
+% [source,console-result]
+% --------------------------------------------------
+% {
+%   "tokens" : [
+%     {
+%       "token" : "the",
+%       "start_offset" : 0,
+%       "end_offset" : 3,
+%       "type" : "word",
+%       "position" : 0
+%     },
+%     {
+%       "token" : "the_quick",
+%       "start_offset" : 0,
+%       "end_offset" : 9,
+%       "type" : "gram",
+%       "position" : 0,
+%       "positionLength" : 2
+%     },
+%     {
+%       "token" : "quick",
+%       "start_offset" : 4,
+%       "end_offset" : 9,
+%       "type" : "word",
+%       "position" : 1
+%     },
+%     {
+%       "token" : "fox",
+%       "start_offset" : 10,
+%       "end_offset" : 13,
+%       "type" : "word",
+%       "position" : 2
+%     },
+%     {
+%       "token" : "fox_is",
+%       "start_offset" : 10,
+%       "end_offset" : 16,
+%       "type" : "gram",
+%       "position" : 2,
+%       "positionLength" : 2
+%     },
+%     {
+%       "token" : "is",
+%       "start_offset" : 14,
+%       "end_offset" : 16,
+%       "type" : "word",
+%       "position" : 3
+%     },
+%     {
+%       "token" : "is_brown",
+%       "start_offset" : 14,
+%       "end_offset" : 22,
+%       "type" : "gram",
+%       "position" : 3,
+%       "positionLength" : 2
+%     },
+%     {
+%       "token" : "brown",
+%       "start_offset" : 17,
+%       "end_offset" : 22,
+%       "type" : "word",
+%       "position" : 4
+%     }
+%   ]
+% }
+% --------------------------------------------------
+
 
 ## Add to an analyzer [analysis-common-grams-tokenfilter-analyzer-ex]
 

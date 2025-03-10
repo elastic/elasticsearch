@@ -98,10 +98,11 @@ public final class Page implements Writeable {
         int positionCount = in.readVInt();
         int blockPositions = in.readVInt();
         Block[] blocks = new Block[blockPositions];
+        BlockStreamInput blockStreamInput = (BlockStreamInput) in;
         boolean success = false;
         try {
             for (int blockIndex = 0; blockIndex < blockPositions; blockIndex++) {
-                blocks[blockIndex] = in.readNamedWriteable(Block.class);
+                blocks[blockIndex] = Block.readTypedBlock(blockStreamInput);
             }
             success = true;
         } finally {
@@ -111,6 +112,15 @@ public final class Page implements Writeable {
         }
         this.positionCount = positionCount;
         this.blocks = blocks;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(positionCount);
+        out.writeVInt(getBlockCount());
+        for (Block block : blocks) {
+            Block.writeTypedBlock(block, out);
+        }
     }
 
     private static int determinePositionCount(Block... blocks) {
@@ -215,15 +225,6 @@ public final class Page implements Writeable {
      */
     public int getBlockCount() {
         return blocks.length;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(positionCount);
-        out.writeVInt(getBlockCount());
-        for (Block block : blocks) {
-            out.writeNamedWriteable(block);
-        }
     }
 
     public long ramBytesUsedByBlocks() {

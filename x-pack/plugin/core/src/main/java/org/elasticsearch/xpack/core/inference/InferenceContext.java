@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Record for storing context alongside an inference request, typically used for metadata.
@@ -25,6 +26,10 @@ import java.io.IOException;
 public record InferenceContext(String productUseCase) implements Writeable, ToXContent {
 
     public static final InferenceContext EMPTY_INSTANCE = new InferenceContext("");
+
+    public InferenceContext {
+        Objects.requireNonNull(productUseCase);
+    }
 
     public InferenceContext(StreamInput in) throws IOException {
         this(in.readString());

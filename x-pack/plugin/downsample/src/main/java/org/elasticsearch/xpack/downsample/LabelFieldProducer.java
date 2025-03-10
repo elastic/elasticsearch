@@ -131,7 +131,7 @@ abstract class LabelFieldProducer extends AbstractDownsampleFieldProducer {
                 if (docValuesCount == 1) {
                     label.collect(docValues.nextValue());
                 } else {
-                    Object[] values = new Object[docValuesCount];
+                    var values = new Object[docValuesCount];
                     for (int j = 0; j < docValuesCount; j++) {
                         values[j] = docValues.nextValue();
                     }

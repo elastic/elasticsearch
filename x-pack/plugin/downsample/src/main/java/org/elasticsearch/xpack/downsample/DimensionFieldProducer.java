@@ -56,13 +56,16 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
          * This is an expensive check, that slows down downsampling significantly.
          * Given that index is sorted by tsid as primary key, this shouldn't really happen.
          */
-        boolean validate(FormattedDocValues docValues, int docId) throws IOException {
-            if (docValues.advanceExact(docId)) {
-                int docValueCount = docValues.docValueCount();
-                for (int i = 0; i < docValueCount; i++) {
-                    var value = docValues.nextValue();
-                    if (value.equals(this.value) == false) {
-                        assert false : "Dimension value changed without tsid change [" + value + "] != [" + this.value + "]";
+        boolean validate(FormattedDocValues docValues, IntArrayList buffer) throws IOException {
+            for (int i = 0; i < buffer.size(); i++) {
+                int docId = buffer.get(i);
+                if (docValues.advanceExact(docId)) {
+                    int docValueCount = docValues.docValueCount();
+                    for (int j = 0; j < docValueCount; j++) {
+                        var value = docValues.nextValue();
+                        if (value.equals(this.value) == false) {
+                            assert false : "Dimension value changed without tsid change [" + value + "] != [" + this.value + "]";
+                        }
                     }
                 }
             }
@@ -84,6 +87,7 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
     @Override
     public void collect(FormattedDocValues docValues, IntArrayList buffer) throws IOException {
         if (dimension.isEmpty == false) {
+            assert dimension.validate(docValues, buffer);
             return;
         }
 

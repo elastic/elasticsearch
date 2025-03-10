@@ -35,6 +35,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         AtomicInteger failedQuery = new AtomicInteger();
         AtomicInteger onQuery = new AtomicInteger();
         AtomicInteger onFetch = new AtomicInteger();
+        AtomicInteger onDfs = new AtomicInteger();
         AtomicInteger preFetch = new AtomicInteger();
         AtomicInteger failedFetch = new AtomicInteger();
         AtomicInteger newContext = new AtomicInteger();
@@ -80,6 +81,12 @@ public class SearchOperationListenerTests extends ESTestCase {
             public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
                 assertEquals(timeInNanos.get(), tookInNanos);
                 onFetch.incrementAndGet();
+            }
+
+            @Override
+            public void onDfsPhase(SearchContext context, long tookInNanos) {
+                assertEquals(timeInNanos.get(), tookInNanos);
+                onDfs.incrementAndGet();
             }
 
             @Override
@@ -139,6 +146,20 @@ public class SearchOperationListenerTests extends ESTestCase {
             logger
         );
         try (SearchContext ctx = new TestSearchContext((SearchExecutionContext) null)) {
+            compositeListener.onDfsPhase(ctx, timeInNanos.get());
+            assertEquals(0, preFetch.get());
+            assertEquals(0, preQuery.get());
+            assertEquals(0, failedFetch.get());
+            assertEquals(0, failedQuery.get());
+            assertEquals(0, onQuery.get());
+            assertEquals(0, onFetch.get());
+            assertEquals(2, onDfs.get());
+            assertEquals(0, newContext.get());
+            assertEquals(0, newScrollContext.get());
+            assertEquals(0, freeContext.get());
+            assertEquals(0, freeScrollContext.get());
+            assertEquals(0, validateSearchContext.get());
+
             compositeListener.onQueryPhase(ctx, timeInNanos.get());
             assertEquals(0, preFetch.get());
             assertEquals(0, preQuery.get());
@@ -146,6 +167,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(0, failedQuery.get());
             assertEquals(2, onQuery.get());
             assertEquals(0, onFetch.get());
+            assertEquals(2, onDfs.get());
             assertEquals(0, newContext.get());
             assertEquals(0, newScrollContext.get());
             assertEquals(0, freeContext.get());
@@ -159,6 +181,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(0, failedQuery.get());
             assertEquals(2, onQuery.get());
             assertEquals(2, onFetch.get());
+            assertEquals(2, onDfs.get());
             assertEquals(0, newContext.get());
             assertEquals(0, newScrollContext.get());
             assertEquals(0, freeContext.get());
@@ -172,6 +195,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(0, failedQuery.get());
             assertEquals(2, onQuery.get());
             assertEquals(2, onFetch.get());
+            assertEquals(2, onDfs.get());
             assertEquals(0, newContext.get());
             assertEquals(0, newScrollContext.get());
             assertEquals(0, freeContext.get());
@@ -185,6 +209,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(0, failedQuery.get());
             assertEquals(2, onQuery.get());
             assertEquals(2, onFetch.get());
+            assertEquals(2, onDfs.get());
             assertEquals(0, newContext.get());
             assertEquals(0, newScrollContext.get());
             assertEquals(0, freeContext.get());
@@ -198,6 +223,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(0, failedQuery.get());
             assertEquals(2, onQuery.get());
             assertEquals(2, onFetch.get());
+            assertEquals(2, onDfs.get());
             assertEquals(0, newContext.get());
             assertEquals(0, newScrollContext.get());
             assertEquals(0, freeContext.get());
@@ -211,6 +237,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(2, failedQuery.get());
             assertEquals(2, onQuery.get());
             assertEquals(2, onFetch.get());
+            assertEquals(2, onDfs.get());
             assertEquals(0, newContext.get());
             assertEquals(0, newScrollContext.get());
             assertEquals(0, freeContext.get());
@@ -224,6 +251,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(2, failedQuery.get());
             assertEquals(2, onQuery.get());
             assertEquals(2, onFetch.get());
+            assertEquals(2, onDfs.get());
             assertEquals(2, newContext.get());
             assertEquals(0, newScrollContext.get());
             assertEquals(0, freeContext.get());
@@ -237,6 +265,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(2, failedQuery.get());
             assertEquals(2, onQuery.get());
             assertEquals(2, onFetch.get());
+            assertEquals(2, onDfs.get());
             assertEquals(2, newContext.get());
             assertEquals(2, newScrollContext.get());
             assertEquals(0, freeContext.get());
@@ -250,6 +279,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(2, failedQuery.get());
             assertEquals(2, onQuery.get());
             assertEquals(2, onFetch.get());
+            assertEquals(2, onDfs.get());
             assertEquals(2, newContext.get());
             assertEquals(2, newScrollContext.get());
             assertEquals(2, freeContext.get());
@@ -263,6 +293,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(2, failedQuery.get());
             assertEquals(2, onQuery.get());
             assertEquals(2, onFetch.get());
+            assertEquals(2, onDfs.get());
             assertEquals(2, newContext.get());
             assertEquals(2, newScrollContext.get());
             assertEquals(2, freeContext.get());
@@ -288,6 +319,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             assertEquals(2, failedQuery.get());
             assertEquals(2, onQuery.get());
             assertEquals(2, onFetch.get());
+            assertEquals(2, onDfs.get());
             assertEquals(2, newContext.get());
             assertEquals(2, newScrollContext.get());
             assertEquals(2, freeContext.get());

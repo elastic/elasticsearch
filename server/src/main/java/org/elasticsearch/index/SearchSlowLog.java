@@ -40,10 +40,16 @@ public final class SearchSlowLog implements SearchOperationListener {
     private long fetchDebugThreshold;
     private long fetchTraceThreshold;
 
+    private long dfsWarnThreshold;
+    private long dfsInfoThreshold;
+    private long dfsDebugThreshold;
+    private long dfsTraceThreshold;
+
     static final String INDEX_SEARCH_SLOWLOG_PREFIX = "index.search.slowlog";
 
     private static final Logger queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
     private static final Logger fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
+    private static final Logger dfsLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".dfs");
 
     private final SlowLogFields slowLogFields;
 
@@ -109,6 +115,34 @@ public final class SearchSlowLog implements SearchOperationListener {
         Property.Dynamic,
         Property.IndexScope
     );
+    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_WARN_SETTING = Setting.timeSetting(
+        INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.dfs.warn",
+        TimeValue.timeValueNanos(-1),
+        TimeValue.timeValueMillis(-1),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_INFO_SETTING = Setting.timeSetting(
+        INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.dfs.info",
+        TimeValue.timeValueNanos(-1),
+        TimeValue.timeValueMillis(-1),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_DEBUG_SETTING = Setting.timeSetting(
+        INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.dfs.debug",
+        TimeValue.timeValueNanos(-1),
+        TimeValue.timeValueMillis(-1),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_TRACE_SETTING = Setting.timeSetting(
+        INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.dfs.trace",
+        TimeValue.timeValueNanos(-1),
+        TimeValue.timeValueMillis(-1),
+        Property.Dynamic,
+        Property.IndexScope
+    );
 
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
@@ -153,6 +187,19 @@ public final class SearchSlowLog implements SearchOperationListener {
         indexSettings.getScopedSettings()
             .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING, this::setFetchTraceThreshold);
         this.fetchTraceThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING).nanos();
+
+        indexSettings.getScopedSettings()
+            .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_WARN_SETTING, this::setDfsWarnThreshold);
+        this.dfsWarnThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_WARN_SETTING).nanos();
+        indexSettings.getScopedSettings()
+            .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_INFO_SETTING, this::setDfsInfoThreshold);
+        this.dfsInfoThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_INFO_SETTING).nanos();
+        indexSettings.getScopedSettings()
+            .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_DEBUG_SETTING, this::setDfsDebugThreshold);
+        this.dfsDebugThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_DEBUG_SETTING).nanos();
+        indexSettings.getScopedSettings()
+            .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_TRACE_SETTING, this::setDfsTraceThreshold);
+        this.dfsTraceThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_TRACE_SETTING).nanos();
     }
 
     @Override
@@ -178,6 +225,19 @@ public final class SearchSlowLog implements SearchOperationListener {
             fetchLogger.debug(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
         } else if (fetchTraceThreshold >= 0 && tookInNanos > fetchTraceThreshold) {
             fetchLogger.trace(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
+        }
+    }
+
+    @Override
+    public void onDfsPhase(SearchContext context, long tookInNanos) {
+        if (dfsWarnThreshold >= 0 && tookInNanos > dfsWarnThreshold) {
+            dfsLogger.warn(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
+        } else if (dfsInfoThreshold >= 0 && tookInNanos > dfsInfoThreshold) {
+            dfsLogger.info(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
+        } else if (dfsDebugThreshold >= 0 && tookInNanos > dfsDebugThreshold) {
+            dfsLogger.debug(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
+        } else if (dfsTraceThreshold >= 0 && tookInNanos > dfsTraceThreshold) {
+            dfsLogger.trace(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
         }
     }
 
@@ -256,6 +316,22 @@ public final class SearchSlowLog implements SearchOperationListener {
         this.fetchTraceThreshold = traceThreshold.nanos();
     }
 
+    private void setDfsWarnThreshold(TimeValue warnThreshold) {
+        this.dfsWarnThreshold = warnThreshold.nanos();
+    }
+
+    private void setDfsInfoThreshold(TimeValue infoThreshold) {
+        this.dfsInfoThreshold = infoThreshold.nanos();
+    }
+
+    private void setDfsDebugThreshold(TimeValue debugThreshold) {
+        this.dfsDebugThreshold = debugThreshold.nanos();
+    }
+
+    private void setDfsTraceThreshold(TimeValue traceThreshold) {
+        this.dfsTraceThreshold = traceThreshold.nanos();
+    }
+
     long getQueryWarnThreshold() {
         return queryWarnThreshold;
     }
@@ -286,6 +362,22 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     long getFetchTraceThreshold() {
         return fetchTraceThreshold;
+    }
+
+    long getDfsWarnThreshold() {
+        return dfsWarnThreshold;
+    }
+
+    long getDfsInfoThreshold() {
+        return dfsInfoThreshold;
+    }
+
+    long getDfsDebugThreshold() {
+        return dfsDebugThreshold;
+    }
+
+    long getDfsTraceThreshold() {
+        return dfsTraceThreshold;
     }
 
 }

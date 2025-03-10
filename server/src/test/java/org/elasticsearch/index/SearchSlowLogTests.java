@@ -51,8 +51,10 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     static MockAppender appender;
     static Logger queryLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
     static Logger fetchLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
+    static Logger dfsLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".dfs");
     static Level origQueryLogLevel = queryLog.getLevel();
     static Level origFetchLogLevel = fetchLog.getLevel();
+    static Level origDfsLogLevel = dfsLog.getLevel();
 
     @BeforeClass
     public static void init() throws IllegalAccessException {
@@ -60,19 +62,23 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         appender.start();
         Loggers.addAppender(queryLog, appender);
         Loggers.addAppender(fetchLog, appender);
+        Loggers.addAppender(dfsLog, appender);
 
         Loggers.setLevel(queryLog, Level.TRACE);
         Loggers.setLevel(fetchLog, Level.TRACE);
+        Loggers.setLevel(dfsLog, Level.TRACE);
     }
 
     @AfterClass
     public static void cleanup() {
         Loggers.removeAppender(queryLog, appender);
         Loggers.removeAppender(fetchLog, appender);
+        Loggers.removeAppender(dfsLog, appender);
         appender.stop();
 
         Loggers.setLevel(queryLog, origQueryLogLevel);
         Loggers.setLevel(fetchLog, origFetchLogLevel);
+        Loggers.setLevel(dfsLog, origDfsLogLevel);
     }
 
     @Override
@@ -117,6 +123,11 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.INFO));
                 log.onFetchPhase(ctx, 41L);
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.WARN));
+
+                log.onDfsPhase(ctx, 40L);
+                assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.INFO));
+                log.onDfsPhase(ctx, 41L);
+                assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.WARN));
             }
 
             {
@@ -129,6 +140,12 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.DEBUG));
                 log.onFetchPhase(ctx, 31L);
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.INFO));
+
+                log.onDfsPhase(ctx, 30L);
+                assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.DEBUG));
+                log.onDfsPhase(ctx, 31L);
+                assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.INFO));
+
             }
 
             {
@@ -141,6 +158,11 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.TRACE));
                 log.onFetchPhase(ctx, 21L);
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.DEBUG));
+
+                log.onDfsPhase(ctx, 20L);
+                assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.TRACE));
+                log.onDfsPhase(ctx, 21L);
+                assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.DEBUG));
             }
 
             {
@@ -152,6 +174,11 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 log.onFetchPhase(ctx, 10L);
                 assertNull(appender.getLastEventAndReset());
                 log.onFetchPhase(ctx, 11L);
+                assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.TRACE));
+
+                log.onDfsPhase(ctx, 10L);
+                assertNull(appender.getLastEventAndReset());
+                log.onDfsPhase(ctx, 11L);
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.TRACE));
             }
         }
@@ -169,7 +196,12 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "10nanos")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "20nanos")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "30nanos")
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "40nanos");
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "40nanos")
+
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_TRACE_SETTING.getKey(), "10nanos")
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_DEBUG_SETTING.getKey(), "20nanos")
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_INFO_SETTING.getKey(), "30nanos")
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_WARN_SETTING.getKey(), "40nanos");
     }
 
     public void testTwoLoggersDifferentLevel() {
@@ -185,6 +217,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                         .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                         .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING.getKey(), "40nanos")
                         .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "40nanos")
+                        .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_WARN_SETTING.getKey(), "40nanos")
                 ),
                 Settings.EMPTY
             );
@@ -198,6 +231,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                         .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                         .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(), "10nanos")
                         .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "10nanos")
+                        .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_TRACE_SETTING.getKey(), "10nanos")
                 ),
                 Settings.EMPTY
             );
@@ -209,11 +243,15 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 assertNull(appender.getLastEventAndReset());
                 log1.onFetchPhase(ctx1, 11L);
                 assertNull(appender.getLastEventAndReset());
+                log1.onDfsPhase(ctx1, 11L);
+                assertNull(appender.getLastEventAndReset());
 
                 // threshold set on TRACE, should log
                 log2.onQueryPhase(ctx2, 11L);
                 assertNotNull(appender.getLastEventAndReset());
                 log2.onFetchPhase(ctx2, 11L);
+                assertNotNull(appender.getLastEventAndReset());
+                log2.onDfsPhase(ctx2, 11L);
                 assertNotNull(appender.getLastEventAndReset());
             }
         }
@@ -521,6 +559,113 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.fetch.warn");
+        }
+    }
+
+    public void testSetDfsLevels() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_TRACE_SETTING.getKey(), "100ms")
+                .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_DEBUG_SETTING.getKey(), "200ms")
+                .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_INFO_SETTING.getKey(), "300ms")
+                .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_WARN_SETTING.getKey(), "400ms")
+                .build()
+        );
+
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        SearchSlowLog log = new SearchSlowLog(settings, mock(SlowLogFields.class));
+        assertEquals(TimeValue.timeValueMillis(100).nanos(), log.getDfsTraceThreshold());
+        assertEquals(TimeValue.timeValueMillis(200).nanos(), log.getDfsDebugThreshold());
+        assertEquals(TimeValue.timeValueMillis(300).nanos(), log.getDfsInfoThreshold());
+        assertEquals(TimeValue.timeValueMillis(400).nanos(), log.getDfsWarnThreshold());
+
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder()
+                    .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_TRACE_SETTING.getKey(), "120ms")
+                    .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_DEBUG_SETTING.getKey(), "220ms")
+                    .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_INFO_SETTING.getKey(), "320ms")
+                    .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_WARN_SETTING.getKey(), "420ms")
+                    .build()
+            )
+        );
+
+        assertEquals(TimeValue.timeValueMillis(120).nanos(), log.getDfsTraceThreshold());
+        assertEquals(TimeValue.timeValueMillis(220).nanos(), log.getDfsDebugThreshold());
+        assertEquals(TimeValue.timeValueMillis(320).nanos(), log.getDfsInfoThreshold());
+        assertEquals(TimeValue.timeValueMillis(420).nanos(), log.getDfsWarnThreshold());
+
+        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
+        settings.updateIndexMetadata(metadata);
+        log = new SearchSlowLog(settings, mock(SlowLogFields.class));
+        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getDfsTraceThreshold());
+        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getDfsDebugThreshold());
+        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getDfsInfoThreshold());
+        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getDfsWarnThreshold());
+
+        settings = new IndexSettings(metadata, Settings.EMPTY);
+        log = new SearchSlowLog(settings, mock(SlowLogFields.class));
+
+        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getDfsTraceThreshold());
+        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getDfsDebugThreshold());
+        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getDfsInfoThreshold());
+        assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getDfsWarnThreshold());
+
+        try {
+            settings.updateIndexMetadata(
+                newIndexMeta(
+                    "index",
+                    Settings.builder()
+                        .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_TRACE_SETTING.getKey(), "NOT A TIME VALUE")
+                        .build()
+                )
+            );
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertTimeValueException(ex, "index.search.slowlog.threshold.dfs.trace");
+        }
+
+        try {
+            settings.updateIndexMetadata(
+                newIndexMeta(
+                    "index",
+                    Settings.builder()
+                        .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_DEBUG_SETTING.getKey(), "NOT A TIME VALUE")
+                        .build()
+                )
+            );
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertTimeValueException(ex, "index.search.slowlog.threshold.dfs.debug");
+        }
+
+        try {
+            settings.updateIndexMetadata(
+                newIndexMeta(
+                    "index",
+                    Settings.builder()
+                        .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_INFO_SETTING.getKey(), "NOT A TIME VALUE")
+                        .build()
+                )
+            );
+        } catch (IllegalArgumentException ex) {
+            assertTimeValueException(ex, "index.search.slowlog.threshold.dfs.info");
+        }
+
+        try {
+            settings.updateIndexMetadata(
+                newIndexMeta(
+                    "index",
+                    Settings.builder()
+                        .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_DFS_WARN_SETTING.getKey(), "NOT A TIME VALUE")
+                        .build()
+                )
+            );
+            fail();
+        } catch (IllegalArgumentException ex) {
+            assertTimeValueException(ex, "index.search.slowlog.threshold.dfs.warn");
         }
     }
 

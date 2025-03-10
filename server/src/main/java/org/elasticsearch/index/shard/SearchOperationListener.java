@@ -65,6 +65,8 @@ public interface SearchOperationListener {
      */
     default void onFetchPhase(SearchContext searchContext, long tookInNanos) {}
 
+    default void onDfsPhase(SearchContext context, long tookInNanos) {}
+
     /**
      * Executed when a new reader context was created
      * @param readerContext the created context
@@ -178,6 +180,17 @@ public interface SearchOperationListener {
                     listener.onFetchPhase(searchContext, tookInNanos);
                 } catch (Exception e) {
                     logger.warn(() -> "onFetchPhase listener [" + listener + "] failed", e);
+                }
+            }
+        }
+
+        @Override
+        public void onDfsPhase(SearchContext context, long tookInNanos) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onDfsPhase(context, tookInNanos);
+                } catch (Exception e) {
+                    logger.warn(() -> "onDfsPhase listener [" + listener + "] failed", e);
                 }
             }
         }

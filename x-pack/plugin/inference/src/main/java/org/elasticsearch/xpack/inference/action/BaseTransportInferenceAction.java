@@ -147,6 +147,8 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 return;
             }
 
+            // TODO: this is a temporary solution for passing around the product use case.
+            // We want to pass InferenceContext through the various infer methods in InferenceService in the long term
             var context = request.getContext();
             if (Objects.nonNull(context)) {
                 threadPool.getThreadContext().putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, context.productUseCase());

@@ -39,6 +39,8 @@ import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.SERVER_COMPONENT_NAME;
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -449,45 +451,41 @@ public class PolicyManagerTests extends ESTestCase {
         var baseTestPath = Path.of("/base").toAbsolutePath();
         var testPath1 = Path.of("/base/test").toAbsolutePath();
         var testPath2 = Path.of("/base/test/foo").toAbsolutePath();
-        var plugins = new LinkedHashMap<String, Policy>();
-        plugins.put(
-            "plugin1",
-            new Policy(
-                "test",
-                List.of(
-                    new Scope(
-                        "test.module1",
-                        List.of(
-                            new FilesEntitlement(
-                                List.of(FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ).withExclusive(true))
-                            )
-                        )
-                    )
-                )
-            )
-        );
-        plugins.put(
-            "plugin2",
-            new Policy(
-                "test",
-                List.of(
-                    new Scope(
-                        "test.module2",
-                        List.of(
-                            new FilesEntitlement(
-                                List.of(FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ).withExclusive(true))
-                            )
-                        )
-                    )
-                )
-            )
-        );
         var iae = expectThrows(
             IllegalArgumentException.class,
             () -> new PolicyManager(
                 createEmptyTestServerPolicy(),
                 List.of(),
-                plugins,
+                Map.of(
+                    "plugin1",
+                    new Policy(
+                        "test",
+                        List.of(
+                            new Scope(
+                                "test.module1",
+                                List.of(
+                                    new FilesEntitlement(
+                                        List.of(FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ).withExclusive(true))
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    "plugin2",
+                    new Policy(
+                        "test",
+                        List.of(
+                            new Scope(
+                                "test.module2",
+                                List.of(
+                                    new FilesEntitlement(
+                                        List.of(FilesEntitlement.FileData.ofPath(testPath1, FilesEntitlement.Mode.READ).withExclusive(true))
+                                    )
+                                )
+                            )
+                        )
+                    )
+                ),
                 c -> "",
                 Map.of("plugin1", Path.of("modules", "plugin1"), "plugin2", Path.of("modules", "plugin2")),
                 TEST_AGENTS_PACKAGE_NAME,
@@ -498,9 +496,11 @@ public class PolicyManagerTests extends ESTestCase {
         );
         assertThat(
             iae.getMessage(),
-            equalTo(
-                "Path [/base/test] is already exclusive to [plugin1][test.module1],"
-                    + " cannot add exclusive access for [plugin2][test.module2]"
+            allOf(
+                containsString("Path [/base/test] is already exclusive"),
+                containsString("[plugin1][test.module1]"),
+                containsString("[plugin2][test.module2]"),
+                containsString("cannot add exclusive access")
             )
         );
 

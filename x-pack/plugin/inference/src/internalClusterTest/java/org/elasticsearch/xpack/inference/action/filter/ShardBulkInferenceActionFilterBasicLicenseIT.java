@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -57,9 +58,10 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
 
     @Before
     public void setup() throws Exception {
-        Utils.storeSparseModel(client());
+        ModelRegistry modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
+        Utils.storeSparseModel(modelRegistry);
         Utils.storeDenseModel(
-            client(),
+            modelRegistry,
             randomIntBetween(1, 100),
             // dot product means that we need normalized vectors; it's not worth doing that in this test
             randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values())),

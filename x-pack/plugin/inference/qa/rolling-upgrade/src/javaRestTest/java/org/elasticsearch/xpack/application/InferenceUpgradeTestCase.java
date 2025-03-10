@@ -86,6 +86,14 @@ public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCas
         return entityAsMap(response);
     }
 
+    protected Map<String, Object> getMinimalConfig(String inferenceId) throws IOException {
+        var endpoint = Strings.format("_inference/%s?return_minimal_config", inferenceId);
+        var request = new Request("GET", endpoint);
+        var response = client().performRequest(request);
+        assertOK(response);
+        return entityAsMap(response);
+    }
+
     protected Map<String, Object> inference(String inferenceId, TaskType taskType, String input) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, inferenceId);
         var request = new Request("POST", endpoint);

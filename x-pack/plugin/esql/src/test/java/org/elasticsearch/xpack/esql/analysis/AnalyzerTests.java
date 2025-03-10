@@ -83,6 +83,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -1622,7 +1623,13 @@ public class AnalyzerTests extends ESTestCase {
         enrichResolution.addError("languages", Enrich.Mode.ANY, "error-2");
         enrichResolution.addError("foo", Enrich.Mode.ANY, "foo-error-101");
 
-        AnalyzerContext context = new AnalyzerContext(configuration("from test"), new EsqlFunctionRegistry(), testIndex, enrichResolution);
+        AnalyzerContext context = new AnalyzerContext(
+            configuration("from test"),
+            new EsqlFunctionRegistry(),
+            testIndex,
+            enrichResolution,
+            emptyInferenceResolution()
+        );
         Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
         {
             LogicalPlan plan = analyze("from test | EVAL x = to_string(languages) | ENRICH _coordinator:languages ON x", analyzer);
@@ -1772,7 +1779,13 @@ public class AnalyzerTests extends ESTestCase {
                 languageIndex.get().mapping()
             )
         );
-        AnalyzerContext context = new AnalyzerContext(configuration(query), new EsqlFunctionRegistry(), testIndex, enrichResolution);
+        AnalyzerContext context = new AnalyzerContext(
+            configuration(query),
+            new EsqlFunctionRegistry(),
+            testIndex,
+            enrichResolution,
+            emptyInferenceResolution()
+        );
         Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
         LogicalPlan plan = analyze(query, analyzer);
         var limit = as(plan, Limit.class);
@@ -2168,7 +2181,8 @@ public class AnalyzerTests extends ESTestCase {
                 new EsqlFunctionRegistry(),
                 analyzerDefaultMapping(),
                 Map.of("foobar", missingLookupIndex),
-                defaultEnrichResolution()
+                defaultEnrichResolution(),
+                emptyInferenceResolution()
             ),
             TEST_VERIFIER
         );

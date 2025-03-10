@@ -29,10 +29,12 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.function.DoubleSupplier;
 
 /**
  * Various benchmarks for the distance functions
@@ -80,7 +82,7 @@ public class DistanceFunctionBenchmark {
     @Param
     private VectorType queryType;
 
-    @Param({ "96" })
+    @Param({ "1024" })
     private int dims;
 
     @Param
@@ -89,7 +91,7 @@ public class DistanceFunctionBenchmark {
     @Param
     private Implementation type;
 
-    private Runnable benchmarkImpl;
+    private DoubleSupplier benchmarkImpl;
 
     private static float calculateMag(float[] vector) {
         float mag = 0;
@@ -207,17 +209,17 @@ public class DistanceFunctionBenchmark {
 
     @Fork(1)
     @Benchmark
-    public void benchmark() {
+    public void benchmark(Blackhole blackhole) {
         for (int i = 0; i < 25000; ++i) {
-            benchmarkImpl.run();
+            blackhole.consume(benchmarkImpl.getAsDouble());
         }
     }
 
     @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     @Benchmark
-    public void vectorBenchmark() {
+    public void vectorBenchmark(Blackhole blackhole) {
         for (int i = 0; i < 25000; ++i) {
-            benchmarkImpl.run();
+            blackhole.consume(benchmarkImpl.getAsDouble());
         }
     }
 }

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CachedSupplier;
@@ -62,7 +63,12 @@ public class IndicesAccessControl {
     @Nullable
     public IndexAccessControl getIndexPermissions(String index) {
         Tuple<String, String> indexAndSelector = IndexNameExpressionResolver.splitSelectorExpression(index);
-        return this.getAllIndexPermissions().get(indexAndSelector.v1());
+        return this.getAllIndexPermissions()
+            .get(
+                IndexComponentSelector.FAILURES.equals(IndexComponentSelector.getByKey(indexAndSelector.v2()))
+                    ? index
+                    : indexAndSelector.v1()
+            );
     }
 
     public boolean hasIndexPermissions(String index) {

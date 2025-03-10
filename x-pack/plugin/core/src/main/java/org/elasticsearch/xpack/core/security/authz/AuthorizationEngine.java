@@ -366,6 +366,14 @@ public interface AuthorizationEngine {
                 && application.length == 0) {
                 validationException = addValidationError("must specify at least one privilege", validationException);
             }
+            if (index != null) {
+                for (RoleDescriptor.IndicesPrivileges indexPrivilege : index) {
+                    if (Arrays.stream(indexPrivilege.getPrivileges())
+                        .anyMatch(p -> "read_failure_store".equals(p) || "manage_failure_store".equals(p))) {
+                        validationException = addValidationError("checking failure store privileges is not supported", validationException);
+                    }
+                }
+            }
             return validationException;
         }
 

@@ -1328,10 +1328,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
                 @Override
                 public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
-                    if (exc.getCause() instanceof NoSuchFileException cause) {
+                    if (exc instanceof NoSuchFileException noFileException) {
                         // Ignore these files that are sometimes left behind by the JVM
-                        if (cause.getFile() != null && cause.getFile().contains(".attach_pid")) {
-                            LOGGER.info("Ignoring file left behind by JVM: {}", cause.getFile());
+                        if (noFileException.getFile() != null && noFileException.getFile().contains(".attach_pid")) {
+                            LOGGER.info("Ignoring file left behind by JVM: {}", noFileException.getFile());
                             return FileVisitResult.CONTINUE;
                         } else {
                             throw exc;

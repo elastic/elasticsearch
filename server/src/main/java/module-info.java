@@ -429,7 +429,7 @@ module org.elasticsearch.server {
     provides org.elasticsearch.features.FeatureSpecification
         with
             org.elasticsearch.action.bulk.BulkFeatures,
-            org.elasticsearch.features.FeatureInfrastructureFeatures,
+            org.elasticsearch.features.InfrastructureFeatures,
             org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
             org.elasticsearch.index.IndexFeatures,

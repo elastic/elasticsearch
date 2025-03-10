@@ -339,16 +339,6 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                 topDocs.add(td.topDocs);
             }
         }
-        return SearchPhaseController.reducedQueryPhase(
-            queryResults,
-            null,
-            topDocs,
-            topDocsStats,
-            0,
-            true,
-            aggReduceContextBuilder,
-            null,
-            true
-        );
+        return SearchPhaseController.reducedQueryPhase(queryResults, null, topDocs, topDocsStats, 0, true, null);
     }
 }

@@ -236,6 +236,15 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return aggregations;
     }
 
+    public DelayableWriteable<InternalAggregations> consumeAggs() {
+        if (aggregations == null) {
+            throw new IllegalStateException("aggs already released");
+        }
+        var res = aggregations;
+        aggregations = null;
+        return res;
+    }
+
     /**
      * Release the memory hold by the {@link DelayableWriteable} aggregations
      * @throws IllegalStateException if {@link #releaseAggs()} has already being called.

@@ -243,7 +243,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      * Kind of a hack tbh, we can't be sure the shard locks are fully released when this is completed so there's all sorts of retries and
      * other lenience to handle that. It'd be better to wait for the shard locks to be released and then delete the data. See #74149.
      */
-    private volatile SubscribableListener<Void> lastClusterStateShardsClosedListener = SubscribableListener.newSucceeded(null);
+    private volatile SubscribableListener<Void> lastClusterStateShardsClosedListener = SubscribableListener.nullSuccess();
 
     @Nullable // if not currently applying a cluster state
     private RefCountingListener currentClusterStateShardsClosedListeners;
@@ -397,7 +397,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 );
             } else if (project.isPresent() && project.get().hasIndex(index)) {
                 // The deleted index was part of the previous cluster state, but not loaded on the local node
-                indexServiceClosedListener = SubscribableListener.newSucceeded(null);
+                indexServiceClosedListener = SubscribableListener.nullSuccess();
                 final IndexMetadata metadata = project.get().index(index);
                 indexSettings = new IndexSettings(metadata, settings);
                 indicesService.deleteUnassignedIndex("deleted index was not assigned to local node", metadata, state);
@@ -411,7 +411,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // previous cluster state is not initialized/recovered.
                 assert state.metadata().projects().values().stream().anyMatch(p -> p.indexGraveyard().containsIndex(index))
                     || previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
-                indexServiceClosedListener = SubscribableListener.newSucceeded(null);
+                indexServiceClosedListener = SubscribableListener.nullSuccess();
                 final IndexMetadata metadata = indicesService.verifyIndexIsDeleted(index, event.state());
                 if (metadata != null) {
                     indexSettings = new IndexSettings(metadata, settings);

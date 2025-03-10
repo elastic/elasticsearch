@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.entitlement.instrumentation.CheckMethod;
+import org.elasticsearch.entitlement.instrumentation.EntitlementInstrumented;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.logging.LogManager;
@@ -92,7 +93,7 @@ public class InstrumenterImpl implements Instrumenter {
 
     class EntitlementClassVisitor extends ClassVisitor {
 
-        private static final String ENTITLEMENT_ANNOTATION = "EntitlementInstrumented";
+        private static final String ENTITLEMENT_ANNOTATION_DESCRIPTOR = Type.getDescriptor(EntitlementInstrumented.class);
 
         private final String className;
 
@@ -111,7 +112,7 @@ public class InstrumenterImpl implements Instrumenter {
 
         @Override
         public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-            if (visible && descriptor.equals(ENTITLEMENT_ANNOTATION)) {
+            if (visible && descriptor.equals(ENTITLEMENT_ANNOTATION_DESCRIPTOR)) {
                 isAnnotationPresent = true;
                 annotationNeeded = false;
             }
@@ -177,7 +178,7 @@ public class InstrumenterImpl implements Instrumenter {
         private void addClassAnnotationIfNeeded() {
             if (annotationNeeded) {
                 // logger.debug("Adding {} annotation", ENTITLEMENT_ANNOTATION);
-                AnnotationVisitor av = cv.visitAnnotation(ENTITLEMENT_ANNOTATION, true);
+                AnnotationVisitor av = cv.visitAnnotation(ENTITLEMENT_ANNOTATION_DESCRIPTOR, true);
                 if (av != null) {
                     av.visitEnd();
                 }

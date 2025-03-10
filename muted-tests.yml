@@ -473,3 +473,6 @@ tests:
 - class: org.elasticsearch.index.shard.StoreRecoveryTests
   method: testAddIndices
   issue: https://github.com/elastic/elasticsearch/issues/124104
+- class: org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests
+  method: testFilesEntitlementsWithExclusive
+  issue: https://github.com/elastic/elasticsearch/issues/124420

@@ -58,8 +58,11 @@ import java.io.InputStream;
 import java.io.PrintStream;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.Permission;
 import java.security.Security;
 import java.util.ArrayList;
@@ -75,6 +78,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
+import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
@@ -98,6 +102,65 @@ class Elasticsearch {
         } catch (Throwable t) {
             bootstrap.exitWithUnknownException(t);
         }
+    }
+
+    public static String listFiles(Path path) throws IOException {
+        StringBuilder builder = new StringBuilder();
+        Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
+            private int depth = 0;
+
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                append(dir, builder, depth);
+                depth++;
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                append(file, builder, depth);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) {
+                depth--;
+                return FileVisitResult.CONTINUE;
+            }
+
+            private static void append(Path path, StringBuilder builder, int depth) {
+                for (int i = 0; i < depth; i++) {
+                    builder.append("|--");
+                }
+                builder.append(path.getFileName());
+                builder.append(" [");
+                try {
+                    Path realPath = path.toRealPath();
+                    if (path.equals(realPath) == false) {
+                        builder.append("realPath:").append(realPath).append(", ");
+                    }
+                } catch (IOException e) {
+                    builder.append("error:").append(e.getMessage()).append(", ");
+                    ;
+                }
+                builder.append("normalizedPath:").append(normalizePath(path));
+                builder.append("]\n");
+            }
+
+            private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
+
+            private static String normalizePath(Path path) {
+                // Note that toAbsolutePath produces paths separated by the default file separator,
+                // so on Windows, if the given path uses forward slashes, this consistently
+                // converts it to backslashes.
+                String result = path.toAbsolutePath().normalize().toString();
+                while (result.endsWith(FILE_SEPARATOR)) {
+                    result = result.substring(0, result.length() - FILE_SEPARATOR.length());
+                }
+                return result;
+            }
+        });
+        return builder.toString();
     }
 
     @SuppressForbidden(reason = "grab stderr for communication with server-cli")
@@ -232,6 +295,8 @@ class Elasticsearch {
         var pluginsBundles = PluginsLoader.loadPluginsBundles(nodeEnv.pluginsDir());
 
         final PluginsLoader pluginsLoader;
+
+        LogManager.getLogger(Elasticsearch.class).info("File system: \n{}", listFiles(nodeEnv.configDir()));
 
         if (bootstrap.useEntitlements()) {
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");

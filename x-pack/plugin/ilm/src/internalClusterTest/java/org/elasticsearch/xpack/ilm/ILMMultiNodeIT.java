@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
@@ -41,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class ILMMultiNodeIT extends ESIntegTestCase {
@@ -105,7 +105,8 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
             ).get();
             logger.info("--> explain: {}", Strings.toString(explain));
 
-            String backingIndexName = DataStream.getDefaultBackingIndexName(index, 1);
+            String backingIndexName = getDataStreamBackingIndexNames(index).getFirst();
+            assertThat(backingIndexName, notNullValue());
             IndexLifecycleExplainResponse indexResp = null;
             for (Map.Entry<String, IndexLifecycleExplainResponse> indexNameAndResp : explain.getIndexResponses().entrySet()) {
                 if (indexNameAndResp.getKey().startsWith(SHRUNKEN_INDEX_PREFIX) && indexNameAndResp.getKey().contains(backingIndexName)) {

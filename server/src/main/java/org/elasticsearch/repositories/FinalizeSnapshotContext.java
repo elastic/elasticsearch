@@ -21,7 +21,6 @@ import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 
 /**
  * Context for finalizing a snapshot.
@@ -44,7 +43,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
 
     private final IndexVersion repositoryMetaVersion;
 
-    private final Consumer<SnapshotInfo> onDone;
+    private final Runnable onDone;
 
     /**
      * @param updatedShardGenerations updated shard generations
@@ -64,7 +63,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         SnapshotInfo snapshotInfo,
         IndexVersion repositoryMetaVersion,
         ActionListener<RepositoryData> listener,
-        Consumer<SnapshotInfo> onDone
+        Runnable onDone
     ) {
         super(listener);
         this.updatedShardGenerations = updatedShardGenerations;
@@ -113,8 +112,8 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         return updatedState;
     }
 
-    public void onDone(SnapshotInfo snapshotInfo) {
-        onDone.accept(snapshotInfo);
+    public void onDone() {
+        onDone.run();
     }
 
     @Override

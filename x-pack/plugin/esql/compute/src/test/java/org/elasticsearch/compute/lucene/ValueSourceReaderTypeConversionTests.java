@@ -1542,7 +1542,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         var driverRunner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
-                Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 10000), driverListener);
+                Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), null, driver, between(1, 10000), driverListener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();

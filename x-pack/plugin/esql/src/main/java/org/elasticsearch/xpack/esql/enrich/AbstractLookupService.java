@@ -58,6 +58,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -125,6 +126,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     protected final Executor executor;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
+    private final Tracer tracer;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
     /**
      * Should output {@link Page pages} be combined into a single resulting page?
@@ -143,6 +145,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         TransportService transportService,
         BigArrays bigArrays,
         BlockFactory blockFactory,
+        Tracer tracer,
         boolean mergePages,
         CheckedBiFunction<StreamInput, BlockFactory, T, IOException> readRequest
     ) {
@@ -153,6 +156,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         this.executor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
+        this.tracer = tracer;
         this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
         this.mergePages = mergePages;
         transportService.registerRequestHandler(
@@ -350,7 +354,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 driver.cancel(reason);
             });
             var threadContext = transportService.getThreadPool().getThreadContext();
-            Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<Void>() {
+            Driver.start(threadContext, executor, tracer, driver, Driver.DEFAULT_MAX_ITERATIONS, new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
                     List<Page> out = collectedPages;

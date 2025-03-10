@@ -29,6 +29,7 @@ import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.RANGE_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 
 public final class AnalyzerTestUtils {
 
@@ -57,7 +58,8 @@ public final class AnalyzerTestUtils {
                 new EsqlFunctionRegistry(),
                 indexResolution,
                 defaultLookupResolution(),
-                defaultEnrichResolution()
+                defaultEnrichResolution(),
+                emptyInferenceResolution()
             ),
             verifier
         );
@@ -70,7 +72,8 @@ public final class AnalyzerTestUtils {
                 new EsqlFunctionRegistry(),
                 indexResolution,
                 lookupResolution,
-                defaultEnrichResolution()
+                defaultEnrichResolution(),
+                emptyInferenceResolution()
             ),
             verifier
         );
@@ -78,7 +81,14 @@ public final class AnalyzerTestUtils {
 
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier, Configuration config) {
         return new Analyzer(
-            new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, defaultLookupResolution(), defaultEnrichResolution()),
+            new AnalyzerContext(
+                config,
+                new EsqlFunctionRegistry(),
+                indexResolution,
+                defaultLookupResolution(),
+                defaultEnrichResolution(),
+                emptyInferenceResolution()
+            ),
             verifier
         );
     }
@@ -90,7 +100,8 @@ public final class AnalyzerTestUtils {
                 new EsqlFunctionRegistry(),
                 analyzerDefaultMapping(),
                 defaultLookupResolution(),
-                defaultEnrichResolution()
+                defaultEnrichResolution(),
+                emptyInferenceResolution()
             ),
             verifier
         );

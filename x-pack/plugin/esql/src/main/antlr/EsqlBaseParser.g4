@@ -61,6 +61,7 @@ processingCommand
     | {this.isDevVersion()}? changePointCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? forkCommand
+    | {this.isDevVersion()}? rerankCommand
     ;
 
 whereCommand
@@ -154,6 +155,11 @@ parameter
 
 identifierOrParameter
     : identifier
+    | parameter
+    ;
+
+stringOrParameter
+    : string
     | parameter
     ;
 
@@ -265,4 +271,8 @@ forkSubQueryProcessingCommand
     : whereCommand
     | sortCommand
     | limitCommand
+    ;
+
+rerankCommand
+    : DEV_RERANK queryText=stringOrParameter (ON fields)? WITH inferenceId=stringOrParameter
     ;

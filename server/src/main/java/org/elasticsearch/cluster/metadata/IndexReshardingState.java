@@ -184,6 +184,7 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return SPLIT_PARSER.parse(parser, null);
         }
 
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(SOURCE_SHARDS_FIELD.getPreferredName(), sourceShards);
             builder.field(TARGET_SHARDS_FIELD.getPreferredName(), targetShards);

@@ -87,8 +87,6 @@ import java.util.Objects;
  * to beginning another resharding operation.
  */
 public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
-    private final IndexReshardingState state;
-
     private static final String SPLIT_FIELD_NAME = "split";
     private static final ParseField SPLIT_FIELD = new ParseField(SPLIT_FIELD_NAME);
     // This exists only so that tests can verify that IndexReshardingMetadata supports more than one kind of operation.
@@ -125,14 +123,26 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
         PARSER.declareRequiredFieldSet(SPLIT_FIELD.getPreferredName(), NOOP_FIELD.getPreferredName());
     }
 
-    // for testing
-    IndexReshardingState getState() {
-        return state;
-    }
+    private final IndexReshardingState state;
 
     // visible for testing
     IndexReshardingMetadata(IndexReshardingState state) {
         this.state = state;
+    }
+
+    public IndexReshardingMetadata(StreamInput in) throws IOException {
+        var stateName = in.readString();
+
+        state = switch (stateName) {
+            case NOOP_FIELD_NAME -> new IndexReshardingState.Noop(in);
+            case SPLIT_FIELD_NAME -> new IndexReshardingState.Split(in);
+            default -> throw new IllegalStateException("unknown operation [" + stateName + "]");
+        };
+    }
+
+    // for testing
+    IndexReshardingState getState() {
+        return state;
     }
 
     static IndexReshardingMetadata fromXContent(XContentParser parser) throws IOException {
@@ -150,16 +160,6 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
         builder.endObject();
 
         return builder;
-    }
-
-    public IndexReshardingMetadata(StreamInput in) throws IOException {
-        var stateName = in.readString();
-
-        state = switch (stateName) {
-            case NOOP_FIELD_NAME -> new IndexReshardingState.Noop(in);
-            case SPLIT_FIELD_NAME -> new IndexReshardingState.Split(in);
-            default -> throw new IllegalStateException("unknown operation [" + stateName + "]");
-        };
     }
 
     @Override

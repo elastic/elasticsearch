@@ -2691,7 +2691,8 @@ public class AnalyzerTests extends ESTestCase {
                     fieldCapabilitiesIndexResponse("bar", Map.of())
                 ),
                 List.of()
-            )
+            ),
+            false
         );
 
         String query = "FROM foo, bar | INSIST_🐔 message";
@@ -2711,7 +2712,8 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesResponse(
                 List.of(fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")), fieldCapabilitiesIndexResponse("bar", Map.of())),
                 List.of()
-            )
+            ),
+            false
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -2736,7 +2738,8 @@ public class AnalyzerTests extends ESTestCase {
                     fieldCapabilitiesIndexResponse("bazz", Map.of())
                 ),
                 List.of()
-            )
+            ),
+            false
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -2761,7 +2764,8 @@ public class AnalyzerTests extends ESTestCase {
                     fieldCapabilitiesIndexResponse("qux", Map.of())
                 ),
                 List.of()
-            )
+            ),
+            false
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
@@ -2785,7 +2789,8 @@ public class AnalyzerTests extends ESTestCase {
                     fieldCapabilitiesIndexResponse("bazz", Map.of())
                 ),
                 List.of()
-            )
+            ),
+            false
         );
         VerificationException e = expectThrows(
             VerificationException.class,
@@ -2971,7 +2976,7 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
-        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps);
+        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps, false);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }

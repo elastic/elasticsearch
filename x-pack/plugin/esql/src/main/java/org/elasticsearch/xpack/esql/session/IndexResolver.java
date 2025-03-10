@@ -53,6 +53,7 @@ public class IndexResolver {
     public static final Set<String> ALL_FIELDS = Set.of("*");
     public static final Set<String> INDEX_METADATA_FIELD = Set.of(MetadataAttribute.INDEX);
     public static final String UNMAPPED = "unmapped";
+    public static final int WIDE_INDEX_DEFAULT_FIELD_NUMBER = 100;
 
     public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -82,24 +83,29 @@ public class IndexResolver {
         String indexWildcard,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
-        ActionListener<IndexResolution> listener
+        ActionListener<IndexResolution> listener,
+        boolean noRequiredField
     ) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter),
-            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response, noRequiredField)))
         );
     }
 
     // public for testing only
-    public static IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
+    public static IndexResolution mergedMappings(
+        String indexPattern,
+        FieldCapabilitiesResponse fieldCapsResponse,
+        boolean noRequiredField
+    ) {
         var numberOfIndices = fieldCapsResponse.getIndexResponses().size();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
             return IndexResolution.notFound(indexPattern);
         }
 
-        Map<String, List<IndexFieldCapabilities>> fieldsCaps = collectFieldCaps(fieldCapsResponse);
+        Map<String, List<IndexFieldCapabilities>> fieldsCaps = collectFieldCaps(fieldCapsResponse, noRequiredField);
 
         // Build hierarchical fields - it's easier to do it in sorted order so the object fields come first.
         // TODO flattened is simpler - could we get away with that?
@@ -166,13 +172,17 @@ public class IndexResolver {
         return IndexResolution.valid(index, concreteIndices.keySet(), unavailableRemotes);
     }
 
-    private static Map<String, List<IndexFieldCapabilities>> collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {
+    private static Map<String, List<IndexFieldCapabilities>> collectFieldCaps(
+        FieldCapabilitiesResponse fieldCapsResponse,
+        boolean noRequiredField
+    ) {
         Set<String> seenHashes = new HashSet<>();
         Map<String, List<IndexFieldCapabilities>> fieldsCaps = new HashMap<>();
         for (FieldCapabilitiesIndexResponse response : fieldCapsResponse.getIndexResponses()) {
             if (seenHashes.add(response.getIndexMappingHash()) == false) {
                 continue;
             }
+            int counter = 0;
             for (IndexFieldCapabilities fc : response.get().values()) {
                 if (fc.isMetadatafield()) {
                     // ESQL builds the metadata fields if they are asked for without using the resolution.
@@ -180,6 +190,11 @@ public class IndexResolver {
                 }
                 List<IndexFieldCapabilities> all = fieldsCaps.computeIfAbsent(fc.name(), (_key) -> new ArrayList<>());
                 all.add(fc);
+                counter++;
+                if (noRequiredField && counter >= WIDE_INDEX_DEFAULT_FIELD_NUMBER) { // retrieve up to 100 fields of each wide index if
+                                                                                     // there is no required field
+                    break;
+                }
             }
         }
         return fieldsCaps;

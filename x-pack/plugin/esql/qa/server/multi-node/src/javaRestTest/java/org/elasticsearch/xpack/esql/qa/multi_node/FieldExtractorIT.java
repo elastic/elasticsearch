@@ -20,7 +20,7 @@ public class FieldExtractorIT extends FieldExtractorTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {});
 
-    protected FieldExtractorIT(MappedFieldType.FieldExtractPreference preference) {
+    public FieldExtractorIT(MappedFieldType.FieldExtractPreference preference) {
         super(preference);
     }
 

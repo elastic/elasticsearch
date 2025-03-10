@@ -549,19 +549,20 @@ public final class IndicesPermission {
             }
         }
 
-        final Set<IndexResource> resources = Sets.newHashSetWithExpectedSize(requestedIndicesOrAliases.size());
+        final Map<String, IndexResource> resources = Maps.newMapWithExpectedSize(requestedIndicesOrAliases.size());
         int totalResourceCount = 0;
         Map<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         for (String indexOrAlias : requestedIndicesOrAliases) {
-            // Remove any selectors from abstraction name. Selector authorization happens in conjunction with the index name, via the
-            // selector check in IndexResource#checkIndex
+            String originalIndexOrAlias = indexOrAlias;
+            // Remove any selectors from abstraction name, but include it in the map key if it's ::failures. We need to do this to
+            // disambiguate between data streams and their failure stores.
             Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexOrAlias);
             indexOrAlias = expressionAndSelector.v1();
             IndexComponentSelector selector = expressionAndSelector.v2() == null
                 ? null
                 : IndexComponentSelector.getByKey(expressionAndSelector.v2());
             final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias), selector);
-            resources.add(resource);
+            resources.put(IndexComponentSelector.FAILURES.equals(selector) ? originalIndexOrAlias : indexOrAlias, resource);
             totalResourceCount += resource.size(lookup);
         }
 
@@ -580,7 +581,7 @@ public final class IndicesPermission {
 
     private Map<String, IndicesAccessControl.IndexAccessControl> buildIndicesAccessControl(
         final String action,
-        final Set<IndexResource> requestedResources,
+        final Map<String, IndexResource> requestedResources,
         final int totalResourceCount,
         final FieldPermissionsCache fieldPermissionsCache,
         final ProjectMetadata metadata
@@ -594,10 +595,11 @@ public final class IndicesPermission {
 
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
-        for (IndexResource resource : requestedResources) {
+        for (Map.Entry<String, IndexResource> resourceEntry : requestedResources.entrySet()) {
             // true if ANY group covers the given index AND the given action
             boolean granted = false;
-
+            final String resourceName = resourceEntry.getKey();
+            final IndexResource resource = resourceEntry.getValue();
             final Collection<String> concreteIndices = resource.resolveConcreteIndices(metadata);
             for (Group group : groups) {
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
@@ -644,9 +646,9 @@ public final class IndicesPermission {
                                 roleQueriesByIndex.put(index, docPermissions);
                             }
 
-                            if (index.equals(resource.name) == false) {
-                                fieldPermissionsByIndex.put(resource.name, fieldPermissions);
-                                roleQueriesByIndex.put(resource.name, docPermissions);
+                            if (index.equals(resourceName) == false) {
+                                fieldPermissionsByIndex.put(resourceName, fieldPermissions);
+                                roleQueriesByIndex.put(resourceName, docPermissions);
                             }
                         }
                     }
@@ -654,12 +656,12 @@ public final class IndicesPermission {
             }
 
             if (granted) {
-                grantedResources.add(resource.name);
+                grantedResources.add(resourceName);
+
                 if (resource.canHaveBackingIndices()) {
                     for (String concreteIndex : concreteIndices) {
                         // If the name appears directly as part of the requested indices, it takes precedence over implicit access
-                        // TODO inefficient
-                        if (false == requestedResources.stream().anyMatch(r -> r.name.equals(concreteIndex))) {
+                        if (false == requestedResources.containsKey(concreteIndex)) {
                             grantedResources.add(concreteIndex);
                         }
                     }
@@ -667,7 +669,6 @@ public final class IndicesPermission {
             }
         }
 
-        // TODO handle failures selector for DLS/FLS
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = Maps.newMapWithExpectedSize(grantedResources.size());
         for (String index : grantedResources) {
             final DocumentLevelPermissions permissions = roleQueriesByIndex.get(index);
@@ -695,11 +696,11 @@ public final class IndicesPermission {
      * Returns {@code true} if action is granted for all {@code requestedResources}.
      * If action is not granted for at least one resource, this method will return {@code false}.
      */
-    private boolean isActionGranted(final String action, final Collection<IndexResource> requestedResources) {
+    private boolean isActionGranted(final String action, final Map<String, IndexResource> requestedResources) {
 
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
-        for (IndexResource resource : requestedResources) {
+        for (IndexResource resource : requestedResources.values()) {
             // true if ANY group covers the given index AND the given action
             boolean granted = false;
             // true if ANY group, which contains certain ingest privileges, covers the given index AND the action is a mapping update for

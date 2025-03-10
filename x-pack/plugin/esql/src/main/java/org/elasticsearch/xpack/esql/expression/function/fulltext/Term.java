@@ -110,7 +110,7 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
             plan.forEachExpression(Term.class, t -> {
-                if (t.field() instanceof FieldAttribute == false) { // TODO: is a conversion possible, similar to Match's case?
+                if (t.field() instanceof FieldAttribute == false) { // TODO: is a conversion possible, similar to Match’s case?
                     failures.add(
                         Failure.fail(
                             t.field(),

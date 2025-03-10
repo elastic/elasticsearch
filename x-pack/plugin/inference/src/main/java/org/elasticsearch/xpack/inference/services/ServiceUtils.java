@@ -741,7 +741,7 @@ public final class ServiceUtils {
             InputType.INGEST,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener.delegateFailureAndWrap((delegate, r) -> {
-                if (r instanceof TextEmbeddingResults<?, ?> embeddingResults) {
+                if (r instanceof TextEmbeddingResults<?> embeddingResults) {
                     try {
                         delegate.onResponse(embeddingResults.getFirstEmbeddingSize());
                     } catch (Exception e) {

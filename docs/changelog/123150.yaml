@@ -1,0 +1,5 @@
+pr: 123150
+summary: Limit the number of chunks for semantic text to prevent high memory usage
+area: Machine Learning
+type: feature
+issues: []

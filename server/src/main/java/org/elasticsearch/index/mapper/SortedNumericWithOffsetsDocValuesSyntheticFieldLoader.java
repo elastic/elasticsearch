@@ -52,7 +52,7 @@ class SortedNumericWithOffsetsDocValuesSyntheticFieldLoader extends SourceLoader
 
     @Override
     public boolean hasValue() {
-        return docValuesLoader != null && docValuesLoader.count() > 0;
+        return docValuesLoader != null && docValuesLoader.hasValue();
     }
 
     @Override
@@ -107,14 +107,8 @@ class SortedNumericWithOffsetsDocValuesSyntheticFieldLoader extends SourceLoader
             }
         }
 
-        public int count() {
-            if (hasOffset) {
-                return offsetToOrd.length;
-            } else if (hasValue) {
-                return valueDocValues.docValueCount();
-            } else {
-                return 0;
-            }
+        public boolean hasValue() {
+            return hasOffset || (hasValue && valueDocValues.docValueCount() > 0);
         }
 
         public void write(String fieldName, XContentBuilder b) throws IOException {

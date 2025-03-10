@@ -500,6 +500,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             String operators = p.get("operators").toString();
             MapMatcher sleepMatcher = matchesMap().entry("reason", "exchange empty")
                 .entry("sleep_millis", greaterThan(0L))
+                .entry("thread_name", Matchers.containsString("[esql_worker]")) // NB: this doesn't run in the test thread
                 .entry("wake_millis", greaterThan(0L));
             String description = p.get("description").toString();
             switch (description) {

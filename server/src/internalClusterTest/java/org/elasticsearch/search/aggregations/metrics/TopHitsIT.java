@@ -1297,7 +1297,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     assertThat(bucket.getDocCount(), equalTo(10L));
                     TopHits topHits = bucket.getAggregations().get("hits");
                     SearchHits hits = topHits.getHits();
-                    assertThat(hits.getTotalHits().value(), equalTo(10L));
+                    assertThat(hits.getTotalHits().value, equalTo(10L));
                     assertThat(hits.getHits().length, equalTo(3));
                     higestSortValue += 10;
                     assertThat((Double) hits.getAt(0).getSortValues()[0], equalTo(higestSortValue));

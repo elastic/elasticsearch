@@ -9,38 +9,38 @@ package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.FUNCTIONS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocsV3SupportTests extends ESTestCase {
+    private static DocsV3Support docs = DocsV3Support.forFunctions("test", DocsV3SupportTests.class);
 
     public void testFunctionLink() {
         String text = "The value that is greater than half of all values and less than half of all values, "
             + "also known as the 50% <<esql-percentile>>.";
         String expected = "The value that is greater than half of all values and less than half of all values, "
             + "also known as the 50% [`PERCENTILE`](/reference/query-languages/esql/esql-functions-operators.md#esql-percentile).";
-        assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
+        assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
     public void testFunctionAndHeaderLinks() {
         String text = "Like <<esql-percentile>>, `MEDIAN` is <<esql-percentile-approximate,usually approximate>>.";
         String expected = "Like [`PERCENTILE`](/reference/query-languages/esql/esql-functions-operators.md#esql-percentile), "
             + "`MEDIAN` is [usually approximate](/reference/query-languages/esql/esql-functions-operators.md#esql-percentile-approximate).";
-        assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
+        assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
     public void testWikipediaMacro() {
         String text = "Returns the {wikipedia}/Inverse_trigonometric_functions[arccosine] of `n` as an angle, expressed in radians.";
         String expected = "Returns the [arccosine](https://en.wikipedia.org/wiki/Inverse_trigonometric_functions) "
             + "of `n` as an angle, expressed in radians.";
-        assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
+        assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
     public void testWikipediaMacro2() {
         String text = "This builds on the three-valued logic ({wikipedia}/Three-valued_logic[3VL]) of the language.";
         String expected =
             "This builds on the three-valued logic ([3VL](https://en.wikipedia.org/wiki/Three-valued_logic)) of the language.";
-        assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
+        assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
     public void testJavadocMacro() {
@@ -50,14 +50,14 @@ public class DocsV3SupportTests extends ESTestCase {
         String expected = "This is a noop for `long` (including unsigned) and `integer`.\n"
             + "For `double` this picks the closest `double` value to the integer similar to\n"
             + "[Math.ceil](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/Math.html#ceil(double)).";
-        assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
+        assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
     public void testJavadoc8Macro() {
         String text = "Refer to {javadoc8}/java/time/temporal/ChronoField.html[java.time.temporal.ChronoField]";
         String expected =
             "Refer to [java.time.temporal.ChronoField](https://docs.oracle.com/javase/8/docs/api/java/time/temporal/ChronoField.html)";
-        assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
+        assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
     public void testJavadoc8MacroLongText() {
@@ -81,7 +81,7 @@ public class DocsV3SupportTests extends ESTestCase {
             Refer to [java.time.temporal.ChronoField](https://docs.oracle.com/javase/8/docs/api/java/time/temporal/ChronoField.html)
             for a description of these values.\n
             If `null`, the function returns `null`.""";
-        assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
+        assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
     public void testKnownRootEsqlFiles() {
@@ -91,7 +91,7 @@ public class DocsV3SupportTests extends ESTestCase {
         String expected = """
             The order that [multivalued fields](/reference/query-languages/esql/esql-multivalued-fields.md)
             are read from underlying storage is not guaranteed""";
-        assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
+        assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
     public void testKnownRootWithTag() {
@@ -101,6 +101,6 @@ public class DocsV3SupportTests extends ESTestCase {
         String expected = """
             Match can use [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
             to specify additional options for the match query.""";
-        assertThat(FUNCTIONS.replaceLinks(text), equalTo(expected));
+        assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 }

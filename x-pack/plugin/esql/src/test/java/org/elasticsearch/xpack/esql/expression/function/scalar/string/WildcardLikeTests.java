@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.unboundid.util.NotNull;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -24,13 +23,11 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.junit.AfterClass;
 
 import java.io.IOException;
-import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.renderNegatedOperator;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -96,10 +93,6 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
 
     @AfterClass
     public static void renderNotLike() throws IOException {
-        renderNot(constructorWithFunctionInfo(WildcardLike.class), "LIKE", d -> d);
-    }
-
-    public static void renderNot(@NotNull Constructor<?> ctor, String name, Function<String, String> description) throws IOException {
-        renderDocsForNegatedOperators(name.toLowerCase(Locale.ENGLISH), ctor, description);
+        renderNegatedOperator(constructorWithFunctionInfo(WildcardLike.class), "LIKE", d -> d, getTestClass());
     }
 }

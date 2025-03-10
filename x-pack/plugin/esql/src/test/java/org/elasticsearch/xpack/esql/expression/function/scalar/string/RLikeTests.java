@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.renderNegatedOperator;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -155,6 +156,6 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
 
     @AfterClass
     public static void renderNotRLike() throws IOException {
-        WildcardLikeTests.renderNot(constructorWithFunctionInfo(RLike.class), "RLIKE", d -> d);
+        renderNegatedOperator(constructorWithFunctionInfo(RLike.class), "RLIKE", d -> d, getTestClass());
     }
 }

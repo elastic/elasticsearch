@@ -149,7 +149,7 @@ The following configuration fields are required to set up the connector:
 
 
 `spaces`
-:   Comma-separated list of [Space Keys](https://confluence.atlassian.com/doc/space-keys-829076188.md) to fetch data from Confluence. If the value is `*`, the connector will fetch data from all spaces present in the configured `spaces`. Default value is `*`. Examples:
+:   Comma-separated list of [Space Keys](https://confluence.atlassian.com/doc/space-keys-829076188.html) to fetch data from Confluence. If the value is `*`, the connector will fetch data from all spaces present in the configured `spaces`. Default value is `*`. Examples:
 
     * `EC`, `TP`
     * `*`
@@ -247,7 +247,7 @@ docker run \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0-beta1.0 \
+docker.elastic.co/integrations/elastic-connectors:9.0.0 \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```

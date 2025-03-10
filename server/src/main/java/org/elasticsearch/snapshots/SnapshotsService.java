@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -146,7 +145,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     public static final IndexVersion INDEX_GEN_IN_REPO_DATA_VERSION = IndexVersions.V_7_9_0;
 
     public static final IndexVersion UUIDS_IN_REPO_DATA_VERSION = IndexVersions.V_7_12_0;
-    public static final TransportVersion UUIDS_IN_REPO_DATA_TRANSPORT_VERSION = TransportVersions.V_7_12_0;
 
     public static final IndexVersion FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION = IndexVersions.V_7_16_0;
 
@@ -746,7 +744,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         } else {
             snapshot.shardSnapshotStatusByRepoShardId().forEach((key, value) -> {
                 final Index index = snapshot.indexByName(key.indexName());
-                if (metadata.getProject().index(index) == null) {
+                if (metadata.findIndex(index).isEmpty()) {
                     assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
                     return;
                 }
@@ -1531,11 +1529,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 shardGenerations
                             )
                         ),
-                        snInfo -> snapshotListeners.addListener(new ActionListener<>() {
+                        () -> snapshotListeners.addListener(new ActionListener<>() {
                             @Override
                             public void onResponse(List<ActionListener<SnapshotInfo>> actionListeners) {
-                                completeListenersIgnoringException(actionListeners, snInfo);
-                                logger.info("snapshot [{}] completed with state [{}]", snapshot, snInfo.state());
+                                completeListenersIgnoringException(actionListeners, snapshotInfo);
+                                logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
                             }
 
                             @Override
@@ -2508,15 +2506,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     @Override
                     public void onFailure(Exception e) {
                         logger.warn(() -> {
-                            final StringBuilder sb = new StringBuilder("failed to complete snapshot deletion for [");
-                            Strings.collectionToDelimitedStringWithLimit(
-                                deleteEntry.snapshots().stream().map(SnapshotId::getName).toList(),
-                                ",",
-                                "",
-                                "",
-                                1024,
-                                sb
-                            );
+                            final var sb = new StringBuilder("failed to complete snapshot deletion for [");
+                            final var collector = new Strings.BoundedDelimitedStringCollector(sb, ",", 1024);
+                            deleteEntry.snapshots().forEach(s -> collector.appendItem(s.getName()));
+                            collector.finish();
                             sb.append("] from repository [").append(deleteEntry.repository()).append("]");
                             return sb;
                         }, e);
@@ -2531,7 +2524,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         );
                     }
                 }, () -> {
-                    logger.info("snapshots {} deleted", snapshotIds);
+                    logger.info(() -> {
+                        final var sb = new StringBuilder("snapshots [");
+                        final var collector = new Strings.BoundedDelimitedStringCollector(sb, ",", 1024);
+                        snapshotIds.forEach(collector::appendItem);
+                        collector.finish();
+                        sb.append("] deleted");
+                        return sb;
+                    });
                     doneFuture.onResponse(null);
                 });
         }

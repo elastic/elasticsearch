@@ -103,9 +103,9 @@ S3 users will also need to [Create an IAM identity](#es-connectors-s3-client-usa
 
 #### Create an IAM identity [es-connectors-s3-client-usage-create-iam]
 
-Users need to create an IAM identity to use this connector as a **self-managed connector**. Refer to [the AWS documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/getting-set-up.md).
+Users need to create an IAM identity to use this connector as a **self-managed connector**. Refer to [the AWS documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/getting-set-up.html).
 
-The [policy](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.md) associated with the IAM identity must have the following **AWS permissions**:
+The [policy](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html) associated with the IAM identity must have the following **AWS permissions**:
 
 * `ListAllMyBuckets`
 * `ListBucket`
@@ -211,7 +211,7 @@ docker run \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0-beta1.0 \
+docker.elastic.co/integrations/elastic-connectors:9.0.0 \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```

@@ -151,7 +151,7 @@ public class ClusterStateTests extends ESTestCase {
 
     public void testGetNonExistingProjectStateThrows() {
         final List<ProjectMetadata> projects = IntStream.range(0, between(1, 3))
-            .mapToObj(i -> MetadataTests.randomProject(new ProjectId("p_" + i), between(0, 5)))
+            .mapToObj(i -> MetadataTests.randomProject(ProjectId.fromId("p_" + i), between(0, 5)))
             .toList();
         final Metadata metadata = MetadataTests.randomMetadata(projects);
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
@@ -835,7 +835,7 @@ public class ClusterStateTests extends ESTestCase {
                     .build()
             )
             .put(
-                ProjectMetadata.builder(new ProjectId("3LftaL7hgfXAsF60Gm6jcD"))
+                ProjectMetadata.builder(ProjectId.fromId("3LftaL7hgfXAsF60Gm6jcD"))
                     .put(
                         IndexMetadata.builder("common-index")
                             .settings(
@@ -850,7 +850,7 @@ public class ClusterStateTests extends ESTestCase {
                     )
             )
             .put(
-                ProjectMetadata.builder(new ProjectId("tb5W0bx765nDVIwqJPw92G"))
+                ProjectMetadata.builder(ProjectId.fromId("tb5W0bx765nDVIwqJPw92G"))
                     .put(
                         IndexMetadata.builder("common-index")
                             .settings(
@@ -858,7 +858,7 @@ public class ClusterStateTests extends ESTestCase {
                             )
                     )
             )
-            .put(ProjectMetadata.builder(new ProjectId("WHyuJ0uqBYOPgHX9kYUXlZ")))
+            .put(ProjectMetadata.builder(ProjectId.fromId("WHyuJ0uqBYOPgHX9kYUXlZ")))
             .build();
         final DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder();
         for (var node : nodes) {
@@ -874,8 +874,8 @@ public class ClusterStateTests extends ESTestCase {
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK)
-                    .addIndexBlock(new ProjectId("tb5W0bx765nDVIwqJPw92G"), "common-index", IndexMetadata.INDEX_METADATA_BLOCK)
-                    .addIndexBlock(new ProjectId("3LftaL7hgfXAsF60Gm6jcD"), "another-index", IndexMetadata.INDEX_READ_ONLY_BLOCK)
+                    .addIndexBlock(ProjectId.fromId("tb5W0bx765nDVIwqJPw92G"), "common-index", IndexMetadata.INDEX_METADATA_BLOCK)
+                    .addIndexBlock(ProjectId.fromId("3LftaL7hgfXAsF60Gm6jcD"), "another-index", IndexMetadata.INDEX_READ_ONLY_BLOCK)
             )
             .build();
     }

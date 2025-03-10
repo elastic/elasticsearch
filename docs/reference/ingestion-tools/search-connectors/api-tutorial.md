@@ -1,5 +1,9 @@
 ---
 navigation_title: "API tutorial"
+applies_to:
+  stack: ga
+  serverless: 
+    elasticsearch: ga
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-tutorial-api.html
 ---
@@ -40,7 +44,7 @@ docker run -p 9200:9200 -d --name elasticsearch \
   -e "xpack.security.enabled=false" \
   -e "xpack.security.http.ssl.enabled=false" \
   -e "xpack.license.self_generated.type=trial" \
-  docker.elastic.co/elasticsearch/elasticsearch:9.0.0-beta1
+  docker.elastic.co/elasticsearch/elasticsearch:9.0.0
 ```
 
 ::::{warning}
@@ -258,7 +262,7 @@ docker run \
 --rm \
 --tty -i \
 --network host \
-docker.elastic.co/integrations/elastic-connectors:9.0.0-beta1.0 \
+docker.elastic.co/integrations/elastic-connectors:9.0.0 \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```

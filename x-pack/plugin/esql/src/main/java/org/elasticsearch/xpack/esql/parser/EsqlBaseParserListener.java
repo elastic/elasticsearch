@@ -582,6 +582,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitForkSubQueryProcessingCommand(EsqlBaseParser.ForkSubQueryProcessingCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#unpivotCommand}.
+   * @param ctx the parse tree
+   */
+  void enterUnpivotCommand(EsqlBaseParser.UnpivotCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#unpivotCommand}.
+   * @param ctx the parse tree
+   */
+  void exitUnpivotCommand(EsqlBaseParser.UnpivotCommandContext ctx);
+  /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree

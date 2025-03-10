@@ -2124,10 +2124,26 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testSortByAggregate() {
-        assertEquals("1:18: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT count(*)"));
-        assertEquals("1:28: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT to_string(count(*))"));
-        assertEquals("1:22: Aggregate functions are not allowed in SORT [MAX]", error("ROW a = 1 | SORT 1 + max(a)"));
-        assertEquals("1:18: Aggregate functions are not allowed in SORT [COUNT]", error("FROM test | SORT count(*)"));
+        assertEquals("1:18: aggregate function [count(*)] not allowed outside STATS command", error("ROW a = 1 | SORT count(*)"));
+        assertEquals(
+            "1:28: aggregate function [count(*)] not allowed outside STATS command",
+            error("ROW a = 1 | SORT to_string(count(*))")
+        );
+        assertEquals("1:22: aggregate function [max(a)] not allowed outside STATS command", error("ROW a = 1 | SORT 1 + max(a)"));
+        assertEquals("1:18: aggregate function [count(*)] not allowed outside STATS command", error("FROM test | SORT count(*)"));
+    }
+
+    public void testFilterByAggregate() {
+        assertEquals("1:19: aggregate function [count(*)] not allowed outside STATS command", error("ROW a = 1 | WHERE count(*) > 0"));
+        assertEquals(
+            "1:29: aggregate function [count(*)] not allowed outside STATS command",
+            error("ROW a = 1 | WHERE to_string(count(*)) IS NOT NULL")
+        );
+        assertEquals("1:23: aggregate function [max(a)] not allowed outside STATS command", error("ROW a = 1 | WHERE 1 + max(a) > 0"));
+        assertEquals(
+            "1:24: aggregate function [min(languages)] not allowed outside STATS command",
+            error("FROM employees | WHERE min(languages) > 2")
+        );
     }
 
     public void testLookupJoinDataTypeMismatch() {

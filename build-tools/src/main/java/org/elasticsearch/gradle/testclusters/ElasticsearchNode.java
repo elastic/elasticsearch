@@ -1303,6 +1303,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
                     Path relativeDestination = sourceRoot.relativize(dir);
+                    if (relativeDestination.getNameCount() <= 1) {
+                        return FileVisitResult.CONTINUE;
+                    }
+                    // Throw away the first name as the archives have everything in a single top level folder we are not interested in
+                    relativeDestination = relativeDestination.subpath(1, relativeDestination.getNameCount());
                     Path destination = destinationRoot.resolve(relativeDestination);
                     Files.createDirectories(destination);
                     return FileVisitResult.CONTINUE;
@@ -1311,6 +1316,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 @Override
                 public FileVisitResult visitFile(Path source, BasicFileAttributes attrs) {
                     Path relativeDestination = sourceRoot.relativize(source);
+                    if (relativeDestination.getNameCount() <= 1) {
+                        return FileVisitResult.CONTINUE;
+                    }
+                    // Throw away the first name as the archives have everything in a single top level folder we are not interested in
+                    relativeDestination = relativeDestination.subpath(1, relativeDestination.getNameCount());
                     Path destination = destinationRoot.resolve(relativeDestination);
                     syncMethod.accept(destination, source);
                     return FileVisitResult.CONTINUE;

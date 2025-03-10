@@ -2018,9 +2018,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                 } else {
                     if (fetch) {
-                        listener.onFailedFetchPhase(context);
+                        listener.onFailedFetchPhase(context, System.nanoTime() - time);
                     } else {
-                        listener.onFailedQueryPhase(context);
+                        listener.onFailedQueryPhase(context, System.nanoTime() - time);
                     }
                 }
             }

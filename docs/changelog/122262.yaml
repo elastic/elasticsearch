@@ -1,0 +1,5 @@
+pr: 122262
+summary: Measure search load per index
+area: Search
+type: feature
+issues: []

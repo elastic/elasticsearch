@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
 import org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder;
 import org.elasticsearch.xpack.rank.linear.MinMaxScoreNormalizer;
 import org.elasticsearch.xpack.rank.linear.ScoreNormalizer;
@@ -40,11 +41,13 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField RERANK_FIELD = new ParseField("rerank");
+    public static final ParseField RERANK_FIELD_FIELD = new ParseField("rerank_field");
     public static final ParseField RERANK_INFERENCE_ID_FIELD = new ParseField("rerank_inference_id");
 
     private final List<String> fields;
     private final String query;
-    private final boolean rerank;
+    private final Boolean rerank;
+    private final String rerankField;
     private final String rerankInferenceId;
     private final int rankWindowSize;
 
@@ -55,10 +58,11 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
         (args, context) -> {
             List<String> fields = (List<String>) args[0];
             String query = (String) args[1];
-            boolean rerank = args[2] != null && (boolean) args[2];
-            String rerankInferenceId = (String) args[3];
-            int rankWindowSize = args[4] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[4];
-            return new HybridRetrieverBuilder(fields, query, rerank, rerankInferenceId, rankWindowSize);
+            Boolean rerank = (Boolean) args[2];
+            String rerankField = (String) args[3];
+            String rerankInferenceId = (String) args[4];
+            int rankWindowSize = args[5] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[5];
+            return new HybridRetrieverBuilder(fields, query, rerank, rerankField, rerankInferenceId, rankWindowSize);
         }
     );
 
@@ -66,31 +70,36 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
         PARSER.declareStringArray(constructorArg(), FIELDS_FIELD);
         PARSER.declareString(constructorArg(), QUERY_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), RERANK_FIELD);
+        PARSER.declareString(optionalConstructorArg(), RERANK_FIELD_FIELD);
         PARSER.declareString(optionalConstructorArg(), RERANK_INFERENCE_ID_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
-    public HybridRetrieverBuilder(List<String> fields, String query, boolean rerank, String rerankInferenceId, int rankWindowSize) {
+    public HybridRetrieverBuilder(
+        List<String> fields,
+        String query,
+        Boolean rerank,
+        String rerankField,
+        String rerankInferenceId,
+        int rankWindowSize
+    ) {
         this(
             fields == null ? List.of() : List.copyOf(fields),
             query,
             rerank,
+            rerankField,
             rerankInferenceId,
             rankWindowSize,
-            new LinearRetrieverBuilder(
-                generateInnerRetrievers(fields, query),
-                rankWindowSize,
-                generateWeights(fields),
-                generateScoreNormalizers(fields)
-            )
+            generateRetrieverBuilder(fields, query, rerank, rerankField, rerankInferenceId, rankWindowSize)
         );
     }
 
     private HybridRetrieverBuilder(
         List<String> fields,
         String query,
-        boolean rerank,
+        Boolean rerank,
+        String rerankField,
         String rerankInferenceId,
         int rankWindowSize,
         RetrieverBuilder retrieverBuilder
@@ -99,13 +108,14 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
         this.fields = fields;
         this.query = query;
         this.rerank = rerank;
+        this.rerankField = rerankField;
         this.rerankInferenceId = rerankInferenceId;
         this.rankWindowSize = rankWindowSize;
     }
 
     @Override
     protected HybridRetrieverBuilder clone(RetrieverBuilder sub) {
-        return new HybridRetrieverBuilder(fields, query, rerank, rerankInferenceId, rankWindowSize, sub);
+        return new HybridRetrieverBuilder(fields, query, rerank, rerankField, rerankInferenceId, rankWindowSize, sub);
     }
 
     @Override
@@ -117,6 +127,15 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
     protected void doToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(FIELDS_FIELD.getPreferredName(), fields);
         builder.field(QUERY_FIELD.getPreferredName(), query);
+        if (rerank != null) {
+            builder.field(RERANK_FIELD.getPreferredName(), rerank);
+        }
+        if (rerankField != null) {
+            builder.field(RERANK_FIELD_FIELD.getPreferredName(), rerankField);
+        }
+        if (rerankInferenceId != null) {
+            builder.field(RERANK_INFERENCE_ID_FIELD.getPreferredName(), rerankInferenceId);
+        }
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
     }
 
@@ -124,16 +143,55 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
     protected boolean doEquals(Object o) {
         // TODO: Check rankWindowSize? It should be checked by the wrapped retriever.
         HybridRetrieverBuilder that = (HybridRetrieverBuilder) o;
-        return Objects.equals(fields, that.fields) && Objects.equals(query, that.query) && super.doEquals(o);
+        return Objects.equals(fields, that.fields)
+            && Objects.equals(query, that.query)
+            && Objects.equals(rerank, that.rerank)
+            && Objects.equals(rerankField, that.rerankField)
+            && Objects.equals(rerankInferenceId, that.rerankInferenceId)
+            && super.doEquals(o);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fields, query, super.doHashCode());
+        return Objects.hash(fields, query, rerank, rerankField, rerankInferenceId, super.doHashCode());
     }
 
     public static HybridRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
         return PARSER.apply(parser, context);
+    }
+
+    private static RetrieverBuilder generateRetrieverBuilder(
+        List<String> fields,
+        String query,
+        Boolean rerank,
+        String rerankField,
+        String rerankInferenceId,
+        int rankWindowSize
+    ) {
+        LinearRetrieverBuilder linearRetrieverBuilder = new LinearRetrieverBuilder(
+            generateInnerRetrievers(fields, query),
+            rankWindowSize,
+            generateWeights(fields),
+            generateScoreNormalizers(fields)
+        );
+
+        RetrieverBuilder rootRetriever = linearRetrieverBuilder;
+        if (rerank != null && rerank) {
+            if (rerankField == null) {
+                throw new IllegalArgumentException("[" + RERANK_FIELD_FIELD.getPreferredName() + "] is required when reranking is enabled");
+            }
+
+            rootRetriever = new TextSimilarityRankRetrieverBuilder(
+                linearRetrieverBuilder,
+                rerankInferenceId,
+                query,
+                rerankField,
+                rankWindowSize,
+                false
+            );
+        }
+
+        return rootRetriever;
     }
 
     private static List<CompoundRetrieverBuilder.RetrieverSource> generateInnerRetrievers(List<String> fields, String query) {

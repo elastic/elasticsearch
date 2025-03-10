@@ -1634,8 +1634,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         when(indexShard.getPendingPrimaryTerm()).thenAnswer(
             i -> clusterService.state().metadata().getProject().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id())
         );
-        when(indexShard.getLocalCheckpointSupplier()).thenReturn(() -> SequenceNumbers.UNASSIGNED_SEQ_NO);
-        when(indexShard.getLastSyncedGlobalCheckpointSupplier()).thenReturn(() -> SequenceNumbers.UNASSIGNED_SEQ_NO);
+        when(indexShard.getLocalCheckpointSupplier()).thenReturn(() -> 0L);
+        when(indexShard.getLastSyncedGlobalCheckpointSupplier()).thenReturn(() -> 0L);
         ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
         when(indexShard.getReplicationGroup()).thenReturn(replicationGroup);
         return indexShard;

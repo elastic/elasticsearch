@@ -89,7 +89,7 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
             XContentType.JSON,
             TimeValue.ONE_MINUTE,
             true,
-            InferenceContext.empty()
+            InferenceContext.EMPTY_INSTANCE
         );
 
         action.doExecute(mock(Task.class), request, listener);
@@ -132,7 +132,7 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
             XContentType.JSON,
             TimeValue.ONE_MINUTE,
             true,
-            InferenceContext.empty()
+            InferenceContext.EMPTY_INSTANCE
         );
 
         action.doExecute(mock(Task.class), request, listener);
@@ -156,7 +156,7 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
             XContentType.JSON,
             TimeValue.ONE_MINUTE,
             true,
-            InferenceContext.empty()
+            InferenceContext.EMPTY_INSTANCE
         );
 
         action.doExecute(mock(Task.class), request, listener);
@@ -186,7 +186,7 @@ public class TransportInferenceActionProxyTests extends ESTestCase {
             XContentType.JSON,
             TimeValue.ONE_MINUTE,
             true,
-            InferenceContext.empty()
+            InferenceContext.EMPTY_INSTANCE
         );
 
         action.doExecute(mock(Task.class), request, listener);

@@ -80,7 +80,7 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
             if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)) {
                 this.context = new InferenceContext(in);
             } else {
-                this.context = InferenceContext.empty();
+                this.context = InferenceContext.EMPTY_INSTANCE;
             }
         }
 

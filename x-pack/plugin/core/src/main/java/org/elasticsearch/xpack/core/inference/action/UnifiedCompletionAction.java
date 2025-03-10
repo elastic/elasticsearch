@@ -46,7 +46,7 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
         private final TimeValue timeout;
 
         public Request(String inferenceEntityId, TaskType taskType, UnifiedCompletionRequest unifiedCompletionRequest, TimeValue timeout) {
-            this(inferenceEntityId, taskType, unifiedCompletionRequest, InferenceContext.empty(), timeout);
+            this(inferenceEntityId, taskType, unifiedCompletionRequest, InferenceContext.EMPTY_INSTANCE, timeout);
         }
 
         public Request(

@@ -105,7 +105,17 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             TimeValue inferenceTimeout,
             boolean stream
         ) {
-            this(taskType, inferenceEntityId, query, input, taskSettings, inputType, inferenceTimeout, stream, InferenceContext.empty());
+            this(
+                taskType,
+                inferenceEntityId,
+                query,
+                input,
+                taskSettings,
+                inputType,
+                inferenceTimeout,
+                stream,
+                InferenceContext.EMPTY_INSTANCE
+            );
         }
 
         public Request(

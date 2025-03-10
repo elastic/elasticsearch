@@ -92,7 +92,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             "model",
             TaskType.ANY,
             UnifiedCompletionRequest.of(List.of(UnifiedCompletionRequestTests.randomMessage())),
-            InferenceContext.empty(),
+            InferenceContext.EMPTY_INSTANCE,
             TimeValue.timeValueSeconds(10)
         );
 
@@ -102,7 +102,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             instanceReader(),
             TransportVersions.ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION
         );
-        assertThat(deserializedInstance.getContext(), equalTo(InferenceContext.empty()));
+        assertThat(deserializedInstance.getContext(), equalTo(InferenceContext.EMPTY_INSTANCE));
     }
 
     @Override
@@ -112,7 +112,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
                 instance.getInferenceEntityId(),
                 instance.getTaskType(),
                 instance.getUnifiedCompletionRequest(),
-                InferenceContext.empty(),
+                InferenceContext.EMPTY_INSTANCE,
                 instance.getTimeout()
             );
         }
@@ -131,7 +131,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             randomAlphaOfLength(10),
             randomFrom(TaskType.values()),
             UnifiedCompletionRequestTests.randomUnifiedCompletionRequest(),
-            InferenceContext.empty(),
+            InferenceContext.EMPTY_INSTANCE,
             TimeValue.timeValueMillis(randomLongBetween(1, 2048))
         );
     }

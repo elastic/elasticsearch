@@ -24,12 +24,10 @@ import java.io.IOException;
  */
 public record InferenceContext(String productUseCase) implements Writeable, ToXContent {
 
+    public static final InferenceContext EMPTY_INSTANCE = new InferenceContext("");
+
     public InferenceContext(StreamInput in) throws IOException {
         this(in.readString());
-    }
-
-    public static InferenceContext empty() {
-        return new InferenceContext("");
     }
 
     @Override

@@ -60,8 +60,12 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             }
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, singleInputRequest)) {
-            var request = InferenceAction.Request.parseRequest("model_id", TaskType.SPARSE_EMBEDDING, InferenceContext.empty(), parser)
-                .build();
+            var request = InferenceAction.Request.parseRequest(
+                "model_id",
+                TaskType.SPARSE_EMBEDDING,
+                InferenceContext.EMPTY_INSTANCE,
+                parser
+            ).build();
             assertThat(request.getInput(), contains("single text input"));
         }
 
@@ -71,7 +75,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             }
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, multiInputRequest)) {
-            var request = InferenceAction.Request.parseRequest("model_id", TaskType.ANY, InferenceContext.empty(), parser).build();
+            var request = InferenceAction.Request.parseRequest("model_id", TaskType.ANY, InferenceContext.EMPTY_INSTANCE, parser).build();
             assertThat(request.getInput(), contains("an array", "of", "inputs"));
         }
     }
@@ -177,8 +181,12 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             }
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, singleInputRequest)) {
-            var request = InferenceAction.Request.parseRequest("model_id", TaskType.SPARSE_EMBEDDING, InferenceContext.empty(), parser)
-                .build();
+            var request = InferenceAction.Request.parseRequest(
+                "model_id",
+                TaskType.SPARSE_EMBEDDING,
+                InferenceContext.EMPTY_INSTANCE,
+                parser
+            ).build();
             assertThat(request.getInputType(), is(InputType.UNSPECIFIED));
         }
     }
@@ -379,7 +387,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                             instance.getInputType(),
                             instance.getInferenceTimeout(),
                             false,
-                            InferenceContext.empty()
+                            InferenceContext.EMPTY_INSTANCE
                         );
                     }
 
@@ -468,7 +476,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         );
 
         // Verify that context is empty after deserializing a request coming from an older transport version
-        assertThat(deserializedInstance.getContext(), equalTo(InferenceContext.empty()));
+        assertThat(deserializedInstance.getContext(), equalTo(InferenceContext.EMPTY_INSTANCE));
     }
 
     public void testGetInputTypeToWrite_ReturnsIngest_WhenInputTypeIsUnspecified_VersionBeforeUnspecifiedIntroduced() {

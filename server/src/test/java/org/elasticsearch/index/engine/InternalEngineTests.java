@@ -7323,6 +7323,25 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testExtraUserDataIsCommitted() throws IOException {
+        engine.close();
+        engine = new InternalEngine(engine.config()) {
+            @Override
+            protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
+                return Map.of("userkey", "userdata", ES_VERSION, IndexVersions.ZERO.toString());
+            }
+        };
+        engine.skipTranslogRecovery();
+
+        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+        engine.index(indexForDoc(doc));
+        engine.flush();
+
+        Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+        assertThat(userData, hasEntry("userkey", "userdata"));
+        assertThat(userData, hasEntry(ES_VERSION, IndexVersion.current().toString()));
+    }
+
     public void testEnginePreCommitData() throws IOException {
         engine.close();
         final var preCommitData = new AtomicReference<Object>();

@@ -208,8 +208,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
     }
 
+    // exposed for tests
     // synchronized so that {@code #closed}, {@code #runningMergeTasks} and {@code #backloggedMergeTasks} are modified atomically
-    private synchronized Schedule schedule(MergeTask mergeTask) {
+    synchronized Schedule schedule(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
         if (closed) {
             // do not run or backlog tasks when closing the merge scheduler, instead abort them
@@ -224,7 +225,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
     }
 
-    private synchronized void mergeTaskFinishedRunning(MergeTask mergeTask) {
+    // exposed for tests
+    synchronized void mergeTaskFinishedRunning(MergeTask mergeTask) {
         boolean removed = runningMergeTasks.remove(mergeTask.onGoingMerge.getMerge()) != null;
         assert removed : "completed merge task [" + mergeTask + "] not registered as running";
         // when one merge is done, maybe a backlogged one can now execute

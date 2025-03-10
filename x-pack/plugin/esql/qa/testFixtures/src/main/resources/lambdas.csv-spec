@@ -1,0 +1,226 @@
+simpleMatch
+row a = ["foo", "bar"] | where any_match(a, x -> x == "bar");
+
+a:keyword 
+["foo", "bar"]   
+;
+
+
+simpleNoMatch
+row a = ["foo", "bar"] | where any_match(a, x -> x == "baz");
+
+a:keyword 
+;
+
+
+simpleFilter
+required_capability: lambdas
+from employees 
+| where any_match(job_positions, x -> x == "Accountant") 
+| keep emp_no, job_positions 
+| sort emp_no 
+| limit 3;
+
+emp_no:integer | job_positions:keyword 
+10001          | ["Accountant", "Senior Python Developer"]
+10012          | ["Accountant", "Head Human Resources"]
+10016          | ["Accountant", "Purchase Manager", "Python Developer", "Reporting Analyst"]          
+;
+
+
+simpleFilterNameMasking
+required_capability: lambdas
+from employees 
+| where any_match(job_positions, job_positions -> job_positions == "Accountant") 
+| keep emp_no, job_positions 
+| sort emp_no 
+| limit 3;
+
+emp_no:integer | job_positions:keyword 
+10001          | ["Accountant", "Senior Python Developer"]
+10012          | ["Accountant", "Head Human Resources"]
+10016          | ["Accountant", "Purchase Manager", "Python Developer", "Reporting Analyst"]          
+;
+
+
+simpleFilterNoPushdown
+required_capability: lambdas
+from employees 
+| sort emp_no
+| limit 3
+| where any_match(job_positions, x -> x == "Accountant") 
+| keep emp_no, job_positions ;
+
+emp_no:integer | job_positions:keyword 
+10001          | ["Accountant", "Senior Python Developer"]
+;
+
+
+filterWithFunctions
+required_capability: lambdas
+from employees 
+| where any_match(job_positions, x -> x == "Accountant" AND to_lower(x) == "accountant") 
+| keep emp_no, job_positions
+| sort emp_no
+| limit 3;
+
+emp_no:integer | job_positions:keyword 
+10001          | ["Accountant", "Senior Python Developer"]
+10012          | ["Accountant", "Head Human Resources"]
+10016          | ["Accountant", "Purchase Manager", "Python Developer", "Reporting Analyst"]
+;
+
+
+filterWithMoreFields
+required_capability: lambdas
+from employees 
+| where any_match(job_positions, x -> x == "Accountant" AND first_name == "Georgi") 
+| keep emp_no, job_positions
+| sort emp_no
+| limit 3;
+
+emp_no:integer | job_positions:keyword 
+10001          | ["Accountant", "Senior Python Developer"]
+;
+
+
+filterNoMasking
+required_capability: lambdas
+from employees 
+| where any_match(job_positions, x -> (x == "Accountant" AND mv_count(job_positions) == 2)) 
+| keep emp_no, job_positions
+| sort emp_no
+| limit 3;
+
+emp_no:integer | job_positions:keyword 
+10001          | ["Accountant", "Senior Python Developer"]
+10012          | ["Accountant", "Head Human Resources"]
+10081          | ["Accountant", "Internship"]             
+;
+
+
+filterNestedLambdas
+required_capability: lambdas
+from employees 
+| where any_match(job_positions, x -> (x == "Accountant" AND any_match(job_positions, y -> y == "Internship"))) 
+| keep emp_no, job_positions
+| sort emp_no
+| limit 3;
+
+emp_no:integer | job_positions:keyword 
+10028          | ["Accountant", "Internship", "Python Developer", "Tech Lead"]            
+10066          | ["Accountant", "Data Scientist", "Internship", "Senior Python Developer"]
+10081          | ["Accountant", "Internship"]             
+;
+
+
+
+filterNestedLambdasPassingVariables
+required_capability: lambdas
+from employees
+| keep emp_no, job_positions 
+| where any_match(job_positions, x -> (x == "Accountant" AND any_match(job_positions, y -> y == x))) 
+| sort emp_no
+| limit 3;
+
+emp_no:integer | job_positions:keyword 
+10001          | ["Accountant", "Senior Python Developer"]
+10012          | ["Accountant", "Head Human Resources"]
+10016          | ["Accountant", "Purchase Manager", "Python Developer", "Reporting Analyst"]             
+;
+
+
+filterNestedLambdasMaskingLambdaVariable
+required_capability: lambdas
+from employees 
+| where any_match(job_positions, x -> (x == "Accountant" AND any_match(job_positions, x -> x == "Internship"))) 
+| keep emp_no, job_positions
+| sort emp_no
+| limit 3;
+
+emp_no:integer | job_positions:keyword 
+10028          | ["Accountant", "Internship", "Python Developer", "Tech Lead"]            
+10066          | ["Accountant", "Data Scientist", "Internship", "Senior Python Developer"]
+10081          | ["Accountant", "Internship"]             
+;
+
+
+mvMapEval
+required_capability: lambdas
+from employees
+| sort emp_no
+| limit 4
+| eval foo = mv_map(job_positions, x -> to_upper(x)) 
+| keep emp_no, job_positions, foo;
+
+emp_no:integer | job_positions:keyword                                                          | foo:keyword 
+10001          | ["Accountant", "Senior Python Developer"]                                      | ["ACCOUNTANT", "SENIOR PYTHON DEVELOPER"] 
+10002          | "Senior Team Lead"                                                             | "SENIOR TEAM LEAD"              
+10003          | null                                                                           | null     
+10004          | ["Head Human Resources", "Reporting Analyst", "Support Engineer", "Tech Lead"] | ["HEAD HUMAN RESOURCES", "REPORTING ANALYST", "SUPPORT ENGINEER", "TECH LEAD"]
+;
+
+
+mvMapEvalNested
+required_capability: lambdas
+from employees
+| sort emp_no
+| limit 4
+| eval foo = mv_map(mv_map(job_positions, x -> to_upper(x)), y -> to_lower(y))  
+| keep emp_no, job_positions, foo;
+
+emp_no:integer | job_positions:keyword                                                  | foo:keyword                                                           
+10001          | [Accountant, Senior Python Developer]                                  | [accountant, senior python developer]                                 
+10002          | Senior Team Lead                                                       | senior team lead                                                      
+10003          | null                                                                   | null                                                                  
+10004          | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead] | [head human resources, reporting analyst, support engineer, tech lead]
+;
+
+
+mvMapEvalConcat
+required_capability: lambdas
+from employees
+| sort emp_no
+| limit 4
+| eval foo = mv_concat(mv_map(job_positions, x -> to_upper(x)), ", ") 
+| keep emp_no, job_positions, foo;
+
+emp_no:integer | job_positions:keyword                                                          | foo:keyword 
+10001          | ["Accountant", "Senior Python Developer"]                                      | "ACCOUNTANT, SENIOR PYTHON DEVELOPER"
+10002          | "Senior Team Lead"                                                             | "SENIOR TEAM LEAD"              
+10003          | null                                                                           | null     
+10004          | ["Head Human Resources", "Reporting Analyst", "Support Engineer", "Tech Lead"] | "HEAD HUMAN RESOURCES, REPORTING ANALYST, SUPPORT ENGINEER, TECH LEAD"
+;
+
+
+mvFilter
+required_capability: lambdas
+from employees
+| sort emp_no
+| limit 4
+| eval foo = mv_filter(job_positions, x -> x == "Accountant")  
+| keep emp_no, job_positions, foo;
+
+emp_no:integer | job_positions:keyword                                                  | foo:keyword                                                           
+10001          | [Accountant, Senior Python Developer]                                  | Accountant                                 
+10002          | Senior Team Lead                                                       | null                                                      
+10003          | null                                                                   | null                                                                  
+10004          | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead] | null
+;
+
+
+
+mvFilterComplex
+required_capability: lambdas
+from employees
+| sort emp_no
+| limit 4
+| eval foo = mv_filter(job_positions, x -> length(x) < 18)  
+| keep emp_no, job_positions, foo;
+
+emp_no:integer | job_positions:keyword                                                  | foo:keyword                                                           
+10001          | [Accountant, Senior Python Developer]                                  | Accountant                                 
+10002          | Senior Team Lead                                                       | Senior Team Lead                                                      
+10003          | null                                                                   | null                                                                  
+10004          | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead] | [Reporting Analyst, Support Engineer, Tech Lead]
+;

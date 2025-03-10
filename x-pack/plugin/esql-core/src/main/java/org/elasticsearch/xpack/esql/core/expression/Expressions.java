@@ -124,6 +124,7 @@ public final class Expressions {
         AttributeSet set = new AttributeSet();
         for (Expression exp : exps) {
             set.addAll(exp.references());
+            exp.forEachDown(Lambda.class, lambda -> { set.removeAll(lambda.getFields()); });
         }
         return set;
     }

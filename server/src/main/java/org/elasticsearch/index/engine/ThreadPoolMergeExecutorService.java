@@ -257,7 +257,7 @@ public class ThreadPoolMergeExecutorService {
         void update(LongUnaryOperator updateFunction, AtomicIORate.UpdateConsumer updateConsumer) {
             long prev = ioRate.get(), next = 0L;
             for (boolean haveNext = false;;) {
-                if (!haveNext) next = updateFunction.applyAsLong(prev);
+                if (haveNext == false) next = updateFunction.applyAsLong(prev);
                 if (ioRate.weakCompareAndSetVolatile(prev, next)) {
                     updateConsumer.accept(prev, next);
                     return;

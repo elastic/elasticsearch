@@ -11,7 +11,7 @@ package org.elasticsearch.datastreams.lifecycle.rest;
 import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.BasicDataStreamLifecycle;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -60,6 +60,6 @@ public class RestGetDataStreamLifecycleAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY, "data_stream_global_retention");
+        return Set.of(BasicDataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY, "data_stream_global_retention");
     }
 }

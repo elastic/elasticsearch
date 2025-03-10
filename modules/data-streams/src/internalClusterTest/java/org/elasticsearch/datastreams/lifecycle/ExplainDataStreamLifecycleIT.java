@@ -134,7 +134,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.isManagedByLifecycle(), is(true));
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
-                assertThat(explainIndex.getLifecycle().getDataStreamRetention(), nullValue());
+                assertThat(explainIndex.getLifecycle().dataRetention(), nullValue());
                 if (internalCluster().numDataNodes() > 1) {
                     // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
                     assertThat(explainIndex.getError(), nullValue());
@@ -193,7 +193,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.isManagedByLifecycle(), is(true));
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
-                assertThat(explainIndex.getLifecycle().getDataStreamRetention(), nullValue());
+                assertThat(explainIndex.getLifecycle().dataRetention(), nullValue());
 
                 if (explainIndex.getIndex().equals(DataStream.getDefaultBackingIndexName(dataStreamName, 1))) {
                     // first generation index was rolled over
@@ -263,7 +263,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
                 assertThat(
-                    explainIndex.getLifecycle().getDataStreamRetention(),
+                    explainIndex.getLifecycle().dataRetention(),
                     equalTo(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS))
                 );
             }
@@ -329,7 +329,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.isManagedByLifecycle(), is(true));
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
-                assertThat(explainIndex.getLifecycle().getDataStreamRetention(), nullValue());
+                assertThat(explainIndex.getLifecycle().dataRetention(), nullValue());
                 assertThat(explainIndex.getRolloverDate(), nullValue());
                 assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), nullValue());
                 // index has not been rolled over yet

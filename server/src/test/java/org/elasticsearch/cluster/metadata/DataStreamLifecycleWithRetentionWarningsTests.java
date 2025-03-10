@@ -111,10 +111,10 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention, false);
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.size(), is(1));
-        String userRetentionPart = lifecycle.getDataStreamRetention() == null
+        String userRetentionPart = lifecycle.dataRetention() == null
             ? "Not providing a retention is not allowed for this project."
             : "The retention provided ["
-                + lifecycle.getDataStreamRetention().getStringRep()
+                + lifecycle.dataRetention().getStringRep()
                 + "] is exceeding the max allowed data retention of this project ["
                 + maxRetention.getStringRep()
                 + "].";
@@ -148,7 +148,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         ProjectMetadata after = metadataDataStreamsService.updateDataLifecycle(before, List.of(dataStream), DataStreamLifecycle.DEFAULT);
         DataStream updatedDataStream = after.dataStreams().get(dataStream);
         assertNotNull(updatedDataStream);
-        assertThat(updatedDataStream.getLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
+        assertThat(updatedDataStream.getDataLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.size(), is(1));
         assertThat(

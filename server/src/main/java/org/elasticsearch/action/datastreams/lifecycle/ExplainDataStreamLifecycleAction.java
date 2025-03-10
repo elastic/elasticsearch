@@ -17,8 +17,8 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.cluster.metadata.BasicDataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -218,7 +218,7 @@ public class ExplainDataStreamLifecycleAction {
                 builder.field(explainIndexDataLifecycle.getIndex());
                 explainIndexDataLifecycle.toXContent(
                     builder,
-                    DataStreamLifecycle.addEffectiveRetentionParams(outerParams),
+                    BasicDataStreamLifecycle.addEffectiveRetentionParams(outerParams),
                     rolloverConfiguration,
                     globalRetention
                 );

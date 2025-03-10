@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.BasicDataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
@@ -80,23 +81,23 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         LongSummaryStatistics effectiveRetentionStats = new LongSummaryStatistics();
 
         for (DataStream dataStream : dataStreams) {
-            if (dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
+            if (dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().isEnabled()) {
                 dataStreamsWithLifecycles++;
                 // Track data retention
-                if (dataStream.getLifecycle().getDataStreamRetention() != null) {
-                    dataRetentionStats.accept(dataStream.getLifecycle().getDataStreamRetention().getMillis());
+                if (dataStream.getDataLifecycle().dataRetention() != null) {
+                    dataRetentionStats.accept(dataStream.getDataLifecycle().dataRetention().getMillis());
                 }
                 // Track effective retention
-                Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = dataStream.getLifecycle()
+                Tuple<TimeValue, BasicDataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = dataStream.getDataLifecycle()
                     .getEffectiveDataRetentionWithSource(globalRetention, dataStream.isInternal());
 
                 // Track global retention usage
                 if (effectiveDataRetentionWithSource.v1() != null) {
                     effectiveRetentionStats.accept(effectiveDataRetentionWithSource.v1().getMillis());
-                    if (effectiveDataRetentionWithSource.v2().equals(DataStreamLifecycle.RetentionSource.DEFAULT_GLOBAL_RETENTION)) {
+                    if (effectiveDataRetentionWithSource.v2().equals(BasicDataStreamLifecycle.RetentionSource.DEFAULT_GLOBAL_RETENTION)) {
                         dataStreamsWithDefaultRetention++;
                     }
-                    if (effectiveDataRetentionWithSource.v2().equals(DataStreamLifecycle.RetentionSource.MAX_GLOBAL_RETENTION)) {
+                    if (effectiveDataRetentionWithSource.v2().equals(BasicDataStreamLifecycle.RetentionSource.MAX_GLOBAL_RETENTION)) {
                         dataStreamsWithMaxRetention++;
                     }
                 }

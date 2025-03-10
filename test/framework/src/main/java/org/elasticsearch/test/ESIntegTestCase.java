@@ -215,6 +215,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING;
@@ -1905,16 +1906,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         while (inFlightAsyncOperations.size() > MAX_IN_FLIGHT_ASYNC_INDEXES) {
-            int waitFor = between(0, inFlightAsyncOperations.size() - 1);
-            try {
-                assertTrue(
-                    "operation did not complete within timeout",
-                    inFlightAsyncOperations.remove(waitFor).await(60, TimeUnit.SECONDS)
-                );
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                fail(e, "interrupted while waiting for operation to complete");
-            }
+            // longer-than-usual timeout, see #112908
+            safeAwait(inFlightAsyncOperations.remove(between(0, inFlightAsyncOperations.size() - 1)), timeValueSeconds(60));
         }
     }
 

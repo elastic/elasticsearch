@@ -551,7 +551,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                     snapshotInfo,
                     SnapshotsService.OLD_SNAPSHOT_FORMAT,
                     listener,
-                    info -> {}
+                    () -> {}
                 )
             )
         );

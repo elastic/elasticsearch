@@ -136,11 +136,6 @@ public class JwtMultiProjectIT extends ESRestTestCase {
         return entityAsMap(client().performRequest(request));
     }
 
-    private void createProject(String project) throws IOException {
-        final Request request = new Request("PUT", "/_project/" + project);
-        client().performRequest(request);
-    }
-
     private void deleteProject(String project) throws IOException {
         final Request request = new Request("DELETE", "/_project/" + project);
         client().performRequest(request);

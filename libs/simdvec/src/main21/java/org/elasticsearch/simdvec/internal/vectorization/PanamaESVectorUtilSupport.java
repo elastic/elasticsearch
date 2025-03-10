@@ -187,7 +187,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     public static float ipFloatByteImpl(float[] q, byte[] d) {
         assert BYTE_FOR_FLOAT_SPECIES != null;
-        float sum = 0;
+        FloatVector vSum = FloatVector.zero(FLOAT_SPECIES);
         int i = 0;
 
         int limit = FLOAT_SPECIES.loopBound(q.length);
@@ -195,8 +195,10 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, q, i);
             ByteVector bv = ByteVector.fromArray(BYTE_FOR_FLOAT_SPECIES, d, i);
             // no separate parts needed for the cast, as we've used a byte vector size 1/4th the float vector size
-            sum += qv.mul(bv.castShape(qv.species(), 0)).reduceLanes(VectorOperators.ADD);
+            vSum = qv.mul(bv.castShape(qv.species(), 0)).add(vSum);
         }
+
+        float sum = vSum.reduceLanes(VectorOperators.ADD);
 
         // handle the tail
         for (; i < q.length; i++) {

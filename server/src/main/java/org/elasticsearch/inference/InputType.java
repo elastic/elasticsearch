@@ -44,8 +44,8 @@ public enum InputType {
         return inputType;
     }
 
-    public static boolean isInternalType(InputType inputType) {
-        return inputType == InputType.INTERNAL_INGEST || inputType == InputType.INTERNAL_SEARCH;
+    public static boolean isInternalTypeOrUnspecified(InputType inputType) {
+        return inputType == InputType.INTERNAL_INGEST || inputType == InputType.INTERNAL_SEARCH || inputType == InputType.UNSPECIFIED;
     }
 
     public static boolean isSpecified(InputType inputType) {

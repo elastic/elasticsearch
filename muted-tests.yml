@@ -363,6 +363,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/124159
+- class: org.elasticsearch.indices.stats.IndexStatsIT
+  method: testFilterCacheStats
+  issue: https://github.com/elastic/elasticsearch/issues/124447
 
 # Examples:
 #

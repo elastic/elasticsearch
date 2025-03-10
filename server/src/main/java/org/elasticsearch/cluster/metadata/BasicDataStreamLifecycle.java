@@ -22,7 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Defined the basic functionality a data stream lifecycle configuration must provide. Currently, it requires the following configurations:
+ * Defines the basic functionality a data stream lifecycle configuration must provide. Currently, it requires the following configurations:
  * - enabled
  * - data retention
  */

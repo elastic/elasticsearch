@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical;
 
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -20,9 +21,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.lang.Boolean.FALSE;
@@ -58,11 +61,15 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                     // no need for projection when dealing with aggs
                     if (logicalFragment instanceof Aggregate == false) {
                         List<Attribute> output = new ArrayList<>(requiredAttributes.get());
+                        var noFieldsPlan = output.equals(Analyzer.NO_FIELDS);
+                        // this one is valid when we need no fields from ES, only their count and it's not an aggregation that projects
+                        // the results
+                        var emptyOutput = output.isEmpty();
                         // if all the fields are filtered out, it's only the count that matters
                         // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
                         // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
                         // to avoid the block from being trimmed
-                        if (output.isEmpty()) {
+                        if (emptyOutput || noFieldsPlan) {
                             var alias = new Alias(logicalFragment.source(), "<all-fields-projected>", Literal.NULL, null, true);
                             List<Alias> fields = singletonList(alias);
                             logicalFragment = new Eval(logicalFragment.source(), logicalFragment, fields);
@@ -75,7 +82,13 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                             fragmentExec.esFilter(),
                             fragmentExec.estimatedRowSize()
                         );
-                        return new ExchangeExec(exec.source(), output, exec.inBetweenAggs(), newChild);
+                        var exchange = new ExchangeExec(exec.source(), output, exec.inBetweenAggs(), newChild);
+                        if (noFieldsPlan) {
+                            // if there is no aggregation that is building the final projection, proactively remove the synthetic field
+                            return new ProjectExec(exec.source(), exchange, Collections.emptyList());
+                        } else {
+                            return exchange;
+                        }
                     }
                 }
             } else {

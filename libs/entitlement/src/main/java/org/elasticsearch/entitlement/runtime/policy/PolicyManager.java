@@ -648,19 +648,18 @@ public class PolicyManager {
             return callerClass;
         }
         Optional<Class<?>> result = StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
-            .walk(frames -> findRequestingClass(frames.map(StackFrame::getDeclaringClass)));
+            .walk(frames -> findRequestingFrame(frames).map(StackFrame::getDeclaringClass));
         return result.orElse(null);
     }
 
     /**
-     * Given a stream of classes corresponding to the frames from a {@link StackWalker},
-     * returns the module whose entitlements should be checked.
+     * Given a stream of {@link StackFrame}s, identify the one whose entitlements should be checked.
      *
      * @throws NullPointerException if the requesting module is {@code null}
      */
-    Optional<Class<?>> findRequestingClass(Stream<Class<?>> classes) {
-        return classes.filter(c -> c.getModule() != entitlementsModule)  // Ignore the entitlements library
-            .skip(1)                                           // Skip the sensitive caller method
+    Optional<StackFrame> findRequestingFrame(Stream<StackFrame> frames) {
+        return frames.filter(f -> f.getDeclaringClass().getModule() != entitlementsModule) // ignore entitlements library
+            .skip(1) // Skip the sensitive caller method
             .findFirst();
     }
 

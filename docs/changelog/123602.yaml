@@ -1,0 +1,5 @@
+pr: 123602
+summary: Make `CachingUsernamePasswordRealm` and `ReloadablePlugin` Project Aware
+area: Infra/Plugins
+type: enhancement
+issues: []

@@ -12,6 +12,7 @@ package org.elasticsearch.common.io.stream;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
@@ -231,14 +232,22 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         NamedWriteableRegistry registry,
         BytesReference serialized
     ) throws IOException {
-        try (
-            StreamInput in = registry == null
-                ? new DeduplicateStreamInput(serialized.streamInput(), new DeduplicatorCache())
-                : new DeduplicateNamedWriteableAwareStreamInput(serialized.streamInput(), registry, new DeduplicatorCache())
-        ) {
-            in.setTransportVersion(serializedAtVersion);
-            return reader.read(in);
+        try (StreamInput in = serialized.streamInput()) {
+            return reader.read(wrapWithDeduplicatorStreamInput(in, serializedAtVersion, registry));
         }
+    }
+
+    /** Wraps the provided {@link StreamInput} with another stream that extends {@link Deduplicator} */
+    public static StreamInput wrapWithDeduplicatorStreamInput(
+        StreamInput in,
+        TransportVersion serializedAtVersion,
+        @Nullable NamedWriteableRegistry registry
+    ) {
+        StreamInput out = registry == null
+            ? new DeduplicateStreamInput(in, new DeduplicatorCache())
+            : new DeduplicateNamedWriteableAwareStreamInput(in, registry, new DeduplicatorCache());
+        out.setTransportVersion(serializedAtVersion);
+        return out;
     }
 
     /** An object implementing this interface can deduplicate instance of the provided objects.*/

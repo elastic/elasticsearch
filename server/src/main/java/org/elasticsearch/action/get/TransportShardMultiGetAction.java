@@ -160,8 +160,6 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         final ClusterState clusterState = clusterService.state();
         if (projectResolver.getProjectMetadata(clusterState).index(shardId.getIndex()).isSystem()) {
             return threadPool.executor(executorSelector.executorForGet(shardId.getIndexName()));
-        } else if (indicesService.indexServiceSafe(shardId.getIndex()).getIndexSettings().isSearchThrottled()) {
-            return threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED);
         } else {
             return super.getExecutor(request, shardId);
         }

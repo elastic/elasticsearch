@@ -58,7 +58,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -167,7 +166,6 @@ import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABL
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -1846,46 +1844,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testSetSearchThrottled() throws IOException {
-        createIndex("throttled_threadpool_index");
-        client().execute(
-            InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
-            new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request(
-                "throttled_threadpool_index",
-                IndexSettings.INDEX_SEARCH_THROTTLED.getKey(),
-                "true"
-            )
-        ).actionGet();
-        final SearchService service = getInstanceFromNode(SearchService.class);
-        Index index = resolveIndex("throttled_threadpool_index");
-        assertTrue(service.getIndicesService().indexServiceSafe(index).getIndexSettings().isSearchThrottled());
-        prepareIndex("throttled_threadpool_index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        assertSearchHits(
-            client().prepareSearch("throttled_threadpool_index")
-                .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
-                .setSize(1),
-            "1"
-        );
-        // we add a search action listener in a plugin above to assert that this is actually used
-        client().execute(
-            InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
-            new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request(
-                "throttled_threadpool_index",
-                IndexSettings.INDEX_SEARCH_THROTTLED.getKey(),
-                "false"
-            )
-        ).actionGet();
-
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> indicesAdmin().prepareUpdateSettings("throttled_threadpool_index")
-                .setSettings(Settings.builder().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), false))
-                .get()
-        );
-        assertEquals("can not update private setting [index.search.throttled]; this setting is managed by Elasticsearch", iae.getMessage());
-        assertFalse(service.getIndicesService().indexServiceSafe(index).getIndexSettings().isSearchThrottled());
-    }
-
     public void testAggContextGetsMatchAll() throws IOException {
         createIndex("test");
         withAggregationContext("test", context -> assertThat(context.query(), equalTo(new MatchAllDocsQuery())));
@@ -1935,22 +1893,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                 check.accept(context.aggregations().factories().context());
             }
         }
-    }
-
-    public void testExpandSearchThrottled() {
-        createIndex("throttled_threadpool_index");
-        client().execute(
-            InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
-            new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request(
-                "throttled_threadpool_index",
-                IndexSettings.INDEX_SEARCH_THROTTLED.getKey(),
-                "true"
-            )
-        ).actionGet();
-
-        prepareIndex("throttled_threadpool_index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-        assertHitCount(client().prepareSearch(), 1L);
-        assertHitCount(client().prepareSearch().setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED), 1L);
     }
 
     public void testExpandSearchFrozen() {

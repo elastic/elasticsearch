@@ -28,7 +28,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.concurrent.Executor;
 
 /**
  * Performs the get operation.
@@ -126,13 +125,5 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     @Override
     protected Writeable.Reader<TermVectorsResponse> getResponseReader() {
         return TermVectorsResponse::new;
-    }
-
-    @Override
-    protected Executor getExecutor(TermVectorsRequest request, ShardId shardId) {
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        return indexService.getIndexSettings().isSearchThrottled()
-            ? threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED)
-            : super.getExecutor(request, shardId);
     }
 }

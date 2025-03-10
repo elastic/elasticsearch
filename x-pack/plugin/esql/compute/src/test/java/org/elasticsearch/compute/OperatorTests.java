@@ -66,11 +66,15 @@ import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -193,7 +197,7 @@ public class OperatorTests extends MapperServiceTestCase {
                 });
                 operators.add(
                     new OrdinalsGroupingOperator(
-                        shardIdx -> new KeywordFieldMapper.KeywordFieldType("g").blockLoader(null),
+                        shardIdx -> new KeywordFieldMapper.KeywordFieldType("g").blockLoader(mockBlContext()),
                         List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
                         ElementType.BYTES_REF,
                         0,
@@ -395,5 +399,44 @@ public class OperatorTests extends MapperServiceTestCase {
             limit,
             false // no scoring
         );
+    }
+
+    private MappedFieldType.BlockLoaderContext mockBlContext() {
+        return new MappedFieldType.BlockLoaderContext() {
+            @Override
+            public String indexName() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
+            }
+
+            @Override
+            public SearchLookup lookup() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Set<String> sourcePaths(String name) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String parentField(String field) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 }

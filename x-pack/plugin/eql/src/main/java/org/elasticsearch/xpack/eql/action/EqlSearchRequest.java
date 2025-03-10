@@ -128,14 +128,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_8)) {
             resultPosition = in.readString();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-            if (in.readBoolean()) {
-                fetchFields = in.readCollectionAsList(FieldAndFormat::new);
-            }
-            runtimeMappings = in.readGenericMap();
-        } else {
-            runtimeMappings = emptyMap();
+        if (in.readBoolean()) {
+            fetchFields = in.readCollectionAsList(FieldAndFormat::new);
         }
+        runtimeMappings = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             maxSamplesPerKey = in.readInt();
         }
@@ -491,13 +487,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_8)) {
             out.writeString(resultPosition);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-            out.writeBoolean(fetchFields != null);
-            if (fetchFields != null) {
-                out.writeCollection(fetchFields);
-            }
-            out.writeGenericMap(runtimeMappings);
+        out.writeBoolean(fetchFields != null);
+        if (fetchFields != null) {
+            out.writeCollection(fetchFields);
         }
+        out.writeGenericMap(runtimeMappings);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeInt(maxSamplesPerKey);
         }

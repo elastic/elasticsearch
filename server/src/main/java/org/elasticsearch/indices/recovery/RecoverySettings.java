@@ -51,7 +51,6 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 public class RecoverySettings {
     public static final IndexVersion SNAPSHOT_RECOVERIES_SUPPORTED_INDEX_VERSION = IndexVersions.V_7_15_0;
     public static final IndexVersion SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = IndexVersions.V_7_16_0;
-    public static final TransportVersion SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION = TransportVersions.V_7_16_0;
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);
 

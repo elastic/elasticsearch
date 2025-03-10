@@ -48,11 +48,7 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
         }
 
         public FeatureUsageInfo(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-                this.family = in.readOptionalString();
-            } else {
-                this.family = null;
-            }
+            this.family = in.readOptionalString();
             this.name = in.readString();
             this.lastUsedTime = ZonedDateTime.ofInstant(Instant.ofEpochSecond(in.readLong()), ZoneOffset.UTC);
             this.context = in.readOptionalString();
@@ -61,9 +57,7 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-                out.writeOptionalString(this.family);
-            }
+            out.writeOptionalString(this.family);
             out.writeString(name);
             out.writeLong(lastUsedTime.toEpochSecond());
             out.writeOptionalString(this.context);

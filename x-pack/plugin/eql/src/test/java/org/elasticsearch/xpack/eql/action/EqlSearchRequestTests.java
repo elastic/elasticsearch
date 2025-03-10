@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 
@@ -134,8 +133,8 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.waitForCompletionTimeout(instance.waitForCompletionTimeout());
         mutatedInstance.keepAlive(instance.keepAlive());
         mutatedInstance.keepOnCompletion(instance.keepOnCompletion());
-        mutatedInstance.fetchFields(version.onOrAfter(TransportVersions.V_7_13_0) ? instance.fetchFields() : null);
-        mutatedInstance.runtimeMappings(version.onOrAfter(TransportVersions.V_7_13_0) ? instance.runtimeMappings() : emptyMap());
+        mutatedInstance.fetchFields(instance.fetchFields());
+        mutatedInstance.runtimeMappings(instance.runtimeMappings());
         mutatedInstance.resultPosition(version.onOrAfter(TransportVersions.V_7_17_8) ? instance.resultPosition() : "tail");
         mutatedInstance.maxSamplesPerKey(version.onOrAfter(TransportVersions.V_8_7_0) ? instance.maxSamplesPerKey() : 1);
         mutatedInstance.allowPartialSearchResults(

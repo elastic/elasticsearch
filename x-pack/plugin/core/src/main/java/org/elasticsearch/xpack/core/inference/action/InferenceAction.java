@@ -199,6 +199,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 }
             }
 
+            if (taskType.equals(TaskType.CUSTOM)) {
+                if (query == null) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError(format("Field [query] cannot be null for task type [%s]", TaskType.CUSTOM));
+                    return e;
+                }
+            }
+
             return null;
         }
 

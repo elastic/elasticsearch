@@ -450,7 +450,8 @@ public class PolicyManagerTests extends ESTestCase {
         var testPath1 = Path.of("/base/test").toAbsolutePath();
         var testPath2 = Path.of("/base/test/foo").toAbsolutePath();
         var plugins = new LinkedHashMap<String, Policy>();
-        plugins.put("plugin1",
+        plugins.put(
+            "plugin1",
             new Policy(
                 "test",
                 List.of(
@@ -463,7 +464,8 @@ public class PolicyManagerTests extends ESTestCase {
                         )
                     )
                 )
-            ));
+            )
+        );
         plugins.put(
             "plugin2",
             new Policy(
@@ -478,7 +480,8 @@ public class PolicyManagerTests extends ESTestCase {
                         )
                     )
                 )
-            ));
+            )
+        );
         var iae = expectThrows(
             IllegalArgumentException.class,
             () -> new PolicyManager(

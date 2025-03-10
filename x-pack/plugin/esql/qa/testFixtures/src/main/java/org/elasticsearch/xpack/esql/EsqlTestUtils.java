@@ -191,7 +191,7 @@ public final class EsqlTestUtils {
     }
 
     public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
-        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
+        return new FieldAttribute(EMPTY, null, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
 
     public static FieldAttribute fieldAttribute() {
@@ -199,7 +199,7 @@ public final class EsqlTestUtils {
     }
 
     public static FieldAttribute fieldAttribute(String name, DataType type) {
-        return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean()));
+        return new FieldAttribute(EMPTY, null, name, new EsField(name, type, emptyMap(), randomBoolean()));
     }
 
     public static Literal of(Object value) {
@@ -217,7 +217,7 @@ public final class EsqlTestUtils {
     }
 
     public static ReferenceAttribute referenceAttribute(String name, DataType type) {
-        return new ReferenceAttribute(EMPTY, name, type);
+        return new ReferenceAttribute(EMPTY, null, name, type);
     }
 
     public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {

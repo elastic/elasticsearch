@@ -140,19 +140,19 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
                 Expression outerAgg = af.transformDown(Rate.class, rate -> {
                     changed.set(Boolean.TRUE);
                     Alias rateAgg = rateAggs.computeIfAbsent(rate, k -> {
-                        Alias newRateAgg = new Alias(rate.source(), agg.name(), rate);
+                        Alias newRateAgg = new Alias(rate.source(), null, agg.name(), rate);
                         firstPassAggs.add(newRateAgg);
                         return newRateAgg;
                     });
                     return rateAgg.toAttribute();
                 });
                 if (changed.get()) {
-                    secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
+                    secondPassAggs.add(new Alias(alias.source(), null, alias.name(), outerAgg, agg.id()));
                 } else {
-                    var toPartial = new Alias(agg.source(), alias.name(), new ToPartial(agg.source(), af.field(), af));
+                    var toPartial = new Alias(agg.source(), null, alias.name(), new ToPartial(agg.source(), af.field(), af));
                     var fromPartial = new FromPartial(agg.source(), toPartial.toAttribute(), af);
                     firstPassAggs.add(toPartial);
-                    secondPassAggs.add(new Alias(alias.source(), alias.name(), fromPartial, alias.id()));
+                    secondPassAggs.add(new Alias(alias.source(), null, alias.name(), fromPartial, alias.id()));
                 }
             }
         }
@@ -200,10 +200,10 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
                 newFinalGroup = timeBucket.toAttribute();
                 firstPassGroupings.add(newFinalGroup);
             } else {
-                newFinalGroup = new Alias(g.source(), g.name(), new Values(g.source(), g), g.id());
+                newFinalGroup = new Alias(g.source(), null, g.name(), new Values(g.source(), g), g.id());
                 firstPassAggs.add(newFinalGroup);
             }
-            secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
+            secondPassGroupings.add(new Alias(g.source(), null, g.name(), newFinalGroup.toAttribute(), g.id()));
         }
         return newAggregate(
             newAggregate(metrics.child(), Aggregate.AggregateType.METRICS, firstPassAggs, firstPassGroupings),

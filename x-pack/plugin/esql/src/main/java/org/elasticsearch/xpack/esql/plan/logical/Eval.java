@@ -50,7 +50,7 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
     }
 
     private Eval(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), in.readCollectionAsList(Alias::new));
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), in.readCollectionAsList(Alias::readFrom));
     }
 
     @Override
@@ -109,7 +109,7 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
             if (field.name().equals(newName)) {
                 newFields.add(field);
             } else {
-                Alias newField = new Alias(field.source(), newName, field.child(), new NameId(), field.synthetic());
+                Alias newField = new Alias(field.source(), field.qualifier(), newName, field.child(), new NameId(), field.synthetic());
                 newFields.add(newField);
                 aliasReplacedByBuilder.put(field.toAttribute(), newField.toAttribute());
             }

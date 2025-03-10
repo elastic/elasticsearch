@@ -39,7 +39,7 @@ public class EvalExec extends UnaryExec implements EstimatesRowSize {
     }
 
     private EvalExec(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(PhysicalPlan.class), in.readCollectionAsList(Alias::new));
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(PhysicalPlan.class), in.readCollectionAsList(Alias::readFrom));
     }
 
     @Override

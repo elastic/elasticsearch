@@ -57,7 +57,7 @@ public final class Alias extends NamedExpression {
         this.child = child;
     }
 
-    private static Alias readFrom(StreamInput in) throws IOException {
+    public static Alias readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
         String name = in.readString();
         String qualifier = in.readOptionalString();

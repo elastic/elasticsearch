@@ -148,7 +148,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(this, UnsupportedAttribute::new, name(), field(), hasCustomMessage ? message : null, id());
+        return NodeInfo.create(this, UnsupportedAttribute::new, qualifier(), name(), field(), hasCustomMessage ? message : null, id());
     }
 
     @Override

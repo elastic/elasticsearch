@@ -70,7 +70,15 @@ public class InlineJoin extends Join {
             List<Alias> aliases = new ArrayList<>(schema.size());
             for (int i = 0; i < schema.size(); i++) {
                 Attribute attr = schema.get(i);
-                aliases.add(new Alias(attr.source(), attr.name(), Literal.of(attr, BlockUtils.toJavaObject(blocks[i], 0)), attr.id()));
+                aliases.add(
+                    new Alias(
+                        attr.source(),
+                        attr.qualifier(),
+                        attr.name(),
+                        Literal.of(attr, BlockUtils.toJavaObject(blocks[i], 0)),
+                        attr.id()
+                    )
+                );
             }
             return new Eval(target.source(), target.left(), aliases);
         } else {

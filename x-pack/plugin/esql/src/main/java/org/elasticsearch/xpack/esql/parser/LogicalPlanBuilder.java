@@ -241,7 +241,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
         UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
         Source src = source(ctx);
-        return child -> new MvExpand(src, child, field, new UnresolvedAttribute(src, field.name()));
+        return child -> new MvExpand(src, child, field, new UnresolvedAttribute(src, field.qualifier(), field.name()));
 
     }
 
@@ -304,7 +304,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> new Insist(
             source,
             input,
-            fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.name())).toList()
+            fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.qualifier(), ne.name())).toList()
         );
     }
 
@@ -470,14 +470,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) {
         Source src = source(ctx);
         Attribute value = visitQualifiedName(ctx.value);
-        Attribute key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
+        Attribute key = ctx.key == null ? new UnresolvedAttribute(src, null, "@timestamp") : visitQualifiedName(ctx.key);
         Attribute targetType = new ReferenceAttribute(
             src,
+            // TODO: Probably forbid assigning a qualifier here.
+            ctx.targetType == null ? null : visitQualifiedName(ctx.targetType).qualifier(),
             ctx.targetType == null ? "type" : visitQualifiedName(ctx.targetType).name(),
             DataType.KEYWORD
         );
         Attribute targetPvalue = new ReferenceAttribute(
             src,
+            ctx.targetPvalue == null ? null : visitQualifiedName(ctx.targetPvalue).qualifier(),
             ctx.targetPvalue == null ? "pvalue" : visitQualifiedName(ctx.targetPvalue).name(),
             DataType.DOUBLE
         );
@@ -655,10 +658,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             // align _fork id across all fork branches
             Alias alias = null;
             if (firstForkNameId == null) {
-                alias = new Alias(source(ctx), "_fork", literal);
+                // TODO: how will qualifiers interact with FORK?
+                alias = new Alias(source(ctx), null, "_fork", literal);
                 firstForkNameId = alias.id();
             } else {
-                alias = new Alias(source(ctx), "_fork", literal, firstForkNameId);
+                alias = new Alias(source(ctx), null, "_fork", literal, firstForkNameId);
             }
 
             var finalAlias = alias;

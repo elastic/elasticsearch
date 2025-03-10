@@ -149,7 +149,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
     // ie from test | stats c = count(*)
     public static final List<Attribute> NO_FIELDS = List.of(
-        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataType.NULL, Nullability.TRUE, null, true)
+        new ReferenceAttribute(Source.EMPTY, null, "<no-fields>", DataType.NULL, Nullability.TRUE, null, true)
     );
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
@@ -295,9 +295,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias());
                 }
 
+                // TODO: if we were to allow qualifiers in FROM, they'd need to arrive here:
                 FieldAttribute attribute = t instanceof UnsupportedEsField uef
-                    ? new UnsupportedAttribute(source, name, uef)
-                    : new FieldAttribute(source, parentName, name, t);
+                    ? new UnsupportedAttribute(source, null, name, uef)
+                    : new FieldAttribute(source, null, parentName, name, t);
                 // primitive branch
                 if (DataType.isPrimitive(type)) {
                     list.add(attribute);
@@ -323,7 +324,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (resolved != null) {
                 var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
                 var matchField = plan.matchField() == null || plan.matchField() instanceof EmptyAttribute
-                    ? new UnresolvedAttribute(plan.source(), policy.getMatchField())
+                    ? new UnresolvedAttribute(plan.source(), null, policy.getMatchField())
                     : plan.matchField();
                 List<NamedExpression> enrichFields = calculateEnrichFields(
                     plan.source(),
@@ -370,7 +371,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 for (NamedExpression enrichField : enrichFields) {
                     String enrichFieldName = Expressions.name(enrichField instanceof Alias a ? a.child() : enrichField);
                     NamedExpression field = createEnrichFieldExpression(source, policyName, fieldMap, enrichFieldName);
-                    result.add(enrichField instanceof Alias a ? new Alias(a.source(), a.name(), field) : field);
+                    result.add(enrichField instanceof Alias a ? new Alias(a.source(), a.qualifier(), a.name(), field) : field);
                 }
             }
             return result;
@@ -391,7 +392,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 return new UnresolvedAttribute(source, enrichFieldName, msg);
             } else {
-                return new ReferenceAttribute(source, enrichFieldName, mappedField.dataType(), Nullability.TRUE, null, false);
+                return new ReferenceAttribute(source, null, enrichFieldName, mappedField.dataType(), Nullability.TRUE, null, false);
             }
         }
     }
@@ -570,7 +571,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     p.child(),
                     resolved,
                     resolved.resolved()
-                        ? new ReferenceAttribute(resolved.source(), resolved.name(), resolved.dataType(), resolved.nullable(), null, false)
+                        ? new ReferenceAttribute(
+                            resolved.source(),
+                            resolved.qualifier(),
+                            resolved.name(),
+                            resolved.dataType(),
+                            resolved.nullable(),
+                            null,
+                            false
+                        )
                         : resolved
                 );
             }
@@ -618,6 +627,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             if (false == dataTypesOk) {
                                 matchFieldChildReference = new UnresolvedAttribute(
                                     attr.source(),
+                                    attr.qualifier(),
                                     attr.name(),
                                     attr.id(),
                                     "column type mismatch, table column was ["
@@ -746,11 +756,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         fa.dataType().typeName()
                     )
                 );
-            return new FieldAttribute(fa.source(), name, field);
+            return new FieldAttribute(fa.source(), fa.qualifier(), name, field);
         }
 
         private static FieldAttribute insistKeyword(Attribute attribute) {
-            return new FieldAttribute(attribute.source(), attribute.name(), new PotentiallyUnmappedKeywordEsField(attribute.name()));
+            return new FieldAttribute(
+                attribute.source(),
+                attribute.qualifier(),
+                attribute.name(),
+                new PotentiallyUnmappedKeywordEsField(attribute.name())
+            );
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
@@ -1025,7 +1040,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static List<Attribute> resolveAgainstList(UnresolvedNamePattern up, Collection<Attribute> attrList) {
-        UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern());
+        UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.qualifier(), up.pattern());
         Predicate<Attribute> matcher = a -> up.match(a.name());
         var matches = AnalyzerRules.maybeResolveAgainstList(matcher, () -> ua, attrList, true, a -> Analyzer.handleSpecialFields(ua, a));
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedNamePattern.errorMessage(up.pattern(), list));
@@ -1528,7 +1543,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // NOTE: The name has to start with $$ to not break bwc with 8.15 - in that version, this is how we had to mark this as
             // synthetic to work around a bug.
             String unionTypedFieldName = Attribute.rawTemporaryName(fa.name(), "converted_to", resolvedField.getDataType().typeName());
-            FieldAttribute unionFieldAttribute = new FieldAttribute(fa.source(), fa.parentName(), unionTypedFieldName, resolvedField, true);
+            FieldAttribute unionFieldAttribute = new FieldAttribute(
+                fa.source(),
+                fa.parentName(),
+                fa.qualifier(),
+                unionTypedFieldName,
+                resolvedField,
+                true
+            );
             int existingIndex = unionFieldAttributes.indexOf(unionFieldAttribute);
             if (existingIndex >= 0) {
                 // Do not generate multiple name/type combinations with different IDs
@@ -1558,6 +1580,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,
                 originalFieldAttr.parentName(),
+                originalFieldAttr.qualifier(),
                 originalFieldAttr.name(),
                 field,
                 originalFieldAttr.nullable(),
@@ -1598,6 +1621,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 String types = imf.getTypesToIndices().keySet().stream().collect(Collectors.joining(","));
                 return new UnsupportedAttribute(
                     fa.source(),
+                    fa.qualifier(),
                     fa.name(),
                     new UnsupportedEsField(imf.getName(), types),
                     unresolvedMessage,

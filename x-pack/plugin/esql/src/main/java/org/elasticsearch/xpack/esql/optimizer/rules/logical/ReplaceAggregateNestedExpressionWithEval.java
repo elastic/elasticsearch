@@ -54,7 +54,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     // For Categorize grouping function, we only move the child expression into an eval
                     if (cat.field() instanceof Attribute == false) {
                         groupingChanged = true;
-                        var fieldAs = new Alias(as.source(), as.name(), cat.field(), null, true);
+                        var fieldAs = new Alias(as.source(), as.qualifier(), as.name(), cat.field(), null, true);
                         var fieldAttr = fieldAs.toAttribute();
                         evals.add(fieldAs);
                         evalNames.put(fieldAs.name(), fieldAttr);
@@ -121,7 +121,8 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     if (field instanceof Attribute == false && field.foldable() == false) {
                         // 3. create a new alias if one doesn't exist yet no reference
                         Attribute attr = expToAttribute.computeIfAbsent(field.canonical(), k -> {
-                            Alias newAlias = new Alias(k.source(), syntheticName(k, af, counter[0]++), k, null, true);
+                            // TODO: opportunity to use a special qualifier for synths.
+                            Alias newAlias = new Alias(k.source(), null, syntheticName(k, af, counter[0]++), k, null, true);
                             evals.add(newAlias);
                             return newAlias.toAttribute();
                         });

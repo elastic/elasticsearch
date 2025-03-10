@@ -122,6 +122,7 @@ class PushDownUtils {
                     generatedAttributesRenamedToOriginal.add(
                         new Alias(
                             originalAttribute.source(),
+                            originalAttribute.qualifier(),
                             originalAttribute.name(),
                             renamedAttribute,
                             originalAttribute.id(),
@@ -157,7 +158,8 @@ class PushDownUtils {
                 if (attributeNamesToRename.contains(attr.name())) {
                     Alias renamedAttribute = aliasesForReplacedAttributes.computeIfAbsent(attr, a -> {
                         String tempName = TemporaryNameUtils.locallyUniqueTemporaryName(a.name(), "temp_name");
-                        return new Alias(a.source(), tempName, a, null, true);
+                        // TODO: special qualifier for synths?
+                        return new Alias(a.source(), null, tempName, a, null, true);
                     });
                     return renamedAttribute.toAttribute();
                 }

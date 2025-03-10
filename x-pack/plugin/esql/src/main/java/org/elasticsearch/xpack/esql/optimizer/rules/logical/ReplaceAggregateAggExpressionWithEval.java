@@ -112,7 +112,9 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
                         Alias alias = rootAggs.get(canonical);
                         if (alias == null) {
                             // create synthetic alias ove the found agg function
-                            alias = new Alias(af.source(), syntheticName(canonical, child, counter[0]++), canonical, null, true);
+                            // TODO: Should we reserve certain qualifiers for synthetic attributes? This would solve
+                            // https://github.com/elastic/elasticsearch/issues/110964
+                            alias = new Alias(af.source(), null, syntheticName(canonical, child, counter[0]++), canonical, null, true);
                             // and remember it to remove duplicates
                             rootAggs.put(canonical, alias);
                             // add it to the list of aggregates and continue

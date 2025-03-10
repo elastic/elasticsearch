@@ -29,7 +29,7 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
 
     @Override
     protected PhysicalPlan rule(EsSourceExec plan) {
-        var docId = new FieldAttribute(plan.source(), EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+        var docId = new FieldAttribute(plan.source(), null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
         final List<Attribute> attributes = new ArrayList<>();
         attributes.add(docId);
         if (plan.indexMode() == IndexMode.TIME_SERIES) {

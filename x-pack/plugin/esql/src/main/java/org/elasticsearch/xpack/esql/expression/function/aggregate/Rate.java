@@ -95,7 +95,7 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
     }
 
     public static Rate withUnresolvedTimestamp(Source source, Expression field, Expression unit) {
-        return new Rate(source, field, new UnresolvedAttribute(source, "@timestamp"), unit);
+        return new Rate(source, field, new UnresolvedAttribute(source, null, "@timestamp"), unit);
     }
 
     @Override

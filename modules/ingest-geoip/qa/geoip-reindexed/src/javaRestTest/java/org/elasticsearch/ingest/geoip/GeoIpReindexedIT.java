@@ -268,13 +268,29 @@ public class GeoIpReindexedIT extends ParameterizedFullClusterRestartTestCase {
     }
 
     private void testGetDatastreams() throws IOException {
-        Request getStar = new Request("GET", "_data_stream");
-        getStar.setOptions(
-            RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE) // we don't care about warnings, just errors
+        final List<List<String>> wildcardOptions = List.of(
+            List.of(), // the default for expand_wildcards (that is, the option is not specified)
+            List.of("all"),
+            List.of("none"),
+            List.of("hidden"),
+            List.of("open"),
+            List.of("closed"),
+            List.of("hidden", "open"),
+            List.of("hidden", "closed"),
+            List.of("open", "closed")
         );
-        Response response = client().performRequest(getStar);
-        assertOK(response);
+        for (List<String> expandWildcards : wildcardOptions) {
+            final Request getStar = new Request(
+                "GET",
+                "_data_stream" + (expandWildcards.isEmpty() ? "" : ("?expand_wildcards=" + String.join(",", expandWildcards)))
+            );
+            getStar.setOptions(
+                RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE) // we only care about errors
+            );
+            Response response = client().performRequest(getStar);
+            assertOK(response);
 
-        // note: we don't actually care about the response, just that there was one and that it didn't error out on us
+            // note: we don't actually care about the response, just that there was one and that it didn't error out on us
+        }
     }
 }

@@ -125,7 +125,9 @@ public final class IOUtils {
             Files.walkFileTree(sourceRoot, new SimpleFileVisitor<>() {
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                    Files.createDirectories(dir);
+                    Path relativeDestination = sourceRoot.relativize(dir);
+                    Path destination = destinationRoot.resolve(relativeDestination);
+                    Files.createDirectories(destination);
                     return FileVisitResult.CONTINUE;
                 }
 

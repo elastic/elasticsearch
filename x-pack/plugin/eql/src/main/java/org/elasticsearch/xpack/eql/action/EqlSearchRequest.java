@@ -125,6 +125,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         this.waitForCompletionTimeout = in.readOptionalTimeValue();
         this.keepAlive = in.readOptionalTimeValue();
         this.keepOnCompletion = in.readBoolean();
+        resultPosition = in.readString();
         if (in.readBoolean()) {
             fetchFields = in.readCollectionAsList(FieldAndFormat::new);
         }
@@ -486,7 +487,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (fetchFields != null) {
             out.writeCollection(fetchFields);
         }
-        out.writeGenericMap(runtimeMappings);
         out.writeGenericMap(runtimeMappings);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeInt(maxSamplesPerKey);

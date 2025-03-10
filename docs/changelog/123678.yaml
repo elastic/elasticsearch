@@ -1,0 +1,6 @@
+pr: 123678
+summary: Date nanos implicit casting
+area: ES|QL
+type: enhancement
+issues:
+ - 110009

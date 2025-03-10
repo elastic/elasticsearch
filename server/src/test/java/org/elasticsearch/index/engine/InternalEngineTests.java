@@ -7342,6 +7342,79 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(userData, hasEntry(ES_VERSION, IndexVersion.current().toString()));
     }
 
+    public void testEnginePreCommitData() throws IOException {
+        engine.close();
+        final var preCommitData = new AtomicReference<Object>();
+        final var indexCommitListener = new Engine.IndexCommitListener() {
+            @Override
+            public void onNewCommit(
+                ShardId shardId,
+                Store store,
+                long primaryTerm,
+                Engine.IndexCommitRef indexCommitRef,
+                Set<String> additionalFiles,
+                Object enginePreCommitData
+            ) {
+                preCommitData.set(enginePreCommitData);
+                try {
+                    indexCommitRef.close();
+                } catch (IOException e) {
+                    assert false : e;
+                }
+            }
+
+            @Override
+            public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {
+                assert false : "no commit should be deleted in this test";
+            }
+        };
+        final var config = engine.config();
+        final var newConfig = new EngineConfig(
+            config.getShardId(),
+            config.getThreadPool(),
+            config.getIndexSettings(),
+            config.getWarmer(),
+            config.getStore(),
+            config.getMergePolicy(),
+            config.getAnalyzer(),
+            config.getSimilarity(),
+            config.getCodecProvider(),
+            config.getEventListener(),
+            config.getQueryCache(),
+            config.getQueryCachingPolicy(),
+            config.getTranslogConfig(),
+            config.getFlushMergesAfter(),
+            config.getExternalRefreshListener(),
+            config.getInternalRefreshListener(),
+            config.getIndexSort(),
+            config.getCircuitBreakerService(),
+            config.getGlobalCheckpointSupplier(),
+            config.retentionLeasesSupplier(),
+            config.getPrimaryTermSupplier(),
+            config.getSnapshotCommitSupplier(),
+            config.getLeafSorter(),
+            config.getRelativeTimeInNanosSupplier(),
+            indexCommitListener,
+            config.isPromotableToPrimary(),
+            config.getMapperService()
+        );
+        engine = new InternalEngine(newConfig) {
+            @Override
+            protected Object getPreCommitData(IndexCommit commit) {
+                return Map.of("userkey", "userdata");
+            }
+        };
+        engine.skipTranslogRecovery();
+
+        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+        engine.index(indexForDoc(doc));
+        engine.flush();
+
+        @SuppressWarnings("unchecked")
+        final var commitData = (Map<String, String>) preCommitData.get();
+        assertThat(commitData, hasEntry("userkey", "userdata"));
+    }
+
     public void testTrimUnsafeCommitHasESVersionInUserData() throws IOException {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final int maxSeqNo = 40;
@@ -7419,7 +7492,8 @@ public class InternalEngineTests extends EngineTestCase {
                 Store store,
                 long primaryTerm,
                 Engine.IndexCommitRef indexCommitRef,
-                Set<String> additionalFiles
+                Set<String> additionalFiles,
+                Object enginePreCommitData
             ) {
                 assertNotNull(store);
                 assertTrue(store.hasReferences());

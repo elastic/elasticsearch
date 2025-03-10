@@ -243,6 +243,7 @@ public class ThreadPoolMergeExecutorService {
 
     static class AtomicIORate {
         private final AtomicLong ioRate;
+
         AtomicIORate(long initialIORate) {
             ioRate = new AtomicLong(initialIORate);
         }

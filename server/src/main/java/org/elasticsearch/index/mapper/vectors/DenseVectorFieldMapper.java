@@ -1413,8 +1413,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (confidenceIntervalNode != null) {
                     confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
                 }
-                MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 RescoreVector rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap);
+                MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new Int4FlatIndexOptions(confidenceInterval, rescoreVector);
             }
 
@@ -1503,14 +1503,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    static class Int8FlatIndexOptions extends IndexOptions {
+    static class Int8FlatIndexOptions extends QuantizedIndexOptions {
         private final Float confidenceInterval;
-        private final RescoreVector rescoreVector;
 
         Int8FlatIndexOptions(Float confidenceInterval, RescoreVector rescoreVector) {
-            super(VectorIndexType.INT8_FLAT);
+            super(VectorIndexType.INT8_FLAT, rescoreVector);
             this.confidenceInterval = confidenceInterval;
-            this.rescoreVector = rescoreVector;
         }
 
         @Override

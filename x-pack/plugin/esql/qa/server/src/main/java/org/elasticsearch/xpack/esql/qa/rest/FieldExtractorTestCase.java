@@ -71,7 +71,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         return List.of(
             new Object[] { null },
             new Object[] { MappedFieldType.FieldExtractPreference.NONE },
-            new Object[] { MappedFieldType.FieldExtractPreference.PREFER_STORED }
+            new Object[] { MappedFieldType.FieldExtractPreference.STORED }
         );
     }
 
@@ -1353,7 +1353,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
     protected Matcher<Integer> pidMatcher() {
         // TODO these should all always return null because the parent is nested
-        return preference == MappedFieldType.FieldExtractPreference.PREFER_STORED ? equalTo(111) : nullValue(Integer.class);
+        return preference == MappedFieldType.FieldExtractPreference.STORED ? equalTo(111) : nullValue(Integer.class);
     }
 
     private void assumeIndexResolverNestedFieldsNameClashFixed() throws IOException {

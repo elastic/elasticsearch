@@ -320,7 +320,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 // Counters are not supported by ESQL so we load them in null
                 return BlockLoader.CONSTANT_NULLS;
             }
-            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.PREFER_STORED || isSyntheticSource)) {
+            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return new BlockDocValuesReader.DoublesBlockLoader(name(), l -> l / scalingFactor);
             }
             if (isSyntheticSource) {
@@ -334,6 +334,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
             ValueFetcher valueFetcher = sourceValueFetcher(blContext.sourcePaths(name()));
             BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && (isStored() || isIndexed())
+                // We only write the field names field if there aren't doc values or norms
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.DoublesBlockLoader(valueFetcher, lookup);

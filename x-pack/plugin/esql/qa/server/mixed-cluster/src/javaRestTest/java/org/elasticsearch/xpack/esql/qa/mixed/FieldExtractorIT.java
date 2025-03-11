@@ -37,9 +37,7 @@ public class FieldExtractorIT extends FieldExtractorTestCase {
     @Override
     protected Matcher<Integer> pidMatcher() {
         // TODO these should all always return null because the parent is nested
-        return preference == MappedFieldType.FieldExtractPreference.PREFER_STORED
-            ? anyOf(equalTo(111), nullValue())
-            : nullValue(Integer.class);
+        return preference == MappedFieldType.FieldExtractPreference.STORED ? anyOf(equalTo(111), nullValue()) : nullValue(Integer.class);
     }
 
 }

@@ -44,7 +44,7 @@ import java.util.stream.Stream;
 public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     private static final MappedFieldType.FieldExtractPreference[] PREFERENCES = new MappedFieldType.FieldExtractPreference[] {
         MappedFieldType.FieldExtractPreference.NONE,
-        MappedFieldType.FieldExtractPreference.PREFER_STORED };
+        MappedFieldType.FieldExtractPreference.STORED };
 
     @ParametersFactory(argumentFormatting = "preference=%s")
     public static List<Object[]> args() {

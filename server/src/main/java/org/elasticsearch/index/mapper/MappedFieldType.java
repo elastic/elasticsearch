@@ -698,7 +698,7 @@ public abstract class MappedFieldType {
          * loading many fields. The {@link MappedFieldType} can chose a different
          * method to load the field if it needs to.
          */
-        PREFER_STORED;
+        STORED;
     }
 
     /**

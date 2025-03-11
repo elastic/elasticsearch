@@ -26,6 +26,7 @@ import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
@@ -41,6 +42,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 
 public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
@@ -62,6 +64,8 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
+
+    private static final String ASYNC_SEARCH_TIMEOUT = "30s";
 
     private static final String DATA_ACCESS_USER = "data_access_user";
     private static final String STAR_READ_ONLY_USER = "star_read_only_user";
@@ -794,7 +798,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
         }
         {
-            Search request = new Search("*::failures,*");
+            var request = new Search("*::failures,*");
             for (var user : users) {
                 switch (user) {
                     case FAILURE_STORE_ACCESS_USER:
@@ -852,11 +856,28 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     }
 
     private void expect(String user, Search search, String... docIds) throws Exception {
-        expect(user, search, response -> expectDocIds(response, docIds));
+        expectSearch(user, search.toSearchRequest(), response -> expectDocIds(response, docIds));
+        expectAsyncSearch(user, search.toAsyncSearchRequest(), docIds);
     }
 
-    private void expect(String user, Search search, ThrowingConsumer<Response> consumer) throws Exception {
-        consumer.accept(performRequest(user, search.toSearchRequest()));
+    @SuppressWarnings("unchecked")
+    private void expectAsyncSearch(String user, Request request, String... docIds) throws IOException {
+        Response response = performRequest(user, request);
+        assertOK(response);
+        ObjectPath resp = ObjectPath.createFromResponse(response);
+        Boolean isRunning = resp.evaluate("is_running");
+        Boolean isPartial = resp.evaluate("is_partial");
+        assertThat(isRunning, is(false));
+        assertThat(isPartial, is(false));
+
+        List<Object> hits = resp.evaluate("response.hits.hits");
+        List<String> actual = hits.stream().map(h -> (String) ((Map<String, Object>) h).get("_id")).toList();
+
+        assertThat(actual, containsInAnyOrder(docIds));
+    }
+
+    private void expectSearch(String user, Request request, ThrowingConsumer<Response> consumer) throws Exception {
+        consumer.accept(performRequest(user, request));
     }
 
     private record Search(String searchTarget, String pathParamString) {
@@ -869,11 +890,13 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         }
 
         Request toAsyncSearchRequest() {
-            return new Request("POST", Strings.format("/%s/_async_search%s", searchTarget, pathParamString));
+            var pathParam = pathParamString.isEmpty()
+                ? "?wait_for_completion_timeout=" + ASYNC_SEARCH_TIMEOUT
+                : pathParamString + "&wait_for_completion_timeout=" + ASYNC_SEARCH_TIMEOUT;
+            return new Request("POST", Strings.format("/%s/_async_search%s", searchTarget, pathParam));
         }
     }
 
-    @SuppressWarnings("unchecked")
     private static void expectDocIds(Response response, String... docIds) throws IOException {
         assertOK(response);
         final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));

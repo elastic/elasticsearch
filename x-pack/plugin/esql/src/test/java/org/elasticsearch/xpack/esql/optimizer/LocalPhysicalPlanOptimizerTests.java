@@ -1739,7 +1739,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var esQuery = as(fieldExtract.child(), EsQueryExec.class);
         Source source = new Source(2, 38, "salary > 10000");
         BoolQueryBuilder expected = new BoolQueryBuilder().must(new MatchQueryBuilder("last_name", "Smith").lenient(true))
-            .must(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("salary").gt(10000), "salary", source));
+            .must(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("salary").gt(10000).boost(0.0f), "salary", source));
         assertThat(esQuery.query().toString(), equalTo(expected.toString()));
     }
 

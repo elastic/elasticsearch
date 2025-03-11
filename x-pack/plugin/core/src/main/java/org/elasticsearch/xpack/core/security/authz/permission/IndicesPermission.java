@@ -517,6 +517,13 @@ public final class IndicesPermission {
         public boolean canHaveBackingIndices() {
             return indexAbstraction != null && indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX;
         }
+
+        public String nameCombinedWithSelector() {
+            if (IndexComponentSelector.FAILURES.equals(selector)) {
+                return IndexNameExpressionResolver.combineSelector(name, selector);
+            }
+            return name;
+        }
     }
 
     /**
@@ -539,16 +546,16 @@ public final class IndicesPermission {
         int totalResourceCount = 0;
         Map<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         for (String indexOrAlias : requestedIndicesOrAliases) {
-            String originalIndexOrAlias = indexOrAlias;
-            // Remove any selectors from abstraction name, but include it in the map key if it's ::failures. We need to do this to
-            // disambiguate between data streams and their failure stores.
+            // Remove any selectors from abstraction name.
             Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexOrAlias);
             indexOrAlias = expressionAndSelector.v1();
             IndexComponentSelector selector = expressionAndSelector.v2() == null
                 ? null
                 : IndexComponentSelector.getByKey(expressionAndSelector.v2());
             final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias), selector);
-            resources.put(IndexComponentSelector.FAILURES.equals(selector) ? originalIndexOrAlias : indexOrAlias, resource);
+            // We can't use resource.name here because we may be accessing a data stream _and_ its failure store,
+            // where the selector-free name is the same for both and thus ambiguous.
+            resources.put(resource.nameCombinedWithSelector(), resource);
             totalResourceCount += resource.size(lookup);
         }
 

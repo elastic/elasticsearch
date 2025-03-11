@@ -1132,8 +1132,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 XContentBuilder source = sourceSupplier.get();
                 indexRequest.source(source);
                 bulkRequestBuilder.add(indexRequest);
-                i++;
             }
+            i = max;
             BulkResponse bulkResponse = bulkRequestBuilder.get();
             for (BulkItemResponse response : bulkResponse.getItems()) {
                 if (response.isFailed()) {

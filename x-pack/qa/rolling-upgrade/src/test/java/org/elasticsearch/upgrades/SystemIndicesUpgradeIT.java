@@ -58,9 +58,7 @@ public class SystemIndicesUpgradeIT extends AbstractUpgradeTestCase {
             verifyAccessToIndex(dataStreamName);
             verifyAccessToIndex(indexName);
         } else if (CLUSTER_TYPE == AbstractUpgradeTestCase.ClusterType.UPGRADED) {
-            if (upgradeRequired) {
-                upgradeSystemIndices();
-            }
+            upgradeSystemIndices();
             verifyDataStream(dataStreamName);
             verifyIndex(indexName);
             verifyAccessToIndex(dataStreamName);

@@ -2,25 +2,38 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/plugin-management.html
   - https://www.elastic.co/guide/en/cloud/current/ec-adding-plugins.html
+  - https://www.elastic.co/guide/en/cloud/current/ec-adding-elastic-plugins.html
   - https://www.elastic.co/guide/en/cloud-enterprise/current/ece-add-plugins.html
+applies_to:
+  deployment:
+    ess: ga
+    ece: ga
+    self: ga
 ---
 
 # Plugin management
 
-## Managing plugins for ECE
-[Add plugins and extensions ECE](./cloud-enterprise/ece-add-plugins.md) ?what product?
+Plugins extend Elasticsearch’s core functionality and can be managed differently depending on the deployment type. While {{ece}} and Elastic Cloud Hosted provide built-in plugin management, self-managed deployments require manual installation.
 
-Plugins extend the core functionality of Elasticsearch. Elastic Cloud Enterprise makes it easy to add plugins to your deployment by providing a number of plugins that work with your version of Elasticsearch. One advantage of these plugins is that you generally don’t have to worry about upgrading plugins when upgrading to a new Elasticsearch version, unless there are breaking changes. The plugins simply are upgraded along with the rest of your deployment.
+{{ece}} and Elastic Cloud Hosted deployments simplify plugin management by offering compatible plugins for your Elasticsearch version. These plugins are automatically upgraded with your deployment, except in cases of breaking changes.
 
-Adding plugins to a deployment is as simple as selecting it from the list of available plugins, but different versions of Elasticsearch support different plugins. Plugins are available for different purposes, such as:
+In ECE and ECH deployments, you can add plugins by selecting them from the available list. However, plugin availability depends on the Elasticsearch version.
+
+Plugins serve various purposes, including:
 
 * National language support, phonetic analysis, and extended unicode support
 * Ingesting attachments in common formats and ingesting information about the geographic location of IP addresses
 * Adding new field datatypes to Elasticsearch
+* Discovery plugins, such as the cloud AWS plugin that allows discovering nodes on EC2 instances.
+* Analysis plugins, to provide analyzers targeted at languages other than English.
+* Scripting plugins, to provide additional scripting languages.
 
-Additional plugins might be available. If a plugin is listed for your version of Elasticsearch, it can be used.
+## Managing plugins for ECE
+```{applies_to}
+    ece: ga
+```
 
-To add plugins when creating a new deployment:
+### Add plugins when creating a new ECE deployment
 
 1. [Log into the Cloud UI](docs-content://deploy-manage/deploy/cloud-enterprise/log-into-cloud-ui.md) and select **Create deployment**.
 2. Make your initial deployment selections, then select **Customize Deployment**.
@@ -30,7 +43,7 @@ To add plugins when creating a new deployment:
 
 The deployment spins up with the plugins installed.
 
-To add plugins to an existing deployment:
+### Add plugins to an existing ECE deployment
 
 1. [Log into the Cloud UI](docs-content://deploy-manage/deploy/cloud-enterprise/log-into-cloud-ui.md).
 2. On the **Deployments** page, select your deployment.
@@ -45,28 +58,22 @@ To add plugins to an existing deployment:
 There is no downtime when adding plugins to highly available deployments. The deployment is updated with new nodes that have the plugins installed.
 
 ## Managing plugins for ECH
-[Add plugins and extensions ECH](./cloud/ec-adding-plugins.md) ?what product?
+```{applies_to}
+    ess: ga
+```
 
-Plugins extend the core functionality of {{es}}. There are many suitable plugins, including:
+There are two ways to add plugins to Elastic Cloud Hosted deployments:
 
-* Discovery plugins, such as the cloud AWS plugin that allows discovering nodes on EC2 instances.
-* Analysis plugins, to provide analyzers targeted at languages other than English.
-* Scripting plugins, to provide additional scripting languages.
+* Enable one of the official plugins already available in ECH
+* [Upload a custom plugin and then enable it per deployment](./cloud/ec-custom-bundles.md).
 
-There are two ways to add plugins to a deployment in Elasticsearch Service:
+Custom plugins can include the official {{es}} plugins not provided with ECH, any of the community-sourced plugins, or [plugins that you write yourself](/extend/index.md). Uploading custom plugins is available only to Gold, Platinum, and Enterprise subscriptions. For more information, check [Upload custom plugins and bundles](./cloud/ec-custom-bundles.md).
 
-* [Enable one of the official plugins already available in Elasticsearch Service](/reference/elasticsearch-plugins/cloud/ec-adding-elastic-plugins.md\).
-* [Upload a custom plugin and then enable it per deployment](/reference/elasticsearch-plugins/cloud/ec-custom-bundles.md\).
+To learn more about the official and community-sourced plugins, refer to [{{es}} Plugins and Integrations](index.md).
 
-Custom plugins can include the official {{es}} plugins not provided with Elasticsearch Service, any of the community-sourced plugins, or [plugins that you write yourself](/extend/index.md). Uploading custom plugins is available only to Gold, Platinum, and Enterprise subscriptions. For more information, check [Upload custom plugins and bundles](/reference/elasticsearch-plugins/cloud/ec-custom-bundles.md\).
+For a detailed guide with examples of using the Elasticsearch Service API to create, get information about, update, and delete extensions and plugins, check [Managing plugins and extensions through the API](./cloud/ec-plugins-guide.md).
 
-To learn more about the official and community-sourced plugins, refer to [{{es}} Plugins and Integrations](/reference/elasticsearch-plugins/index.md).
-
-For a detailed guide with examples of using the Elasticsearch Service API to create, get information about, update, and delete extensions and plugins, check [Managing plugins and extensions through the API](/reference/elasticsearch-plugins/cloud/ec-plugins-guide.md\).
-
-Plugins are not supported for {{kib}}. To learn more, check [Restrictions for {{es}} and {{kib}} plugins](cloud://release-notes/cloud-hosted/known-issues.md#ec-restrictions-plugins).
-
-### Add plugins provided with Elasticsearch Service [ec-adding-elastic-plugins]
+### Add plugins provided with ECH [ec-adding-elastic-plugins]
 
 You can use a variety of official plugins that are compatible with your version of {{es}}. When you upgrade to a new {{es}} version, these plugins are simply upgraded with the rest of your deployment.
 
@@ -76,10 +83,10 @@ Some restrictions apply when adding plugins. To learn more, check [Restrictions 
 
 Only Gold, Platinum, Enterprise and Private subscriptions, running version 2.4.6 or later, have access to uploading custom plugins. All subscription levels, including Standard, can upload scripts and dictionaries.
 
-To enable a plugin for a deployment:
+### Enabling plugins for a deployment
 
-1. Log in to the [Elasticsearch Service Console](https://cloud.elastic.co?page=docs&placement=docs-body).
-2. Find your deployment on the home page in the Elasticsearch Service card and select **Manage** to access it directly. Or, select **Hosted deployments** to go to the deployments page to view all of your deployments.
+1. Log in to the [Cloud Console](https://cloud.elastic.co?page=docs&placement=docs-body).
+2. Find your deployment On the home page and select **Manage** next to it, or go to **Hosted deployments** to view all deployments.
 
     On the deployments page you can narrow your deployments by name, ID, or choose from several other filters. To customize your view, use a combination of filters, or change the format from a grid to a list.
 
@@ -91,6 +98,9 @@ To enable a plugin for a deployment:
 8. Select **Save**. The {{es}} cluster is then updated with new nodes that have the plugin installed.
 
 ## Managing plugins for self-managed deployments
+```{applies_to}
+    self: ga
+```
 Use the `elasticsearch-plugin` command line tool to install, list, and remove plugins. It is located in the `$ES_HOME/bin` directory by default but it may be in a different location depending on which Elasticsearch package you installed. For more information, see [Plugins directory](_plugins_directory.md)
 
 Run the following command to get usage instructions:
@@ -103,15 +113,20 @@ sudo bin/elasticsearch-plugin -h
 If Elasticsearch was installed using the deb or rpm package then run `/usr/share/elasticsearch/bin/elasticsearch-plugin` as `root` so it can write to the appropriate files on disk. Otherwise run `bin/elasticsearch-plugin` as the user that owns all of the Elasticsearch files.
 :::
 
-* [Intalling Plugings](./installation.md) ?what product?
-* [Custom URL or file system](./plugin-management-custom-url.md) ?what product?
-* [Installing multiple plugins](./installing-multiple-plugins.md) ?what product?
-* [Mandatory plugins](./mandatory-plugins.md) ?what product?
-* [Listing, removing and updating installed plugins](./listing-removing-updating.md) ?what product?
-* [Other command line parameters](./_other_command_line_parameters.md) ?what product?
-* [Manage plugins using a configuration file](./manage-plugins-using-configuration-file.md) ?what product?
+For detailed instructions on installing, managing, and configuring plugins, see the following:
+
+* [Intalling Plugings](./installation.md)
+* [Custom URL or file system](./plugin-management-custom-url.md)
+* [Installing multiple plugins](./installing-multiple-plugins.md)
+* [Mandatory plugins](./mandatory-plugins.md)
+* [Listing, removing and updating installed plugins](./listing-removing-updating.md)
+* [Other command line parameters](./_other_command_line_parameters.md)
+* [Manage plugins using a configuration file](./manage-plugins-using-configuration-file.md)
 
 ## Managing plugins for docker deployments
+```{applies_to}
+    self: ga
+```
 If you run Elasticsearch using Docker, you can manage plugins using a [configuration file](manage-plugins-using-configuration-file.md).
 
 

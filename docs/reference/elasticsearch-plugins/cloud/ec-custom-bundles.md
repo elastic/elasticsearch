@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/cloud/current/ec-custom-bundles.html
+applies_to:
+  deployment:
+    ess: ga
 ---
 
 # Upload custom plugins and bundles [ec-custom-bundles]

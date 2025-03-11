@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/manage-plugins-using-configuration-file.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # Manage plugins using a configuration file [manage-plugins-using-configuration-file]

@@ -1,11 +1,14 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/cloud/current/ec-plugins-guide.html
+applies_to:
+  deployment:
+    ess: ga
 ---
 
 # Managing plugins and extensions through the API [ec-plugins-guide]
 
-This guide provides a full list of tasks for managing [plugins and extensions](ec-adding-plugins.md) in Elasticsearch Service, using the API.
+This guide provides a full list of tasks for managing [plugins and extensions](../plugin-management.md) in Elasticsearch Service, using the API.
 
 * [Create an extension](ec-plugins-guide.md#ec-extension-guide-create)
 * [Add an extension to a deployment plan](ec-plugins-guide.md#ec-extension-guide-add-plan)

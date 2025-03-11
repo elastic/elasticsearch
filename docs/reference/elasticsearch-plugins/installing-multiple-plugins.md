@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/installing-multiple-plugins.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # Installing multiple plugins [installing-multiple-plugins]

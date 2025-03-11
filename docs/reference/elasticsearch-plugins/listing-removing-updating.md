@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/listing-removing-updating.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # Listing, removing and updating installed plugins [listing-removing-updating]

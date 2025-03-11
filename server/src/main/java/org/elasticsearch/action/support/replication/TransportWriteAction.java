@@ -511,8 +511,13 @@ public abstract class TransportWriteAction<
         }
 
         private void updateCheckpoints() {
-            this.globalCheckpoint.accumulateAndGet(indexShard.getLastSyncedGlobalCheckpoint(), Math::max);
-            this.localCheckpoint.accumulateAndGet(indexShard.getLocalCheckpoint(), Math::max);
+            try {
+                this.globalCheckpoint.accumulateAndGet(indexShard.getLastSyncedGlobalCheckpoint(), Math::max);
+                this.localCheckpoint.accumulateAndGet(indexShard.getLocalCheckpoint(), Math::max);
+            } catch (Exception e) {
+                logger.warn("Failed to retrieve checkpoints", e);
+                assert false : e;
+            }
         }
 
         void run() {
@@ -559,8 +564,11 @@ public abstract class TransportWriteAction<
             if (sync) {
                 assert pendingOps.get() > 0;
                 indexShard.syncAfterWrite(location, e -> {
-                    updateCheckpoints();
-                    syncFailure.set(e);
+                    if (e != null) {
+                        syncFailure.set(e);
+                    } else {
+                        updateCheckpoints();
+                    }
                     maybeFinish();
                 });
                 updateCheckpoints();

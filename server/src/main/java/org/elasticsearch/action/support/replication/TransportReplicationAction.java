@@ -692,8 +692,10 @@ public abstract class TransportReplicationAction<
         public void onResponse(Releasable releasable) {
             assert replica.getActiveOperationsCount() != 0 : "must perform shard operation under a permit";
             try {
-                shardOperationOnReplica(replicaRequest.getRequest(), replica, ActionListener.wrap((replicaResult) -> {
-                    replicaResult.runPostReplicaActions(new ReplicaPostReplicationActionsListener() {
+                shardOperationOnReplica(
+                    replicaRequest.getRequest(),
+                    replica,
+                    ActionListener.wrap((replicaResult) -> replicaResult.runPostReplicaActions(new ReplicaPostReplicationActionsListener() {
                         @Override
                         public void onResponse(long globalCheckpoint, long localCheckpoint) {
                             final ReplicaResponse response = new ReplicaResponse(localCheckpoint, globalCheckpoint);
@@ -716,11 +718,11 @@ public abstract class TransportReplicationAction<
                             Releasables.closeWhileHandlingException(releasable);
                             responseWithFailure(e);
                         }
-                    });
-                }, e -> {
-                    Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
-                    AsyncReplicaAction.this.onFailure(e);
-                }));
+                    }), e -> {
+                        Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
+                        AsyncReplicaAction.this.onFailure(e);
+                    })
+                );
                 // TODO: Evaluate if we still need to catch this exception
             } catch (Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller

@@ -241,11 +241,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     protected void indexDocs(String indexName) {
         List<IndexRequestBuilder> docs = new ArrayList<>(INDEX_DOC_COUNT);
         for (int i = 0; i < INDEX_DOC_COUNT; i++) {
-            docs.add(
-                ESIntegTestCase.prepareIndex(indexName)
-                    .setId(Integer.toString(i))
-                    .setSource(FIELD_NAME, "words words")
-            );
+            docs.add(ESIntegTestCase.prepareIndex(indexName).setId(Integer.toString(i)).setSource(FIELD_NAME, "words words"));
         }
         indexRandom(true, docs);
         IndicesStatsResponse indexStats = ESIntegTestCase.indicesAdmin().prepareStats(indexName).setDocs(true).get();

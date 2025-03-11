@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.initialization;
 
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
@@ -49,6 +50,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
@@ -242,10 +244,13 @@ public class EntitlementInitialization {
         );
 
         // conditionally add FIPS entitlements if FIPS only functionality is enforced
-        if ("true".equals(System.getProperty("org.bouncycastle.fips.approved_only"))) {
-            // if custom trust store is set, grant read access to its location, otherwise use the default trust store
+        if (Booleans.parseBoolean(System.getProperty("org.bouncycastle.fips.approved_only"), false)) {
+            // if custom trust store is set, grant read access to its location, otherwise use the default JDK trust store
             String trustStore = System.getProperty("javax.net.ssl.trustStore");
-            Path trustStorePath = trustStore != null ? Path.of(trustStore) : bootstrapArgs.libDir().resolve("security/jssecacerts");
+            Path trustStorePath = trustStore != null
+                ? Path.of(trustStore)
+                : Paths.get(System.getProperty("java.home")).resolve("lib/security/jssecacerts");
+
             Collections.addAll(
                 serverScopes,
                 new Scope(

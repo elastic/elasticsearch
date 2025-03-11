@@ -262,7 +262,7 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             Map<String, Processor.Factory> processors = new HashMap<>();
-            processors.put("test", (factories, tag, description, config) -> {
+            processors.put("test", (factories, tag, description, config, projectId) -> {
                 String field = (String) config.remove("field");
                 String value = (String) config.remove("value");
                 return new FakeProcessor("test", tag, description, (ingestDocument) -> ingestDocument.setFieldValue(field, value));

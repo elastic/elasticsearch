@@ -363,6 +363,12 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=data_stream/190_failure_store_redirection/Redirect ingest failure in data stream to failure store}
   issue: https://github.com/elastic/elasticsearch/issues/124518
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.ValuesTests
+  method: "testGroupingAggregate {TestCase=<<no alt geo_shape>s> #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/124571
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=data_stream/150_tsdb/created the data stream}
+  issue: https://github.com/elastic/elasticsearch/issues/124575
 
 # Examples:
 #

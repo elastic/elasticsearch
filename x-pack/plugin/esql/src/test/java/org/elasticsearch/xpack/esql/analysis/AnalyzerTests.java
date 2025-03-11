@@ -104,11 +104,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -3106,7 +3104,8 @@ public class AnalyzerTests extends ESTestCase {
             assertThat(
                 ve.getMessage(),
                 containsString(
-                    "cannot use inference endpoint [completion-inference-id] with task type [completion] within a Rerank command. Only inference endpoints with the task type [rerank] are supported"
+                    "cannot use inference endpoint [completion-inference-id] with task type [completion] within a Rerank command. "
+                        + "Only inference endpoints with the task type [rerank] are supported"
                 )
             );
         }
@@ -3160,21 +3159,18 @@ public class AnalyzerTests extends ESTestCase {
 
         {
             // Multiple fields.
-            LogicalPlan plan = analyze(
-                """
-                    FROM books
-                    | WHERE title:"italian food recipe"
-                    | RERANK "italian food recipe" ON title, description=SUBSTRING(description, 0, 100), yearRenamed=year WITH "reranking-inference-id"
-                    """,
-                "mapping-books.json"
-            );
+            LogicalPlan plan = analyze("""
+                FROM books
+                | WHERE title:"food"
+                | RERANK "food" ON title, description=SUBSTRING(description, 0, 100), yearRenamed=year WITH "reranking-inference-id"
+                """, "mapping-books.json");
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
             Rerank rerank = as(limit.child(), Rerank.class);
             Filter filter = as(rerank.child(), Filter.class);
             EsRelation relation = as(filter.child(), EsRelation.class);
 
-            assertThat(rerank.queryText(), equalTo(string("italian food recipe")));
+            assertThat(rerank.queryText(), equalTo(string("food")));
             assertThat(rerank.inferenceId(), equalTo(string("reranking-inference-id")));
 
             assertThat(rerank.rerankFields(), hasSize(3));

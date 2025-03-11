@@ -290,7 +290,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var exists = QueryBuilders.existsQuery("salary");
         assertThat(stat.query(), is(exists));
         var range = wrapWithSingleQuery(query, QueryBuilders.rangeQuery("salary").gt(1000).boost(0.0f), "salary", source);
-        var expected = QueryBuilders.boolQuery().must(range).must(exists.boost(0.0f)).boost(0.0f);
+        var expected = QueryBuilders.boolQuery().must(range).must(exists.boost(0.0f));
         assertThat(esStatsQuery.query().toString(), is(expected.toString()));
     }
 
@@ -465,7 +465,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                             }
                         }
                     ],
-                    "boost": 0.0
+                    "boost": 1.0
                 }
             }
             """)));
@@ -1035,7 +1035,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
         assertThat(as(query.limit(), Literal.class).value(), is(1000));
-        var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("emp_no"));
+        var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("emp_no").boost(0.0f));
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -1084,7 +1084,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var query = as(fieldExtract.child(), EsQueryExec.class);
-        var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery(textField));
+        var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery(textField).boost(0.0f));
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -1225,7 +1225,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 assertThat(actualLuceneQuery.field(), equalTo(testCase.fieldName));
                 assertThat(actualLuceneQuery.source(), equalTo(expectedSource));
 
-                var expectedInnerQuery = QueryBuilders.boolQuery().mustNot(QueryBuilders.matchAllQuery()).boost(0.0f);
+                var expectedInnerQuery = QueryBuilders.boolQuery().mustNot(QueryBuilders.matchAllQuery().boost(0.0f)).boost(0.0f);
                 assertThat(actualLuceneQuery.next(), equalTo(expectedInnerQuery));
             }
         }
@@ -1261,11 +1261,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                     QueryBuilder actualInnerLuceneQuery = actualLuceneQuery.next();
 
                     if (predicate.equals(EQ)) {
-                        QueryBuilder expectedInnerQuery = QueryBuilders.termQuery(testCase.fieldName, Double.parseDouble(value)).boost(0.0f);
+                        QueryBuilder expectedInnerQuery = QueryBuilders.termQuery(testCase.fieldName, Double.parseDouble(value))
+                            .boost(0.0f);
                         assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
                     } else if (predicate.equals(NEQ)) {
                         QueryBuilder expectedInnerQuery = QueryBuilders.boolQuery()
-                            .mustNot(QueryBuilders.termQuery(testCase.fieldName, Double.parseDouble(value))).boost(0.0f);
+                            .mustNot(QueryBuilders.termQuery(testCase.fieldName, Double.parseDouble(value)).boost(0.0f)).boost(0.0f);
                         assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
                     } else { // one of LT, LTE, GT, GTE
                         assertTrue(actualInnerLuceneQuery instanceof RangeQueryBuilder);

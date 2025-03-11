@@ -57,8 +57,10 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
  * - The website claims to want unlimited, so we're setting it as MAX_INT per minute?
  */
 public class DeepSeekChatCompletionModel extends Model {
+    // Per-node rate limit group and settings, limiting the outbound requests this node can make to INTEGER.MAX_VALUE per minute.
     private static final Object RATE_LIMIT_GROUP = new Object();
     private static final RateLimitSettings RATE_LIMIT_SETTINGS = new RateLimitSettings(Integer.MAX_VALUE);
+
     private static final URI DEFAULT_URI = URI.create("https://api.deepseek.com/chat/completions");
     private final DeepSeekServiceSettings serviceSettings;
     private final DefaultSecretSettings secretSettings;

@@ -99,28 +99,29 @@ public final class EnterpriseSearchModuleTestUtils {
         return new QueryRule(ruleId, type, criteria, randomQueryRuleActions(), randomQueryRulePriority());
     }
 
-    private static List<Object> generateRandomValues(QueryRuleCriteriaType criteriaType, int numValues) {
-        if (criteriaType == QueryRuleCriteriaType.ALWAYS) {
-            return null;
-        }
-
-        List<Object> values = new ArrayList<>();
-        for (int i = 0; i < numValues; i++) {
-            values.add(
-                List.of(QueryRuleCriteriaType.GT, QueryRuleCriteriaType.GTE, QueryRuleCriteriaType.LT, QueryRuleCriteriaType.LTE)
-                    .contains(criteriaType)
-                        ? BigDecimal.valueOf(randomDoubleBetween(0, 1000, true)).setScale(2, RoundingMode.HALF_UP).toString()
-                        : randomAlphaOfLengthBetween(3, 10)
-            );
-        }
-        return values;
-    }
-
     public static QueryRuleCriteria randomQueryRuleCriteria() {
+        Set<QueryRuleCriteriaType> numericValueCriteriaType = Set.of(QueryRuleCriteriaType.GT, QueryRuleCriteriaType.GTE, QueryRuleCriteriaType.LT, QueryRuleCriteriaType.LTE);
         QueryRuleCriteriaType criteriaType = randomFrom(QueryRuleCriteriaType.values());
-        String metadata = criteriaType == QueryRuleCriteriaType.ALWAYS ? null : randomAlphaOfLengthBetween(3, 10);
-        int numValues = randomIntBetween(1, 3);
-        List<Object> values = generateRandomValues(criteriaType, numValues);
+        
+        String metadata;
+        List<String> values;
+        if (criteriaType == QueryRuleCriteriaType.ALWAYS) {
+            metadata = null;
+            values = null;
+        } else {
+             metadata = randomAlphaOfLengthBetween(3, 10);
+             values = new ArrayList<>();
+             
+             int numValues = randomIntBetween(1, 3);
+             for (int i = 0; i < numValues; i++) {
+                 values.add(
+                     numericValueCriteriaType.contains(criteriaType)
+                         ? BigDecimal.valueOf(randomDoubleBetween(0, 1000, true)).setScale(2, RoundingMode.HALF_UP).toString()
+                         : randomAlphaOfLengthBetween(3, 10)
+                 );
+             }
+        }
+
         return new QueryRuleCriteria(criteriaType, metadata, values);
     }
 

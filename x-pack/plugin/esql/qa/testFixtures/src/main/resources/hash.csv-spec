@@ -26,7 +26,8 @@ required_capability: hash_function
 FROM sample_data 
 | WHERE message != "Connection error"
 | EVAL input = event_duration::STRING, md5 = hash("md5", input), sha256 = hash("sha256", input) 
-| KEEP message, input, md5, sha256;
+| KEEP message, input, md5, sha256
+;
 ignoreOrder:true
 
 message:keyword       | input:keyword | md5:keyword                      | sha256:keyword
@@ -142,7 +143,7 @@ FROM sample_data
 | EVAL sha1 = sha1(message)
 | KEEP message, sha1
 // end::sha1[]
-
+;
 ignoreOrder:true
 
 // tag::sha1-result[]

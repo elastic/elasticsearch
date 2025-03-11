@@ -239,18 +239,11 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     }
 
     protected void indexDocs(String indexName) {
-        indexDocs(indexName, false);
-        IndicesStatsResponse indexStats = ESIntegTestCase.indicesAdmin().prepareStats(indexName).setDocs(true).get();
-        Assert.assertThat(indexStats.getIndex(indexName).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
-    }
-
-    protected void indexDocs(String indexName, boolean dataStream) {
         List<IndexRequestBuilder> docs = new ArrayList<>(INDEX_DOC_COUNT);
         for (int i = 0; i < INDEX_DOC_COUNT; i++) {
             docs.add(
                 ESIntegTestCase.prepareIndex(indexName)
                     .setId(Integer.toString(i))
-                    .setRequireDataStream(dataStream)
                     .setSource(FIELD_NAME, "words words")
             );
         }

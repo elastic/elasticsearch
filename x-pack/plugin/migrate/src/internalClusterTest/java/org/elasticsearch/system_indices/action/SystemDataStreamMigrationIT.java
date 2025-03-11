@@ -163,7 +163,7 @@ public class SystemDataStreamMigrationIT extends AbstractFeatureMigrationIntegTe
         executeMigration(DATA_STREAM_FEATURE);
         ensureGreen();
 
-        Metadata finalMetadata = assertMetadataAfterMigration(DATA_STREAM_FEATURE);
+        assertMetadataAfterMigration(DATA_STREAM_FEATURE);
     }
 
     private void simulateClusterUpgrade() throws Exception {

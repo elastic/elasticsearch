@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -269,6 +270,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         var coordinatorNodeTransport = MockTransportService.getInstance(coordinatingNode);
         coordinatorNodeTransport.addSendBehavior((connection, requestId, action, request, options) -> {
             if (Objects.equals(action, ExchangeService.OPEN_EXCHANGE_ACTION_NAME)) {
+                logger.info("Opening exchange on node [{}]", connection.getNode().getId());
                 exchanges.incrementAndGet();
             }
             connection.sendRequest(requestId, action, request, options);
@@ -282,6 +284,16 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
             var result = safeExecute(client(coordinatingNode), EsqlQueryAction.INSTANCE, query);
             assertThat(Iterables.size(result.rows()), equalTo(1L));
             assertThat(exchanges.get(), lessThanOrEqualTo(1));// 0 if result is populated from coordinating node
+        } catch (AssertionError e) {
+            client().admin().indices().stats(new IndicesStatsRequest()).actionGet().asMap().forEach((shard, stats) -> {
+                logger.info(
+                    "Shard {} node {} status {} docs {}",
+                    shard.shardId(),
+                    shard.currentNodeId(),
+                    shard.state(),
+                    stats.getStats().getDocs().getCount()
+                );
+            });
         } finally {
             coordinatorNodeTransport.clearAllRules();
         }

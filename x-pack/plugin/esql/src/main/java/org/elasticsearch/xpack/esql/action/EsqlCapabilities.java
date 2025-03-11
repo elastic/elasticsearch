@@ -860,7 +860,17 @@ public class EsqlCapabilities {
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
-        MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST;
+        MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,
+
+        /**
+         * Support for RRF command
+         */
+        RRF(Build.current().isSnapshot()),
+
+        /**
+         * Full text functions can be scored when being part of a disjunction
+         */
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE;
 
         private final boolean enabled;
 

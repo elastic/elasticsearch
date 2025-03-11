@@ -1406,7 +1406,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     /**
      * Implements the finalization process for a snapshot: does some preparatory calculations, builds a {@link SnapshotInfo} and a
      * {@link FinalizeSnapshotContext}, calls {@link Repository#finalizeSnapshot} and handles the outcome by notifying waiting listeners
-     * and triggering the next snapshot-related activity.
+     * and triggering the next snapshot-related activity (another finalization, a batch of deletes, etc.)
      */
     // This only really makes sense to run against a BlobStoreRepository, and the division of work between this class and
     // BlobStoreRepository#finalizeSnapshot is kind of awkward and artificial; TODO consolidate all this stuff into one place and simplify

@@ -1835,7 +1835,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }));
                     }
 
-                    // Write the SnapshotInfo blob (we're already on a SNAPSHOT thread so no need to fork this)
+                    // Write the SnapshotInfo blob to the repo (we're already on a SNAPSHOT thread so no need to fork this)
                     assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
                     ActionListener.completeWith(allMetaListeners.acquire(), () -> {
                         SNAPSHOT_FORMAT.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), compress);

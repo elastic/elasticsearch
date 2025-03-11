@@ -457,7 +457,6 @@ public abstract class TransportWriteAction<
         // read the values back from the engine as it could deadlock.
         private final AtomicLong globalCheckpoint;
         private final AtomicLong localCheckpoint;
-        private final AtomicReference<Exception> checkpointFailure = new AtomicReference<>(null);
 
         AsyncAfterWriteAction(
             final IndexShard indexShard,
@@ -505,11 +504,7 @@ public abstract class TransportWriteAction<
                     if (refreshFailure.get() != null) {
                         respond.onFailure(globalCheckpoint, localCheckpoint, refreshFailure.get());
                     } else {
-                        if (checkpointFailure.get() != null) {
-                            respond.onFailure(globalCheckpoint, localCheckpoint, checkpointFailure.get());
-                        } else {
-                            respond.onSuccess(globalCheckpoint, localCheckpoint, refreshed.get());
-                        }
+                        respond.onSuccess(globalCheckpoint, localCheckpoint, refreshed.get());
                     }
                 }
             }
@@ -518,14 +513,13 @@ public abstract class TransportWriteAction<
 
         private void updateCheckpoints() {
             try {
-                if (checkpointFailure.get() != null) {
-                    this.globalCheckpoint.accumulateAndGet(indexShard.getLastSyncedGlobalCheckpoint(), Math::max);
-                    this.localCheckpoint.accumulateAndGet(indexShard.getLocalCheckpoint(), Math::max);
-                }
+                this.globalCheckpoint.accumulateAndGet(indexShard.getLastSyncedGlobalCheckpoint(), Math::max);
+                this.localCheckpoint.accumulateAndGet(indexShard.getLocalCheckpoint(), Math::max);
             } catch (AlreadyClosedException e) {
                 // the index was deleted or this shard was never activated after a relocation; fall through and finish normally
             } catch (Exception e) {
-                checkpointFailure.set(e);
+                syncFailure.set(e);
+                assert false : e;
             }
         }
 

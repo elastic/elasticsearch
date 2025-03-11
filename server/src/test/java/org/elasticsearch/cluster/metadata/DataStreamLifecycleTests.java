@@ -410,9 +410,6 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
 
     @Nullable
     static List<DataStreamLifecycle.DownsamplingRound> randomDownsampling() {
-        if (randomBoolean()) {
-            return null;
-        }
         var count = randomIntBetween(0, 9);
         List<DataStreamLifecycle.DownsamplingRound> rounds = new ArrayList<>();
         var previous = new DataStreamLifecycle.DownsamplingRound(

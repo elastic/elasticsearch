@@ -272,6 +272,11 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot correctly handle the field caps change",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS.capabilityName())
             );
+            assumeFalse(
+                "CSV tests cannot currently handle scoring that depends on Lucene",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SCORE.capabilityName())
+            );
+
             if (Build.current().isSnapshot()) {
                 assertThat(
                     "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",

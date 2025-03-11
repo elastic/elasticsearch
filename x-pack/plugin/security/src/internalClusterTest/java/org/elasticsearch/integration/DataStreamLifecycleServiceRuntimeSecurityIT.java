@@ -94,7 +94,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     public void testRolloverLifecycleAndForceMergeAuthorized() throws Exception {
         String dataStreamName = randomDataStreamName();
         // empty lifecycle contains the default rollover
-        prepareDataStreamAndIndex(dataStreamName, DataStreamLifecycle.Template.EMPTY);
+        prepareDataStreamAndIndex(dataStreamName, DataStreamLifecycle.Template.DEFAULT);
 
         assertBusy(() -> {
             assertNoAuthzErrors();

@@ -163,7 +163,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .dataRetention(randomPositiveTimeValue())
                 .downsampling(randomRounds())
                 .build();
-            List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle, DataStreamLifecycle.Template.EMPTY);
+            List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle, DataStreamLifecycle.Template.DEFAULT);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).toDataStreamLifecycle();
             assertThat(result.enabled(), equalTo(false));
             assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));
@@ -183,7 +183,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build();
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle1, lifecycle2);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).toDataStreamLifecycle();
-            assertThat(result.enabled(), equalTo(lifecycle2.enabled().get()));
+            assertThat(result.enabled(), equalTo(lifecycle2.enabled()));
             assertThat(result.dataRetention(), equalTo(lifecycle2.dataRetention().get()));
             assertThat(result.downsampling(), equalTo(lifecycle2.downsampling().get()));
         }

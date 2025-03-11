@@ -220,7 +220,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         // We temporarily used the explicit null to disable a lifecycle.
         boolean isExplicitNull = false;
         if (out.getTransportVersion().between(TransportVersions.V_8_9_X, DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
-            isExplicitNull = lifecycle != null && lifecycle.enabled().isDefined() && lifecycle.enabled().get() == false;
+            isExplicitNull = lifecycle != null && lifecycle.enabled() == false;
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             if (isExplicitNull == false) {

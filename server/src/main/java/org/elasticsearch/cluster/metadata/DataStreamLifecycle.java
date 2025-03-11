@@ -555,7 +555,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * to allow value reset during template composition.
      */
     public record Template(
-        ResettableValue<Boolean> enabled,
+        boolean enabled,
         ResettableValue<TimeValue> dataRetention,
         ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsampling
     ) implements ToXContentObject, Writeable {
@@ -566,16 +566,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
         }
 
-        public static final DataStreamLifecycle.Template EMPTY = new DataStreamLifecycle.Template(
-            ResettableValue.undefined(),
-            ResettableValue.undefined(),
-            ResettableValue.undefined()
-        );
-
-        // Current default lifecycle, EMPTY is effectively the
-        // same without an explicitly setting enabled to true
         public static final DataStreamLifecycle.Template DEFAULT = new DataStreamLifecycle.Template(
-            ResettableValue.create(true),
+            true,
             ResettableValue.undefined(),
             ResettableValue.undefined()
         );
@@ -585,21 +577,14 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             "lifecycle_template",
             false,
             (args, unused) -> new DataStreamLifecycle.Template(
-                args[0] == null ? ResettableValue.undefined() : (ResettableValue<Boolean>) args[0],
+                args[0] == null || (boolean) args[0],
                 args[1] == null ? ResettableValue.undefined() : (ResettableValue<TimeValue>) args[1],
                 args[2] == null ? ResettableValue.undefined() : (ResettableValue<List<DataStreamLifecycle.DownsamplingRound>>) args[2]
             )
         );
 
         static {
-            PARSER.declareField(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL
-                    ? ResettableValue.reset()
-                    : ResettableValue.create(p.booleanValue()),
-                ENABLED_FIELD,
-                ObjectParser.ValueType.BOOLEAN_OR_NULL
-            );
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
             PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
                 String value = p.textOrNull();
                 return value == null
@@ -623,16 +608,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
             if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
                 ResettableValue.write(out, downsampling, StreamOutput::writeOptionalCollection);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                    ResettableValue.write(out, enabled, StreamOutput::writeBoolean);
-                } else {
-                    out.writeBoolean(enabled.get() == null || enabled.get());
-                }
+                out.writeBoolean(enabled);
             }
         }
 
         public static Template read(StreamInput in) throws IOException {
-            ResettableValue<Boolean> enabled = ResettableValue.undefined();
+            boolean enabled = true;
             ResettableValue<TimeValue> dataRetention = ResettableValue.undefined();
             ResettableValue<List<DownsamplingRound>> downsampling = ResettableValue.undefined();
 
@@ -642,11 +623,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
             if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
                 downsampling = ResettableValue.read(in, i -> i.readCollectionAsList(DownsamplingRound::read));
-                if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                    enabled = ResettableValue.read(in, StreamInput::readBoolean);
-                } else {
-                    enabled = ResettableValue.create(in.readBoolean());
-                }
+                enabled = in.readBoolean();
             }
             return new Template(enabled, dataRetention, downsampling);
         }
@@ -676,7 +653,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             boolean isInternalDataStream
         ) throws IOException {
             builder.startObject();
-            enabled.toXContent(builder, params, ENABLED_FIELD.getPreferredName());
+            builder.field(ENABLED_FIELD.getPreferredName(), enabled);
             dataRetention.toXContent(builder, params, DATA_RETENTION_FIELD.getPreferredName(), TimeValue::getStringRep);
             downsampling.toXContent(builder, params, DOWNSAMPLING_FIELD.getPreferredName());
             if (rolloverConfiguration != null) {
@@ -700,7 +677,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
 
         public static class Builder {
-            private ResettableValue<Boolean> enabled = ResettableValue.undefined();
+            private boolean enabled = true;
             private ResettableValue<TimeValue> dataRetention = ResettableValue.undefined();
             private ResettableValue<List<DownsamplingRound>> downsampling = ResettableValue.undefined();
 
@@ -712,13 +689,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 }
             }
 
-            public Builder enabled(ResettableValue<Boolean> enabled) {
+            public Builder enabled(boolean enabled) {
                 this.enabled = enabled;
-                return this;
-            }
-
-            public Builder enabled(@Nullable Boolean enabled) {
-                this.enabled = ResettableValue.create(enabled);
                 return this;
             }
 
@@ -748,7 +720,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
 
         public DataStreamLifecycle toDataStreamLifecycle() {
-            return new DataStreamLifecycle(enabled.get(), dataRetention.get(), downsampling.get());
+            return new DataStreamLifecycle(enabled, dataRetention.get(), downsampling.get());
         }
 
         @Override

@@ -1706,9 +1706,7 @@ public class MetadataIndexTemplateService {
             if (builder == null) {
                 builder = DataStreamLifecycle.Template.builder(current);
             } else {
-                if (current.enabled().isDefined()) {
-                    builder.enabled(current.enabled());
-                }
+                builder.enabled(current.enabled());
                 if (current.dataRetention().isDefined()) {
                     builder.dataRetention(current.dataRetention());
                 }

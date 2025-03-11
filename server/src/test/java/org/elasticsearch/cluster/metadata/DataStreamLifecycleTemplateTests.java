@@ -41,7 +41,7 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
         var retention = instance.dataRetention();
         var downsampling = instance.downsampling();
         switch (randomInt(2)) {
-            case 0 -> enabled = randomValueOtherThan(enabled, DataStreamLifecycleTemplateTests::randomEnabled);
+            case 0 -> enabled = enabled == false;
             case 1 -> retention = randomValueOtherThan(retention, DataStreamLifecycleTemplateTests::randomRetention);
             case 2 -> downsampling = randomValueOtherThan(downsampling, DataStreamLifecycleTemplateTests::randomDownsampling);
             default -> throw new AssertionError("Illegal randomisation branch");
@@ -169,19 +169,10 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
     @Nullable
     public static DataStreamLifecycle.Template randomLifecycleTemplate() {
         return DataStreamLifecycle.Template.builder()
-            .enabled(randomEnabled())
+            .enabled(randomBoolean())
             .dataRetention(randomRetention())
             .downsampling(randomDownsampling())
             .build();
-    }
-
-    private static ResettableValue<Boolean> randomEnabled() {
-        return switch (randomIntBetween(0, 2)) {
-            case 0 -> ResettableValue.undefined();
-            case 1 -> ResettableValue.reset();
-            case 2 -> ResettableValue.create(randomBoolean());
-            default -> throw new IllegalStateException("Unknown randomisation path");
-        };
     }
 
     private static ResettableValue<TimeValue> randomRetention() {

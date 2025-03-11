@@ -5121,7 +5121,15 @@ public class IndexShardTests extends IndexShardTestCase {
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER,
-            fakeClock
+            fakeClock,
+            // Use a listener to advance the fake clock once per indexing operation:
+            new IndexingOperationListener() {
+                @Override
+                public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
+                    fakeClock.advance();
+                    return IndexingOperationListener.super.preIndex(shardId, operation);
+                }
+            }
         );
 
         // Now simulate that each operation takes 1 minute to complete.
@@ -5229,24 +5237,19 @@ public class IndexShardTests extends IndexShardTestCase {
 
     static class FakeClock implements LongSupplier {
         private final AtomicLong currentRelativeTime = new AtomicLong();
-        private final AtomicInteger tick = new AtomicInteger();
-        private volatile TimeValue elapsedTimePerPairOfQueries = TimeValue.ZERO;
+        private volatile TimeValue simulatedElapsedRelativeTime = TimeValue.ZERO;
 
         @Override
         public long getAsLong() {
-            // Since the clock is checked at the beginning and at the end of
-            // the indexing op, just increase the current relative time at the
-            // end.
-            if (tick.getAndIncrement() % 2 == 0) {
-                return currentRelativeTime.get();
-            } else {
-                return currentRelativeTime.addAndGet(elapsedTimePerPairOfQueries.nanos());
-            }
+            return currentRelativeTime.get();
         }
 
-        void setSimulatedElapsedRelativeTime(TimeValue elapsedTimePerPairOfQueries) {
-            tick.set(0);
-            this.elapsedTimePerPairOfQueries = elapsedTimePerPairOfQueries;
+        void setSimulatedElapsedRelativeTime(TimeValue simulatedElapsedRelativeTime) {
+            this.simulatedElapsedRelativeTime = simulatedElapsedRelativeTime;
+        }
+
+        public void advance() {
+            currentRelativeTime.addAndGet(simulatedElapsedRelativeTime.nanos());
         }
     }
 

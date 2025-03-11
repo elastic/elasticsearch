@@ -297,6 +297,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile long startedRelativeTimeInNanos;
     private volatile long indexingTimeBeforeShardStartedInNanos;
+    private volatile double recentIndexingLoadAtShardStarted;
     private final SubscribableListener<Void> waitForEngineOrClosedShardListeners = new SubscribableListener<>();
 
     // the translog keeps track of the GCP, but unpromotable shards have no translog so we need to track the GCP here instead
@@ -326,7 +327,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         final LongSupplier relativeTimeInNanosSupplier,
         final Engine.IndexCommitListener indexCommitListener,
-        final MapperMetrics mapperMetrics
+        final MapperMetrics mapperMetrics,
+        final IndexingStatsSettings indexingStatsSettings
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -344,7 +346,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.threadPool = threadPool;
         this.mapperService = mapperService;
         this.indexCache = indexCache;
-        this.internalIndexingStats = new InternalIndexingStats();
+        this.internalIndexingStats = new InternalIndexingStats(relativeTimeInNanosSupplier, indexingStatsSettings);
         var indexingFailuresDebugListener = new IndexingFailuresDebugListener(this);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(
             CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats, indexingFailuresDebugListener),
@@ -552,6 +554,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
                 startedRelativeTimeInNanos = getRelativeTimeInNanos();
                 indexingTimeBeforeShardStartedInNanos = internalIndexingStats.totalIndexingTimeInNanos();
+                recentIndexingLoadAtShardStarted = internalIndexingStats.recentIndexingLoad(startedRelativeTimeInNanos);
             } else if (currentRouting.primary()
                 && currentRouting.relocating()
                 && replicationTracker.isRelocated()
@@ -1361,11 +1364,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throttleTimeInMillis = engine.getIndexThrottleTimeInMillis();
         }
 
+        long currentTimeInNanos = getRelativeTimeInNanos();
         return internalIndexingStats.stats(
             throttled,
             throttleTimeInMillis,
             indexingTimeBeforeShardStartedInNanos,
-            getRelativeTimeInNanos() - startedRelativeTimeInNanos
+            currentTimeInNanos - startedRelativeTimeInNanos,
+            currentTimeInNanos,
+            recentIndexingLoadAtShardStarted
         );
     }
 

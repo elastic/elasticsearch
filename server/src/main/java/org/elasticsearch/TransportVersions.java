@@ -189,6 +189,7 @@ public class TransportVersions {
     public static final TransportVersion INDEX_RESHARDING_METADATA = def(9_031_0_00);
     public static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA = def(9_032_0_00);
     public static final TransportVersion INTRODUCE_LIFECYCLE_TEMPLATE = def(9_033_0_00);
+    public static final TransportVersion INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD = def(9_034_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

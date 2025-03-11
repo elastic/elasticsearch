@@ -14,6 +14,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
+/**
+ * Term query. It can be considered for scoring or not - filters that use term query as implementation will not use scoring,
+ * but the Term full text function will
+ */
 public class TermQuery extends Query {
 
     private final String term;

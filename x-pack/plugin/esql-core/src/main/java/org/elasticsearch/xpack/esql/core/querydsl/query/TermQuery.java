@@ -58,7 +58,7 @@ public class TermQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(term, value, caseInsensitive);
+        return Objects.hash(term, value, caseInsensitive, scorable);
     }
 
     @Override
@@ -74,7 +74,8 @@ public class TermQuery extends Query {
         TermQuery other = (TermQuery) obj;
         return Objects.equals(term, other.term)
             && Objects.equals(value, other.value)
-            && Objects.equals(caseInsensitive, other.caseInsensitive);
+            && Objects.equals(caseInsensitive, other.caseInsensitive)
+            && Objects.equals(scorable, other.scorable);
     }
 
     @Override

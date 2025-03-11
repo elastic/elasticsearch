@@ -44,6 +44,10 @@ public abstract class Query {
         return source;
     }
 
+    /**
+     * Convert to an Elasticsearch {@link QueryBuilder} all set up to execute
+     * the query. This ensures that queries have appropriate boosting for scoring.
+     */
     public final QueryBuilder toQueryBuilder() {
         QueryBuilder builder = asBuilder();
         if (scorable() == false) {
@@ -53,8 +57,7 @@ public abstract class Query {
     }
 
     /**
-     * Convert to an Elasticsearch {@link QueryBuilder} all set up to execute
-     * the query.
+     * Used internally to convert to retrieve a {@link QueryBuilder} by queries.
      */
     protected abstract QueryBuilder asBuilder();
 
@@ -95,9 +98,7 @@ public abstract class Query {
     }
 
     /**
-     * Defines whether a query should be scored or not
-     *
-     * @return true if the query should be scored
+     * Defines whether a query should contribute to the overall score
      */
     public boolean scorable() {
         return false;

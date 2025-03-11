@@ -866,7 +866,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
-        assertThat(query.query(), is(existsQuery("emp_no")));
+        assertThat(query.query(), is(existsQuery("emp_no").boost(0.0f)));
     }
 
     /**
@@ -901,7 +901,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
-        assertThat(query.query(), is(existsQuery("emp_no")));
+        assertThat(query.query(), is(existsQuery("emp_no").boost(0.0f)));
     }
 
     public void testQueryForStatWithMultiAgg() {
@@ -922,7 +922,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 3 /* for doc id, emp_no, salary*/));
-        assertThat(query.query(), is(boolQuery().should(existsQuery("emp_no")).should(existsQuery("salary"))));
+        assertThat(query.query(), is(boolQuery().should(existsQuery("emp_no").boost(0.0f)).should(existsQuery("salary").boost(0.0f))));
     }
 
     /**
@@ -1882,7 +1882,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                   "term" : {
                     "first_name" : {
                       "value" : "FOO",
-                      "case_insensitive" : true
+                      "case_insensitive" : true,
+                      "boost": 0.0
                     }
                   }
                 },
@@ -1926,7 +1927,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                   "term" : {
                     "first_name" : {
                       "value" : "foo",
-                      "case_insensitive" : true
+                      "case_insensitive" : true,
+                      "boost": 0.0
                     }
                   }
                 },
@@ -1950,12 +1952,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                         "term" : {
                           "first_name" : {
                             "value" : "FOO",
-                            "case_insensitive" : true
+                            "case_insensitive" : true,
+                            "boost": 0.0
                           }
                         }
                       }
                     ],
-                    "boost" : 1.0
+                    "boost": 0.0
                   }
                 },
                 "source" : "to_upper(first_name) != \\"FOO\\"@2:9"
@@ -1978,12 +1981,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                         "term" : {
                           "first_name" : {
                             "value" : "foo",
-                            "case_insensitive" : true
+                            "case_insensitive" : true,
+                            "boost": 0.0
                           }
                         }
                       }
                     ],
-                    "boost" : 1.0
+                    "boost" : 0.0
                   }
                 },
                 "source" : "to_lower(first_name) != \\"foo\\"@2:9"
@@ -2009,12 +2013,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                               "term" : {
                                 "first_name" : {
                                   "value" : "foo",
-                                  "case_insensitive" : true
+                                  "case_insensitive" : true,
+                                  "boost": 0.0
                                 }
                               }
                             }
                           ],
-                          "boost" : 1.0
+                          "boost": 0.0
                         }
                       },
                       "source" : "to_lower(first_name) != \\"foo\\"@2:9"
@@ -2027,7 +2032,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                         "term" : {
                           "first_name" : {
                             "value" : "FOO",
-                            "case_insensitive" : true
+                            "case_insensitive" : true,
+                            "boost": 0.0
                           }
                         }
                       },
@@ -2041,7 +2047,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                         "range" : {
                           "emp_no" : {
                             "gt" : 10,
-                            "boost" : 1.0
+                            "boost" : 0.0
                           }
                         }
                       },
@@ -2079,7 +2085,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                   "term" : {
                     "first_name" : {
                       "value" : "foo",
-                      "case_insensitive" : true
+                      "case_insensitive" : true,
+                      "boost" : 0.0
                     }
                   }
                 },
@@ -4696,11 +4703,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     var fieldExtract = as(project.child(), FieldExtractExec.class);
                     var source = source(fieldExtract.child());
                     var bool = as(source.query(), BoolQueryBuilder.class);
-                    var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+                    var rangeQueryBuilders = bool.must().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
                     assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
                     assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
                     if (op.equals("==")) {
-                        var boolQueryBuilders = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+                        var boolQueryBuilders = bool.must().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
                         assertThat("Expected one sub-bool query builder", boolQueryBuilders.size(), equalTo(1));
                         var bool2 = as(boolQueryBuilders.get(0), BoolQueryBuilder.class);
                         var shapeQueryBuilders = bool2.must()
@@ -4709,7 +4716,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                             .toList();
                         assertShapeQueryRange(shapeQueryBuilders, Math.nextDown(expected.value), expected.value);
                     } else {
-                        var shapeQueryBuilders = bool.filter()
+                        var shapeQueryBuilders = bool.must()
                             .stream()
                             .filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder)
                             .toList();
@@ -4755,7 +4762,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var source = source(fieldExtract.child());
         var bool = as(source.query(), BoolQueryBuilder.class);
-        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        var rangeQueryBuilders = bool.must().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
         assertThat("Expected zero range query builder", rangeQueryBuilders.size(), equalTo(0));
         var shapeQueryBuilders = bool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
         assertShapeQueryRange(shapeQueryBuilders, 400000.0, 600000.0);
@@ -4859,7 +4866,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract2 = as(evalExec.child(), FieldExtractExec.class);
         var source = source(fieldExtract2.child());
         var bool = as(source.query(), BoolQueryBuilder.class);
-        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        var rangeQueryBuilders = bool.must().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
         assertThat("Expected zero range query builder", rangeQueryBuilders.size(), equalTo(0));
         var shapeQueryBuilders = bool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
         assertShapeQueryRange(shapeQueryBuilders, 400000.0, 600000.0);
@@ -4916,7 +4923,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract2 = as(evalExec.child(), FieldExtractExec.class);
         var source = source(fieldExtract2.child());
         var bool = as(source.query(), BoolQueryBuilder.class);
-        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        var rangeQueryBuilders = bool.must().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
         assertThat("Expected zero range query builder", rangeQueryBuilders.size(), equalTo(0));
         var shapeQueryBuilders = bool.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
         assertShapeQueryRange(shapeQueryBuilders, 400000.0, 600000.0);
@@ -5004,9 +5011,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var source = source(fieldExtract.child());
         var bool = as(source.query(), BoolQueryBuilder.class);
-        assertThat("Expected boolean query of three MUST clauses", bool.must().size(), equalTo(2));
-        assertThat("Expected boolean query of one FILTER clause", bool.filter().size(), equalTo(1));
-        var boolDisjuntive = as(bool.filter().get(0), BoolQueryBuilder.class);
+        assertThat("Expected boolean query of three MUST clauses", bool.must().size(), equalTo(3));
+        var boolDisjuntive = as(bool.must().get(2), BoolQueryBuilder.class);
         var disjuntiveQueryBuilders = boolDisjuntive.should().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
         assertThat("Expected two disjunctive query builders", disjuntiveQueryBuilders.size(), equalTo(2));
         for (int i = 0; i < disjuntiveQueryBuilders.size(); i++) {
@@ -5094,9 +5100,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract2 = as(evalExec.child(), FieldExtractExec.class);
         var source = source(fieldExtract2.child());
         var bool = as(source.query(), BoolQueryBuilder.class);
-        assertThat("Expected boolean query of three MUST clauses", bool.must().size(), equalTo(2));
-        assertThat("Expected boolean query of one FILTER clause", bool.filter().size(), equalTo(1));
-        var boolDisjuntive = as(bool.filter().get(0), BoolQueryBuilder.class);
+        assertThat("Expected boolean query of three MUST clauses", bool.must().size(), equalTo(3));
+        var boolDisjuntive = as(bool.must().get(2), BoolQueryBuilder.class);
         var disjuntiveQueryBuilders = boolDisjuntive.should().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
         assertThat("Expected two disjunctive query builders", disjuntiveQueryBuilders.size(), equalTo(2));
         for (int i = 0; i < disjuntiveQueryBuilders.size(); i++) {
@@ -5304,10 +5309,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // Fine-grained checks on the pushed down query
         var bool = as(source.query(), BoolQueryBuilder.class);
-        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        var rangeQueryBuilders = bool.must().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
         assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
         assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
-        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var filterBool = bool.must().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
         var fb = as(filterBool.get(0), BoolQueryBuilder.class);
         var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
         assertShapeQueryRange(shapeQueryBuilders, 10000.0, 1000000.0);
@@ -5778,10 +5783,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // Fine-grained checks on the pushed down query
         var bool = as(source.query(), BoolQueryBuilder.class);
-        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        var rangeQueryBuilders = bool.must().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
         assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
         assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
-        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var filterBool = bool.must().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
         var fb = as(filterBool.get(0), BoolQueryBuilder.class);
         var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
         assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
@@ -5872,10 +5877,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // Fine-grained checks on the pushed down query
         var bool = as(source.query(), BoolQueryBuilder.class);
-        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        var rangeQueryBuilders = bool.must().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
         assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
         assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
-        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var filterBool = bool.must().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
         var fb = as(filterBool.get(0), BoolQueryBuilder.class);
         var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
         assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
@@ -5947,10 +5952,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // Fine-grained checks on the pushed down query
         var bool = as(source.query(), BoolQueryBuilder.class);
-        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        var rangeQueryBuilders = bool.must().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
         assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
         assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
-        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var filterBool = bool.must().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
         var fb = as(filterBool.get(0), BoolQueryBuilder.class);
         var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
         assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
@@ -6176,10 +6181,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // Fine-grained checks on the pushed down query
         var bool = as(source.query(), BoolQueryBuilder.class);
-        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        var rangeQueryBuilders = bool.must().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
         assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
         assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
-        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var filterBool = bool.must().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
         var fb = as(filterBool.get(0), BoolQueryBuilder.class);
         var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
         assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
@@ -6275,10 +6280,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // Fine-grained checks on the pushed down query
         var bool = as(source.query(), BoolQueryBuilder.class);
-        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        var rangeQueryBuilders = bool.must().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
         assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
         assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
-        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var filterBool = bool.must().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
         var fb = as(filterBool.get(0), BoolQueryBuilder.class);
         var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
         assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
@@ -6461,10 +6466,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         // Fine-grained checks on the pushed down query
         var bool = as(source.query(), BoolQueryBuilder.class);
-        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        var rangeQueryBuilders = bool.must().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
         assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
         assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
-        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var filterBool = bool.must().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
         var fb = as(filterBool.get(0), BoolQueryBuilder.class);
         var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
         assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);

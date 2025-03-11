@@ -18,7 +18,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -49,7 +48,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
     public void testSynthesizeArrayRandom() throws Exception {
         var arrayValues = new Object[randomInt(64)];
         for (int j = 0; j < arrayValues.length; j++) {
-            arrayValues[j] = NetworkAddress.format(randomIp(true));
+            arrayValues[j] = getRandomValue();
         }
         verifySyntheticArray(new Object[][] { arrayValues });
     }

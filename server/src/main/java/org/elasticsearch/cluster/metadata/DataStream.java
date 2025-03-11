@@ -946,7 +946,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamGlobalRetention globalRetention
     ) {
         if (lifecycle == null
-            || lifecycle.isEnabled() == false
+            || lifecycle.isEffectivelyEnabled() == false
             || lifecycle.getEffectiveDataRetention(globalRetention, isInternal()) == null) {
             return List.of();
         }
@@ -973,7 +973,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         LongSupplier nowSupplier
     ) {
         assert backingIndices.indices.contains(index) : "the provided index must be a backing index for this datastream";
-        if (lifecycle == null || lifecycle.getDownsamplingRounds() == null) {
+        if (lifecycle == null || lifecycle.downsampling() == null) {
             return List.of();
         }
 
@@ -986,8 +986,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (indexGenerationTime != null) {
             long nowMillis = nowSupplier.getAsLong();
             long indexGenerationTimeMillis = indexGenerationTime.millis();
-            List<DownsamplingRound> orderedRoundsForIndex = new ArrayList<>(lifecycle.getDownsamplingRounds().size());
-            for (DownsamplingRound round : lifecycle.getDownsamplingRounds()) {
+            List<DownsamplingRound> orderedRoundsForIndex = new ArrayList<>(lifecycle.downsampling().size());
+            for (DownsamplingRound round : lifecycle.downsampling()) {
                 if (nowMillis >= indexGenerationTimeMillis + round.after().getMillis()) {
                     orderedRoundsForIndex.add(round);
                 }
@@ -1076,11 +1076,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * access method.
      */
     private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
-        if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null && lifecycle.isEnabled()) {
+        if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null && lifecycle.isEffectivelyEnabled()) {
             // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index
             return PREFER_ILM_SETTING.get(indexMetadata.getSettings()) == false;
         }
-        return lifecycle != null && lifecycle.isEnabled();
+        return lifecycle != null && lifecycle.isEffectivelyEnabled();
     }
 
     /**

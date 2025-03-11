@@ -192,8 +192,8 @@ public class CrudDataStreamLifecycleIT extends ESIntegTestCase {
             ).get();
             assertThat(response.getDataStreamLifecycles().size(), equalTo(1));
             assertThat(response.getDataStreamLifecycles().get(0).dataStreamName(), equalTo("my-data-stream"));
-            assertThat(response.getDataStreamLifecycles().get(0).lifecycle().getDataStreamRetention(), equalTo(dataRetention));
-            assertThat(response.getDataStreamLifecycles().get(0).lifecycle().isEnabled(), equalTo(true));
+            assertThat(response.getDataStreamLifecycles().get(0).lifecycle().dataRetention(), equalTo(dataRetention));
+            assertThat(response.getDataStreamLifecycles().get(0).lifecycle().isEffectivelyEnabled(), equalTo(true));
         }
 
         // Disable the lifecycle
@@ -220,8 +220,8 @@ public class CrudDataStreamLifecycleIT extends ESIntegTestCase {
             ).get();
             assertThat(response.getDataStreamLifecycles().size(), equalTo(1));
             assertThat(response.getDataStreamLifecycles().get(0).dataStreamName(), equalTo("my-data-stream"));
-            assertThat(response.getDataStreamLifecycles().get(0).lifecycle().getDataStreamRetention(), equalTo(dataRetention));
-            assertThat(response.getDataStreamLifecycles().get(0).lifecycle().isEnabled(), equalTo(false));
+            assertThat(response.getDataStreamLifecycles().get(0).lifecycle().dataRetention(), equalTo(dataRetention));
+            assertThat(response.getDataStreamLifecycles().get(0).lifecycle().isEffectivelyEnabled(), equalTo(false));
         }
     }
 

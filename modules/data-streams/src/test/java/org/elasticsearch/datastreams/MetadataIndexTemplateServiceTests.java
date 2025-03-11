@@ -151,9 +151,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).toDataStreamLifecycle();
             // Defaults to true
-            assertThat(result.isEnabled(), equalTo(true));
-            assertThat(result.getDataStreamRetention(), equalTo(lifecycle.dataRetention().get()));
-            assertThat(result.getDownsamplingRounds(), equalTo(lifecycle.downsampling().get()));
+            assertThat(result.isEffectivelyEnabled(), equalTo(true));
+            assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));
+            assertThat(result.downsampling(), equalTo(lifecycle.downsampling().get()));
         }
         // If the last lifecycle is missing a property (apart from enabled) we keep the latest from the previous ones
         // Enabled is always true unless it's explicitly set to false
@@ -165,9 +165,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build();
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle, DataStreamLifecycle.Template.EMPTY);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).toDataStreamLifecycle();
-            assertThat(result.isEnabled(), equalTo(false));
-            assertThat(result.getDataStreamRetention(), equalTo(lifecycle.dataRetention().get()));
-            assertThat(result.getDownsamplingRounds(), equalTo(lifecycle.downsampling().get()));
+            assertThat(result.isEffectivelyEnabled(), equalTo(false));
+            assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));
+            assertThat(result.downsampling(), equalTo(lifecycle.downsampling().get()));
         }
         // If both lifecycle have all properties, then the latest one overwrites all the others
         {
@@ -183,9 +183,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build();
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle1, lifecycle2);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).toDataStreamLifecycle();
-            assertThat(result.isEnabled(), equalTo(lifecycle2.enabled().get()));
-            assertThat(result.getDataStreamRetention(), equalTo(lifecycle2.dataRetention().get()));
-            assertThat(result.getDownsamplingRounds(), equalTo(lifecycle2.downsampling().get()));
+            assertThat(result.isEffectivelyEnabled(), equalTo(lifecycle2.enabled().get()));
+            assertThat(result.dataRetention(), equalTo(lifecycle2.dataRetention().get()));
+            assertThat(result.downsampling(), equalTo(lifecycle2.downsampling().get()));
         }
     }
 

@@ -31,7 +31,6 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -98,51 +97,68 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     public static final ParseField DOWNSAMPLING_FIELD = new ParseField("downsampling");
     private static final ParseField ROLLOVER_FIELD = new ParseField("rollover");
 
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<DataStreamLifecycle, Void> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
         false,
-        (args, unused) -> new DataStreamLifecycle((Retention) args[0], (Downsampling) args[1], (Boolean) args[2])
+        (args, unused) -> new DataStreamLifecycle((Boolean) args[0], (TimeValue) args[1], (List<DownsamplingRound>) args[2])
     );
 
     static {
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
+        // For the retention and the downsampling, there was a bug that would allow an explicit null value to be
+        // stored in the data stream when the lifecycle was not composed with another one. We need to be able to read
+        // from a previous cluster state so we allow here explicit null values also to be parsed.
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             String value = p.textOrNull();
             if (value == null) {
-                return Retention.NULL;
+                return null;
             } else {
-                return new Retention(TimeValue.parseTimeValue(value, DATA_RETENTION_FIELD.getPreferredName()));
+                return TimeValue.parseTimeValue(value, DATA_RETENTION_FIELD.getPreferredName());
             }
         }, DATA_RETENTION_FIELD, ObjectParser.ValueType.STRING_OR_NULL);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
-                return Downsampling.NULL;
+                return null;
             } else {
-                return new Downsampling(AbstractObjectParser.parseArray(p, c, DownsamplingRound::fromXContent));
+                return AbstractObjectParser.parseArray(p, c, DownsamplingRound::fromXContent);
             }
         }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
     }
 
     @Nullable
-    private final Retention dataRetention;
+    private final Boolean enabled;
     @Nullable
-    private final Downsampling downsampling;
-    private final boolean enabled;
+    private final TimeValue dataRetention;
+    @Nullable
+    private final List<DownsamplingRound> downsampling;
 
     public DataStreamLifecycle() {
         this(null, null, null);
     }
 
-    public DataStreamLifecycle(@Nullable Retention dataRetention, @Nullable Downsampling downsampling, @Nullable Boolean enabled) {
-        this.enabled = enabled == null || enabled;
+    public DataStreamLifecycle(
+        @Nullable Boolean enabled,
+        @Nullable TimeValue dataRetention,
+        @Nullable List<DownsamplingRound> downsampling
+    ) {
+        this.enabled = enabled;
         this.dataRetention = dataRetention;
+        DownsamplingRound.validateRounds(downsampling);
         this.downsampling = downsampling;
     }
 
     /**
-     * Returns true, if this data stream lifecycle configuration is enabled and false otherwise
+     * Returns true, if this data stream lifecycle configuration is enabled or null, false otherwise
      */
-    public boolean isEnabled() {
+    public boolean isEffectivelyEnabled() {
+        return enabled == null || enabled;
+    }
+
+    /**
+     * Returns the exact value of the configuration
+     */
+    public Boolean enabled() {
         return enabled;
     }
 
@@ -173,22 +189,21 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         boolean isInternalDataStream
     ) {
         // If lifecycle is disabled there is no effective retention
-        if (enabled == false) {
+        if (isEffectivelyEnabled()) {
             return INFINITE_RETENTION;
         }
-        var dataStreamRetention = getDataStreamRetention();
         if (globalRetention == null || isInternalDataStream) {
-            return Tuple.tuple(dataStreamRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
+            return Tuple.tuple(dataRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
         }
-        if (dataStreamRetention == null) {
+        if (dataRetention == null) {
             return globalRetention.defaultRetention() != null
                 ? Tuple.tuple(globalRetention.defaultRetention(), RetentionSource.DEFAULT_GLOBAL_RETENTION)
                 : Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
         }
-        if (globalRetention.maxRetention() != null && globalRetention.maxRetention().getMillis() < dataStreamRetention.getMillis()) {
+        if (globalRetention.maxRetention() != null && globalRetention.maxRetention().getMillis() < dataRetention.getMillis()) {
             return Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
         } else {
-            return Tuple.tuple(dataStreamRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
+            return Tuple.tuple(dataRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
         }
     }
 
@@ -198,8 +213,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * @return the time period or null, null represents that data should never be deleted.
      */
     @Nullable
-    public TimeValue getDataStreamRetention() {
-        return dataRetention == null ? null : dataRetention.value;
+    public TimeValue dataRetention() {
+        return dataRetention;
     }
 
     /**
@@ -228,10 +243,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                     + "] will be applied."
             );
             case MAX_GLOBAL_RETENTION -> {
-                String retentionProvidedPart = getDataStreamRetention() == null
+                String retentionProvidedPart = dataRetention() == null
                     ? "Not providing a retention is not allowed for this project."
                     : "The retention provided ["
-                        + (getDataStreamRetention() == null ? "infinite" : getDataStreamRetention().getStringRep())
+                        + (dataRetention() == null ? "infinite" : dataRetention().getStringRep())
                         + "] is exceeding the max allowed data retention of this project ["
                         + effectiveRetentionStringRep
                         + "].";
@@ -245,34 +260,11 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     /**
-     * The configuration as provided by the user about the least amount of time data should be kept by elasticsearch.
-     * This method differentiates between a missing retention and a nullified retention and this is useful for template
-     * composition.
-     * @return one of the following:
-     * - `null`, represents that the user did not provide data retention, this represents the user has no opinion about retention
-     * - `Retention{value = null}`, represents that the user explicitly wants to have infinite retention
-     * - `Retention{value = "10d"}`, represents that the user has requested the data to be kept at least 10d.
-     */
-    @Nullable
-    Retention getDataRetention() {
-        return dataRetention;
-    }
-
-    /**
      * The configured downsampling rounds with the `after` and the `fixed_interval` per round. If downsampling is
      * not configured then it returns null.
      */
     @Nullable
-    public List<DownsamplingRound> getDownsamplingRounds() {
-        return downsampling == null ? null : downsampling.rounds();
-    }
-
-    /**
-     * Returns the configured wrapper object as it was defined in the template. This should be used only during
-     * template composition.
-     */
-    @Nullable
-    Downsampling getDownsampling() {
+    public List<DownsamplingRound> downsampling() {
         return downsampling;
     }
 
@@ -289,29 +281,48 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     @Override
     public int hashCode() {
-        return Objects.hash(dataRetention, downsampling, enabled);
+        return Objects.hash(enabled, dataRetention, downsampling);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeOptionalWriteable(dataRetention);
+            // When the data retention is not null, for bwc reasons we need an extra flag
+            if (dataRetention != null && out.getTransportVersion().before(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                out.writeBoolean(true);
+            }
+            out.writeOptionalTimeValue(dataRetention);
         }
         if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-            out.writeOptionalWriteable(downsampling);
-            out.writeBoolean(enabled);
+            // When the data retention is not null, for bwc reasons we need an extra flag
+            if (downsampling != null && out.getTransportVersion().before(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                out.writeBoolean(true);
+            }
+            out.writeOptionalCollection(downsampling);
+            if (out.getTransportVersion().before(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                out.writeBoolean(isEffectivelyEnabled());
+            } else {
+                out.writeOptionalBoolean(enabled);
+            }
         }
     }
 
     public DataStreamLifecycle(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            dataRetention = in.readOptionalWriteable(Retention::read);
+            // When the data retention is not null, for bwc reasons we need an extra flag
+            boolean isDefined = in.getTransportVersion().before(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE) ? in.readBoolean() : true;
+            dataRetention = isDefined ? in.readOptionalTimeValue() : null;
         } else {
             dataRetention = null;
         }
         if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-            downsampling = in.readOptionalWriteable(Downsampling::read);
-            enabled = in.readBoolean();
+            boolean isDefined = in.getTransportVersion().before(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE) ? in.readBoolean() : true;
+            downsampling = isDefined ? in.readOptionalCollectionAsList(DownsamplingRound::read) : null;
+            if (in.getTransportVersion().before(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                enabled = in.readBoolean();
+            } else {
+                enabled = in.readOptionalBoolean();
+            }
         } else {
             downsampling = null;
             enabled = true;
@@ -349,11 +360,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         builder.startObject();
         builder.field(ENABLED_FIELD.getPreferredName(), enabled);
         if (dataRetention != null) {
-            if (dataRetention.value() == null) {
-                builder.nullField(DATA_RETENTION_FIELD.getPreferredName());
-            } else {
-                builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.value().getStringRep());
-            }
+            builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.getStringRep());
         }
         Tuple<TimeValue, RetentionSource> effectiveDataRetentionWithSource = getEffectiveDataRetentionWithSource(
             globalRetention,
@@ -367,8 +374,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
 
         if (downsampling != null) {
-            builder.field(DOWNSAMPLING_FIELD.getPreferredName());
-            downsampling.toXContent(builder, params);
+            builder.array(DOWNSAMPLING_FIELD.getPreferredName(), downsampling);
         }
         if (rolloverConfiguration != null) {
             builder.field(ROLLOVER_FIELD.getPreferredName());
@@ -397,14 +403,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         return new DelegatingMapParams(INCLUDE_EFFECTIVE_RETENTION_PARAMS, params);
     }
 
-    public static Builder newBuilder(DataStreamLifecycle lifecycle) {
-        return new Builder().dataRetention(lifecycle.getDataRetention())
-            .downsampling(lifecycle.getDownsampling())
-            .enabled(lifecycle.isEnabled());
+    public static Builder builder(DataStreamLifecycle lifecycle) {
+        return new Builder(lifecycle);
     }
 
-    public static Builder newBuilder() {
-        return new Builder();
+    public static Builder builder() {
+        return new Builder(null);
     }
 
     /**
@@ -412,95 +416,42 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      */
     public static class Builder {
         @Nullable
-        private Retention dataRetention = null;
+        private Boolean enabled = null;
         @Nullable
-        private Downsampling downsampling = null;
-        private boolean enabled = true;
+        private TimeValue dataRetention = null;
+        @Nullable
+        private List<DownsamplingRound> downsampling = null;
 
-        public Builder enabled(boolean value) {
+        private Builder(@Nullable DataStreamLifecycle lifecycle) {
+            if (lifecycle != null) {
+                enabled = lifecycle.enabled;
+                dataRetention = lifecycle.dataRetention;
+                downsampling = lifecycle.downsampling;
+            }
+        }
+
+        public Builder enabled(@Nullable Boolean value) {
             enabled = value;
             return this;
         }
 
-        public Builder dataRetention(@Nullable Retention value) {
+        public Builder dataRetention(@Nullable TimeValue value) {
             dataRetention = value;
             return this;
         }
 
-        public Builder dataRetention(@Nullable TimeValue value) {
-            dataRetention = value == null ? null : new Retention(value);
-            return this;
-        }
-
         public Builder dataRetention(long value) {
-            dataRetention = new Retention(TimeValue.timeValueMillis(value));
+            dataRetention = TimeValue.timeValueMillis(value);
             return this;
         }
 
-        public Builder downsampling(@Nullable Downsampling value) {
-            downsampling = value;
+        public Builder downsampling(@Nullable List<DownsamplingRound> rounds) {
+            downsampling = rounds;
             return this;
         }
 
         public DataStreamLifecycle build() {
-            return new DataStreamLifecycle(dataRetention, downsampling, enabled);
-        }
-    }
-
-    /**
-     * Retention is the least amount of time that the data will be kept by elasticsearch. Public for testing.
-     * @param value is a time period or null. Null represents an explicitly set infinite retention period
-     */
-    public record Retention(@Nullable TimeValue value) implements Writeable {
-
-        // For testing
-        public static final Retention NULL = new Retention(null);
-
-        public static Retention read(StreamInput in) throws IOException {
-            return new Retention(in.readOptionalTimeValue());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalTimeValue(value);
-        }
-    }
-
-    /**
-     * Downsampling holds the configuration about when should elasticsearch downsample a backing index.
-     * @param rounds is a list of downsampling configuration which instructs when a backing index should be downsampled (`after`) and at
-     *               which interval (`fixed_interval`). Null represents an explicit no downsampling during template composition.
-     */
-    public record Downsampling(@Nullable List<DownsamplingRound> rounds) implements Writeable, ToXContentFragment {
-
-        // For testing
-        public static final Downsampling NULL = new Downsampling(null);
-
-        public Downsampling {
-            DownsamplingRound.validateRounds(rounds);
-        }
-
-        public static Downsampling read(StreamInput in) throws IOException {
-            return new Downsampling(in.readOptionalCollectionAsList(DownsamplingRound::read));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalCollection(rounds, StreamOutput::writeWriteable);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (rounds == null) {
-                builder.nullValue();
-            } else {
-                builder.startArray();
-                for (DownsamplingRound round : rounds) {
-                    round.toXContent(builder, params);
-                }
-                builder.endArray();
-            }
-            return builder;
+            return new DataStreamLifecycle(enabled, dataRetention, downsampling);
         }
     }
 
@@ -814,11 +765,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
 
         public DataStreamLifecycle toDataStreamLifecycle() {
-            return new DataStreamLifecycle(
-                dataRetention.mapAndGet(Retention::new),
-                downsampling.mapAndGet(Downsampling::new),
-                enabled.get() == null || enabled.get()
-            );
+            return new DataStreamLifecycle(enabled.get(), dataRetention.get(), downsampling.get());
         }
 
         @Override

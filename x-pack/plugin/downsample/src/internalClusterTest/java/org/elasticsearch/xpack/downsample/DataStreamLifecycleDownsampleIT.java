@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -260,14 +259,12 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
         // update the lifecycle so that it only has one round, for the same `after` parameter as before, but a different interval
         // the different interval should yield a different downsample index name so we expect the data stream lifecycle to get the previous
         // `10s` interval downsample index, downsample it to `30s` and replace it in the data stream instead of the `10s` one.
-        DataStreamLifecycle updatedLifecycle = DataStreamLifecycle.newBuilder()
+        DataStreamLifecycle updatedLifecycle = DataStreamLifecycle.builder()
             .downsampling(
-                new Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.DownsamplingRound(
-                            TimeValue.timeValueMillis(10),
-                            new DownsampleConfig(new DateHistogramInterval("20m"))
-                        )
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(10),
+                        new DownsampleConfig(new DateHistogramInterval("20m"))
                     )
                 )
             )

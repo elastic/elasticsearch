@@ -139,7 +139,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 : randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
             case 9 -> lifecycle = randomBoolean() && lifecycle != null
                 ? null
-                : DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
+                : DataStreamLifecycle.builder().dataRetention(randomMillisUpToYear9999()).build();
             case 10 -> failureIndices = randomValueOtherThan(failureIndices, DataStreamTestHelper::randomIndexInstances);
             case 11 -> dataStreamOptions = dataStreamOptions.isEmpty() ? new DataStreamOptions(new DataStreamFailureStore(randomBoolean()))
                 : randomBoolean() ? DataStreamOptions.EMPTY
@@ -1474,7 +1474,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()),
-                DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueSeconds(2500)).build()
+                DataStreamLifecycle.builder().dataRetention(TimeValue.timeValueSeconds(2500)).build()
             );
             Metadata metadata = builder.build();
 
@@ -1496,7 +1496,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()),
-                DataStreamLifecycle.newBuilder().dataRetention(0).build()
+                DataStreamLifecycle.builder().dataRetention(0).build()
             );
             Metadata metadata = builder.build();
 
@@ -1521,7 +1521,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()),
-                DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueSeconds(6000)).build()
+                DataStreamLifecycle.builder().dataRetention(TimeValue.timeValueSeconds(6000)).build()
             );
             Metadata metadata = builder.build();
 
@@ -1543,7 +1543,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 Settings.builder()
                     .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()),
-                DataStreamLifecycle.newBuilder().dataRetention(0).build()
+                DataStreamLifecycle.builder().dataRetention(0).build()
             );
             Metadata metadata = builder.build();
 
@@ -1577,7 +1577,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
             new DataStreamLifecycle() {
-                public TimeValue getDataStreamRetention() {
+                public TimeValue dataRetention() {
                     return testRetentionReference.get();
                 }
             }
@@ -1641,22 +1641,21 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .put("index.routing_path", "@timestamp"),
-                DataStreamLifecycle.newBuilder()
+                DataStreamLifecycle.builder()
                     .downsampling(
-                        new DataStreamLifecycle.Downsampling(
-                            List.of(
-                                new DataStreamLifecycle.DownsamplingRound(
-                                    TimeValue.timeValueMillis(2000),
-                                    new DownsampleConfig(new DateHistogramInterval("10m"))
-                                ),
-                                new DataStreamLifecycle.DownsamplingRound(
-                                    TimeValue.timeValueMillis(3200),
-                                    new DownsampleConfig(new DateHistogramInterval("100m"))
-                                ),
-                                new DataStreamLifecycle.DownsamplingRound(
-                                    TimeValue.timeValueMillis(3500),
-                                    new DownsampleConfig(new DateHistogramInterval("1000m"))
-                                )
+                        List.of(
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueMillis(2000),
+                                new DownsampleConfig(new DateHistogramInterval("10m"))
+                            ),
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueMillis(3200),
+                                new DownsampleConfig(new DateHistogramInterval("100m"))
+                            ),
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueMillis(3500),
+                                new DownsampleConfig(new DateHistogramInterval("1000m"))
+
                             )
                         )
                     )
@@ -1702,24 +1701,23 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 // no TSDB settings
                 settings(IndexVersion.current()),
-                DataStreamLifecycle.newBuilder()
+                DataStreamLifecycle.builder()
                     .downsampling(
-                        new DataStreamLifecycle.Downsampling(
-                            List.of(
-                                new DataStreamLifecycle.DownsamplingRound(
-                                    TimeValue.timeValueMillis(2000),
-                                    new DownsampleConfig(new DateHistogramInterval("10m"))
-                                ),
-                                new DataStreamLifecycle.DownsamplingRound(
-                                    TimeValue.timeValueMillis(3200),
-                                    new DownsampleConfig(new DateHistogramInterval("100m"))
-                                ),
-                                new DataStreamLifecycle.DownsamplingRound(
-                                    TimeValue.timeValueMillis(3500),
-                                    new DownsampleConfig(new DateHistogramInterval("1000m"))
-                                )
+                        List.of(
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueMillis(2000),
+                                new DownsampleConfig(new DateHistogramInterval("10m"))
+                            ),
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueMillis(3200),
+                                new DownsampleConfig(new DateHistogramInterval("100m"))
+                            ),
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueMillis(3500),
+                                new DownsampleConfig(new DateHistogramInterval("1000m"))
                             )
                         )
+
                     )
                     .build()
             );
@@ -1769,7 +1767,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .put("index.routing_path", "@timestamp"),
-                DataStreamLifecycle.newBuilder().build()
+                DataStreamLifecycle.builder().build()
             );
             Metadata metadata = builder.build();
 
@@ -1801,7 +1799,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.newBuilder().dataRetention(0).build()
+            DataStreamLifecycle.builder().dataRetention(0).build()
         );
         Metadata metadata = builder.build();
 

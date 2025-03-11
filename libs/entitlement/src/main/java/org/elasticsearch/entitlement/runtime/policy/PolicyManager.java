@@ -549,7 +549,7 @@ public class PolicyManager {
             var notEntitledLogger = LogManager.getLogger(PolicyManager.class.getName() + loggerSuffix);
             String frameInfoSuffix = StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
                 .walk(this::findRequestingFrame)
-                .map(StackFrame::toString)
+                .map(frame -> "\n\tat " + frame)
                 .orElse("");
             notEntitledLogger.warn(message + frameInfoSuffix);
         }

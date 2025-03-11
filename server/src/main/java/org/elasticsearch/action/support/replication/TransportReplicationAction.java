@@ -696,7 +696,7 @@ public abstract class TransportReplicationAction<
                     replicaResult.runPostReplicaActions(new ReplicaPostReplicationActionsListener() {
                         @Override
                         public void onResponse(long globalCheckpoint, long localCheckpoint) {
-                            final ReplicaResponse response = new ReplicaResponse(globalCheckpoint, localCheckpoint);
+                            final ReplicaResponse response = new ReplicaResponse(localCheckpoint, globalCheckpoint);
                             releasable.close(); // release shard operation lock before responding to caller
                             if (logger.isTraceEnabled()) {
                                 logger.trace(

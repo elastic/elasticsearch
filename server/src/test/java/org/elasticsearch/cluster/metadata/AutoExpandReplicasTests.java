@@ -136,7 +136,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_AUTO_EXPAND_REPLICAS, "0-all").build()
             ).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
-            assertTrue(state.metadata().hasIndex("index"));
+            assertTrue(state.metadata().getProject().hasIndex("index"));
             while (state.routingTable().index("index").shard(0).allShardsStarted() == false) {
                 logger.info(state);
                 state = cluster.applyStartedShards(
@@ -230,7 +230,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
     public void testGetAutoExpandReplicaChangesStatelessIndices() {
         {
             // number of replicas is adjusted to 1 when it is initialized to 0
-            Metadata metadata = Metadata.builder()
+            ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .put(
                     IndexMetadata.builder("test")
                         .settings(
@@ -243,7 +243,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                         )
                 )
                 .build();
-            Map<Integer, List<String>> autoExpandReplicaChanges = AutoExpandReplicas.getAutoExpandReplicaChanges(metadata, null);
+            Map<Integer, List<String>> autoExpandReplicaChanges = AutoExpandReplicas.getAutoExpandReplicaChanges(project, null);
             assertEquals(1, autoExpandReplicaChanges.size());
             List<String> indices = autoExpandReplicaChanges.get(1);
             assertEquals(1, indices.size());
@@ -251,7 +251,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
         }
         {
             // no changes when number of replicas is set to anything other than 0
-            Metadata metadata = Metadata.builder()
+            ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .put(
                     IndexMetadata.builder("test")
                         .settings(
@@ -264,7 +264,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                         )
                 )
                 .build();
-            Map<Integer, List<String>> autoExpandReplicaChanges = AutoExpandReplicas.getAutoExpandReplicaChanges(metadata, () -> {
+            Map<Integer, List<String>> autoExpandReplicaChanges = AutoExpandReplicas.getAutoExpandReplicaChanges(project, () -> {
                 throw new UnsupportedOperationException();
             });
             assertEquals(0, autoExpandReplicaChanges.size());

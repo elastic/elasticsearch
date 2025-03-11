@@ -35,13 +35,13 @@ public class SLMUsageTransportAction extends XPackUsageFeatureTransportAction {
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        final SnapshotLifecycleMetadata slmMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        final SnapshotLifecycleMetadata slmMeta = state.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
         final SLMFeatureSetUsage usage = new SLMFeatureSetUsage(slmMeta == null ? null : slmMeta.getStats());
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }

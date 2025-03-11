@@ -1820,7 +1820,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // Write the index metadata for each index in the snapshot
                     for (IndexId index : indices) {
                         executor.execute(ActionRunnable.run(allMetaListeners.acquire(), () -> {
-                            final IndexMetadata indexMetaData = clusterMetadata.index(index.getName());
+                            final IndexMetadata indexMetaData = clusterMetadata.getProject().index(index.getName());
                             if (writeIndexGens) {
                                 final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
                                 String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
@@ -1833,7 +1833,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 metadataWriteResult.indexMetas().put(index, identifiers);
                             } else {
                                 INDEX_METADATA_FORMAT.write(
-                                    clusterMetadata.index(index.getName()),
+                                    clusterMetadata.getProject().index(index.getName()),
                                     indexContainer(index),
                                     snapshotId.getUUID(),
                                     compress
@@ -1894,7 +1894,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     rootBlobUpdateResult.oldRepositoryData(),
                     rootBlobUpdateResult.newRepositoryData(),
                     finalizeSnapshotContext,
-                    snapshotInfo,
                     writeShardGens
                 );
             })
@@ -1913,7 +1912,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RepositoryData existingRepositoryData,
         RepositoryData updatedRepositoryData,
         FinalizeSnapshotContext finalizeSnapshotContext,
-        SnapshotInfo snapshotInfo,
         boolean writeShardGenerations
     ) {
         final Set<String> toDelete = new HashSet<>();
@@ -1962,11 +1960,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 @Override
                 public void onAfter() {
-                    finalizeSnapshotContext.onDone(snapshotInfo);
+                    finalizeSnapshotContext.onDone();
                 }
             });
         } else {
-            finalizeSnapshotContext.onDone(snapshotInfo);
+            finalizeSnapshotContext.onDone();
         }
     }
 

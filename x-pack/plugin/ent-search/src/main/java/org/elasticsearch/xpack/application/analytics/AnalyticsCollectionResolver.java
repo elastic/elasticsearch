@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.injection.guice.Inject;
 
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.E
  * @deprecated in 9.0
  */
 @Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class AnalyticsCollectionResolver {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
@@ -64,7 +66,7 @@ public class AnalyticsCollectionResolver {
     public AnalyticsCollection collection(ClusterState state, String collectionName) throws ResourceNotFoundException {
         AnalyticsCollection collection = new AnalyticsCollection(collectionName);
 
-        if (state.metadata().dataStreams().containsKey(collection.getEventDataStream()) == false) {
+        if (state.metadata().getProject().dataStreams().containsKey(collection.getEventDataStream()) == false) {
             throw new ResourceNotFoundException("no such analytics collection [{}]", collectionName);
         }
 

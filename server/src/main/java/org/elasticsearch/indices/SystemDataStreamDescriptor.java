@@ -107,7 +107,7 @@ public class SystemDataStreamDescriptor {
      * @return List of names of backing indices
      */
     public List<String> getBackingIndexNames(Metadata metadata) {
-        DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+        DataStream dataStream = metadata.getProject().dataStreams().get(dataStreamName);
         if (dataStream == null) {
             return Collections.emptyList();
         }

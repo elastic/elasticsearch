@@ -12,7 +12,6 @@ package org.elasticsearch.common.ssl;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
@@ -97,7 +96,7 @@ public final class PemTrustConfig implements SslTrustConfig {
     private List<Certificate> readCertificates(List<Path> paths) {
         try {
             return PemUtils.readCertificates(paths);
-        } catch (AccessControlException e) {
+        } catch (SecurityException e) {
             throw SslFileUtil.accessControlFailure(CA_FILE_TYPE, paths, e, basePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException(CA_FILE_TYPE, paths, e);

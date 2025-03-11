@@ -425,7 +425,9 @@ public class DateUtils {
     // the weird thing with Z is to ONLY match 4 in a row, with no Z before or after (but those groups can also be empty)
     private static final Predicate<String> LEGACY_DATE_FORMAT_MATCHER = Pattern.compile("[BEGOavz]|LLL|MMM|QQQ|qqq|ccc|eee|(?<!Z)Z{4}(?!Z)")
         .asPredicate();
-    private static final Predicate<String> CONTAINS_CHANGING_TEXT_SPECIFIERS = USES_COMPAT ? LEGACY_DATE_FORMAT_MATCHER : Predicates.never();
+    private static final Predicate<String> CONTAINS_CHANGING_TEXT_SPECIFIERS = USES_COMPAT
+        ? LEGACY_DATE_FORMAT_MATCHER
+        : Predicates.never();
     // week dates are changing on CLDR, as the rules are changing for start-of-week and min-days-in-week
     private static final Predicate<String> CONTAINS_WEEK_DATE_SPECIFIERS = USES_COMPAT
         ? Pattern.compile("[YWw]").asPredicate()

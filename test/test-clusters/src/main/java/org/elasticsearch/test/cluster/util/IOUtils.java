@@ -93,10 +93,15 @@ public final class IOUtils {
     public static void syncWithLinks(Path sourceRoot, Path destinationRoot) {
         sync(sourceRoot, destinationRoot, (Path d, Path s) -> {
             try {
+                LOGGER.warn("Linking destination: {} to source: {}", d, s);
                 Files.createLink(d, s);
             } catch (IOException e) {
                 // Note does not work for network drives, e.g. Vagrant
+                LOGGER.error("Failed to create hard link {} pointing to {}", d, s, e);
                 throw new LinkCreationException("Failed to create hard link " + d + " pointing to " + s, e);
+            } catch (Throwable ex) {
+                LOGGER.error("Failed to create hard link {} pointing to {}", d, s, ex);
+                throw ex;
             }
         });
     }

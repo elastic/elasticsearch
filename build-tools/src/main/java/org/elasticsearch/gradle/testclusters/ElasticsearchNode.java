@@ -1279,10 +1279,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private void syncWithLinks(Path sourceRoot, Path destinationRoot) {
         sync(sourceRoot, destinationRoot, (Path d, Path s) -> {
             try {
+                LOGGER.warn("Linking destination: {} to source: {}", d, s);
                 Files.createLink(d, s);
             } catch (IOException e) {
                 // Note does not work for network drives, e.g. Vagrant
+                LOGGER.error("Failed to create hard link {} pointing to {}", d, s, e);
                 throw new LinkCreationException("Failed to create hard link " + d + " pointing to " + s, e);
+            } catch (Throwable ex) {
+                LOGGER.error("Failed to create hard link {} pointing to {}", d, s, ex);
+                throw ex;
             }
         });
     }
@@ -1329,10 +1334,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
                 @Override
                 public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                    LOGGER.warn("Failed to visit " + file, exc);
                     if (exc instanceof NoSuchFileException noFileException) {
                         // Ignore these files that are sometimes left behind by the JVM
                         if (noFileException.getFile() != null && noFileException.getFile().contains(".attach_pid")) {
-                            LOGGER.info("Ignoring file left behind by JVM: {}", noFileException.getFile());
+                            LOGGER.warn("Ignoring file left behind by JVM: {}", noFileException.getFile());
                             return FileVisitResult.CONTINUE;
                         } else {
                             throw exc;

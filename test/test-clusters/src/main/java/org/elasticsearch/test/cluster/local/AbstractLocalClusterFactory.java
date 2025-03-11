@@ -20,6 +20,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionResolver;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.ArchivePatcher;
+import org.elasticsearch.test.cluster.util.DebugUtils;
 import org.elasticsearch.test.cluster.util.IOUtils;
 import org.elasticsearch.test.cluster.util.OS;
 import org.elasticsearch.test.cluster.util.Pair;
@@ -338,9 +339,18 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     IOUtils.deleteWithRetry(workingDir);
                 }
 
+                LOGGER.warn("Logging disk space and file permissions for working dir: {}", workingDir);
+                DebugUtils.logDiskSpaceAndPrivileges(workingDir);
+                LOGGER.warn(
+                    "Logging disk space and file permissions for distribution dir: {}",
+                    distributionDescriptor.getDistributionDir()
+                );
+                DebugUtils.logDiskSpaceAndPrivileges(distributionDescriptor.getDistributionDir());
                 if (canUseSharedDistribution()) {
+                    LOGGER.warn("Using shared distribution");
                     distributionDir = distributionDescriptor.getDistributionDir();
                 } else {
+                    LOGGER.warn("Using non-shared distribution");
                     distributionDir = OS.conditional(
                         // Use per-version distribution directories on Windows to avoid cleanup failures
                         c -> c.onWindows(() -> workingDir.resolve("distro").resolve(distributionDescriptor.getVersion().toString()))
@@ -353,11 +363,21 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
                     IOUtils.syncMaybeWithLinks(distributionDescriptor.getDistributionDir(), distributionDir);
                 }
+                LOGGER.warn("Logging disk space and file permissions for working dir after initialization: {}", workingDir);
+                DebugUtils.logDiskSpaceAndPrivileges(workingDir);
+
+                LOGGER.warn(
+                    "Logging disk space and file permissions for distribution dir after initialization: {}",
+                    distributionDescriptor.getDistributionDir()
+                );
+                DebugUtils.logDiskSpaceAndPrivileges(distributionDescriptor.getDistributionDir());
+
                 Files.createDirectories(repoDir);
                 Files.createDirectories(dataDir);
                 Files.createDirectories(logsDir);
                 Files.createDirectories(tempDir);
             } catch (IOException e) {
+                LOGGER.error("Failed to initialize working directory for node: {}", this, e);
                 throw new UncheckedIOException("Failed to create working directory for node '" + name + "'", e);
             }
         }

@@ -1132,6 +1132,30 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(rq.to(), nullValue());
     }
 
+    /**
+     * Expects
+     *
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
+     * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10],false]
+     *   \_ProjectExec[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, hire_date{f}#12, job{f}#13, job.raw{f}#14, lang
+     * uages{f}#8, last_name{f}#9, long_noidx{f}#15, salary{f}#10]]
+     *     \_FieldExtractExec[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]<[],[]>
+     *       \_EsQueryExec[test], indexMode[standard], query[
+     *         {"bool":{"must":[
+     *           {"bool":{"should":[
+     *             {"esql_single_value":{"field":"first_name","next":
+     *               {"wildcard":{"first_name":{"wildcard":"\\*Firs*","boost":1.0}}}
+     *               "source":"starts_with(first_name, \"*Firs\")@2:9"}},
+     *             {"esql_single_value":{"field":"first_name","next":
+     *               {"wildcard":{"first_name":{"wildcard":"*irst\\*","boost":1.0}}},
+     *               "source":"ends_with(first_name, \"irst*\")@2:45"}}],"boost":1.0}},
+     *             {"esql_single_value":{"field":"last_name","next":
+     *               {"wildcard":{"last_name":{"wildcard":"*ast","boost":1.0}}},
+     *               "source":"ends_with(last_name, \"ast\")@3:9"}}
+     *           ],"boost":1.0}}
+     *       ][_doc{f}#27], limit[1000], sort[] estimatedRowSize[332]
+     */
     public void testPushMultipleFunctions() {
         var plan = physicalPlan("""
             from airports

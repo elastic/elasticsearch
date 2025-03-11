@@ -68,7 +68,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
     protected abstract String getFieldTypeName();
 
-    protected abstract String getRandomValue();
+    protected abstract Object getRandomValue();
 
     protected void verifySyntheticArray(Object[][] arrays) throws IOException {
         var mapping = jsonBuilder().startObject()

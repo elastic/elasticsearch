@@ -870,7 +870,12 @@ public class EsqlCapabilities {
         /**
          * Support for RRF command
          */
-        RRF(Build.current().isSnapshot());
+        RRF(Build.current().isSnapshot()),
+
+        /**
+         * Full text functions can be scored when being part of a disjunction
+         */
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE;
 
         private final boolean enabled;
 

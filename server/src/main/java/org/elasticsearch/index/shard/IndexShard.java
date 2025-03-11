@@ -588,10 +588,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                         ensurePeerRecoveryRetentionLeasesExist();
                     }
+                } else if (recoveryState != null && recoveryState.getRecoverySource().getType() == RecoverySource.Type.SPLIT) {
+                    // TODO: What about other branch?
+                    if (currentRouting.initializing() && newRouting.active()) {
+                        assert newRouting.initializing() == false;
+                        bumpPrimaryTerm(newPrimaryTerm, () -> {
+                            shardStateUpdated.await();
+                            assert pendingPrimaryTerm == newPrimaryTerm
+                                : "shard term changed on primary. expected ["
+                                + newPrimaryTerm
+                                + "] but was ["
+                                + pendingPrimaryTerm
+                                + "]"
+                                + ", current routing: "
+                                + currentRouting
+                                + ", new routing: "
+                                + newRouting;
+                            assert getOperationPrimaryTerm() == newPrimaryTerm;
+                            try {
+                                replicationTracker.activatePrimaryMode(getLocalCheckpoint());
+                                ensurePeerRecoveryRetentionLeasesExist();
+                            } catch (final AlreadyClosedException e) {
+                                // okay, the index was deleted
+                            }
+                        }, null);
+                    }
                 } else {
-                    assert currentRouting.primary() == false
-                        || (recoveryState != null && recoveryState.getRecoverySource().getType() == RecoverySource.Type.SPLIT)
-                        : "term is only increased as part of primary promotion or starting a split recovery shard";
+                    assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
                     /* Note that due to cluster state batching an initializing primary shard term can failed and re-assigned
                      * in one state causing it's term to be incremented. Note that if both current shard state and new
                      * shard state are initializing, we could replace the current shard and reinitialize it. It is however

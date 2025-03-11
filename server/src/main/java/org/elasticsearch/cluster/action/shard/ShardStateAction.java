@@ -732,8 +732,9 @@ public class ShardStateAction {
                             shardRoutingsToBeApplied.add(matched);
                             seenShardRoutings.add(matched);
 
-                            // Synchronize a split shard's primary term with the source shard
-                            if (startedShardEntry.shardSplit != null) {
+                            // Synchronize a split shard's primary term with the source shard if the source has a greater primary term
+                            if (startedShardEntry.shardSplit != null
+                                && startedShardEntry.shardSplit.sourcePrimaryTerm() > startedShardEntry.primaryTerm) {
                                 updatedPrimaryTerms.put(startedShardEntry.shardId, startedShardEntry.shardSplit.sourcePrimaryTerm());
                             }
 

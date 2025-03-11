@@ -1842,7 +1842,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.ElasticsearchAuthenticationProcessingError.class,
             org.elasticsearch.ElasticsearchAuthenticationProcessingError::new,
             162,
-            TransportVersions.V_7_16_0
+            UNKNOWN_VERSION_ADDED
         ),
         REPOSITORY_CONFLICT_EXCEPTION(
             org.elasticsearch.repositories.RepositoryConflictException.class,

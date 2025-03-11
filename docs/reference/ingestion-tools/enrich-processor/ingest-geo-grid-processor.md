@@ -70,7 +70,7 @@ PUT _ingest/pipeline/geohex2shape
 }
 ```
 
-These two pipelines can be used to index documents into the `geocells` index. The `geocell` field will be the string version of either a rectangular tile with format `z/x/y` or an H3 cell address, depending on which ingest processor we use when indexing the document. The resulting geometry will be represented and indexed as a [`geo_shape`](/reference/elasticsearch/mapping-reference/geo-shape.md) field in either [GeoJSON](http://geojson.org) or the [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.md) format.
+These two pipelines can be used to index documents into the `geocells` index. The `geocell` field will be the string version of either a rectangular tile with format `z/x/y` or an H3 cell address, depending on which ingest processor we use when indexing the document. The resulting geometry will be represented and indexed as a [`geo_shape`](/reference/elasticsearch/mapping-reference/geo-shape.md) field in either [GeoJSON](http://geojson.org) or the [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.html) format.
 
 ## Example: Rectangular geotile with envelope in GeoJSON [_example_rectangular_geotile_with_envelope_in_geojson]
 
@@ -112,7 +112,7 @@ The response shows how the ingest-processor has replaced the `geocell` field wit
 
 ## Example: Hexagonal geohex with polygon in WKT format [_example_hexagonal_geohex_with_polygon_in_wkt_format]
 
-In this example a `geocell` field with an H3 string address is indexed as a [WKT Polygon](https://docs.opengeospatial.org/is/12-063r5/12-063r5.md), since this ingest processor explicitly defined the `target_format`.
+In this example a `geocell` field with an H3 string address is indexed as a [WKT Polygon](https://docs.opengeospatial.org/is/12-063r5/12-063r5.html), since this ingest processor explicitly defined the `target_format`.
 
 ```console
 PUT geocells/_doc/1?pipeline=geohex2shape

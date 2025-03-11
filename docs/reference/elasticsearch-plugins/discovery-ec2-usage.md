@@ -9,7 +9,7 @@ The `discovery-ec2` plugin allows {{es}} to find the master-eligible nodes in a 
 
 It is normally a good idea to restrict the discovery process just to the master-eligible nodes in the cluster. This plugin allows you to identify these nodes by certain criteria including their tags, their membership of security groups, and their placement within availability zones. The discovery process will work correctly even if it finds master-ineligible nodes, but master elections will be more efficient if this can be avoided.
 
-The interaction with the AWS API can be authenticated using the [instance role](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.md), or else custom credentials can be supplied.
+The interaction with the AWS API can be authenticated using the [instance role](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html), or else custom credentials can be supplied.
 
 ## Enabling EC2 discovery [_enabling_ec2_discovery]
 
@@ -41,7 +41,7 @@ The available settings for the EC2 discovery plugin are as follows.
 :   An EC2 session token. If set, you must also set `discovery.ec2.access_key` and `discovery.ec2.secret_key`. This setting is sensitive and must be stored in the {{es}} keystore.
 
 `discovery.ec2.endpoint`
-:   The EC2 service endpoint to which to connect. See [https://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region](https://docs.aws.amazon.com/general/latest/gr/rande.md#ec2_region) to find the appropriate endpoint for the region. This setting defaults to `ec2.us-east-1.amazonaws.com` which is appropriate for clusters running in the `us-east-1` region.
+:   The EC2 service endpoint to which to connect. See [https://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region](https://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region) to find the appropriate endpoint for the region. This setting defaults to `ec2.us-east-1.amazonaws.com` which is appropriate for clusters running in the `us-east-1` region.
 
 `discovery.ec2.protocol`
 :   The protocol to use to connect to the EC2 service endpoint, which may be either `http` or `https`. Defaults to `https`.
@@ -75,11 +75,11 @@ The available settings for the EC2 discovery plugin are as follows.
 
 If you set `discovery.ec2.host_type` to a value of the form `tag:TAGNAME` then the value of the tag `TAGNAME` attached to each instance will be used as that instance’s address for discovery. Instances which do not have this tag set will be ignored by the discovery process.
 
-For example if you tag some EC2 instances with a tag named `elasticsearch-host-name` and set `host_type: tag:elasticsearch-host-name` then the `discovery-ec2` plugin will read each instance’s host name from the value of the `elasticsearch-host-name` tag. [Read more about EC2 Tags](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.md).
+For example if you tag some EC2 instances with a tag named `elasticsearch-host-name` and set `host_type: tag:elasticsearch-host-name` then the `discovery-ec2` plugin will read each instance’s host name from the value of the `elasticsearch-host-name` tag. [Read more about EC2 Tags](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html).
 
 
 `discovery.ec2.availability_zones`
-:   A list of the names of the availability zones to use for discovery. The name of an availability zone is the [region code followed by a letter](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.md), such as `us-east-1a`. Only instances placed in one of the given availability zones will be used for discovery.
+:   A list of the names of the availability zones to use for discovery. The name of an availability zone is the [region code followed by a letter](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html), such as `us-east-1a`. Only instances placed in one of the given availability zones will be used for discovery.
 
 $$$discovery-ec2-filtering$$$
 

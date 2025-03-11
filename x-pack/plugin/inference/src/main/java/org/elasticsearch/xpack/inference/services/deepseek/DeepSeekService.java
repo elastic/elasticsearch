@@ -83,7 +83,7 @@ public class DeepSeekService extends SenderService {
     ) {
         if (model instanceof DeepSeekChatCompletionModel deepSeekModel) {
             var requestCreator = new DeepSeekRequestManager(deepSeekModel, getServiceComponents().threadPool());
-            var errorMessage = constructFailedToSendRequestMessage(deepSeekModel.uri(), errorPrefix);
+            var errorMessage = constructFailedToSendRequestMessage(errorPrefix);
             var action = new SenderExecutableAction(getSender(), requestCreator, errorMessage);
             action.execute(inputs, timeout, listener);
         } else {

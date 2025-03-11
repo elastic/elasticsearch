@@ -678,17 +678,16 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
             // Mock a successful streaming response
-            String responseJson =
-                """
-                    data: {"id":"1","object":"completion","created":1677858242,"model":"my-model-id",
-                    "choices":[{"finish_reason":null,"index":0,"delta":{"role":"assistant","content":"Hello"}}]}
+            String responseJson = """
+                data: {"id":"1","object":"completion","created":1677858242,"model":"my-model-id",
+                "choices":[{"finish_reason":null,"index":0,"delta":{"role":"assistant","content":"Hello"}}]}
 
-                    data: {"id":"2","object":"completion","created":1677858242,"model":"my-model-id",
-                    "choices":[{"finish_reason":"stop","index":0,"delta":{"content":" world!"}}]}
+                data: {"id":"2","object":"completion","created":1677858242,"model":"my-model-id",
+                "choices":[{"finish_reason":"stop","index":0,"delta":{"content":" world!"}}]}
 
-                    data: [DONE]
+                data: [DONE]
 
-                    """;
+                """;
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 

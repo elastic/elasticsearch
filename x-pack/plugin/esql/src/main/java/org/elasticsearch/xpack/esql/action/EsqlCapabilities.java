@@ -713,7 +713,12 @@ public class EsqlCapabilities {
         /**
          * Full text functions can be scored when being part of a disjunction
          */
-        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE;
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
+
+        /**
+         * Support for the ::date casting operator
+         */
+        CASTING_OPERATOR_FOR_DATE;
 
         private final boolean enabled;
 

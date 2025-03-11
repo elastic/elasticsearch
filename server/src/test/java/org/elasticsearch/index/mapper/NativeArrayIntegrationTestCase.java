@@ -222,7 +222,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 .startObject("object")
                 .startObject("properties")
                 .startObject("field")
-                .field("type", "keyword")
+                .field("type", getFieldTypeName())
                 .endObject()
                 .endObject()
                 .endObject()

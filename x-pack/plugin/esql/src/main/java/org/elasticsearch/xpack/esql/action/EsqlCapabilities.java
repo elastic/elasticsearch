@@ -855,7 +855,12 @@ public class EsqlCapabilities {
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
-        MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST;
+        MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,
+
+        /**
+         * Full text functions do not contribute to score
+         */
+        NON_FULL_TEXT_FUNCTIONS_SCORING;
 
         private final boolean enabled;
 

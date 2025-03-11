@@ -145,6 +145,7 @@ book_no:keyword | title:text                                | author:text       
 combinedMatchWithFunctionsScoring
 required_capability: metadata_score
 required_capability: match_operator_colon
+required_capability: non_full_text_functions_scoring
 
 from books metadata _score
 | where title:"Tolkien" AND author:"Tolkien" AND year > 2000
@@ -153,7 +154,7 @@ from books metadata _score
 | sort book_no;
 
 book_no:keyword | title:text               | author:text    | year:integer | _score:double
-5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 4.733664035797119
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 3.733664035797119
 ;
 
 singleQstrScoring
@@ -191,6 +192,7 @@ book_no:keyword | title:keyword | _score:double
 combinedMatchWithScoringEvalNoSort
 required_capability: metadata_score
 required_capability: match_operator_colon
+required_capability: non_full_text_functions_scoring
 
 from books metadata _score
 | where title:"Tolkien" AND author:"Tolkien" AND year > 2000
@@ -200,7 +202,7 @@ from books metadata _score
 
 ignoreOrder:true
 book_no:keyword | title:text               | author:text    | year:integer | c_score:double
-5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 5.0
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 4.0
 ;
 
 singleQstrScoringRename
@@ -241,6 +243,7 @@ book_no:keyword | author:text                                        | _score:do
 combinedMatchWithFunctionsScoringNoSort
 required_capability: metadata_score
 required_capability: match_operator_colon
+required_capability: non_full_text_functions_scoring
 
 from books metadata _score
 | where title:"Tolkien" AND author:"Tolkien" AND year > 2000
@@ -249,12 +252,13 @@ from books metadata _score
 
 ignoreOrder:true
 book_no:keyword | title:text               | author:text    | year:integer | _score:double
-5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 4.733664035797119
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 3.733664035797119
 ;
 
 combinedMatchWithScoringEval
 required_capability: metadata_score
 required_capability: match_operator_colon
+required_capability: non_full_text_functions_scoring
 
 from books metadata _score
 | where title:"Tolkien" AND author:"Tolkien" AND year > 2000
@@ -264,7 +268,7 @@ from books metadata _score
 | sort book_no;
 
 book_no:keyword | title:text               | author:text    | year:integer | c_score:double
-5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 5.0
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 4.0
 ;
 
 singleQstrScoringEval

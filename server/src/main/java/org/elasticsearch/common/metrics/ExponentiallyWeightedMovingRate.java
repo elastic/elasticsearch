@@ -54,7 +54,7 @@ public class ExponentiallyWeightedMovingRate {
             throw new IllegalArgumentException("lambda must be non-negative but was " + lambda);
         }
         if (startTimeInMillis <= 0.0) {
-            throw new IllegalArgumentException("lambda must be non-negative but was " + startTimeInMillis);
+            throw new IllegalArgumentException("startTimeInMillis must be non-negative but was " + startTimeInMillis);
         }
         synchronized (this) {
             this.lambda = lambda;

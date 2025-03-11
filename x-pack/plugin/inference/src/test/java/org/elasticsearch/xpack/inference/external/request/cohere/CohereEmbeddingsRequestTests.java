@@ -95,7 +95,7 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
     }
 
     public void testCreateRequest_WithTaskSettingsInputType() throws IOException {
-        var inputType = InputTypeTests.randomWithNull();
+        var inputType = InputTypeTests.randomWithoutUnspecified();
         var request = createRequest(
             List.of("abc"),
             null,

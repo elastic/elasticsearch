@@ -42,7 +42,7 @@ public record AzureOpenAiEmbeddingsRequestEntity(
             builder.field(USER_FIELD, user);
         }
 
-        if (inputType != null) {
+        if (InputType.isSpecified(inputType)) {
             builder.field(INPUT_TYPE_FIELD, inputType);
         }
 

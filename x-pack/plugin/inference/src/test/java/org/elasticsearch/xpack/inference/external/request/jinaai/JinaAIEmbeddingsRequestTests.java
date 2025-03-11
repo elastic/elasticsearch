@@ -154,7 +154,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
 
     public void testCreateRequest_RequestInputTypeTakesPrecedence() throws IOException {
         var requestInputType = InputTypeTests.randomWithNull();
-        var taskSettingsInputType = InputTypeTests.randomWithNull();
+        var taskSettingsInputType = InputTypeTests.randomWithoutUnspecified();
         var request = createRequest(
             List.of("abc"),
             requestInputType,

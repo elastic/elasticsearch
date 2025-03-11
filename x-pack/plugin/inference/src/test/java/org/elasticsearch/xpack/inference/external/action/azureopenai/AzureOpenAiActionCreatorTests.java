@@ -632,7 +632,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         if (user != null) {
             expectedSize += 1;
         }
-        if (inputType != null) {
+        if (InputType.isSpecified(inputType)) {
             expectedSize += 1;
         }
 
@@ -643,7 +643,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             assertThat(requestMap.get("user"), is(user));
         }
 
-        if (inputType != null) {
+        if (InputType.isSpecified(inputType)) {
             assertThat(requestMap.get("input_type"), is(inputType.toString()));
         }
     }

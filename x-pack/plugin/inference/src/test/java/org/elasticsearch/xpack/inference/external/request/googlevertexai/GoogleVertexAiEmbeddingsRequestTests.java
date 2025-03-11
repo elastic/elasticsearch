@@ -99,7 +99,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
     public void testCreateRequest_WithTaskSettingsInputTypeSet() throws IOException {
         var model = "model";
         var input = "input";
-        var inputType = InputTypeTests.randomWithNull();
+        var inputType = InputTypeTests.randomWithoutUnspecified();
 
         var request = createRequest(model, input, null, inputType, null);
         var httpRequest = request.createHttpRequest();
@@ -124,7 +124,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         var model = "model";
         var input = "input";
         var requestInputType = InputTypeTests.randomWithNull();
-        var taskSettingsInputType = InputTypeTests.randomWithNull();
+        var taskSettingsInputType = InputTypeTests.randomWithoutUnspecified();
 
         var request = createRequest(model, input, null, taskSettingsInputType, requestInputType);
         var httpRequest = request.createHttpRequest();

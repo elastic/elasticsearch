@@ -60,7 +60,7 @@ public class AlibabaCloudSearchSparseRequestTests extends ESTestCase {
     }
 
     public void testCreateRequest_WithTaskSettingsInputType() throws IOException {
-        var inputType = InputTypeTests.randomSearchAndIngestWithNull();
+        var inputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
         var request = createRequest(
             List.of("abc"),
             null,

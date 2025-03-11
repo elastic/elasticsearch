@@ -5,11 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.response.openai;
+package org.elasticsearch.xpack.inference.external.openai;
 
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
@@ -19,13 +19,9 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class OpenAiChatCompletionResponseEntity {
-
-    private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in OpenAI chat completions response";
 
     /**
      * Parses the OpenAI chat completion response.
@@ -71,32 +67,51 @@ public class OpenAiChatCompletionResponseEntity {
      */
 
     public static ChatCompletionResults fromResponse(Request request, HttpResult response) throws IOException {
-        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
-            moveToFirstToken(jsonParser);
-
-            XContentParser.Token token = jsonParser.currentToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
-
-            positionParserAtTokenAfterField(jsonParser, "choices", FAILED_TO_FIND_FIELD_TEMPLATE);
-
-            jsonParser.nextToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, jsonParser.currentToken(), jsonParser);
-
-            positionParserAtTokenAfterField(jsonParser, "message", FAILED_TO_FIND_FIELD_TEMPLATE);
-
-            token = jsonParser.currentToken();
-
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
-
-            positionParserAtTokenAfterField(jsonParser, "content", FAILED_TO_FIND_FIELD_TEMPLATE);
-
-            XContentParser.Token contentToken = jsonParser.currentToken();
-            ensureExpectedToken(XContentParser.Token.VALUE_STRING, contentToken, jsonParser);
-            String content = jsonParser.text();
-
-            return new ChatCompletionResults(List.of(new ChatCompletionResults.Result(content)));
+        try (var p = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, response.body())) {
+            return CompletionResult.PARSER.apply(p, null).toChatCompletionResults();
         }
     }
 
+    public record CompletionResult(List<Choice> choices) {
+        @SuppressWarnings("unchecked")
+        public static final ConstructingObjectParser<CompletionResult, Void> PARSER = new ConstructingObjectParser<>(
+            CompletionResult.class.getSimpleName(),
+            true,
+            args -> new CompletionResult((List<Choice>) args[0])
+        );
+
+        static {
+            PARSER.declareObjectArray(constructorArg(), Choice.PARSER::apply, new ParseField("choices"));
+        }
+
+        public ChatCompletionResults toChatCompletionResults() {
+            return new ChatCompletionResults(
+                choices.stream().map(choice -> new ChatCompletionResults.Result(choice.message.content)).toList()
+            );
+        }
+    }
+
+    public record Choice(Message message) {
+        public static final ConstructingObjectParser<Choice, Void> PARSER = new ConstructingObjectParser<>(
+            Choice.class.getSimpleName(),
+            true,
+            args -> new Choice((Message) args[0])
+        );
+
+        static {
+            PARSER.declareObject(constructorArg(), Message.PARSER::apply, new ParseField("message"));
+        }
+    }
+
+    public record Message(String content) {
+        public static final ConstructingObjectParser<Message, Void> PARSER = new ConstructingObjectParser<>(
+            Message.class.getSimpleName(),
+            true,
+            args -> new Message((String) args[0])
+        );
+
+        static {
+            PARSER.declareString(constructorArg(), new ParseField("content"));
+        }
+    }
 }

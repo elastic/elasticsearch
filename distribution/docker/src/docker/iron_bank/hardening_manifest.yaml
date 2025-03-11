@@ -44,9 +44,12 @@ resources:
       value: "93dcc18adc78c65a028a84799ecf8ad40c936fdfc5f2a57b1acda5a8117fa82c"
 # List of project maintainers
 maintainers:
-  - name: "Rory Hunter"
-    email: "rory.hunter@elastic.co"
-    username: "rory"
+  - name: "Mark Vieira"
+    email: "mark.vieira@elastic.co"
+    username: "mark-vieira"
+  - name: "Rene Groeschke"
+    email: "rene.groschke@elastic.co"
+    username: "breskeby"
   - email: "klepal_alexander@bah.com"
     name: "Alexander Klepal"
     username: "alexander.klepal"

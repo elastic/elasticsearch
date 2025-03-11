@@ -40,6 +40,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -218,9 +219,26 @@ public class AbstractUpgradeCompatibilityTestCase extends ESRestTestCase {
 
         assertTrue(getIndices(client()).contains(index));
         assertDocCount(client(), index, numDocs);
+        assertPhraseQuery(client(), index, "Elasticsearch Doc");
 
         assertTrue(getIndices(client()).contains(indexMount));
-        assertTrue(getIndices(client()).contains(indexMount));
+    }
+
+    private static void assertPhraseQuery(RestClient client, String indexName, String phrase) throws IOException {
+        var request = new Request("GET", "/" + indexName + "/_search");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        request.setJsonEntity(Strings.format("""
+            {
+              "query": {
+                "match": {
+                  "content": "%s"
+                }
+              }
+            }""", phrase));
+        Response response = client.performRequest(request);
+        Map<String, Object> map = responseAsMap(response);
+        int hits = ((List<?>) ((Map<?, ?>) map.get("hits")).get("hits")).size();
+        assertEquals("expected 1  documents but it was a different number", 1, hits);
     }
 
     private static String getIndices(RestClient client) throws IOException {

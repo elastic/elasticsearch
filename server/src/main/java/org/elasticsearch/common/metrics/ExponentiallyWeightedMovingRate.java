@@ -24,6 +24,10 @@ import static java.lang.Math.expm1;
  * {@code lambda} is a constant and {@code time} specifies how long ago the increment happened. A <i>moving</i> rate is simply a rate
  * calculated for an every-growing series of increments (typically by updating the previous rate rather than recalculating from scratch).
  *
+ * <p>The times involved in the API of this class can use the caller's choice of units and origin, e.g. they can be millis since the
+ * epoch as returned by {@link System#currentTimeMillis}, nanos since an arbitrary origin as returned by {@link System#nanoTime, or anything
+ * else. The only requirement is that the same convention must be used consistently.
+ *
  * <p>This class is thread-safe.
  */
 public class ExponentiallyWeightedMovingRate {
@@ -35,108 +39,108 @@ public class ExponentiallyWeightedMovingRate {
     // we can do up to tens of millions of QPS before the lock risks becoming a bottleneck.
 
     private final double lambda;
-    private final long startTimeInMillis;
+    private final long startTime;
     private double rate;
-    long lastTimeInMillis;
+    long lastTime;
 
     /**
      * Constructor.
      *
      * @param lambda A parameter which dictates how quickly the average "forgets" older increments. The weight given to an increment which
-     *     happened a time {@code timeAgo} milliseconds ago will be proportional to {@code exp(-1.0 * lambda * timeAgo)}. The half-life
-     *     (measured in milliseconds) is related to this parameter by the equation {@code exp(-1.0 * lambda * halfLife)} = 0.5}, so
-     *     {@code lambda = log(2.0) / halfLife)}. This may be zero, but must not be negative.
-     * @param startTimeInMillis The time, in milliseconds since the epoch, to consider the start time for the rate calculation. This must be
-     *     greater than zero.
+     *     happened time {@code timeAgo} ago will be proportional to {@code exp(-1.0 * lambda * timeAgo)}. The half-life is related to this
+     *     parameter by the equation {@code exp(-1.0 * lambda * halfLife)} = 0.5}, so {@code lambda = log(2.0) / halfLife)}. This may be
+     *     zero, but must not be negative. The units of this value are the inverse of the units being used for time.
+     * @param startTime The time to consider the start time for the rate calculation. This must be greater than zero. The units and origin
+     *     of this value must match all other calls to this instance.
      */
-    public ExponentiallyWeightedMovingRate(double lambda, long startTimeInMillis) {
+    public ExponentiallyWeightedMovingRate(double lambda, long startTime) {
         if (lambda < 0.0) {
             throw new IllegalArgumentException("lambda must be non-negative but was " + lambda);
         }
-        if (startTimeInMillis <= 0.0) {
-            throw new IllegalArgumentException("startTimeInMillis must be non-negative but was " + startTimeInMillis);
+        if (startTime <= 0.0) {
+            throw new IllegalArgumentException("startTime must be non-negative but was " + startTime);
         }
         synchronized (this) {
             this.lambda = lambda;
             this.rate = Double.NaN; // should never be used
-            this.startTimeInMillis = startTimeInMillis;
-            this.lastTimeInMillis = 0; // after an increment, this must be positive, so a zero value indicates we're waiting for the first
+            this.startTime = startTime;
+            this.lastTime = 0; // after an increment, this must be positive, so a zero value indicates we're waiting for the first
         }
     }
 
     /**
-     * Returns the EWMR at the given time, in millis since the epoch.
+     * Returns the EWMR at the given time. The units and origin of this time must match all other calls to this instance. The units
+     * of the returned rate are the ratio of the increment units to the time units as used for {@link #addIncrement}.
      *
      * <p>If there have been no increments yet, this returns zero.
      *
-     * <p>Otherwise, we require the time to be no earlier than the time of the previous increment, i.e. the value of {@code timeInMillis}
-     * for this call must not be less than the value of {@code timeInMillis} for the last call to {@link #addIncrement}. If this is not the
+     * <p>Otherwise, we require the time to be no earlier than the time of the previous increment, i.e. the value of {@code time}
+     * for this call must not be less than the value of {@code time} for the last call to {@link #addIncrement}. If this is not the
      * case, the method behaves as if it had that minimum value.
      */
-    public double getRate(long timeInMillis) {
+    public double getRate(long time) {
         synchronized (this) {
-            if (lastTimeInMillis == 0) { // indicates that no increment has happened yet
+            if (lastTime == 0) { // indicates that no increment has happened yet
                 return 0.0;
-            } else if (timeInMillis <= lastTimeInMillis) {
+            } else if (time <= lastTime) {
                 return rate;
             } else {
                 // This is the formula for R(t) given in subsection 2.6 of the document referenced above:
-                return expHelper(lastTimeInMillis - startTimeInMillis) * exp(-1.0 * lambda * (timeInMillis - lastTimeInMillis)) * rate
-                    / expHelper(timeInMillis - startTimeInMillis);
+                return expHelper(lastTime - startTime) * exp(-1.0 * lambda * (time - lastTime)) * rate / expHelper(time - startTime);
             }
         }
     }
 
     /**
-     * Given the EWMR {@code currentRate} at time {@code currentTimeMillis} and the EWMR {@code oldRate} at time {@code oldTimeMillis},
-     * returns the EWMR that would be calculated at {@code currentTimeMillis} if the start time was {@code oldTimeMillis} rather than the
-     * {@code startTimeMillis} passed to the parameter. This rate incorporates all the increments that contributed to {@code currentRate}
-     * but not to {@code oldRate}. The increments that contributed to {@code oldRate} are effectively 'forgotten'. All times are in millis
-     * since the epoch.
+     * Given the EWMR {@code currentRate} at time {@code currentTime} and the EWMR {@code oldRate} at time {@code oldTime}, returns the EWMR
+     * that would be calculated at {@code currentTime} if the start time was {@code oldTime} rather than the {@code startTime} passed to the
+     * parameter. This rate incorporates all the increments that contributed to {@code currentRate} but not to {@code oldRate}. The
+     * increments that contributed to {@code oldRate} are effectively 'forgotten'. The units and origin of the times and rates must match
+     * all other calls to this instance.
      *
-     * <p>Normally, {@code currentTimeMillis} should be after {@code oldTimeMillis}. If it is not, this method returns zero.
+     * <p>Normally, {@code currentTime} should be after {@code oldTime}. If it is not, this method returns zero.
      *
      * <p>Note that this method does <i>not</i> depend on any of the increments made to this {@link ExponentiallyWeightedMovingRate}
-     * instance, or on its {@code startTimeMillis}. It is only non-static because it uses this instance's {@code lambda}.
+     * instance, or on its {@code startTime}. It is only non-static because it uses this instance's {@code lambda}.
      */
-    public double calculateRateSince(long currentTimeMillis, double currentRate, long oldTimeMillis, double oldRate) {
-        if (currentTimeMillis <= oldTimeMillis) {
+    public double calculateRateSince(long currentTime, double currentRate, long oldTime, double oldRate) {
+        if (currentTime <= oldTime) {
             return 0.0;
         }
         // This is the formula for R'(t, T) given in subsection 2.7 of the document referenced above:
-        return (expHelper(currentTimeMillis - startTimeInMillis) * currentRate - expHelper(oldTimeMillis - startTimeInMillis) * exp(
-            -1.0 * lambda * (currentTimeMillis - oldTimeMillis)
-        ) * oldRate) / expHelper(currentTimeMillis - oldTimeMillis);
+        return (expHelper(currentTime - startTime) * currentRate - expHelper(oldTime - startTime) * exp(
+            -1.0 * lambda * (currentTime - oldTime)
+        ) * oldRate) / expHelper(currentTime - oldTime);
     }
 
     /**
-     * Updates the rate to reflect that the gauge has been incremented by an amount {@code increment} at a time {@code timeInMillis} in
-     * milliseconds since the epoch.
+     * Updates the rate to reflect that the gauge has been incremented by an amount {@code increment} at a time {@code time}. The unit and
+     * offset of the time must match all other calls to this instance. The units of the increment are arbitrary but must also be consistent.
      *
      * <p>If this is the first increment, we require it to occur after the start time for the rate calculation, i.e. the value of
-     * {@code timeInMillis} must be greater than {@code startTimeInMillis} passed to the constructor. If this is not the case, the method
-     * behaves as if {@code timeInMillis} is {@code startTimeInMillis + 1} to prevent a division by zero error.
+     * {@code time} must be greater than {@code startTime} passed to the constructor. If this is not the case, the method behaves as if
+     * {@code time} is {@code startTime + 1} to prevent a division by zero error.
      *
-     * <p>If this is not the first increment, we require it not to occur before the previous increment, i.e. the value of
-     * {@code timeInMillis} for this call must be greater than or equal to the value for the previous call. If this is not the case, the
-     * method behaves as if this call's {@code timeInMillis} is the same as the previous call's.
+     * <p>If this is not the first increment, we require it not to occur before the previous increment, i.e. the value of {@code time} for
+     * this call must be greater than or equal to the value for the previous call. If this is not the case, the method behaves as if this
+     * call's {@code time} is the same as the previous call's.
      */
-    public void addIncrement(double increment, long timeInMillis) {
+    public void addIncrement(double increment, long time) {
         synchronized (this) {
-            if (lastTimeInMillis == 0) { // indicates that this is the first increment
-                if (timeInMillis <= startTimeInMillis) {
-                    timeInMillis = startTimeInMillis + 1;
+            if (lastTime == 0) { // indicates that this is the first increment
+                if (time <= startTime) {
+                    time = startTime + 1;
                 }
                 // This is the formula for R(t_1) given in subsection 2.6 of the document referenced above:
-                rate = increment / expHelper(timeInMillis - startTimeInMillis);
+                rate = increment / expHelper(time - startTime);
             } else {
-                if (timeInMillis < lastTimeInMillis) {
-                    timeInMillis = lastTimeInMillis;
+                if (time < lastTime) {
+                    time = lastTime;
                 }
                 // This is the formula for R(t_j+1) given in subsection 2.6 of the document referenced above:
-                rate += (increment - expHelper(timeInMillis - lastTimeInMillis) * rate) / expHelper(timeInMillis - startTimeInMillis);
+                rate += (increment - expHelper(time - lastTime) * rate) / expHelper(time - startTime);
             }
-            lastTimeInMillis = timeInMillis;
+            lastTime = time;
         }
     }
 

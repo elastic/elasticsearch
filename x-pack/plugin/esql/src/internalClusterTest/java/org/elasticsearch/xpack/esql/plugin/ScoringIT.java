@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -58,13 +59,13 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoring() {
-        var query = """
+        var query = String.format(Locale.ROOT, """
             FROM test
             METADATA _score
             | WHERE %s
             | KEEP id, _score
             | SORT id ASC
-            """.formatted(matchingClause);
+            """, matchingClause);
 
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
@@ -75,13 +76,13 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
 
     public void testWhereMatchWithScoringDifferentSort() {
 
-        var query = """
+        var query = String.format(Locale.ROOT, """
             FROM test
             METADATA _score
             | WHERE %s
             | KEEP id, _score
             | SORT id DESC
-            """.formatted(matchingClause);
+            """, matchingClause);
         ;
 
         try (var resp = run(query)) {
@@ -92,13 +93,13 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoringSortScore() {
-        var query = """
+        var query = String.format(Locale.ROOT, """
             FROM test
             METADATA _score
             | WHERE %s
             | KEEP id, _score
             | SORT _score DESC
-            """.formatted(matchingClause);
+            """, matchingClause);
 
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
@@ -108,12 +109,12 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoringNoSort() {
-        var query = """
+        var query = String.format(Locale.ROOT, """
             FROM test
             METADATA _score
             | WHERE %s
             | KEEP id, _score
-            """.formatted(matchingClause);
+            """, matchingClause);
 
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
@@ -195,37 +196,36 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testPushableAndFullTextFunctionsConjunctionScoring() {
-        var queryWithoutFilter = """
+        var queryWithoutFilter = String.format(Locale.ROOT, """
             FROM test
             METADATA _score
             | WHERE %s
             | KEEP id, _score
             | SORT id ASC
-            """.formatted(matchingClause);
-        ;
-        var query = """
+            """, matchingClause);
+        var query = String.format(Locale.ROOT, """
             FROM test
             METADATA _score
             | WHERE %s AND id > 4
             | KEEP id, _score
             | SORT id ASC
-            """.formatted(matchingClause);
+            """, matchingClause);
         checkSameScores(queryWithoutFilter, query);
 
-        query = """
+        query = String.format(Locale.ROOT, """
             FROM test
             METADATA _score
             | WHERE %s AND (id > 4 or id < 2)
             | KEEP id, _score
             | SORT id ASC
-            """.formatted(matchingClause);
-        queryWithoutFilter = """
+            """, matchingClause);
+        queryWithoutFilter = String.format(Locale.ROOT, """
             FROM test
             METADATA _score
             | WHERE %s
             | KEEP id, _score
             | SORT id ASC
-            """.formatted(matchingClause);
+            """, matchingClause);
         checkSameScores(queryWithoutFilter, query);
     }
 

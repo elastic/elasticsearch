@@ -1130,11 +1130,8 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         getSecurityClient().putUser(new User(username, roles), password);
     }
 
-    protected void createAndStoreApiKey(String username) throws IOException {
-        createAndStoreApiKey(username, null);
-    }
-
     protected void createAndStoreApiKey(String username, @Nullable String roleDescriptors) throws IOException {
+        assertThat("API key already registered for user: " + username, apiKeys.containsKey(username), is(false));
         var request = new Request("POST", "/_security/api_key");
         if (roleDescriptors == null) {
             request.setJsonEntity("""

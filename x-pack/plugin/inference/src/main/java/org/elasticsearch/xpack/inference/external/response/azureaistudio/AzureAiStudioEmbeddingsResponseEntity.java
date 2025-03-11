@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.inference.external.response.azureaistudio;
 
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.BaseResponseEntity;
-import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
 
 import java.io.IOException;
 

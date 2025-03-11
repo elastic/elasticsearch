@@ -5,8 +5,6 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.request.openai;
+lexer grammar Rrf;
 
-import org.elasticsearch.xpack.inference.external.request.Request;
-
-public interface OpenAiRequest extends Request {}
+DEV_RRF : {this.isDevVersion()}? 'rrf' -> pushMode(EXPRESSION_MODE);

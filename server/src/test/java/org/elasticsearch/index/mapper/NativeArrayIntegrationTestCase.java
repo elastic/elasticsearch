@@ -81,6 +81,21 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         verifySyntheticArray(arrays, mapping, "_id");
     }
 
+    private void verifyResponseArray(Object[] expected, Object actual) {
+        if (expected == null) {
+            assertThat(actual, nullValue());
+        } else if (actual instanceof List<?> actualArray) {
+            if (expected.length == 0) {
+                assertThat(actualArray, empty());
+            } else {
+                assertThat(actualArray, Matchers.contains(expected));
+            }
+        } else {
+            assertThat(expected.length, equalTo(1));
+            assertThat(actual, equalTo(expected[0]));
+        }
+    }
+
     protected void verifySyntheticArray(Object[][] arrays, XContentBuilder mapping, String... expectedStoredFields) throws IOException {
         var indexService = createIndex(
             "test-index",
@@ -114,14 +129,9 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 assertThat(hit.getId(), equalTo("my-id-" + i));
                 var sourceAsMap = hit.getSourceAsMap();
                 assertThat(sourceAsMap, hasKey("field"));
-                var actualArray = (List<?>) sourceAsMap.get("field");
-                if (array == null) {
-                    assertThat(actualArray, nullValue());
-                } else if (array.length == 0) {
-                    assertThat(actualArray, empty());
-                } else {
-                    assertThat(actualArray, Matchers.contains(array));
-                }
+
+                Object actual = sourceAsMap.get("field");
+                verifyResponseArray(array, actual);
             } finally {
                 searchResponse.decRef();
             }
@@ -183,8 +193,8 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 var objectArray = (List<?>) sourceAsMap.get("object");
                 for (int j = 0; j < document.size(); j++) {
                     var expected = document.get(j);
-                    List<?> actual = (List<?>) ((Map<?, ?>) objectArray.get(j)).get("field");
-                    assertThat(actual, Matchers.contains(expected));
+                    Object actual = ((Map<?, ?>) objectArray.get(j)).get("field");
+                    verifyResponseArray(expected, actual);
                 }
             } finally {
                 searchResponse.decRef();
@@ -251,14 +261,8 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 var sourceAsMap = hit.getSourceAsMap();
                 var objectArray = (Map<?, ?>) sourceAsMap.get("object");
 
-                List<?> actual = (List<?>) objectArray.get("field");
-                if (arrayValue == null) {
-                    assertThat(actual, nullValue());
-                } else if (arrayValue.length == 0) {
-                    assertThat(actual, empty());
-                } else {
-                    assertThat(actual, Matchers.contains(arrayValue));
-                }
+                Object actual = objectArray.get("field");
+                verifyResponseArray(arrayValue, actual);
             } finally {
                 searchResponse.decRef();
             }

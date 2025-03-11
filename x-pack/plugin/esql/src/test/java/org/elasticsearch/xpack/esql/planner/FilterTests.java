@@ -110,7 +110,12 @@ public class FilterTests extends ESTestCase {
         var plan = plan(query, null);
 
         var filter = filterQueryForTransportNodes(plan);
-        var expected = singleValueQuery(query, rangeQuery(EMP_NO).gt(value).boost(0.0f), EMP_NO, ((SingleValueQuery.Builder) filter).source());
+        var expected = singleValueQuery(
+            query,
+            rangeQuery(EMP_NO).gt(value).boost(0.0f),
+            EMP_NO,
+            ((SingleValueQuery.Builder) filter).source()
+        );
         assertEquals(expected.toString(), filter.toString());
     }
 
@@ -149,8 +154,18 @@ public class FilterTests extends ESTestCase {
 
         var filter = filterQueryForTransportNodes(plan);
         var musts = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).must();
-        var left = singleValueQuery(query, rangeQuery(EMP_NO).gt(lowValue).boost(0.0f), EMP_NO, ((SingleValueQuery.Builder) musts.get(0)).source());
-        var right = singleValueQuery(query, rangeQuery(EMP_NO).lt(highValue).boost(0.0f), EMP_NO, ((SingleValueQuery.Builder) musts.get(1)).source());
+        var left = singleValueQuery(
+            query,
+            rangeQuery(EMP_NO).gt(lowValue).boost(0.0f),
+            EMP_NO,
+            ((SingleValueQuery.Builder) musts.get(0)).source()
+        );
+        var right = singleValueQuery(
+            query,
+            rangeQuery(EMP_NO).lt(highValue).boost(0.0f),
+            EMP_NO,
+            ((SingleValueQuery.Builder) musts.get(1)).source()
+        );
         var must = Queries.combine(MUST, asList(left, right));
         var expected = Queries.combine(FILTER, asList(restFilter, must));
         assertEquals(expected.toString(), filter.toString());
@@ -184,8 +199,18 @@ public class FilterTests extends ESTestCase {
 
         var filter = filterQueryForTransportNodes(plan);
         var shoulds = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).should();
-        var left = singleValueQuery(query, rangeQuery(EMP_NO).gt(lowValue).boost(0.0f), EMP_NO, ((SingleValueQuery.Builder) shoulds.get(0)).source());
-        var right = singleValueQuery(query, rangeQuery(EMP_NO).lt(highValue).boost(0.0f), EMP_NO, ((SingleValueQuery.Builder) shoulds.get(1)).source());
+        var left = singleValueQuery(
+            query,
+            rangeQuery(EMP_NO).gt(lowValue).boost(0.0f),
+            EMP_NO,
+            ((SingleValueQuery.Builder) shoulds.get(0)).source()
+        );
+        var right = singleValueQuery(
+            query,
+            rangeQuery(EMP_NO).lt(highValue).boost(0.0f),
+            EMP_NO,
+            ((SingleValueQuery.Builder) shoulds.get(1)).source()
+        );
         var should = Queries.combine(SHOULD, asList(left, right));
         var expected = Queries.combine(FILTER, asList(restFilter, should));
         assertEquals(expected.toString(), filter.toString());
@@ -205,8 +230,18 @@ public class FilterTests extends ESTestCase {
 
         var filter = filterQueryForTransportNodes(plan);
         var musts = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).must();
-        var left = singleValueQuery(query, rangeQuery(EMP_NO).gt(lowValue).boost(0.0f), EMP_NO, ((SingleValueQuery.Builder) musts.get(0)).source());
-        var right = singleValueQuery(query, rangeQuery(EMP_NO).lt(highValue).boost(0.0f), EMP_NO, ((SingleValueQuery.Builder) musts.get(1)).source());
+        var left = singleValueQuery(
+            query,
+            rangeQuery(EMP_NO).gt(lowValue).boost(0.0f),
+            EMP_NO,
+            ((SingleValueQuery.Builder) musts.get(0)).source()
+        );
+        var right = singleValueQuery(
+            query,
+            rangeQuery(EMP_NO).lt(highValue).boost(0.0f),
+            EMP_NO,
+            ((SingleValueQuery.Builder) musts.get(1)).source()
+        );
         var must = Queries.combine(MUST, asList(left, right));
         var expected = Queries.combine(FILTER, asList(restFilter, must));
         assertEquals(expected.toString(), filter.toString());
@@ -229,7 +264,12 @@ public class FilterTests extends ESTestCase {
 
         var filter = filterQueryForTransportNodes(plan);
         var builder = ((BoolQueryBuilder) filter).filter().get(1);
-        var queryFilter = singleValueQuery(query, rangeQuery(EMP_NO).gt(lowValue).boost(0.0f), EMP_NO, ((SingleValueQuery.Builder) builder).source());
+        var queryFilter = singleValueQuery(
+            query,
+            rangeQuery(EMP_NO).gt(lowValue).boost(0.0f),
+            EMP_NO,
+            ((SingleValueQuery.Builder) builder).source()
+        );
         var expected = Queries.combine(FILTER, asList(restFilter, queryFilter));
         assertEquals(expected.toString(), filter.toString());
     }

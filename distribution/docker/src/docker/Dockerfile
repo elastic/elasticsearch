@@ -150,29 +150,6 @@ COPY fips/resources/fips_java_oracle.security /usr/share/elasticsearch/config/fi
 COPY fips/resources/fips_java.policy /usr/share/elasticsearch/config/fips_java.policy
 
 WORKDIR /usr/share/elasticsearch/config
-# Add fips specific configuration
-##RUN cat <<EOF >> /usr/share/elasticsearch/config/elasticsearch.yml
-#xpack.security.autoconfiguration.enabled: false
-#xpack.security.authc.api_key.cache.hash_algo: "ssha256"
-#xpack.security.authc.reserved_realm.enabled: false
-#xpack.security.authc.password_hashing.algorithm: pbkdf2_stretch
-#xpack.security.enabled: true
-#xpack.security.enrollment.enabled: false
-#xpack.security.fips_mode.enabled: true
-#xpack.security.fips_mode.required_providers: ["BCFIPS", "BCJSSE"]
-#xpack.security.http.ssl.enabled: true
-#xpack.security.http.ssl.key: node1.key
-#xpack.security.http.ssl.certificate: node1.crt
-#xpack.security.http.ssl.certificate_authorities: node1.crt
-#xpack.security.transport.ssl.enabled: true
-#xpack.security.transport.ssl.certificate: node1.crt
-#xpack.security.transport.ssl.certificate_authorities: node1.crt
-#xpack.security.transport.ssl.key: node1.key
-#logger.org.elasticsearch.xpack.security: trace
-#discovery.seed_hosts: []
-#node.name: node1
-#cluster.initial_master_nodes: ["node1"]
-#EOF
 
 ## Add fips specific JVM options
 RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
@@ -180,6 +157,8 @@ RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
 -Dorg.bouncycastle.fips.approved_only=true
 -Djava.security.properties=config/fips_java.security
 -Djava.security.policy=config/fips_java.policy
+# disable entitlements temporally (should be removed once we are on jdk 24)
+-Des.entitlements.enabled=false
 EOF
 
 <% } %>

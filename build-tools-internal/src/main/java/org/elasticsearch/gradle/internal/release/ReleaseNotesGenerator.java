@@ -49,6 +49,11 @@ public class ReleaseNotesGenerator {
         TYPE_LABELS.put("upgrade", "Upgrades");
     }
 
+    /**
+     * These are the types of changes that are considered "Features and Enhancements" in the release notes.
+     */
+    private static final List<String> FEATURE_ENHANCEMENT_TYPES = List.of("feature", "new-aggregation", "enhancement", "upgrade");
+
     static void update(File templateFile, File outputFile, QualifiedVersion version, Set<ChangelogEntry> changelogs) throws IOException {
         final String templateString = Files.readString(templateFile.toPath());
 
@@ -71,12 +76,16 @@ public class ReleaseNotesGenerator {
         return TemplateUtils.render(template, bindings);
     }
 
+    /**
+     * The new markdown release notes are grouping several of the old change types together.
+     * This method maps the change type that developers use in the changelogs to the new type that the release notes cares about.
+     */
     private static String getTypeFromEntry(ChangelogEntry entry) {
         if (entry.getBreaking() != null) {
             return "breaking";
         }
 
-        if (entry.getType().equals("feature") || entry.getType().equals("enhancement")) {
+        if (FEATURE_ENHANCEMENT_TYPES.contains(entry.getType())) {
             return "features-enhancements";
         }
 

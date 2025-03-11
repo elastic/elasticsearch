@@ -27,19 +27,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 ## 9.1.0 [elasticsearch-910-release-notes]
 **Release date:** April 01, 2025
 
-### Breaking changes [elasticsearch-910-breaking]
-
-TLS:
-* Drop `TLS_RSA` cipher support for JDK 24 [#123600](https://github.com/elastic/elasticsearch/pull/123600)
-
-### Deprecations [elasticsearch-910-deprecation]
-
-Machine Learning:
-* Add deprecation warning for flush API [#121667](https://github.com/elastic/elasticsearch/pull/121667) (issue: {es-issue}121506[#121506])
-
-Search:
-* Deprecate Behavioral Analytics CRUD apis [#122960](https://github.com/elastic/elasticsearch/pull/122960)
-
 ### Features and enhancements [elasticsearch-910-features-enhancements]
 
 Allocation:
@@ -48,18 +35,27 @@ Allocation:
 Authorization:
 * Do not fetch reserved roles from native store when Get Role API is called [#121971](https://github.com/elastic/elasticsearch/pull/121971)
 
+CRUD:
+* Enhance memory accounting for document expansion and introduce max document size limit [#123543](https://github.com/elastic/elasticsearch/pull/123543)
+
 Data streams:
 * Add index mode to get data stream API [#122486](https://github.com/elastic/elasticsearch/pull/122486)
+* Retry ILM async action after reindexing data stream [#124149](https://github.com/elastic/elasticsearch/pull/124149)
+* Set cause on create index request in create from action [#124363](https://github.com/elastic/elasticsearch/pull/124363)
 
 ES|QL:
 * Add initial grammar and changes for FORK [#121948](https://github.com/elastic/elasticsearch/pull/121948)
+* Add initial grammar and planning for RRF (snapshot) [#123396](https://github.com/elastic/elasticsearch/pull/123396)
 * Allow partial results in ES|QL [#121942](https://github.com/elastic/elasticsearch/pull/121942)
 * Allow skip shards with `_tier` and `_index` in ES|QL [#123728](https://github.com/elastic/elasticsearch/pull/123728)
+* Avoid `NamedWritable` in block serialization [#124394](https://github.com/elastic/elasticsearch/pull/124394)
+* ES|QL - Add scoring for full text functions disjunctions [#121793](https://github.com/elastic/elasticsearch/pull/121793)
 * Fix Driver status iterations and `cpuTime` [#123290](https://github.com/elastic/elasticsearch/pull/123290) (issue: {es-issue}122967[#122967])
 * Implement runtime skip_unavailable=true [#121240](https://github.com/elastic/elasticsearch/pull/121240)
 * Initial support for unmapped fields [#119886](https://github.com/elastic/elasticsearch/pull/119886)
 * Introduce `allow_partial_results` setting in ES|QL [#122890](https://github.com/elastic/elasticsearch/pull/122890)
 * Introduce a pre-mapping logical plan processing step [#121260](https://github.com/elastic/elasticsearch/pull/121260)
+* Push down `StartsWith` and `EndsWith` functions to Lucene [#123381](https://github.com/elastic/elasticsearch/pull/123381) (issue: {es-issue}123067[#123067])
 * Render `aggregate_metric_double` [#122660](https://github.com/elastic/elasticsearch/pull/122660)
 * Retry ES|QL node requests on shard level failures [#120774](https://github.com/elastic/elasticsearch/pull/120774)
 * Support partial results in CCS in ES|QL [#122708](https://github.com/elastic/elasticsearch/pull/122708)
@@ -70,11 +66,13 @@ Health:
 
 ILM+SLM:
 * Improve SLM Health Indicator to cover missing snapshot [#121370](https://github.com/elastic/elasticsearch/pull/121370)
+* Run `TransportExplainLifecycleAction` on local node [#122885](https://github.com/elastic/elasticsearch/pull/122885)
 
 Inference:
 * [Inference API] Rename `model_id` prop to model in EIS sparse inference request body [#122272](https://github.com/elastic/elasticsearch/pull/122272)
 
 Infra/Core:
+* Give Kibana user 'all' permissions for .entity_analytics.* indices [#123588](https://github.com/elastic/elasticsearch/pull/123588)
 * Improve size limiting string message [#122427](https://github.com/elastic/elasticsearch/pull/122427)
 
 Ingest Node:
@@ -100,9 +98,19 @@ Mapping:
 * Use `FallbackSyntheticSourceBlockLoader` for boolean and date fields [#124050](https://github.com/elastic/elasticsearch/pull/124050)
 * Use `FallbackSyntheticSourceBlockLoader` for number fields [#122280](https://github.com/elastic/elasticsearch/pull/122280)
 
+Relevance:
+* Skip semantic_text embedding generation when no content is provided. [#123763](https://github.com/elastic/elasticsearch/pull/123763)
+
 Search:
 * Account for the `SearchHit` source in circuit breaker [#121920](https://github.com/elastic/elasticsearch/pull/121920) (issue: {es-issue}89656[#89656])
+* Added optional parameters to QSTR ES|QL function [#121787](https://github.com/elastic/elasticsearch/pull/121787) (issue: {es-issue}120933[#120933])
 * Optionally allow text similarity reranking to fail [#121784](https://github.com/elastic/elasticsearch/pull/121784)
+
+Security:
+* Bump nimbus-jose-jwt to 10.0.2 [#124544](https://github.com/elastic/elasticsearch/pull/124544)
+
+Snapshot/Restore:
+* Upgrade AWS SDK to v1.12.746 [#122431](https://github.com/elastic/elasticsearch/pull/122431)
 
 Stats:
 * Run XPack usage actions on local node [#122933](https://github.com/elastic/elasticsearch/pull/122933)
@@ -111,6 +119,7 @@ Store:
 * Abort pending deletion on `IndicesService` close [#123569](https://github.com/elastic/elasticsearch/pull/123569)
 
 Vector Search:
+* Add bit vector support to semantic text [#123187](https://github.com/elastic/elasticsearch/pull/123187)
 * Adds implementations of dotProduct and cosineSimilarity painless methods to operate on float vectors for byte fields [#122381](https://github.com/elastic/elasticsearch/pull/122381) (issue: {es-issue}117274[#117274])
 
 Watcher:
@@ -127,6 +136,9 @@ Analysis:
 Data streams:
 * Updating `TransportRolloverAction.checkBlock` so that non-write-index blocks do not prevent data stream rollover [#122905](https://github.com/elastic/elasticsearch/pull/122905)
 
+Downsampling:
+* Improve downsample performance by avoiding to read unnecessary dimension values when downsampling. [#124451](https://github.com/elastic/elasticsearch/pull/124451)
+
 ES|QL:
 * Add support to VALUES aggregation for spatial types [#122886](https://github.com/elastic/elasticsearch/pull/122886) (issue: {es-issue}122413[#122413])
 * Avoid over collecting in Limit or Lucene Operator [#123296](https://github.com/elastic/elasticsearch/pull/123296)
@@ -136,18 +148,22 @@ ES|QL:
 * Fix function registry concurrency issues on constructor [#123492](https://github.com/elastic/elasticsearch/pull/123492) (issue: {es-issue}123430[#123430])
 * Fix functions emitting warnings with no source [#122821](https://github.com/elastic/elasticsearch/pull/122821) (issue: {es-issue}122588[#122588])
 * Implicit numeric casting for CASE/GREATEST/LEAST [#122601](https://github.com/elastic/elasticsearch/pull/122601) (issue: {es-issue}121890[#121890])
+* Lazy collection copying during node transform [#124424](https://github.com/elastic/elasticsearch/pull/124424)
 * Reduce iteration complexity for plan traversal [#123427](https://github.com/elastic/elasticsearch/pull/123427)
 * Remove duplicated nested commands [#123085](https://github.com/elastic/elasticsearch/pull/123085)
 * Revive inlinestats [#122257](https://github.com/elastic/elasticsearch/pull/122257)
+* Revive some more of inlinestats functionality [#123589](https://github.com/elastic/elasticsearch/pull/123589)
 * Use a must boolean statement when pushing down to Lucene when scoring is also needed [#124001](https://github.com/elastic/elasticsearch/pull/124001) (issue: {es-issue}123967[#123967])
 
 Engine:
 * Hold store reference in `InternalEngine#performActionWithDirectoryReader(...)` [#123010](https://github.com/elastic/elasticsearch/pull/123010) (issue: {es-issue}122974[#122974])
 
 Indices APIs:
+* Avoid hoarding cluster state references during rollover [#124107](https://github.com/elastic/elasticsearch/pull/124107) (issue: {es-issue}123893[#123893])
 * Updates the deprecation info API to not warn about system indices and data streams [#122951](https://github.com/elastic/elasticsearch/pull/122951)
 
 Infra/Core:
+* Have create index return a bad request on poor formatting [#123761](https://github.com/elastic/elasticsearch/pull/123761)
 * Include data streams when converting an existing resource to a system resource [#121392](https://github.com/elastic/elasticsearch/pull/121392)
 * Reduce Data Loss in System Indices Migration [#121327](https://github.com/elastic/elasticsearch/pull/121327)
 * System Index Migration Failure Results in a Non-Recoverable State [#122326](https://github.com/elastic/elasticsearch/pull/122326)
@@ -159,12 +175,22 @@ Ingest Node:
 Machine Learning:
 * Add `ElasticInferenceServiceCompletionServiceSettings` [#123155](https://github.com/elastic/elasticsearch/pull/123155)
 * Add enterprise license check to inference action for semantic text fields [#122293](https://github.com/elastic/elasticsearch/pull/122293)
+* Avoid potentially throwing calls to Task#getDescription in model download [#124527](https://github.com/elastic/elasticsearch/pull/124527)
 * Fix serialising the inference update request [#122278](https://github.com/elastic/elasticsearch/pull/122278)
 * Retry on streaming errors [#123076](https://github.com/elastic/elasticsearch/pull/123076)
 * Set Connect Timeout to 5s [#123272](https://github.com/elastic/elasticsearch/pull/123272)
 * Updates to allow using Cohere binary embedding response in semantic search queries [#121827](https://github.com/elastic/elasticsearch/pull/121827)
+* [Inference API] Fix output stream ordering in `InferenceActionProxy` [#124225](https://github.com/elastic/elasticsearch/pull/124225)
+
+Mapping:
+* Avoid serializing empty `_source` fields in mappings [#122606](https://github.com/elastic/elasticsearch/pull/122606)
+
+Ranking:
+* Restore `TextSimilarityRankBuilder` XContent output [#124564](https://github.com/elastic/elasticsearch/pull/124564)
 
 Search:
+* Do not let `ShardBulkInferenceActionFilter` unwrap / rewrap ESExceptions [#123890](https://github.com/elastic/elasticsearch/pull/123890)
+* Fix concurrency issue in `ScriptSortBuilder` [#123757](https://github.com/elastic/elasticsearch/pull/123757)
 * Fix handling of auto expand replicas for stateless indices [#122365](https://github.com/elastic/elasticsearch/pull/122365)
 * Handle search timeout in `SuggestPhase` [#122357](https://github.com/elastic/elasticsearch/pull/122357) (issue: {es-issue}122186[#122186])
 
@@ -181,10 +207,5 @@ Transform:
 
 Vector Search:
 * Knn vector rescoring to sort score docs [#122653](https://github.com/elastic/elasticsearch/pull/122653) (issue: {es-issue}119711[#119711])
-
-### Upgrades [elasticsearch-910-upgrade]
-
-Snapshot/Restore:
-* Upgrade AWS SDK to v1.12.746 [#122431](https://github.com/elastic/elasticsearch/pull/122431)
 
 

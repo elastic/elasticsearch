@@ -27,7 +27,10 @@ To check for security updates, go to [Security announcements for the Elastic sta
 ## ${unqualifiedVersion} [elasticsearch-${versionWithoutSeparator}-release-notes]
 **Release date:** April 01, 2025
 <%
-for (changeType in changelogsByTypeByArea.keySet()) {
+for (changeType in ['features-enhancements', 'fixes', 'regression']) {
+    if (changelogsByTypeByArea[changeType] == null || changelogsByTypeByArea[changeType].empty) {
+        continue;
+    }
 %>
 ### ${ TYPE_LABELS.getOrDefault(changeType, 'No mapping for TYPE_LABELS[' + changeType + ']') } [elasticsearch-${versionWithoutSeparator}-${changeType}]
 <% for (team in changelogsByTypeByArea[changeType].keySet()) {

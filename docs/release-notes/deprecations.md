@@ -20,5 +20,3 @@ To give you insight into what deprecated features you’re using, {{es}}:
 **Release date:** April 01, 2025
 
 No deprecations in this version.
-
-

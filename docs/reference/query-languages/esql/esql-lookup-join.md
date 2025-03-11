@@ -47,7 +47,8 @@ In this example, we have two sample tables:
 
 **employees**
 
-| birth_date|emp_no:|first_name|gender|hire_date|language|
+| birth_date|emp_no|first_name|gender|hire_date|language|
+|---|---|---|---|---|---|
 |1955-10-04T00:00:00Z|10091|Amabile    |M|1992-11-18T00:00:00Z|3|
 |1964-10-18T00:00:00Z|10092|Valdiodio  |F|1989-09-22T00:00:00Z|1|
 |1964-06-11T00:00:00Z|10093|Sailaja    |M|1996-11-05T00:00:00Z|3|
@@ -57,6 +58,7 @@ In this example, we have two sample tables:
 **languages_non_unique_key**
 
 |language_code|language_name|country|
+|---|---|---|
 |1|English|Canada|
 |1|English|
 |1||United Kingdom|

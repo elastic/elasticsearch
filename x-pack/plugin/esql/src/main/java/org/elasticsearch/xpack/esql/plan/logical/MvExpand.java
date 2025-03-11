@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -90,7 +91,7 @@ public class MvExpand extends UnaryPlan implements TelemetryAware, SortAgnostic 
 
     @Override
     public boolean expressionsResolved() {
-        return target.resolved();
+        return target.resolved() && target.dataType() != DataType.UNSUPPORTED;
     }
 
     @Override

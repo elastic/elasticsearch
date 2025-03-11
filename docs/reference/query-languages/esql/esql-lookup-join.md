@@ -64,13 +64,13 @@ In this example, we have two sample tables:
 |1|English|
 |1||United Kingdom|
 |1|English|United States of America|
-|2|German|[Germany|Austria]|
+|2|German|[Germany\|Austria]|
 |2|German|Switzerland|
 |2|German|
 |4|Quenya|
 |5||Atlantis|
-|[6|7]|Mv-Lang|Mv-Land|
-|[7|8]|Mv-Lang2|Mv-Land2|
+|[6\|7]|Mv-Lang|Mv-Land|
+|[7\|8]|Mv-Lang2|Mv-Land2|
 |Null-Lang|Null-Land|
 |Null-Lang2|Null-Land2|
 

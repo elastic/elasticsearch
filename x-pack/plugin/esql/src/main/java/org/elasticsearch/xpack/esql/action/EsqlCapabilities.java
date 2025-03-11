@@ -873,7 +873,7 @@ public class EsqlCapabilities {
         FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
 
         /**
-         * Full text functions do not contribute to score
+         * Non full text functions do not contribute to score
          */
         NON_FULL_TEXT_FUNCTIONS_SCORING;
 

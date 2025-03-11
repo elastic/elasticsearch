@@ -519,10 +519,10 @@ public final class IndicesPermission {
         }
 
         public String nameCombinedWithSelector() {
-            if (IndexComponentSelector.FAILURES.equals(selector)) {
-                return IndexNameExpressionResolver.combineSelector(name, selector);
-            }
-            return name;
+            String combined = IndexNameExpressionResolver.combineSelector(name, selector);
+            assert false != IndexComponentSelector.FAILURES.equals(selector) || name.equals(combined)
+                : "Only failures selectors should result in explicit selectors suffix";
+            return combined;
         }
     }
 

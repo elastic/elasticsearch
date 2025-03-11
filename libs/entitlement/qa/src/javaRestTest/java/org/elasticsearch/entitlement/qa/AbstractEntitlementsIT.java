@@ -90,7 +90,7 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
 
             @Override
             public void describeTo(Description description) {
-                description.appendText("403 (FORBIDDEN)").appendText(" due to ").appendText(expectedException);
+                description.appendValue(statusCode).appendText(" due to ").appendText(expectedException);
             }
 
             @Override

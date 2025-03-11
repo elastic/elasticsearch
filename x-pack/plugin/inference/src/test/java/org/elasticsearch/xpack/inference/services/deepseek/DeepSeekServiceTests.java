@@ -240,8 +240,7 @@ public class DeepSeekServiceTests extends ESTestCase {
             data: [DONE]
 
             """));
-        var result = doUnifiedCompletionInfer();
-        InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+        doUnifiedCompletionInfer().hasNoErrors().hasEvent("""
             {"id":"12345","choices":[{"delta":{"content":"hello, world","role":"assistant"},"index":0}],""" + """
             "model":"deepseek-chat","object":"chat.completion.chunk"}""");
     }
@@ -251,13 +250,18 @@ public class DeepSeekServiceTests extends ESTestCase {
             {"choices": [{"message": {"content": "hello, world", "role": "assistant"}, "finish_reason": "stop", "index": 0, \
             "logprobs": null}], "created": 1718345013, "id": "12345", "model": "deepseek-chat", \
             "object": "chat.completion", "system_fingerprint": "fp_1234"}"""));
-        var result = doInfer(false);
-        assertThat(result, isA(ChatCompletionResults.class));
-        var completionResults = (ChatCompletionResults) result;
-        assertThat(
-            completionResults.results().stream().map(ChatCompletionResults.Result::predictedValue).toList(),
-            equalTo(List.of("hello, world"))
-        );
+        try (var service = createService()) {
+            var model = createModel(service, TaskType.COMPLETION);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(model, null, List.of("hello"), false, Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
+            var result = listener.actionGet(TIMEOUT);
+            assertThat(result, isA(ChatCompletionResults.class));
+            var completionResults = (ChatCompletionResults) result;
+            assertThat(
+                completionResults.results().stream().map(ChatCompletionResults.Result::predictedValue).toList(),
+                equalTo(List.of("hello, world"))
+            );
+        }
     }
 
     public void testDoInferStream() throws Exception {
@@ -269,12 +273,16 @@ public class DeepSeekServiceTests extends ESTestCase {
             data: [DONE]
 
             """));
-        var result = doInfer(true);
-        InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
-            {"completion":[{"delta":"hello, world"}]}""");
+        try (var service = createService()) {
+            var model = createModel(service, TaskType.COMPLETION);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(model, null, List.of("hello"), true, Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
+            InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream().hasNoErrors().hasEvent("""
+                {"completion":[{"delta":"hello, world"}]}""");
+        }
     }
 
-    public void testUnifiedCompletionError() throws Exception {
+    public void testUnifiedCompletionError() {
         String responseJson = """
             {
                 "error": {
@@ -285,14 +293,14 @@ public class DeepSeekServiceTests extends ESTestCase {
                 }
             }""";
         webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
-        testStreamError("""
-            {\
-            "error":{\
-            "code":"model_not_found",\
-            "message":"Received an unsuccessful status code for request from inference entity id [inference-id] status \
-            [404]. Error message: [The model `deepseek-not-chat` does not exist or you do not have access to it.]",\
-            "type":"invalid_request_error"\
-            }}""");
+        var e = assertThrows(UnifiedChatCompletionException.class, this::doUnifiedCompletionInfer);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Received an unsuccessful status code for request from inference entity id [inference-id] status"
+                    + " [404]. Error message: [The model `deepseek-not-chat` does not exist or you do not have access to it.]"
+            )
+        );
     }
 
     private void testStreamError(String expectedResponse) throws Exception {
@@ -399,7 +407,7 @@ public class DeepSeekServiceTests extends ESTestCase {
         }
     }
 
-    private InferenceServiceResults doUnifiedCompletionInfer() throws Exception {
+    private InferenceEventsAssertion doUnifiedCompletionInfer() throws Exception {
         try (var service = createService()) {
             var model = createModel(service, TaskType.CHAT_COMPLETION);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -411,16 +419,7 @@ public class DeepSeekServiceTests extends ESTestCase {
                 TIMEOUT,
                 listener
             );
-            return listener.get(30, TimeUnit.SECONDS);
-        }
-    }
-
-    private InferenceServiceResults doInfer(boolean stream) throws Exception {
-        try (var service = createService()) {
-            var model = createModel(service, TaskType.COMPLETION);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, List.of("hello"), stream, Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
-            return listener.get(30, TimeUnit.SECONDS);
+            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
     }
 

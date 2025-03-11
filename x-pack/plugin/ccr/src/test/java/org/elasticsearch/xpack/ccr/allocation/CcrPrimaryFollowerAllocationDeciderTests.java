@@ -11,12 +11,15 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -34,6 +37,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -44,6 +48,19 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCase {
+
+    private ProjectId projectId;
+    private int extraProjectCount;
+
+    @Before
+    public void setupProject() {
+        extraProjectCount = randomIntBetween(0, 3);
+        if (extraProjectCount == 0) {
+            projectId = Metadata.DEFAULT_PROJECT_ID;
+        } else {
+            projectId = randomUniqueProjectId();
+        }
+    }
 
     public void testRegularIndex() {
         String index = "test-index";
@@ -62,24 +79,25 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         }
         DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder();
         nodes.forEach(discoveryNodes::add);
-        Metadata metadata = Metadata.builder().put(indexMetadata).build();
-        RoutingTable.Builder routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        if (randomBoolean()) {
-            routingTable.addAsNew(metadata.index(index));
-        } else if (randomBoolean()) {
-            routingTable.addAsRecovery(metadata.index(index));
-        } else if (randomBoolean()) {
-            routingTable.addAsNewRestore(metadata.index(index), newSnapshotRecoverySource(), new HashSet<>());
-        } else {
-            routingTable.addAsRestore(metadata.index(index), newSnapshotRecoverySource());
-        }
+        final Metadata metadata = createMetadata(indexMetadata);
+        final GlobalRoutingTable routingTable = GlobalRoutingTableTestHelper.buildRoutingTable(metadata, (builder, indexMetdata) -> {
+            if (randomBoolean()) {
+                builder.addAsNew(indexMetdata);
+            } else if (randomBoolean()) {
+                builder.addAsRecovery(indexMetdata);
+            } else if (randomBoolean()) {
+                builder.addAsNewRestore(indexMetdata, newSnapshotRecoverySource(), new HashSet<>());
+            } else {
+                builder.addAsRestore(indexMetdata, newSnapshotRecoverySource());
+            }
+        });
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.EMPTY_NODES)
             .metadata(metadata)
-            .routingTable(routingTable.build())
+            .routingTable(routingTable)
             .build();
-        for (int i = 0; i < clusterState.routingTable().index(index).size(); i++) {
-            IndexShardRoutingTable shardRouting = clusterState.routingTable().index(index).shard(i);
+        for (int i = 0; i < clusterState.routingTable(projectId).index(index).size(); i++) {
+            IndexShardRoutingTable shardRouting = clusterState.routingTable(projectId).index(index).shard(i);
             assertThat(shardRouting.size(), equalTo(2));
             assertThat(shardRouting.primaryShard().state(), equalTo(UNASSIGNED));
             Decision decision = executeAllocation(clusterState, shardRouting.primaryShard(), randomFrom(nodes));
@@ -92,6 +110,16 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
                 assertThat(decision.getExplanation(), equalTo("shard is not a follower and is not under the purview of this decider"));
             }
         }
+    }
+
+    private Metadata createMetadata(IndexMetadata.Builder indexMetadata) {
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).put(indexMetadata).build();
+        final Metadata.Builder metadataBuilder = Metadata.builder();
+        metadataBuilder.put(projectMetadata);
+        for (int i = 0; i < extraProjectCount; i++) {
+            metadataBuilder.put(ProjectMetadata.builder(randomUniqueProjectId()).build());
+        }
+        return metadataBuilder.build();
     }
 
     public void testAlreadyBootstrappedFollowerIndex() {
@@ -111,16 +139,18 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         }
         DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder();
         nodes.forEach(discoveryNodes::add);
-        Metadata metadata = Metadata.builder().put(indexMetadata).build();
-        RoutingTable.Builder routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsRecovery(metadata.index(index));
+        final Metadata metadata = createMetadata(indexMetadata);
+        final GlobalRoutingTable routingTable = GlobalRoutingTableTestHelper.buildRoutingTable(
+            metadata,
+            RoutingTable.Builder::addAsRecovery
+        );
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
             .metadata(metadata)
-            .routingTable(routingTable.build())
+            .routingTable(routingTable)
             .build();
-        for (int i = 0; i < clusterState.routingTable().index(index).size(); i++) {
-            IndexShardRoutingTable shardRouting = clusterState.routingTable().index(index).shard(i);
+        for (int i = 0; i < clusterState.routingTable(projectId).index(index).size(); i++) {
+            IndexShardRoutingTable shardRouting = clusterState.routingTable(projectId).index(index).shard(i);
             assertThat(shardRouting.size(), equalTo(2));
             assertThat(shardRouting.primaryShard().state(), equalTo(UNASSIGNED));
             Decision decision = executeAllocation(clusterState, shardRouting.primaryShard(), randomFrom(nodes));
@@ -147,16 +177,18 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         DiscoveryNode dataOnlyNode = newNode("d1", Set.of(DiscoveryNodeRole.DATA_ROLE));
         DiscoveryNode dataAndRemoteNode = newNode("dr1", Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(dataOnlyNode).add(dataAndRemoteNode).build();
-        Metadata metadata = Metadata.builder().put(indexMetadata).build();
-        RoutingTable.Builder routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNewRestore(metadata.index(index), newSnapshotRecoverySource(), new HashSet<>());
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+        final Metadata metadata = createMetadata(indexMetadata);
+        final GlobalRoutingTable routingTable = GlobalRoutingTableTestHelper.buildRoutingTable(
+            metadata,
+            (builder, idx) -> builder.addAsNewRestore(idx, newSnapshotRecoverySource(), new HashSet<>())
+        );
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
             .metadata(metadata)
-            .routingTable(routingTable.build())
+            .routingTable(routingTable)
             .build();
-        for (int i = 0; i < clusterState.routingTable().index(index).size(); i++) {
-            IndexShardRoutingTable shardRouting = clusterState.routingTable().index(index).shard(i);
+        for (int i = 0; i < clusterState.routingTable(projectId).index(index).size(); i++) {
+            IndexShardRoutingTable shardRouting = clusterState.routingTable(projectId).index(index).shard(i);
             assertThat(shardRouting.size(), equalTo(2));
             assertThat(shardRouting.primaryShard().state(), equalTo(UNASSIGNED));
             Decision noDecision = executeAllocation(clusterState, shardRouting.primaryShard(), dataOnlyNode);
@@ -184,7 +216,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         final AllocationDecider decider = new CcrPrimaryFollowerAllocationDecider();
         final RoutingAllocation routingAllocation = new RoutingAllocation(
             new AllocationDeciders(List.of(decider)),
-            RoutingNodes.immutable(clusterState.routingTable(), clusterState.nodes()),
+            RoutingNodes.immutable(clusterState.globalRoutingTable(), clusterState.nodes()),
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,

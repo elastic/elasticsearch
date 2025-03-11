@@ -20,10 +20,13 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -88,7 +91,6 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
@@ -185,7 +187,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 randomBoolean()
                     ? Map.of()
                     : Map.of(
-                        new ShardId(clusterState.metadata().index(DesiredBalanceComputerTests.TEST_INDEX).getIndex(), 0),
+                        new ShardId(clusterState.metadata().getProject().index(DesiredBalanceComputerTests.TEST_INDEX).getIndex(), 0),
                         new ShardAssignment(Set.of("node-0"), 1, 0, 0)
                     )
             )
@@ -208,25 +210,40 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         }
     }
 
-    public void testUnassignedPrimariesBeforeUnassignedReplicas() {
+    public void testUnassignedPrimariesBeforeUnassignedReplicasOnSingleProject() {
+        doTestUnassignedPrimariesBeforeUnassignedReplicas(false);
+    }
+
+    @AwaitsFix(bugUrl = "ES-9109")
+    public void testUnassignedPrimariesBeforeUnassignedReplicasOnMultipleProjects() {
+        doTestUnassignedPrimariesBeforeUnassignedReplicas(true);
+    }
+
+    private static void doTestUnassignedPrimariesBeforeUnassignedReplicas(boolean multiProject) {
         // regardless of priority, we attempt to allocate all unassigned primaries before considering any unassigned replicas
+        final var indexMetadata0 = randomPriorityIndex("index-0", 1, 1);
+        final var indexMetadata1 = randomPriorityIndex("index-1", 1, 1);
 
         final var discoveryNodes = discoveryNodes(2);
-        final var metadata = Metadata.builder();
-        final var routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+        final var metadataBuilder = Metadata.builder();
 
-        final var indexMetadata0 = randomPriorityIndex("index-0", 1, 1);
-        metadata.put(indexMetadata0, true);
-        routingTable.addAsNew(indexMetadata0);
+        final ProjectId project0, project1;
+        if (multiProject) {
+            project0 = randomUniqueProjectId();
+            metadataBuilder.put(ProjectMetadata.builder(project0).put(indexMetadata0, true));
+            project1 = randomUniqueProjectId();
+            metadataBuilder.put(ProjectMetadata.builder(project1).put(indexMetadata1, true));
+        } else {
+            project0 = Metadata.DEFAULT_PROJECT_ID;
+            project1 = Metadata.DEFAULT_PROJECT_ID;
+            metadataBuilder.put(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).put(indexMetadata0, true).put(indexMetadata1, true));
+        }
 
-        final var indexMetadata1 = randomPriorityIndex("index-1", 1, 1);
-        metadata.put(indexMetadata1, true);
-        routingTable.addAsNew(indexMetadata1);
-
+        var metadata = metadataBuilder.build();
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
             .metadata(metadata)
-            .routingTable(routingTable)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
             .build();
 
         final var settings = throttleSettings();
@@ -257,10 +274,10 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             startInitializingShardsAndReroute(allocationService, clusterState)
         );
         {
-            final var index0RoutingTable = stateWithStartedPrimary.routingTable().shardRoutingTable("index-0", 0);
+            final var index0RoutingTable = stateWithStartedPrimary.routingTable(project0).shardRoutingTable("index-0", 0);
             assertTrue(index0RoutingTable.primaryShard().started());
             assertTrue(index0RoutingTable.replicaShards().stream().allMatch(ShardRouting::unassigned));
-            final var index1RoutingTable = stateWithStartedPrimary.routingTable().shardRoutingTable("index-1", 0);
+            final var index1RoutingTable = stateWithStartedPrimary.routingTable(project1).shardRoutingTable("index-1", 0);
             assertTrue(index1RoutingTable.primaryShard().unassigned());
             assertTrue(index1RoutingTable.replicaShards().stream().allMatch(ShardRouting::unassigned));
             assertNotNull(allocationStats.get());
@@ -272,10 +289,10 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         allocationFilter.set((indexName, nodeId) -> indexName.equals("index-0") || nodeId.equals("node-1"));
         final var stateWithInitializingSecondPrimary = startInitializingShardsAndReroute(allocationService, stateWithStartedPrimary);
         {
-            final var index0RoutingTable = stateWithInitializingSecondPrimary.routingTable().shardRoutingTable("index-0", 0);
+            final var index0RoutingTable = stateWithInitializingSecondPrimary.routingTable(project0).shardRoutingTable("index-0", 0);
             assertTrue(index0RoutingTable.primaryShard().started());
             assertTrue(index0RoutingTable.replicaShards().stream().allMatch(ShardRouting::unassigned));
-            final var index1RoutingTable = stateWithInitializingSecondPrimary.routingTable().shardRoutingTable("index-1", 0);
+            final var index1RoutingTable = stateWithInitializingSecondPrimary.routingTable(project1).shardRoutingTable("index-1", 0);
             assertTrue(index1RoutingTable.primaryShard().initializing());
             assertTrue(index1RoutingTable.replicaShards().stream().allMatch(ShardRouting::unassigned));
             assertNotNull(allocationStats.get());
@@ -287,10 +304,12 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             stateWithInitializingSecondPrimary
         );
         {
-            final var index0RoutingTable = stateWithStartedPrimariesAndInitializingReplica.routingTable().shardRoutingTable("index-0", 0);
+            final var index0RoutingTable = stateWithStartedPrimariesAndInitializingReplica.routingTable(project0)
+                .shardRoutingTable("index-0", 0);
             assertTrue(index0RoutingTable.primaryShard().started());
             assertTrue(index0RoutingTable.replicaShards().stream().allMatch(ShardRouting::initializing));
-            final var index1RoutingTable = stateWithStartedPrimariesAndInitializingReplica.routingTable().shardRoutingTable("index-1", 0);
+            final var index1RoutingTable = stateWithStartedPrimariesAndInitializingReplica.routingTable(project1)
+                .shardRoutingTable("index-1", 0);
             assertTrue(index1RoutingTable.primaryShard().started());
             assertTrue(index1RoutingTable.replicaShards().stream().allMatch(ShardRouting::unassigned));
             assertNotNull(allocationStats.get());
@@ -1223,6 +1242,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .build();
         final var index = indexMetadata.getIndex();
 
+        final var projectMetadata = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).put(indexMetadata, true).build();
         var discoveryNodeBuilder = DiscoveryNodes.builder().localNodeId("node-0").masterNodeId("node-0");
         for (int n = 0; n < numberOfNodes; n++) {
             discoveryNodeBuilder.add(newNode("node-" + n));
@@ -1244,8 +1264,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         var balance = new DesiredBalance(1, assignments);
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodeBuilder)
-            .metadata(Metadata.builder().put(indexMetadata, true))
-            .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder))
+            .metadata(Metadata.builder().put(projectMetadata))
+            .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
             .build();
 
         var clusterSettings = createBuiltInClusterSettings();
@@ -1289,7 +1309,9 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             );
 
             totalOutgoingMoves.keySet().removeIf(nodeId -> isReconciled(allocation.routingNodes().node(nodeId), balance));
-            clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(allocation.routingNodes())).build();
+            clusterState = ClusterState.builder(clusterState)
+                .routingTable(allocation.globalRoutingTable().rebuild(allocation.routingNodes(), allocation.metadata()))
+                .build();
         }
     }
 
@@ -1498,7 +1520,11 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     private static DesiredBalance desiredBalance(ClusterState clusterState, BiPredicate<ShardId, String> isDesiredPredicate) {
         return new DesiredBalance(
             1,
-            StreamSupport.stream(clusterState.routingTable().spliterator(), false)
+            clusterState.globalRoutingTable()
+                .routingTables()
+                .values()
+                .stream()
+                .flatMap(rt -> rt.indicesRouting().values().stream())
                 .flatMap(indexRoutingTable -> IntStream.range(0, indexRoutingTable.size()).mapToObj(indexRoutingTable::shard))
                 .collect(
                     Collectors.toMap(
@@ -1536,7 +1562,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 indexSettings(IndexVersion.current(), numberOfShards, numberOfReplicas).put(
                     IndexMetadata.INDEX_PRIORITY_SETTING.getKey(),
                     between(1, 5)
-                ).put(IndexMetadata.SETTING_CREATION_DATE, randomFrom(creationDates))
+                ).put(IndexMetadata.SETTING_CREATION_DATE, randomFrom(creationDates)).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID())
             )
             .system(randomBoolean())
             .build();

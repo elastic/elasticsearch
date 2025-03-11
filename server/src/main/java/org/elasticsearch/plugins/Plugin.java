@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -174,6 +175,11 @@ public abstract class Plugin implements Closeable {
          * to track task removal by registering a RemovedTaskListener.
          */
         TaskManager taskManager();
+
+        /**
+         * The project resolver for the cluster. This should be used to determine the active project against which a request should execute
+         */
+        ProjectResolver projectResolver();
     }
 
     /**
@@ -253,7 +259,8 @@ public abstract class Plugin implements Closeable {
      * Returns operators to modify custom metadata in the cluster state on startup.
      *
      * <p>Each key of the map returned gives the type of custom to be modified. Each value is an operator to be applied to that custom
-     * metadata. The operator will be invoked with the result of calling {@link Metadata#custom(String)} with the map key as its argument,
+     * metadata. The operator will be invoked with the result of calling
+     * {@link org.elasticsearch.cluster.metadata.ProjectMetadata#custom(String)} with the map key as its argument,
      * and should downcast the value accordingly.
      *
      * <p>Plugins should return an empty map if no upgrade is required.
@@ -261,7 +268,7 @@ public abstract class Plugin implements Closeable {
      * <p>The order of the upgrade calls is undefined and can change between runs. It is expected that plugins will modify only templates
      * owned by them to avoid conflicts.
      */
-    public Map<String, UnaryOperator<Metadata.Custom>> getCustomMetadataUpgraders() {
+    public Map<String, UnaryOperator<Metadata.ProjectCustom>> getProjectCustomMetadataUpgraders() {
         return Map.of();
     }
 

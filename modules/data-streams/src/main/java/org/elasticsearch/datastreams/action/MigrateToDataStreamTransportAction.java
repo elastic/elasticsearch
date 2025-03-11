@@ -12,12 +12,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeProjectAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataMigrateToDataStreamService;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.IndicesService;
@@ -26,7 +27,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class MigrateToDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<MigrateToDataStreamAction.Request> {
+public class MigrateToDataStreamTransportAction extends AcknowledgedTransportMasterNodeProjectAction<MigrateToDataStreamAction.Request> {
 
     private final MetadataMigrateToDataStreamService metadataMigrateToDataStreamService;
 
@@ -36,6 +37,7 @@ public class MigrateToDataStreamTransportAction extends AcknowledgedTransportMas
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndicesService indicesService,
         MetadataCreateIndexService metadataCreateIndexService
     ) {
@@ -46,6 +48,7 @@ public class MigrateToDataStreamTransportAction extends AcknowledgedTransportMas
             threadPool,
             actionFilters,
             MigrateToDataStreamAction.Request::new,
+            projectResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.metadataMigrateToDataStreamService = new MetadataMigrateToDataStreamService(
@@ -60,20 +63,20 @@ public class MigrateToDataStreamTransportAction extends AcknowledgedTransportMas
     protected void masterOperation(
         Task task,
         MigrateToDataStreamAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<AcknowledgedResponse> listener
-    ) throws Exception {
+    ) {
         MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest updateRequest =
             new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(
                 request.getAliasName(),
                 request.masterNodeTimeout(),
                 request.ackTimeout()
             );
-        metadataMigrateToDataStreamService.migrateToDataStream(updateRequest, listener);
+        metadataMigrateToDataStreamService.migrateToDataStream(state.projectId(), updateRequest, listener);
     }
 
     @Override
-    protected ClusterBlockException checkBlock(MigrateToDataStreamAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(MigrateToDataStreamAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

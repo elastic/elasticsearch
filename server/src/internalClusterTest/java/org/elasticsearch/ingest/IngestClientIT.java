@@ -386,11 +386,16 @@ public class IngestClientIT extends ESIntegTestCase {
             factories.put(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService));
             factories.put(
                 "fail",
-                (processorFactories, tag, description, config) -> new TestProcessor(tag, "fail", description, new RuntimeException())
+                (processorFactories, tag, description, config, projectId) -> new TestProcessor(
+                    tag,
+                    "fail",
+                    description,
+                    new RuntimeException()
+                )
             );
             factories.put(
                 "onfailure_processor",
-                (processorFactories, tag, description, config) -> new TestProcessor(tag, "fail", description, document -> {
+                (processorFactories, tag, description, config, projectId) -> new TestProcessor(tag, "fail", description, document -> {
                     String onFailurePipeline = document.getFieldValue("_ingest.on_failure_pipeline", String.class);
                     document.setFieldValue("readme", "pipeline with id [" + onFailurePipeline + "] is a bad pipeline");
                 })

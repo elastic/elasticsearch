@@ -32,7 +32,6 @@ public class UnifiedChatCompletionRequestEntity implements ToXContentFragment {
     public static final String MESSAGES_FIELD = "messages";
     private static final String ROLE_FIELD = "role";
     private static final String CONTENT_FIELD = "content";
-    private static final String MAX_COMPLETION_TOKENS_FIELD = "max_completion_tokens";
     private static final String STOP_FIELD = "stop";
     private static final String TEMPERATURE_FIELD = "temperature";
     private static final String TOOL_CHOICE_FIELD = "tool_choice";
@@ -103,10 +102,6 @@ public class UnifiedChatCompletionRequestEntity implements ToXContentFragment {
             }
         }
         builder.endArray();
-
-        if (unifiedRequest.maxCompletionTokens() != null) {
-            builder.field(MAX_COMPLETION_TOKENS_FIELD, unifiedRequest.maxCompletionTokens());
-        }
 
         // Underlying providers expect OpenAI to only return 1 possible choice.
         builder.field(NUMBER_OF_RETURNED_CHOICES_FIELD, 1);

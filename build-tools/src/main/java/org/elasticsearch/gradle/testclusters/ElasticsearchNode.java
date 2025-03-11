@@ -1314,7 +1314,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 }
 
                 @Override
-                public FileVisitResult visitFile(Path source, BasicFileAttributes attrs) {
+                public FileVisitResult visitFile(Path source, BasicFileAttributes attrs) throws IOException {
                     Path relativeDestination = sourceRoot.relativize(source);
                     if (relativeDestination.getNameCount() <= 1) {
                         return FileVisitResult.CONTINUE;
@@ -1322,6 +1322,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     // Throw away the first name as the archives have everything in a single top level folder we are not interested in
                     relativeDestination = relativeDestination.subpath(1, relativeDestination.getNameCount());
                     Path destination = destinationRoot.resolve(relativeDestination);
+                    Files.createDirectories(destination.getParent());
                     syncMethod.accept(destination, source);
                     return FileVisitResult.CONTINUE;
                 }
@@ -1333,12 +1334,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                         if (noFileException.getFile() != null && noFileException.getFile().contains(".attach_pid")) {
                             LOGGER.info("Ignoring file left behind by JVM: {}", noFileException.getFile());
                             return FileVisitResult.CONTINUE;
-                        } else {
-                            throw exc;
                         }
-                    } else {
-                        throw exc;
                     }
+                    throw exc;
                 }
             });
         } catch (IOException e) {

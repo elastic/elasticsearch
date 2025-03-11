@@ -132,9 +132,10 @@ public final class IOUtils {
                 }
 
                 @Override
-                public FileVisitResult visitFile(Path source, BasicFileAttributes attrs) {
+                public FileVisitResult visitFile(Path source, BasicFileAttributes attrs) throws IOException {
                     Path relativeDestination = sourceRoot.relativize(source);
                     Path destination = destinationRoot.resolve(relativeDestination);
+                    Files.createDirectories(destination.getParent());
                     syncMethod.accept(destination, source);
                     return FileVisitResult.CONTINUE;
                 }
@@ -146,12 +147,9 @@ public final class IOUtils {
                         if (noFileException.getFile() != null && noFileException.getFile().contains(".attach_pid")) {
                             LOGGER.info("Ignoring file left behind by JVM: {}", noFileException.getFile());
                             return FileVisitResult.CONTINUE;
-                        } else {
-                            throw exc;
                         }
-                    } else {
-                        throw exc;
                     }
+                    throw exc;
                 }
             });
         } catch (IOException e) {

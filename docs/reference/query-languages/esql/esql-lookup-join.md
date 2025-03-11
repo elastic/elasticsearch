@@ -34,10 +34,11 @@ The `LOOKUP JOIN` command adds new columns to a table, with data from {{es}} ind
 :alt: esql lookup join
 :::
 
-$$$esql-source-index$$$
+`<lookup_index>`
+: The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster references are not supported.
 
-Source index
-:   An index which stores data that the `LOOKUP` command can add to input tables. You can create and manage these indices just like a regular {{es}} index. You also can use the same source index in multiple lookup joins.
+`<field_name>`
+: The field to join on. This field must exist in both your current query results and in the lookup index. If the field contains multi-valued entries, those entries will not match anything (the added fields will contain `null` for those rows).
 
 ## Example
 

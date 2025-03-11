@@ -7,6 +7,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
@@ -56,7 +58,9 @@ public class SystemIndicesUpgradeIT extends AbstractUpgradeTestCase {
             verifyAccessToIndex(dataStreamName);
             verifyAccessToIndex(indexName);
         } else if (CLUSTER_TYPE == AbstractUpgradeTestCase.ClusterType.UPGRADED) {
-            upgradeSystemIndices();
+            if (upgradeRequired) {
+                upgradeSystemIndices();
+            }
             verifyDataStream(dataStreamName);
             verifyIndex(indexName);
             verifyAccessToIndex(dataStreamName);
@@ -118,26 +122,33 @@ public class SystemIndicesUpgradeIT extends AbstractUpgradeTestCase {
         String upgradeUserPassword = "x-pack-test-password";
         createRole("upgrade_role", "irrelevant");
         createUser(upgradeUser, upgradeUserPassword, "upgrade_role");
+
         try (RestClient upgradeUserClient = getClient(upgradeUser, upgradeUserPassword)) {
+            boolean upgradeRequired = Version.fromString(UPGRADE_FROM_VERSION).before(SystemIndices.NO_UPGRADE_REQUIRED_VERSION);
+            String expectedStatus = (upgradeRequired) ? "MIGRATION_NEEDED" : "NO_MIGRATION_NEEDED";
+
             assertThat(
                 XContentHelper.convertToMap(
                     JsonXContent.jsonXContent,
                     upgradeUserClient.performRequest(new Request("GET", "/_migration/system_features")).getEntity().getContent(),
                     false
                 ).get("migration_status"),
-                equalTo("MIGRATION_NEEDED")
+                equalTo(expectedStatus)
             );
-            Request upgradeRequest = new Request("POST", "/_migration/system_features");
-            Response upgradeResponse = upgradeUserClient.performRequest(upgradeRequest);
-            assertOK(upgradeResponse);
-            assertBusy(() -> {
-                Response featureResponse = upgradeUserClient.performRequest(new Request("GET", "/_migration/system_features"));
-                assertThat(
-                    XContentHelper.convertToMap(JsonXContent.jsonXContent, featureResponse.getEntity().getContent(), false)
-                        .get("migration_status"),
-                    equalTo("NO_MIGRATION_NEEDED")
-                );
-            });
+
+            if (upgradeRequired) {
+                Request upgradeRequest = new Request("POST", "/_migration/system_features");
+                Response upgradeResponse = upgradeUserClient.performRequest(upgradeRequest);
+                assertOK(upgradeResponse);
+                assertBusy(() -> {
+                    Response featureResponse = upgradeUserClient.performRequest(new Request("GET", "/_migration/system_features"));
+                    assertThat(
+                        XContentHelper.convertToMap(JsonXContent.jsonXContent, featureResponse.getEntity().getContent(), false)
+                            .get("migration_status"),
+                        equalTo("NO_MIGRATION_NEEDED")
+                    );
+                });
+            }
         }
     }
 

@@ -372,7 +372,6 @@ public class CsvTestsDataLoader {
             """);
         client.performRequest(request);
 
-
         request = new Request("PUT", "_inference/rerank/test_reranker");
         request.setJsonEntity("""
             {

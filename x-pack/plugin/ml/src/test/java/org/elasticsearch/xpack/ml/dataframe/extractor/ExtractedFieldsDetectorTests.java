@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
@@ -1715,7 +1716,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             for (String type : types) {
                 caps.put(
                     type,
-                    new FieldCapabilities(field, type, isMetadataField, true, isAggregatable, null, null, null, Collections.emptyMap())
+                    new FieldCapabilitiesBuilder(field, type).isMetadataField(isMetadataField).isAggregatable(isAggregatable).build()
                 );
             }
             fieldCaps.put(field, caps);

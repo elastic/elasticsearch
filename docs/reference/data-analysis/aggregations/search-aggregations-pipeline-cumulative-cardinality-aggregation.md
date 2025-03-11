@@ -28,7 +28,7 @@ $$$cumulative-cardinality-params$$$
 | Parameter Name | Description | Required | Default Value |
 | --- | --- | --- | --- |
 | `buckets_path` | The path to the cardinality aggregation we wish to find the cumulative cardinality for (see [`buckets_path` Syntax](/reference/data-analysis/aggregations/pipeline.md#buckets-path-syntax) for more details) | Required |  |
-| `format` | [DecimalFormat pattern](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/text/DecimalFormat.md) for theoutput value. If specified, the formatted value is returned in the aggregation’s`value_as_string` property | Optional | `null` |
+| `format` | [DecimalFormat pattern](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/text/DecimalFormat.html) for theoutput value. If specified, the formatted value is returned in the aggregation’s`value_as_string` property | Optional | `null` |
 
 The following snippet calculates the cumulative cardinality of the total daily `users`:
 

@@ -93,7 +93,7 @@ To begin, add documents to one or more source indices. These documents should co
 
 You can manage source indices just like regular {{es}} indices using the [document](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-document) and [index](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-indices) APIs.
 
-You also can set up [{{beats}}](beats://docs/reference/index.md), such as a [{{filebeat}}](beats://docs/reference/filebeat/filebeat-installation-configuration.md), to automatically send and index documents to your source indices. See [Getting started with {{beats}}](beats://reference/index.md).
+You also can set up [{{beats}}](beats://reference/index.md), such as a [{{filebeat}}](beats://reference/filebeat/filebeat-installation-configuration.md), to automatically send and index documents to your source indices. See [Getting started with {{beats}}](beats://reference/index.md).
 
 
 ### Create an enrich policy [esql-create-enrich-policy]

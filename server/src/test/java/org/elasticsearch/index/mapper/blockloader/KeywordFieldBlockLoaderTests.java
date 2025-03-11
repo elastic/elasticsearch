@@ -46,7 +46,6 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
 
         if ((boolean) fieldMapping.getOrDefault("doc_values", false)) {
             // Sorted and no duplicates
-
             var resultList = convertValues.andThen(Stream::distinct)
                 .andThen(Stream::sorted)
                 .andThen(Stream::toList)

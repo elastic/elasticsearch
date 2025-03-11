@@ -99,12 +99,12 @@ tasks.named("processResources").configure {
   String licenseKey = providers.systemProperty("license.key").getOrNull()
   if (licenseKey != null) {
     println "Using provided license key from ${licenseKey}"
-  } else if (buildParams.isSnapshotBuild()) {
+  } else if (buildParams.snapshotBuild) {
     licenseKey = Paths.get(project.projectDir.path, 'snapshot.key')
   } else {
     throw new IllegalArgumentException('Property license.key must be set for release build')
   }
-  File licenseKeyFile = rootProject.file(licenseKey)
+  File licenseKeyFile = layout.settingsDirectory.file(licenseKey).asFile
   if (licenseKeyFile.exists() == false) {
     throw new IllegalArgumentException('license.key at specified path [' + licenseKey + '] does not exist')
   }
@@ -161,7 +161,7 @@ testClusters.configureEach {
   systemProperty 'es.queryable_built_in_roles_enabled', 'false'
 }
 
-if (buildParams.isSnapshotBuild() == false) {
+if (buildParams.snapshotBuild == false) {
   tasks.withType(Test).configureEach {
     systemProperty 'es.failure_store_feature_flag_enabled', 'true'
   }

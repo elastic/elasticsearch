@@ -64,9 +64,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         anonymousUsage = in.readGenericMap();
         roleMappingStoreUsage = in.readGenericMap();
         fips140Usage = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            operatorPrivilegesUsage = in.readGenericMap();
-        }
+        operatorPrivilegesUsage = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             domainsUsage = in.readGenericMap();
         }
@@ -132,9 +130,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureUsage {
         out.writeGenericMap(anonymousUsage);
         out.writeGenericMap(roleMappingStoreUsage);
         out.writeGenericMap(fips140Usage);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            out.writeGenericMap(operatorPrivilegesUsage);
-        }
+        out.writeGenericMap(operatorPrivilegesUsage);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             out.writeGenericMap(domainsUsage);
         }

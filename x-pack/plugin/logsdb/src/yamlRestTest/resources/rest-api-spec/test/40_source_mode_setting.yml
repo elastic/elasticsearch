@@ -754,7 +754,7 @@ modify logsdb index source mode to stored after index creation:
           _source:
             mode: stored
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "Mapper for [_source] conflicts with existing mapper:\n\tCannot update parameter [mode] from [synthetic] to [stored]" }
+  - match: { error.reason: "Mapper for [_source] conflicts with existing mapper:\n\tCannot update parameter [mode] from [null] to [stored]" }
 
 ---
 modify time_series index source mode to disabled after index creation:
@@ -812,4 +812,4 @@ modify time_series index source mode to stored after index creation:
           _source:
             mode: stored
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "Mapper for [_source] conflicts with existing mapper:\n\tCannot update parameter [mode] from [synthetic] to [stored]" }
+  - match: { error.reason: "Mapper for [_source] conflicts with existing mapper:\n\tCannot update parameter [mode] from [null] to [stored]" }

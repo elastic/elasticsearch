@@ -1617,7 +1617,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(queryBuilder.value(), is(123456));
     }
 
-    public void testMatchFunctionWithPushableConjunction() {
+    public void testMatchFunctionWithNonPushableConjunction() {
         String query = """
             from test
             | where match(last_name, "Smith") and length(first_name) > 10
@@ -1634,6 +1634,24 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var fieldFilterExtract = as(filter.child(), FieldExtractExec.class);
         var esQuery = as(fieldFilterExtract.child(), EsQueryExec.class);
         assertThat(esQuery.query(), instanceOf(MatchQueryBuilder.class));
+    }
+
+    public void testMatchFunctionWithPushableConjunction() {
+        String query = """
+            from test metadata _score
+            | where match(last_name, "Smith") and salary > 10000
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var esQuery = as(fieldExtract.child(), EsQueryExec.class);
+        Source source = new Source(2, 38, "salary > 10000");
+        BoolQueryBuilder expected = new BoolQueryBuilder().must(new MatchQueryBuilder("last_name", "Smith").lenient(true))
+            .must(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("salary").gt(10000), "salary", source));
+        assertThat(esQuery.query().toString(), equalTo(expected.toString()));
     }
 
     public void testMatchFunctionWithNonPushableDisjunction() {
@@ -1667,7 +1685,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var esQuery = as(fieldExtract.child(), EsQueryExec.class);
-        var boolQuery = as(esQuery.query(), BoolQueryBuilder.class);
         Source source = new Source(2, 37, "emp_no > 10");
         BoolQueryBuilder expected = new BoolQueryBuilder().should(new MatchQueryBuilder("last_name", "Smith").lenient(true))
             .should(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10), "emp_no", source));

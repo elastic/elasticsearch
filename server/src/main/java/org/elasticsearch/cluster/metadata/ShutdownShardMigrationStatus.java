@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.common.Strings;
@@ -33,7 +32,6 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endObjec
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
 
 public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXContentObject {
-    private static final TransportVersion ALLOCATION_DECISION_ADDED_VERSION = TransportVersions.V_7_16_0;
 
     public static final String NODE_ALLOCATION_DECISION_KEY = "node_allocation_decision";
 
@@ -142,11 +140,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
             this.shardsRemaining = in.readLong();
         }
         this.explanation = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(ALLOCATION_DECISION_ADDED_VERSION)) {
-            this.allocationDecision = in.readOptionalWriteable(ShardAllocationDecision::new);
-        } else {
-            this.allocationDecision = null;
-        }
+        this.allocationDecision = in.readOptionalWriteable(ShardAllocationDecision::new);
     }
 
     public long getShardsRemaining() {
@@ -203,9 +197,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
             out.writeLong(shardsRemaining);
         }
         out.writeOptionalString(explanation);
-        if (out.getTransportVersion().onOrAfter(ALLOCATION_DECISION_ADDED_VERSION)) {
-            out.writeOptionalWriteable(allocationDecision);
-        }
+        out.writeOptionalWriteable(allocationDecision);
     }
 
     @Override

@@ -30,7 +30,8 @@ import java.io.UnsupportedEncodingException;
 import java.util.Locale;
 
 /**
- * BlockTree statistics for a single field returned by {@link FieldReader#getStats()}.
+ * This is a copy of {@link Stats} shipped with Lucene, which has though package protected constructor and methods.
+ * We need to copy it because we have our own fork of {@link FieldReader}.
  */
 public class Stats {
     /** Byte size of the index. */

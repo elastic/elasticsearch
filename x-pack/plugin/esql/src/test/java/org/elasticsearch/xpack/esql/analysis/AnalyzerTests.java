@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -62,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
@@ -2906,6 +2909,91 @@ public class AnalyzerTests extends ESTestCase {
                    ( WHERE emp_no > 6 | SORT emp_no | LIMIT 5 )
             """));
         assertThat(pe.getMessage(), containsString("mismatched input 'me' expecting INTEGER_LITERAL"));
+    }
+
+    public void testValidRrf() {
+        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
+
+        LogicalPlan plan = analyze("""
+             from test metadata _id, _index, _score
+             | fork ( where first_name:"foo" )
+                    ( where first_name:"bar" )
+             | rrf
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+
+        assertThat(orderBy.order().size(), equalTo(3));
+        assertThat(orderBy.order().get(0).child(), instanceOf(ReferenceAttribute.class));
+        assertThat(((ReferenceAttribute) orderBy.order().get(0).child()).name(), equalTo("_score"));
+        assertThat(orderBy.order().get(1).child(), instanceOf(ReferenceAttribute.class));
+        assertThat(((ReferenceAttribute) orderBy.order().get(1).child()).name(), equalTo("_id"));
+        assertThat(orderBy.order().get(2).child(), instanceOf(ReferenceAttribute.class));
+        assertThat(((ReferenceAttribute) orderBy.order().get(2).child()).name(), equalTo("_index"));
+
+        Dedup dedup = as(orderBy.child(), Dedup.class);
+        assertThat(dedup.groupings().size(), equalTo(2));
+        assertThat(dedup.aggregates().size(), equalTo(15));
+
+        RrfScoreEval rrf = as(dedup.child(), RrfScoreEval.class);
+        assertThat(rrf.scoreAttribute(), instanceOf(MetadataAttribute.class));
+        assertThat(rrf.scoreAttribute().name(), equalTo("_score"));
+        assertThat(rrf.forkAttribute(), instanceOf(ReferenceAttribute.class));
+        assertThat(rrf.forkAttribute().name(), equalTo("_fork"));
+
+        assertThat(rrf.child(), instanceOf(Fork.class));
+    }
+
+    public void testRrfError() {
+        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | rrf
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [_score]"));
+        assertThat(e.getMessage(), containsString("Unknown column [_fork]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test metadata _score, _index, _id
+            | eval _fork = 1
+            | rrf
+            """));
+        assertThat(e.getMessage(), containsString("RRF can only be used after FORK, but found EVAL"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+             from test metadata _id, _index, _score
+            | fork ( where first_name:"foo" )
+                   ( where first_name:"bar" )
+            | rrf
+            | rrf
+            """));
+        assertThat(e.getMessage(), containsString("RRF can only be used after FORK, but found RRF"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | FORK ( WHERE emp_no == 1 )
+                   ( WHERE emp_no > 1 )
+            | RRF
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [_score]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test metadata _score, _id
+            | FORK ( WHERE emp_no == 1 )
+                   ( WHERE emp_no > 1 )
+            | RRF
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [_index]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test metadata _score, _index
+            | FORK ( WHERE emp_no == 1 )
+                   ( WHERE emp_no > 1 )
+            | RRF
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [_id]"));
     }
 
     // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.

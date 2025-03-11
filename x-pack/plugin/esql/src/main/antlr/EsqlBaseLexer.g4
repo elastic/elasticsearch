@@ -65,6 +65,7 @@ import ChangePoint,
        Metrics,
        MvExpand,
        Project,
+       Rrf,
        Rename,
        Show,
        UnknownCommand;

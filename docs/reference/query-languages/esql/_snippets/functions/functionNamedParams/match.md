@@ -2,8 +2,6 @@
 
 **Supported function named parameters**
 
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
 | name | types | description |
 | --- | --- | --- |
 | fuzziness | [keyword] | Maximum edit distance allowed for matching. |

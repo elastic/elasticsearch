@@ -1,8 +1,0 @@
-* [Binary operators](../../esql-functions-operators.md#esql-binary-operators)
-* [Unary operators](../../esql-functions-operators.md#esql-unary-operators)
-* [Logical operators](../../esql-functions-operators.md#esql-logical-operators)
-* [`IS NULL` and `IS NOT NULL` predicates](../../esql-functions-operators.md#esql-predicates)
-* [`Cast (::)`](../../esql-functions-operators.md#esql-cast-operator)
-* [`IN`](../../esql-functions-operators.md#esql-in-operator)
-* [`LIKE` and `RLIKE`](../../esql-functions-operators.md#esql-like-operators)
-* [preview] [Search operators](../../esql-functions-operators.md#esql-search-operators)

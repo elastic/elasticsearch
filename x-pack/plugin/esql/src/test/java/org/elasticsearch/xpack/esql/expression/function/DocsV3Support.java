@@ -313,36 +313,29 @@ public abstract class DocsV3Support {
         }
     }
 
-    /**
-     * Write some text to a tempdir so we can copy it to the docs later.
-     * <p>
-     * We need to write to a tempdir instead of the docs because the tests
-     * don't have write permission to the docs.
-     * </p>
-     */
-    void writeToTempImageDir(String extension, String str) throws IOException {
+    void writeToTempImageDir(String str) throws IOException {
         // We have to write to a tempdir because it’s all test are allowed to write to. Gradle can move them.
         Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("images").resolve(category);
-        Files.createDirectories(dir);
-        Path file = dir.resolve(name + "." + extension);
-        Files.writeString(file, str);
-        logger.info("Wrote to file: {}", file);
+        writeToTempDir(dir, "svg", str);
     }
 
-    /**
-     * Write some text to a tempdir so we can copy it to the docs later.
-     * <p>
-     * We need to write to a tempdir instead of the docs because the tests
-     * don't have write permission to the docs.
-     * </p>
-     */
-    void writeToTempSnippetsDir(String subdir, String name, String extension, String str) throws IOException {
+    void writeToTempSnippetsDir(String subdir, String str) throws IOException {
         // We have to write to a tempdir because it’s all test are allowed to write to. Gradle can move them.
         Path dir = PathUtils.get(System.getProperty("java.io.tmpdir"))
             .resolve("esql")
             .resolve("_snippets")
             .resolve(category)
             .resolve(subdir);
+        writeToTempDir(dir, "md", str);
+    }
+
+    void writeToTempKibanaDir(String subdir, String extension, String str) throws IOException {
+        // We have to write to a tempdir because it’s all test are allowed to write to. Gradle can move them.
+        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("kibana").resolve(subdir).resolve(category);
+        writeToTempDir(dir, extension, str);
+    }
+
+    private void writeToTempDir(Path dir, String extension, String str) throws IOException {
         Files.createDirectories(dir);
         Path file = dir.resolve(name + "." + extension);
         Files.writeString(file, str);
@@ -365,7 +358,7 @@ public abstract class DocsV3Support {
                 logger.info("Skipping rendering signature because the function isn't registered");
             } else {
                 logger.info("Writing function signature");
-                writeToTempImageDir("svg", rendered);
+                writeToTempImageDir(rendered);
             }
         }
 
@@ -443,7 +436,7 @@ public abstract class DocsV3Support {
             builder.append('\n');
             String rendered = builder.toString();
             logger.info("Writing examples for [{}]:\n{}", name, rendered);
-            writeToTempSnippetsDir("examples", name, "md", rendered);
+            writeToTempSnippetsDir("examples", rendered);
             return true;
         }
 
@@ -461,11 +454,9 @@ public abstract class DocsV3Support {
             String rendered = DOCS_WARNING + """
                 **Supported function named parameters**
 
-                [%header.monospaced.styled,format=dsv,separator=|]
-                |===
                 """ + header + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n";
             logger.info("Writing function named parameters for [{}]:\n{}", name, rendered);
-            writeToTempSnippetsDir("functionNamedParams", name, "md", rendered);
+            writeToTempSnippetsDir("functionNamedParams", rendered);
         }
 
         private void renderFullLayout(boolean preview, boolean hasExamples, boolean hasAppendix, boolean hasFunctionOptions)
@@ -499,7 +490,7 @@ public abstract class DocsV3Support {
                 rendered.append(addInclude("appendix"));
             }
             logger.info("Writing layout for [{}]:\n{}", name, rendered.toString());
-            writeToTempSnippetsDir("layout", name, "md", rendered.toString());
+            writeToTempSnippetsDir("layout", rendered.toString());
         }
 
         private String addInclude(String section) {
@@ -530,7 +521,7 @@ public abstract class DocsV3Support {
                 logger.info("Skipping rendering signature because the operator isn't registered");
             } else {
                 logger.info("Writing operator signature");
-                writeToTempImageDir("svg", rendered);
+                writeToTempImageDir(rendered);
             }
         }
 
@@ -646,7 +637,7 @@ public abstract class DocsV3Support {
         builder.append('\n');
         String rendered = builder.toString();
         logger.info("Writing parameters for [{}]:\n{}", name, rendered);
-        writeToTempSnippetsDir("parameters", name, "md", rendered);
+        writeToTempSnippetsDir("parameters", rendered);
     }
 
     void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
@@ -695,7 +686,7 @@ public abstract class DocsV3Support {
 
             """ + header + "\n" + separator + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n\n";
         logger.info("Writing function types for [{}]:\n{}", name, rendered);
-        writeToTempSnippetsDir("types", name, "md", rendered);
+        writeToTempSnippetsDir("types", rendered);
     }
 
     void renderDescription(String description, String detailedDescription, String note) throws IOException {
@@ -708,7 +699,7 @@ public abstract class DocsV3Support {
             """ + description + "\n";
 
         if (Strings.isNullOrEmpty(detailedDescription) == false) {
-            rendered += "\n" + reformatDescription(detailedDescription) + "\n";
+            rendered += "\n" + detailedDescription + "\n";
         }
 
         if (Strings.isNullOrEmpty(note) == false) {
@@ -716,14 +707,7 @@ public abstract class DocsV3Support {
         }
         rendered += "\n";
         logger.info("Writing description for [{}]:\n{}", name, rendered);
-        writeToTempSnippetsDir("description", name, "md", rendered);
-    }
-
-    String reformatDescription(String description) {
-        // The new markdown does not reformat paragraphs, so we need to put consecutive lines on one line
-        // return description.replaceAll("\n\n", "NEWLINE").replaceAll("\n", " ").replaceAll("NEWLINE", "\n");
-        // TODO some formatting is being relied on, we need a better solution
-        return description;
+        writeToTempSnippetsDir("description", rendered);
     }
 
     void renderKibanaInlineDocs(String name, FunctionInfo info) throws IOException {
@@ -748,8 +732,7 @@ public abstract class DocsV3Support {
         }
         String rendered = builder.toString();
         logger.info("Writing kibana inline docs for [{}]:\n{}", name, rendered);
-        // TODO: Support new MD location
-        // writeToTempDir("kibana/docs", name, "md", rendered);
+        writeToTempKibanaDir("docs", "md", rendered);
     }
 
     void renderKibanaFunctionDefinition(String name, FunctionInfo info, List<EsqlFunctionRegistry.ArgSignature> args, boolean variadic)
@@ -843,8 +826,7 @@ public abstract class DocsV3Support {
 
         String rendered = Strings.toString(builder.endObject());
         logger.info("Writing kibana function definition for [{}]:\n{}", name, rendered);
-        // TODO: port to MD
-        // writeToTempDir("kibana/definition", name, "json", rendered);
+        writeToTempKibanaDir("definition", "json", rendered);
     }
 
     private String removeAsciidocLinks(String asciidoc) {
@@ -880,7 +862,7 @@ public abstract class DocsV3Support {
         String rendered = DOCS_WARNING + replaceLinks(appendix) + "\n";
 
         logger.info("Writing appendix for [{}]:\n{}", name, rendered);
-        writeToTempSnippetsDir("appendix", name, "md", rendered);
+        writeToTempSnippetsDir("appendix", rendered);
         return true;
     }
 

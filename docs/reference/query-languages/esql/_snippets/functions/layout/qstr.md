@@ -24,5 +24,8 @@ are not subject to the support SLA of official GA features.
 :::{include} ../types/qstr.md
 :::
 
+:::{include} ../functionNamedParams/qstr.md
+:::
+
 :::{include} ../examples/qstr.md
 :::

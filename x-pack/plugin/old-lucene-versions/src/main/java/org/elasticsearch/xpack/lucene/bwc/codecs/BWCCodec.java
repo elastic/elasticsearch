@@ -46,6 +46,7 @@ public abstract class BWCCodec extends Codec {
 
     private final FieldInfosFormat fieldInfosFormat;
     private final SegmentInfoFormat segmentInfosFormat;
+    private final PostingsFormat postingsFormat;
 
     protected BWCCodec(String name) {
         super(name);
@@ -79,14 +80,14 @@ public abstract class BWCCodec extends Codec {
                 wrappedFormat.write(dir, info, ioContext);
             }
         };
-    }
 
-    protected final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
-        @Override
-        public PostingsFormat getPostingsFormatForField(String field) {
-            throw new UnsupportedOperationException("Old codecs can't be used for writing");
-        }
-    };
+        this.postingsFormat = new PerFieldPostingsFormat() {
+            @Override
+            public PostingsFormat getPostingsFormatForField(String field) {
+                throw new UnsupportedOperationException("Old codecs can't be used for writing");
+            }
+        };
+    }
 
     @Override
     public final FieldInfosFormat fieldInfosFormat() {
@@ -96,6 +97,11 @@ public abstract class BWCCodec extends Codec {
     @Override
     public SegmentInfoFormat segmentInfoFormat() {
         return segmentInfosFormat;
+    }
+
+    @Override
+    public PostingsFormat postingsFormat() {
+        return postingsFormat;
     }
 
     /**
@@ -211,7 +217,8 @@ public abstract class BWCCodec extends Codec {
     /**
      * Returns a backward-compatible codec for the given codec. If the codec is one of the known Lucene 8.x codecs,
      * it returns a corresponding read-only backward-compatible codec. Otherwise, it returns the original codec.
-     * This switch if for indices created in ES 6.x, that may have some of their segments written with ES 7.x, hence Lucene 8.x.
+     * This switch is only for indices created in ES 6.x, later written into in ES 7.x (Lucene 8.x). Indices created
+     * in ES 7.x can be read directly by ES if marked read-only, without going through archive indices.
      */
     @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)
     private static Codec getBackwardCompatibleCodec(Codec codec) {

@@ -13,17 +13,14 @@ import org.apache.lucene.backward_codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.backward_codecs.lucene60.Lucene60FieldInfosFormat;
 import org.apache.lucene.backward_codecs.lucene70.Lucene70SegmentInfoFormat;
 import org.apache.lucene.backward_codecs.lucene80.Lucene80DocValuesFormat;
-import org.apache.lucene.backward_codecs.lucene84.Lucene84PostingsFormat;
 import org.apache.lucene.codecs.CompoundFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.LiveDocsFormat;
 import org.apache.lucene.codecs.PointsFormat;
-import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
-import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60MetadataOnlyPointsFormat;
 
@@ -36,15 +33,7 @@ public class BWCLucene84Codec extends BWCCodec {
 
     private final LiveDocsFormat liveDocsFormat = new Lucene50LiveDocsFormat();
     private final CompoundFormat compoundFormat = new Lucene50CompoundFormat();
-    private final PostingsFormat defaultFormat;
     private final DocValuesFormat defaultDVFormat;
-
-    private final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
-        @Override
-        public PostingsFormat getPostingsFormatForField(String field) {
-            return defaultFormat;
-        }
-    };
 
     private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
         @Override
@@ -61,7 +50,6 @@ public class BWCLucene84Codec extends BWCCodec {
     public BWCLucene84Codec() {
         super("BWCLucene84Codec");
         this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
-        this.defaultFormat = new Lucene84PostingsFormat();
         this.defaultDVFormat = new Lucene80DocValuesFormat();
     }
 
@@ -78,11 +66,6 @@ public class BWCLucene84Codec extends BWCCodec {
     @Override
     public StoredFieldsFormat storedFieldsFormat() {
         return storedFieldsFormat;
-    }
-
-    @Override
-    public PostingsFormat postingsFormat() {
-        return postingsFormat;
     }
 
     @Override

@@ -17,7 +17,6 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.LiveDocsFormat;
 import org.apache.lucene.codecs.PointsFormat;
-import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
@@ -83,11 +82,6 @@ public class BWCLucene70Codec extends BWCCodec {
     @Override
     public final DocValuesFormat docValuesFormat() {
         return docValuesFormat;
-    }
-
-    @Override
-    public PostingsFormat postingsFormat() {
-        return postingsFormat;
     }
 
     @Override

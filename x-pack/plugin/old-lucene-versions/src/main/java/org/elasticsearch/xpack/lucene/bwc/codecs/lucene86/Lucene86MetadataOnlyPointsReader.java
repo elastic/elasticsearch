@@ -30,6 +30,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.MetadataOnlyBKDReader;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.MetadataOnlyCodecVersion;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -73,7 +74,7 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
                         } else if (fieldNumber < 0) {
                             throw new CorruptIndexException("Illegal field number: " + fieldNumber, metaIn);
                         }
-                        PointValues reader = new MetadataOnlyBKDReader(metaIn);
+                        PointValues reader = new MetadataOnlyBKDReader(metaIn, MetadataOnlyCodecVersion.V_8_6);
                         readers.put(fieldNumber, reader);
                     }
                     indexLength = metaIn.readLong();

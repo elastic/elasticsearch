@@ -105,7 +105,7 @@ public final class Lucene60MetadataOnlyPointsReader extends PointsReader {
                 int fieldNumber = ent.getKey();
                 long fp = ent.getValue();
                 dataIn.seek(fp);
-                PointValues reader = new MetadataOnlyBKDReader(dataIn);
+                PointValues reader = new MetadataOnlyBKDReader(dataIn, MetadataOnlyCodecVersion.V_6_0);
                 readers.put(fieldNumber, reader);
             }
 

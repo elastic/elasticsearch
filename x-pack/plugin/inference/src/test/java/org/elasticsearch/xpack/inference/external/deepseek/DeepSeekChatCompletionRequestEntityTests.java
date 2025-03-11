@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.request.deepseek;
+package org.elasticsearch.xpack.inference.external.deepseek;
 
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;

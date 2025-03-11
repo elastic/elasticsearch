@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.request.deepseek;
+package org.elasticsearch.xpack.inference.external.deepseek;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;

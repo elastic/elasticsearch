@@ -684,26 +684,25 @@ public abstract class TransportReplicationAction<
                 shardOperationOnReplica(
                     replicaRequest.getRequest(),
                     replica,
-                    ActionListener.wrap((replicaResult) -> replicaResult.runPostReplicaActions(ActionListener.wrap(r -> {
-                        final ReplicaResponse response = new ReplicaResponse(
-                            replica.getLocalCheckpoint(),
-                            replica.getLastSyncedGlobalCheckpoint()
-                        );
-                        releasable.close(); // release shard operation lock before responding to caller
-                        if (logger.isTraceEnabled()) {
-                            logger.trace(
-                                "action [{}] completed on shard [{}] for request [{}]",
-                                transportReplicaAction,
-                                replicaRequest.getRequest().shardId(),
-                                replicaRequest.getRequest()
-                            );
-                        }
-                        setPhase(task, "finished");
-                        onCompletionListener.onResponse(response);
+                    ActionListener.wrap((replicaResult) -> {
+                        final var response = new ReplicaResponse(replica.getLocalCheckpoint(), replica.getLastSyncedGlobalCheckpoint());
+                        replicaResult.runPostReplicaActions(ActionListener.wrap(r -> {
+                            releasable.close(); // release shard operation lock before responding to caller
+                            if (logger.isTraceEnabled()) {
+                                logger.trace(
+                                    "action [{}] completed on shard [{}] for request [{}]",
+                                    transportReplicaAction,
+                                    replicaRequest.getRequest().shardId(),
+                                    replicaRequest.getRequest()
+                                );
+                            }
+                            setPhase(task, "finished");
+                            onCompletionListener.onResponse(response);
+                        }, e -> {
+                            Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
+                            responseWithFailure(e);
+                        }));
                     }, e -> {
-                        Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
-                        responseWithFailure(e);
-                    })), e -> {
                         Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                         AsyncReplicaAction.this.onFailure(e);
                     })

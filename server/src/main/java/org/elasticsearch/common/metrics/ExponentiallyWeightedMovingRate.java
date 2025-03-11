@@ -25,8 +25,8 @@ import static java.lang.Math.expm1;
  * calculated for an every-growing series of increments (typically by updating the previous rate rather than recalculating from scratch).
  *
  * <p>The times involved in the API of this class can use the caller's choice of units and origin, e.g. they can be millis since the
- * epoch as returned by {@link System#currentTimeMillis}, nanos since an arbitrary origin as returned by {@link System#nanoTime, or anything
- * else. The only requirement is that the same convention must be used consistently.
+ * epoch as returned by {@link System#currentTimeMillis}, nanos since an arbitrary origin as returned by {@link System#nanoTime}, or
+ * anything else. The only requirement is that the same convention must be used consistently.
  *
  * <p>This class is thread-safe.
  */

@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.TestSecurityClient;
@@ -177,62 +178,120 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         createUser(DATA_ACCESS, PASSWORD, DATA_ACCESS);
         upsertRole(Strings.format("""
             {
-              "description": "Role with data access",
               "cluster": ["all"],
               "indices": [{"names": ["test*"], "privileges": ["read"]}]
             }"""), DATA_ACCESS);
+        createAndStoreApiKey(DATA_ACCESS, randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [{"names": ["test*"], "privileges": ["read"]}]
+              }
+            }
+            """);
 
         createUser(STAR_READ_ONLY_ACCESS, PASSWORD, STAR_READ_ONLY_ACCESS);
         upsertRole(Strings.format("""
             {
-              "description": "Role with data access",
               "cluster": ["all"],
               "indices": [{"names": ["*"], "privileges": ["read"]}]
             }"""), STAR_READ_ONLY_ACCESS);
+        createAndStoreApiKey(STAR_READ_ONLY_ACCESS, randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [{"names": ["*"], "privileges": ["read"]}]
+              }
+            }
+            """);
 
         createUser(FAILURE_STORE_ACCESS, PASSWORD, FAILURE_STORE_ACCESS);
         upsertRole(Strings.format("""
             {
-              "description": "Role with failure store access",
               "cluster": ["all"],
               "indices": [{"names": ["test*"], "privileges": ["read_failure_store"]}]
             }"""), FAILURE_STORE_ACCESS);
+        createAndStoreApiKey(FAILURE_STORE_ACCESS, randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [{"names": ["test*"], "privileges": ["read_failure_store"]}]
+              }
+            }
+            """);
 
         if (randomBoolean()) {
             createUser(BOTH_ACCESS, PASSWORD, BOTH_ACCESS);
             upsertRole(Strings.format("""
                 {
-                  "description": "Role with both data and failure store access",
                   "cluster": ["all"],
                   "indices": [{"names": ["test*"], "privileges": ["read", "read_failure_store"]}]
                 }"""), BOTH_ACCESS);
+            createAndStoreApiKey(BOTH_ACCESS, randomBoolean() ? null : """
+                {
+                  "role": {
+                    "cluster": ["all"],
+                    "indices": [{"names": ["test*"], "privileges": ["read", "read_failure_store"]}]
+                  }
+                }
+                """);
         } else {
             createUser(BOTH_ACCESS, PASSWORD, DATA_ACCESS, FAILURE_STORE_ACCESS);
+            // TODO
+            createAndStoreApiKey(BOTH_ACCESS, randomBoolean() ? null : """
+                {
+                  "role": {
+                    "cluster": ["all"],
+                    "indices": [{"names": ["test*"], "privileges": ["read", "read_failure_store"]}]
+                  }
+                }
+                """);
         }
 
         createUser(WRITE_ACCESS, PASSWORD, WRITE_ACCESS);
         upsertRole(Strings.format("""
             {
-              "description": "Role with regular write access without failure store access",
               "cluster": ["all"],
               "indices": [{"names": ["test*"], "privileges": ["write", "auto_configure"]}]
             }"""), WRITE_ACCESS);
+        createAndStoreApiKey(WRITE_ACCESS, randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [{"names": ["test*"], "privileges": ["write", "auto_configure"]}]
+              }
+            }
+            """);
 
         createUser(MANAGE_ACCESS, PASSWORD, MANAGE_ACCESS);
         upsertRole(Strings.format("""
             {
-              "description": "Role with regular manage access without failure store access",
               "cluster": ["all"],
               "indices": [{"names": ["test*"], "privileges": ["manage"]}]
             }"""), MANAGE_ACCESS);
+        createAndStoreApiKey(MANAGE_ACCESS, randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [{"names": ["test*"], "privileges": ["manage"]}]
+              }
+            }
+            """);
 
         createUser(MANAGE_FAILURE_STORE_ACCESS, PASSWORD, MANAGE_FAILURE_STORE_ACCESS);
         upsertRole(Strings.format("""
             {
-              "description": "Role with failure store manage access",
               "cluster": ["all"],
               "indices": [{"names": ["test*"], "privileges": ["manage_failure_store"]}]
             }"""), MANAGE_FAILURE_STORE_ACCESS);
+        createAndStoreApiKey(MANAGE_FAILURE_STORE_ACCESS, randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [{"names": ["test*"], "privileges": ["manage_failure_store"]}]
+              }
+            }
+            """);
 
         createTemplates();
 
@@ -274,9 +333,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
         // todo also add superuser
         List<String> users = List.of(DATA_ACCESS, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS);
-        for (var user : users) {
-            createAndStoreApiKey(user);
-        }
 
         // search data
         {
@@ -1076,12 +1132,25 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     }
 
     protected void createAndStoreApiKey(String username) throws IOException {
+        createAndStoreApiKey(username, null);
+    }
+
+    protected void createAndStoreApiKey(String username, @Nullable String roleDescriptors) throws IOException {
         var request = new Request("POST", "/_security/api_key");
-        request.setJsonEntity("""
-            {
-                "name": "test-api-key"
-            }
-            """);
+        if (roleDescriptors == null) {
+            request.setJsonEntity("""
+                {
+                    "name": "test-api-key"
+                }
+                """);
+        } else {
+            request.setJsonEntity(Strings.format("""
+                {
+                    "name": "test-api-key",
+                    "role_descriptors": %s
+                }
+                """, roleDescriptors));
+        }
         Response response = performRequest(username, request);
         assertOK(response);
         Map<String, Object> responseAsMap = responseAsMap(response);

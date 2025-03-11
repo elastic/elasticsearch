@@ -247,15 +247,17 @@ public class PolicyManager {
             return;
         }
 
+        String componentName = getEntitlements(requestingClass).componentName();
         notEntitled(
             Strings.format(
                 "Not entitled: component [%s], module [%s], class [%s], operation [%s]",
-                getEntitlements(requestingClass).componentName(),
+                componentName,
                 requestingClass.getModule().getName(),
                 requestingClass,
                 operationDescription.get()
             ),
-            callerClass
+            callerClass,
+            componentName
         );
     }
 
@@ -372,7 +374,8 @@ public class PolicyManager {
                     requestingClass,
                     realPath == null ? path : Strings.format("%s -> %s", path, realPath)
                 ),
-                callerClass
+                callerClass,
+                entitlements.componentName()
             );
         }
     }
@@ -401,7 +404,8 @@ public class PolicyManager {
                     requestingClass,
                     path
                 ),
-                callerClass
+                callerClass,
+                entitlements.componentName()
             );
         }
     }
@@ -489,7 +493,8 @@ public class PolicyManager {
                     requestingClass,
                     PolicyParser.getEntitlementTypeName(entitlementClass)
                 ),
-                callerClass
+                callerClass,
+                classEntitlements.componentName()
             );
         }
         logger.debug(
@@ -530,21 +535,23 @@ public class PolicyManager {
                 requestingClass,
                 property
             ),
-            callerClass
+            callerClass,
+            entitlements.componentName()
         );
     }
 
-    private void notEntitled(String message, Class<?> callerClass) {
+    private void notEntitled(String message, Class<?> callerClass, String componentName) {
         var exception = new NotEntitledException(message);
         // Don't emit a log for muted classes, e.g. classes containing self tests
         if (mutedClasses.contains(callerClass) == false) {
             var moduleName = callerClass.getModule().getName();
-            var notEntitledLogger = LogManager.getLogger(PolicyManager.class + "." + ((moduleName == null) ? "ALL_UNNAMED" : moduleName));
+            var loggerSuffix = "." + componentName + "." + ((moduleName == null) ? "ALL_UNNAMED" : moduleName);
+            var notEntitledLogger = LogManager.getLogger(PolicyManager.class.getName() + loggerSuffix);
             String frameInfoSuffix = StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
                 .walk(this::findRequestingFrame)
                 .map(StackFrame::toString)
                 .orElse("");
-            notEntitledLogger.info(message + frameInfoSuffix);
+            notEntitledLogger.warn(message + frameInfoSuffix);
         }
         throw exception;
     }

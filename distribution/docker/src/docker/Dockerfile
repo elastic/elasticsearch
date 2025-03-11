@@ -117,7 +117,7 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
 
 <% if (docker_base == "fips") { %>
 
-USER root
+# USER root
 
 # Add plugins infrastructure
 RUN mkdir -p /opt/plugins/archive
@@ -175,14 +175,11 @@ WORKDIR /usr/share/elasticsearch/config
 #EOF
 
 ## Add fips specific JVM options
-## TODO tweak this to not use hard coded password
 RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
 -Djavax.net.ssl.keyStoreType=BCFKS
--Djavax.net.ssl.trustStore=certs/truststore.bcfks
--Djavax.net.ssl.keyStorePassword=SomeReallyLongPassword123_123!
 -Dorg.bouncycastle.fips.approved_only=true
--Djava.security.properties=/usr/share/elasticsearch/config/fips_java.security
--Djava.security.policy=/usr/share/elasticsearch/config/fips_java.policy
+-Djava.security.properties=config/fips_java.security
+-Djava.security.policy=config/fips_java.policy
 EOF
 
 <% } %>
@@ -345,23 +342,7 @@ COPY --from=builder --chown=0:0 /opt /opt
 USER 1000:0
 ENV ES_PLUGIN_ARCHIVE_DIR /opt/plugins/archive
 
-#
-#RUN cat <<EOF > instance.yml
-#instances:
-#    - name: "node1"
-#      dns:
-#      - "node1.local"
-#      cn:
-#      - "node1.elasticsearch.cluster"
-#EOF
-USER root
-
 WORKDIR /usr/share/elasticsearch
-
-#RUN bin/elasticsearch-certutil cert --in instance.yml --self-signed --pem --out certificate-bundle.zip
-#RUN unzip certificate-bundle.zip
-#RUN cp node1/node1.crt config
-#RUN cp node1/node1.key config
 
 COPY --from=builder --chown=0:0 /fips/libs/*.jar /usr/share/elasticsearch/lib/
 

@@ -105,8 +105,8 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(inferenceEntityId);
             taskType.writeTo(out);
+            out.writeString(inferenceEntityId);
             out.writeBytesReference(content);
             XContentHelper.writeTo(out, contentType);
             out.writeTimeValue(timeout);

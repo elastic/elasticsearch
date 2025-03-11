@@ -27,8 +27,9 @@ import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
-import org.elasticsearch.xpack.inference.external.http.sender.OpenAiEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.TruncatingRequestManager;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.junit.After;
@@ -41,9 +42,10 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
+import static org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator.EMBEDDINGS_HANDLER;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
+import static org.elasticsearch.xpack.inference.external.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests.createModel;
 import static org.hamcrest.Matchers.containsString;
@@ -223,9 +225,16 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
     private ExecutableAction createAction(String url, String org, String apiKey, String modelName, @Nullable String user, Sender sender) {
         var model = createModel(url, org, apiKey, modelName, user);
-        var requestCreator = OpenAiEmbeddingsRequestManager.of(model, TruncatorTests.createTruncator(), threadPool);
+        var manager = new TruncatingRequestManager(
+            threadPool,
+            model,
+            EMBEDDINGS_HANDLER,
+            (truncationResult) -> new OpenAiEmbeddingsRequest(TruncatorTests.createTruncator(), truncationResult, model),
+            null
+        );
+
         var errorMessage = constructFailedToSendRequestMessage("OpenAI embeddings");
-        return new SenderExecutableAction(sender, requestCreator, errorMessage);
+        return new SenderExecutableAction(sender, manager, errorMessage);
     }
 
 }

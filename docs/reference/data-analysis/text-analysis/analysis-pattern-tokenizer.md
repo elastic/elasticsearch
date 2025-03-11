@@ -18,7 +18,7 @@ The pattern tokenizer uses [Java Regular Expressions](https://docs.oracle.com/ja
 
 A badly written regular expression could run very slowly or even throw a StackOverflowError and cause the node it is running on to exit suddenly.
 
-Read more about [pathological regular expressions and how to avoid them](https://www.regular-expressions.info/catastrophic.md).
+Read more about [pathological regular expressions and how to avoid them](https://www.regular-expressions.info/catastrophic.html).
 
 ::::
 

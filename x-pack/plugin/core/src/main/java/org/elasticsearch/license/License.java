@@ -138,11 +138,11 @@ public class License implements ToXContentObject {
      */
     public static final String LICENSE_VERSION_MODE = "license_version";
     /**
-     * Set for RestApiVersion#V_7 requests only
+     * Set for RestApiVersion#V_8 requests only
      * XContent param name to map the "enterprise" license type to "platinum"
      * for backwards compatibility with older clients
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.SECURITY) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
+    @UpdateForV10(owner = UpdateForV10.Owner.SECURITY) // this is no longer needed once we fully drop support for accept_enterprise
     public static final String XCONTENT_HIDE_ENTERPRISE = "hide_enterprise";
 
     public static final Comparator<License> LATEST_ISSUE_DATE_FIRST = Comparator.comparing(License::issueDate).reversed();

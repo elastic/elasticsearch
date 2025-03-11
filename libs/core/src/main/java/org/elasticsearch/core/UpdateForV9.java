@@ -29,8 +29,7 @@ public @interface UpdateForV9 {
         ENTERPRISE_SEARCH,
         MACHINE_LEARNING,
         PROFILING,
-        SEARCH_ANALYTICS,
-        SECURITY,
+        SEARCH_ANALYTICS
     }
 
     /**

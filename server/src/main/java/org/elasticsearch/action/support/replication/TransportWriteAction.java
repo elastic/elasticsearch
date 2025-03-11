@@ -44,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -320,7 +321,7 @@ public abstract class TransportWriteAction<
             PostWriteRefresh postWriteRefresh,
             @Nullable Consumer<Runnable> postWriteAction
         ) {
-            super(request, finalResponse);
+            super(primary, request, finalResponse);
             this.location = location;
             this.primary = primary;
             this.logger = logger;
@@ -329,21 +330,21 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public void runPostReplicationActions(ActionListener<Void> listener) {
+        public void runPostReplicationActions(ReplicationOperation.PrimaryPostReplicationActionsListener listener) {
             /*
              * We call this after replication because this might wait for a refresh and that can take a while.
              * This way we wait for the refresh in parallel on the primary and on the replica.
              */
             new AsyncAfterWriteAction(primary, replicaRequest(), location, new RespondingWriteResult() {
                 @Override
-                public void onSuccess(boolean forcedRefresh) {
+                public void onSuccess(long globalCheckpoint, long localCheckpoint, boolean forcedRefresh) {
                     replicationResponse.setForcedRefresh(forcedRefresh);
-                    listener.onResponse(null);
+                    listener.onResponse(globalCheckpoint, localCheckpoint);
                 }
 
                 @Override
-                public void onFailure(Exception ex) {
-                    listener.onFailure(ex);
+                public void onFailure(long globalCheckpoint, long localCheckpoint, Exception ex) {
+                    listener.onFailure(globalCheckpoint, localCheckpoint, ex);
                 }
             }, logger, postWriteRefresh, postWriteAction).run();
         }
@@ -355,7 +356,6 @@ public abstract class TransportWriteAction<
     public static class WriteReplicaResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>> extends ReplicaResult {
         public final Location location;
         private final ReplicaRequest request;
-        private final IndexShard replica;
         private final Logger logger;
         private final Consumer<Runnable> postWriteAction;
 
@@ -377,27 +377,26 @@ public abstract class TransportWriteAction<
             Logger logger,
             Consumer<Runnable> postWriteAction
         ) {
-            super(operationFailure);
+            super(replica, operationFailure);
             this.location = location;
             this.request = request;
-            this.replica = replica;
             this.logger = logger;
             this.postWriteAction = postWriteAction;
         }
 
         @Override
-        public void runPostReplicaActions(ActionListener<Void> listener) {
+        public void runPostReplicaActions(ReplicaPostReplicationActionsListener listener) {
             if (finalFailure != null) {
                 listener.onFailure(finalFailure);
             } else {
                 new AsyncAfterWriteAction(replica, request, location, new RespondingWriteResult() {
                     @Override
-                    public void onSuccess(boolean forcedRefresh) {
-                        listener.onResponse(null);
+                    public void onSuccess(long globalCheckpoint, long localCheckpoint, boolean forcedRefresh) {
+                        listener.onResponse(globalCheckpoint, localCheckpoint);
                     }
 
                     @Override
-                    public void onFailure(Exception ex) {
+                    public void onFailure(long globalCheckpoint, long localCheckpoint, Exception ex) {
                         listener.onFailure(ex);
                     }
                 }, logger, null, postWriteAction).run();
@@ -424,12 +423,12 @@ public abstract class TransportWriteAction<
          * Called on successful processing of all post write actions
          * @param forcedRefresh <code>true</code> iff this write has caused a refresh
          */
-        void onSuccess(boolean forcedRefresh);
+        void onSuccess(long globalCheckpoint, long localCheckpoint, boolean forcedRefresh);
 
         /**
          * Called on failure if a post action failed.
          */
-        void onFailure(Exception ex);
+        void onFailure(long globalCheckpoint, long localCheckpoint, Exception ex);
     }
 
     /**
@@ -453,6 +452,10 @@ public abstract class TransportWriteAction<
         private final PostWriteRefresh postWriteRefresh;
         private final Consumer<Runnable> postWriteAction;
         private final TimeValue postWriteRefreshTimeout;
+        // Capture the values of the local & global checkpoint to be passed to after-write-action listeners, so that they don't have to
+        // read the values back from the engine as it could deadlock.
+        private final AtomicLong globalCheckpoint;
+        private final AtomicLong localCheckpoint;
 
         AsyncAfterWriteAction(
             final IndexShard indexShard,
@@ -482,24 +485,34 @@ public abstract class TransportWriteAction<
             this.logger = logger;
             this.postWriteRefreshTimeout = request.timeout();
             assert pendingOps.get() >= 0 && pendingOps.get() <= 3 : "pendingOps was: " + pendingOps.get();
+            this.globalCheckpoint = new AtomicLong(indexShard.getLastSyncedGlobalCheckpoint());
+            this.localCheckpoint = new AtomicLong(indexShard.getLocalCheckpoint());
         }
 
         /** calls the response listener if all pending operations have returned otherwise it just decrements the pending opts counter.*/
         private void maybeFinish() {
             final int numPending = pendingOps.decrementAndGet();
             if (numPending == 0) {
+                final long globalCheckpoint = this.globalCheckpoint.get();
+                final long localCheckpoint = this.localCheckpoint.get();
+
                 if (syncFailure.get() != null) {
-                    respond.onFailure(syncFailure.get());
+                    respond.onFailure(globalCheckpoint, localCheckpoint, syncFailure.get());
                 } else {
                     // TODO: Temporary until we fail unpromotable shard
                     if (refreshFailure.get() != null) {
-                        respond.onFailure(refreshFailure.get());
+                        respond.onFailure(globalCheckpoint, localCheckpoint, refreshFailure.get());
                     } else {
-                        respond.onSuccess(refreshed.get());
+                        respond.onSuccess(globalCheckpoint, localCheckpoint, refreshed.get());
                     }
                 }
             }
             assert numPending >= 0 && numPending <= 2 : "numPending must either 2, 1 or 0 but was " + numPending;
+        }
+
+        private void updateCheckpoints() {
+            this.globalCheckpoint.accumulateAndGet(indexShard.getLastSyncedGlobalCheckpoint(), Math::max);
+            this.localCheckpoint.accumulateAndGet(indexShard.getLocalCheckpoint(), Math::max);
         }
 
         void run() {
@@ -509,8 +522,8 @@ public abstract class TransportWriteAction<
              * respond.
              */
             indexShard.afterWriteOperation();
-            // decrement pending by one, if there is nothing else to do we just respond with success
-            maybeFinish();
+            updateCheckpoints();
+            maybeFinish(); // decrement pending by one, if there is nothing else to do we just respond with success
             if (needsRefreshAction) {
                 assert pendingOps.get() > 0;
                 ActionListener<Boolean> refreshListener = new ActionListener<>() {
@@ -549,6 +562,7 @@ public abstract class TransportWriteAction<
                     syncFailure.set(e);
                     maybeFinish();
                 });
+                updateCheckpoints();
             }
             if (postWriteAction != null) {
                 postWriteAction.accept(this::maybeFinish);

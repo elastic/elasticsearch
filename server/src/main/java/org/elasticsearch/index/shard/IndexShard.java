@@ -2987,18 +2987,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns a supplier that supplies the local checkpoint of the engine that is referenced at the time this method is called.
-     * Uses this method in place where the current engine reference cannot be resolved directly.
-     *
-     * @return a supplier of the local checkpoint
-     * @throws AlreadyClosedException if shard is closed
-     */
-    public Supplier<Long> getLocalCheckpointSupplier() {
-        var engine = getEngine();
-        return () -> engine.getPersistedLocalCheckpoint();
-    }
-
-    /**
      * Returns the global checkpoint for the shard.
      *
      * @return the global checkpoint
@@ -3012,18 +3000,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public long getLastSyncedGlobalCheckpoint() {
         return getEngine().getLastSyncedGlobalCheckpoint();
-    }
-
-    /**
-     * Returns a supplier that supplies the latest global checkpoint of the engine that is referenced at the time this method is called.
-     * Uses this method in place where the current engine reference cannot be resolved directly.
-     *
-     * @return a supplier of the latest global checkpoint value that has been persisted in the underlying storage
-     * @throws AlreadyClosedException if shard is closed
-     */
-    public Supplier<Long> getLastSyncedGlobalCheckpointSupplier() {
-        var engine = getEngine();
-        return () -> engine.getLastSyncedGlobalCheckpoint();
     }
 
     /**

@@ -146,7 +146,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             Objects.requireNonNull(request);
             Objects.requireNonNull(primary);
             primary.persistRetentionLeases();
-            return new PrimaryResult<>(request, new ReplicationResponse());
+            return new PrimaryResult<>(primary, request, new ReplicationResponse());
         });
     }
 
@@ -157,7 +157,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             Objects.requireNonNull(replica);
             replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
             replica.persistRetentionLeases();
-            return new ReplicaResult();
+            return new ReplicaResult(replica);
         });
     }
 

@@ -85,7 +85,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     ) {
         primary.flush(shardRequest.getRequest(), listener.map(flushed -> {
             logger.trace("{} flush request executed on primary", primary.shardId());
-            return new PrimaryResult<>(shardRequest, new ReplicationResponse());
+            return new PrimaryResult<>(primary, shardRequest, new ReplicationResponse());
         }));
     }
 
@@ -93,7 +93,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     protected void shardOperationOnReplica(ShardFlushRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         replica.flush(request.getRequest(), listener.map(flushed -> {
             logger.trace("{} flush request executed on replica", replica.shardId());
-            return new ReplicaResult();
+            return new ReplicaResult(replica);
         }));
     }
 

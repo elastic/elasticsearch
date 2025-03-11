@@ -114,12 +114,12 @@ public class TransportReplicationActionBypassCircuitBreakerOnReplicaIT extends E
             IndexShard primary,
             ActionListener<PrimaryResult<Request, Response>> listener
         ) {
-            listener.onResponse(new PrimaryResult<>(shardRequest, new Response()));
+            listener.onResponse(new PrimaryResult<>(primary, shardRequest, new Response()));
         }
 
         @Override
         protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
-            listener.onResponse(new ReplicaResult());
+            listener.onResponse(new ReplicaResult(replica));
         }
     }
 

@@ -669,15 +669,19 @@ public class ReplicationOperationTests extends ESTestCase {
             if (request.processedOnPrimary.compareAndSet(false, true) == false) {
                 fail("processed [" + request + "] twice");
             }
-            listener.onResponse(new Result(request));
+            listener.onResponse(new Result(request, localCheckpoint, globalCheckpoint));
         }
 
         static class Result implements ReplicationOperation.PrimaryResult<Request> {
             private final Request request;
             private ShardInfo shardInfo;
+            final long localCheckpoint;
+            final long globalCheckpoint;
 
-            Result(Request request) {
+            Result(Request request, long localCheckpoint, long globalCheckpoint) {
                 this.request = request;
+                this.localCheckpoint = localCheckpoint;
+                this.globalCheckpoint = globalCheckpoint;
             }
 
             @Override
@@ -691,11 +695,11 @@ public class ReplicationOperationTests extends ESTestCase {
             }
 
             @Override
-            public void runPostReplicationActions(ActionListener<Void> listener) {
+            public void runPostReplicationActions(ReplicationOperation.PrimaryPostReplicationActionsListener listener) {
                 if (request.runPostReplicationActionsOnPrimary.compareAndSet(false, true) == false) {
                     fail("processed [" + request + "] twice");
                 }
-                listener.onResponse(null);
+                listener.onResponse(globalCheckpoint, localCheckpoint);
             }
 
             public ShardInfo getShardInfo() {

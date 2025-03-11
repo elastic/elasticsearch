@@ -423,8 +423,8 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         }
 
         @Override
-        public void runPostReplicationActions(ActionListener<Void> listener) {
-            listener.onResponse(null);
+        public void runPostReplicationActions(ReplicationOperation.PrimaryPostReplicationActionsListener listener) {
+            listener.onResponse(0L, 0L);
         }
 
         public ReplicationResponse.ShardInfo getShardInfo() {

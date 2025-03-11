@@ -1396,13 +1396,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
                     @Override
                     public void onFailure(Exception e) {
-                        handleFinalizationFailure(
-                            e,
-                            snapshot,
-                            repositoryData,
-                            // we might have written the new root blob before failing here, so we must use the updated shardGenerations
-                            shardGenerations
-                        );
+                        // we might have written the new root blob before failing here, so we must use the updated shardGenerations
+                        handleFinalizationFailure(e, shardGenerations);
                     }
                 },
 
@@ -1456,7 +1451,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         public void onRejection(Exception e) {
             if (e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown()) {
                 logger.debug("failing finalization of {} due to shutdown", snapshot);
-                handleFinalizationFailure(e, snapshot, repositoryData, ShardGenerations.EMPTY);
+                handleFinalizationFailureBeforeUpdatingRootBlob(e);
             } else {
                 onFailure(e);
             }
@@ -1466,7 +1461,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         public void onFailure(Exception e) {
             logger.error(Strings.format("unexpected failure finalizing %s", snapshot), e);
             assert false : new AssertionError("unexpected failure finalizing " + snapshot, e);
-            handleFinalizationFailure(e, snapshot, repositoryData, ShardGenerations.EMPTY);
+            handleFinalizationFailureBeforeUpdatingRootBlob(e);
         }
 
         private static ShardGenerations buildGenerations(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
@@ -1642,23 +1637,19 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             return indexSnapshotDetails;
         }
 
+        private void handleFinalizationFailureBeforeUpdatingRootBlob(Exception e) {
+            // No need to update shard generations in cluster state if we didn't update the root blob, so use ShardGenerations.EMPTY
+            handleFinalizationFailure(e, ShardGenerations.EMPTY);
+        }
+
         /**
          * Handles failure to finalize a snapshot. If the exception indicates that this node was unable to publish a cluster state and
          * stopped being the master node, then fail all snapshot create and delete listeners executing on this node by delegating to
          * {@link #failAllListenersOnMasterFailOver}. Otherwise, i.e. as a result of failing to write to the snapshot repository for some
          * reason, remove the snapshot's {@link SnapshotsInProgress.Entry} from the cluster state and move on with other queued snapshot
          * operations if there are any.
-         *
-         * @param e              exception encountered
-         * @param snapshot       snapshot that failed to finalize
-         * @param repositoryData current repository data for the snapshot's repository
          */
-        private void handleFinalizationFailure(
-            Exception e,
-            Snapshot snapshot,
-            RepositoryData repositoryData,
-            ShardGenerations shardGenerations
-        ) {
+        private void handleFinalizationFailure(Exception e, ShardGenerations shardGenerations) {
             if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
                 // Failure due to not being master any more, don't try to remove snapshot from cluster state the next master
                 // will try ending this snapshot again

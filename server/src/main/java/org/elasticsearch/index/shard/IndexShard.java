@@ -582,12 +582,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final CountDownLatch shardStateUpdated = new CountDownLatch(1);
 
             if (newRouting.primary()) {
-                // TODO: FIx
-                if (recoveryState != null
-                    && recoveryState.getRecoverySource() != null
-                    && recoveryState.getRecoverySource().getType() == RecoverySource.Type.SPLIT) {
-                    pendingPrimaryTerm = newPrimaryTerm;
-                }
                 if (newPrimaryTerm == pendingPrimaryTerm) {
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
                         // the master started a recovering primary, activate primary mode.
@@ -595,7 +589,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         ensurePeerRecoveryRetentionLeasesExist();
                     }
                 } else {
-                    assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
+                    assert currentRouting.primary() == false
+                        || (recoveryState != null && recoveryState.getRecoverySource().getType() == RecoverySource.Type.SPLIT)
+                        : "term is only increased as part of primary promotion or starting a split recovery shard";
                     /* Note that due to cluster state batching an initializing primary shard term can failed and re-assigned
                      * in one state causing it's term to be incremented. Note that if both current shard state and new
                      * shard state are initializing, we could replace the current shard and reinitialize it. It is however

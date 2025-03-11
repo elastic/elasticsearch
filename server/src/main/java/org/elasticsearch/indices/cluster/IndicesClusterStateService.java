@@ -774,7 +774,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (shardRouting.recoverySource().getType() == Type.SPLIT) {
                 IndexMetadata indexMetadata = project.index(shardRouting.index());
                 IndexRoutingTable routingTable = originalState.routingTable(project.id()).index(shardRouting.index());
-                // TODO: Splits only double atm. However, eventually there will be a reshard object in the index metadatata indicate the
+                // TODO: Splits only double atm. However, eventually there will be a reshard object in the index metadata indicate the
                 // split specifics
                 int preSplitSize = routingTable.size() / 2;
                 int sourceShardId = shardRouting.id() % preSplitSize;

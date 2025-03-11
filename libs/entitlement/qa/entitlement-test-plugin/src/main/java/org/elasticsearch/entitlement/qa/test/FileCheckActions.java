@@ -97,15 +97,13 @@ class FileCheckActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileDelete() throws IOException {
-        Path toDelete = readWriteDir().resolve("to_delete");
-        EntitledActions.createFile(toDelete);
+        var toDelete = EntitledActions.createTempFileForWrite();
         toDelete.toFile().delete();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileDeleteOnExit() throws IOException {
-        Path toDelete = readWriteDir().resolve("to_delete_on_exit");
-        EntitledActions.createFile(toDelete);
+        var toDelete = EntitledActions.createTempFileForWrite();
         toDelete.toFile().deleteOnExit();
     }
 
@@ -178,9 +176,10 @@ class FileCheckActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileRenameTo() throws IOException {
-        Path toRename = readWriteDir().resolve("to_rename");
+        var dir = EntitledActions.createTempDirectoryForWrite();
+        Path toRename = dir.resolve("to_rename");
         EntitledActions.createFile(toRename);
-        toRename.toFile().renameTo(readWriteDir().resolve("renamed").toFile());
+        toRename.toFile().renameTo(dir.resolve("renamed").toFile());
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
@@ -210,8 +209,7 @@ class FileCheckActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileSetReadOnly() throws IOException {
-        Path readOnly = readWriteDir().resolve("read_only");
-        EntitledActions.createFile(readOnly);
+        Path readOnly = EntitledActions.createTempFileForWrite();
         readOnly.toFile().setReadOnly();
     }
 

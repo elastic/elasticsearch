@@ -15,6 +15,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -73,21 +74,21 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     record CheckAction(
         CheckedConsumer<Environment, Exception> action,
         EntitlementTest.ExpectedAccess expectedAccess,
-        Integer fromJavaVersion
+       Class<? extends Exception> expectedExceptionIfDenied, Integer fromJavaVersion
     ) {
         /**
          * These cannot be granted to plugins, so our test plugins cannot test the "allowed" case.
          */
         static CheckAction deniedToPlugins(CheckedRunnable<Exception> action) {
-            return new CheckAction(env -> action.run(), SERVER_ONLY, null);
+            return new CheckAction(env -> action.run(), SERVER_ONLY, NotEntitledException.class, null);
         }
 
         static CheckAction forPlugins(CheckedRunnable<Exception> action) {
-            return new CheckAction(env -> action.run(), PLUGINS, null);
+            return new CheckAction(env -> action.run(), PLUGINS, NotEntitledException.class, null);
         }
 
         static CheckAction alwaysDenied(CheckedRunnable<Exception> action) {
-            return new CheckAction(env -> action.run(), ALWAYS_DENIED, null);
+            return new CheckAction(env -> action.run(), ALWAYS_DENIED, NotEntitledException.class, null);
         }
     }
 
@@ -134,7 +135,12 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             entry("responseCache_setDefault", alwaysDenied(RestEntitlementsCheckAction::setDefaultResponseCache)),
             entry(
                 "createInetAddressResolverProvider",
-                new CheckAction(env -> VersionSpecificNetworkChecks.createInetAddressResolverProvider(), SERVER_ONLY, 18)
+                new CheckAction(
+                    env -> VersionSpecificNetworkChecks.createInetAddressResolverProvider(),
+                    SERVER_ONLY,
+                    NotEntitledException.class,
+                    18
+                )
             ),
             entry("createURLStreamHandlerProvider", alwaysDenied(RestEntitlementsCheckAction::createURLStreamHandlerProvider)),
             entry("createURLWithURLStreamHandler", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler)),
@@ -246,7 +252,12 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                 }
             };
             Integer fromJavaVersion = testAnnotation.fromJavaVersion() == -1 ? null : testAnnotation.fromJavaVersion();
-            entries.add(entry(method.getName(), new CheckAction(runnable, testAnnotation.expectedAccess(), fromJavaVersion)));
+            entries.add(
+                entry(
+                    method.getName(),
+                    new CheckAction(runnable, testAnnotation.expectedAccess(), testAnnotation.expectedExceptionIfDenied(), fromJavaVersion)
+                )
+            );
         }
         return entries.stream();
     }
@@ -465,9 +476,19 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
         return channel -> {
             logger.info("Calling check action [{}]", actionName);
-            checkAction.action().accept(environment);
-            logger.debug("Check action [{}] returned", actionName);
-            channel.sendResponse(new RestResponse(RestStatus.OK, Strings.format("Succesfully executed action [%s]", actionName)));
+            RestResponse response;
+            try {
+                checkAction.action().accept(environment);
+                response = new RestResponse(RestStatus.OK, Strings.format("Succesfully executed action [%s]", actionName));
+            } catch (Exception e) {
+                var statusCode = checkAction.expectedExceptionIfDenied.isInstance(e)
+                    ? RestStatus.FORBIDDEN
+                    : RestStatus.INTERNAL_SERVER_ERROR;
+                response = new RestResponse(channel, statusCode, e);
+                response.addHeader("expectedException", checkAction.expectedExceptionIfDenied.getName());
+            }
+            logger.debug("Check action [{}] returned status [{}]", actionName, response.status().getStatus());
+            channel.sendResponse(response);
         };
     }
 }

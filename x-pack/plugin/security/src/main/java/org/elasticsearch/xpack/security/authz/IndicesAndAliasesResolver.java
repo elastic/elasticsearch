@@ -450,6 +450,7 @@ class IndicesAndAliasesResolver {
                     + indexAbstraction.getType().getDisplayName()
                     + "], but a concrete index is expected"
             );
+            // we know this is implicit data access (as opposed to another selector) so the default selector check is correct
         } else if (isAuthorized.test(concreteIndexName, null)) {
             // user is authorized to put mappings for this index
             resolvedAliasOrIndex = concreteIndexName;
@@ -460,6 +461,7 @@ class IndicesAndAliasesResolver {
             List<AliasMetadata> aliasMetadata = foundAliases.get(concreteIndexName);
             if (aliasMetadata != null) {
                 Optional<String> foundAlias = aliasMetadata.stream().map(AliasMetadata::alias).filter(aliasName -> {
+                    // we know this is implicit data access (as opposed to another selector) so the default selector check is correct
                     if (false == isAuthorized.test(aliasName, null)) {
                         return false;
                     }

@@ -55,18 +55,16 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
     public void testDownsampling() throws Exception {
         String dataStreamName = "metrics-foo";
 
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder()
             .downsampling(
-                new Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.DownsamplingRound(
-                            TimeValue.timeValueMillis(0),
-                            new DownsampleConfig(new DateHistogramInterval("5m"))
-                        ),
-                        new DataStreamLifecycle.DownsamplingRound(
-                            TimeValue.timeValueSeconds(10),
-                            new DownsampleConfig(new DateHistogramInterval("10m"))
-                        )
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(0),
+                        new DownsampleConfig(new DateHistogramInterval("5m"))
+                    ),
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueSeconds(10),
+                        new DownsampleConfig(new DateHistogramInterval("10m"))
                     )
                 )
             )
@@ -130,20 +128,18 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
     public void testDownsamplingOnlyExecutesTheLastMatchingRound() throws Exception {
         String dataStreamName = "metrics-bar";
 
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder()
             .downsampling(
-                new Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.DownsamplingRound(
-                            TimeValue.timeValueMillis(0),
-                            new DownsampleConfig(new DateHistogramInterval("5m"))
-                        ),
-                        // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
-                        // least 2 seconds since rollover. only the 10 seconds round should be executed.
-                        new DataStreamLifecycle.DownsamplingRound(
-                            TimeValue.timeValueMillis(10),
-                            new DownsampleConfig(new DateHistogramInterval("10m"))
-                        )
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(0),
+                        new DownsampleConfig(new DateHistogramInterval("5m"))
+                    ),
+                    // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
+                    // least 2 seconds since rollover. only the 10 seconds round should be executed.
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(10),
+                        new DownsampleConfig(new DateHistogramInterval("10m"))
                     )
                 )
             )
@@ -200,20 +196,18 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
         // we expect the earlier round to be ignored
         String dataStreamName = "metrics-baz";
 
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder()
             .downsampling(
-                new Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.DownsamplingRound(
-                            TimeValue.timeValueMillis(0),
-                            new DownsampleConfig(new DateHistogramInterval("5m"))
-                        ),
-                        // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
-                        // least 2 seconds since rollover. only the 10 seconds round should be executed.
-                        new DataStreamLifecycle.DownsamplingRound(
-                            TimeValue.timeValueMillis(10),
-                            new DownsampleConfig(new DateHistogramInterval("10m"))
-                        )
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(0),
+                        new DownsampleConfig(new DateHistogramInterval("5m"))
+                    ),
+                    // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
+                    // least 2 seconds since rollover. only the 10 seconds round should be executed.
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(10),
+                        new DownsampleConfig(new DateHistogramInterval("10m"))
                     )
                 )
             )

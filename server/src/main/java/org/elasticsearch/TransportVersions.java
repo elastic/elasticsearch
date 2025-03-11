@@ -181,6 +181,7 @@ public class TransportVersions {
     public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR = def(9_025_0_00);
     public static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = def(9_026_0_00);
     public static final TransportVersion ESQL_THREAD_NAME_IN_DRIVER_PROFILE = def(9_027_0_00);
+    public static final TransportVersion INTRODUCE_LIFECYCLE_TEMPLATE = def(9_028_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

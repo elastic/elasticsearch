@@ -414,25 +414,34 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
 
     @Nullable
     static DataStreamLifecycle.Downsampling randomDownsampling() {
-        return switch (randomInt(2)) {
-            case 0 -> null;
-            case 1 -> DataStreamLifecycle.Downsampling.NULL;
-            default -> {
-                var count = randomIntBetween(0, 9);
-                List<DataStreamLifecycle.DownsamplingRound> rounds = new ArrayList<>();
-                var previous = new DataStreamLifecycle.DownsamplingRound(
-                    randomTimeValue(1, 365, TimeUnit.DAYS),
-                    new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
-                );
-                rounds.add(previous);
-                for (int i = 0; i < count; i++) {
-                    DataStreamLifecycle.DownsamplingRound round = nextRound(previous);
-                    rounds.add(round);
-                    previous = round;
-                }
-                yield new DataStreamLifecycle.Downsampling(rounds);
-            }
-        };
+        if (randomBoolean()) {
+            return DataStreamLifecycle.Downsampling.NULL;
+        }
+        List<DataStreamLifecycle.DownsamplingRound> rounds = randomDownsampling2();
+        if (rounds == null) {
+            return null;
+        }
+        return new DataStreamLifecycle.Downsampling(rounds);
+    }
+
+    @Nullable
+    static List<DataStreamLifecycle.DownsamplingRound> randomDownsampling2() {
+        if (randomBoolean()) {
+            return null;
+        }
+        var count = randomIntBetween(0, 9);
+        List<DataStreamLifecycle.DownsamplingRound> rounds = new ArrayList<>();
+        var previous = new DataStreamLifecycle.DownsamplingRound(
+            randomTimeValue(1, 365, TimeUnit.DAYS),
+            new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
+        );
+        rounds.add(previous);
+        for (int i = 0; i < count; i++) {
+            DataStreamLifecycle.DownsamplingRound round = nextRound(previous);
+            rounds.add(round);
+            previous = round;
+        }
+        return rounds;
     }
 
     private static DataStreamLifecycle.DownsamplingRound nextRound(DataStreamLifecycle.DownsamplingRound previous) {

@@ -25,7 +25,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.putComposableIndexTemplate;
-import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.randomLifecycle;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.randomLifecycleTemplate;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -39,7 +39,7 @@ public class CrudDataStreamLifecycleIT extends ESIntegTestCase {
     }
 
     public void testGetLifecycle() throws Exception {
-        DataStreamLifecycle lifecycle = randomLifecycle();
+        DataStreamLifecycle.Template lifecycle = randomLifecycleTemplate();
         putComposableIndexTemplate("id1", null, List.of("with-lifecycle*"), null, null, lifecycle);
         putComposableIndexTemplate("id2", null, List.of("without-lifecycle*"), null, null, null);
         {
@@ -226,7 +226,7 @@ public class CrudDataStreamLifecycleIT extends ESIntegTestCase {
     }
 
     public void testDeleteLifecycle() throws Exception {
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder().dataRetention(randomPositiveTimeValue()).build();
         putComposableIndexTemplate("id1", null, List.of("with-lifecycle*"), null, null, lifecycle);
         putComposableIndexTemplate("id2", null, List.of("without-lifecycle*"), null, null, null);
         {

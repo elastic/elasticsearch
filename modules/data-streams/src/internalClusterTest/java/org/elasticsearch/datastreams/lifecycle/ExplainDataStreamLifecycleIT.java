@@ -86,7 +86,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
     public void testExplainLifecycle() throws Exception {
         // empty lifecycle contains the default rollover
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.EMPTY;
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
         String dataStreamName = "metrics-foo";
@@ -274,7 +274,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
 
     public void testExplainLifecycleForIndicesWithErrors() throws Exception {
         // empty lifecycle contains the default rollover
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.EMPTY;
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
 
@@ -374,7 +374,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             List.of("metrics-foo*"),
             null,
             null,
-            DataStreamLifecycle.newBuilder().enabled(false).build()
+            DataStreamLifecycle.Template.builder().enabled(false).build()
         );
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
             TEST_REQUEST_TIMEOUT,
@@ -439,7 +439,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamLifecycle lifecycle
+        @Nullable DataStreamLifecycle.Template lifecycle
     ) throws IOException {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(

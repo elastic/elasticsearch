@@ -325,9 +325,10 @@ public class MetadataCreateDataStreamService {
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
         final IndexMode indexMode = newProject.retrieveIndexModeFromTemplate(template);
-        final DataStreamLifecycle lifecycle = isSystem
+        final DataStreamLifecycle.Template lifecycleTemplate = isSystem
             ? MetadataIndexTemplateService.resolveLifecycle(template, systemDataStreamDescriptor.getComponentTemplates())
             : MetadataIndexTemplateService.resolveLifecycle(template, newProject.componentTemplates());
+        final DataStreamLifecycle lifecycle = lifecycleTemplate == null ? null : lifecycleTemplate.toDataStreamLifecycle();
         List<Index> failureIndices = failureStoreIndex == null ? List.of() : List.of(failureStoreIndex.getIndex());
         DataStream newDataStream = new DataStream(
             dataStreamName,

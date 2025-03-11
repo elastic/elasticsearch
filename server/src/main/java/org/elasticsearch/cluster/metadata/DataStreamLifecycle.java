@@ -615,4 +615,215 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             return Strings.toString(this, true, true);
         }
     }
+
+    /**
+     * Represents the template configuration of a lifecycle. It supports explicitly resettable values
+     * to allow value reset during template composition.
+     */
+    public record Template(
+        ResettableValue<Boolean> enabled,
+        ResettableValue<TimeValue> dataRetention,
+        ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsampling
+    ) implements ToXContentObject, Writeable {
+
+        public Template {
+            if (downsampling.isDefined() && downsampling.get() != null) {
+                DownsamplingRound.validateRounds(downsampling.get());
+            }
+        }
+
+        public static final DataStreamLifecycle.Template EMPTY = new DataStreamLifecycle.Template(
+            ResettableValue.undefined(),
+            ResettableValue.undefined(),
+            ResettableValue.undefined()
+        );
+
+        // Current default lifecycle, EMPTY is effectively the
+        // same without an explicitly setting enabled to true
+        public static final DataStreamLifecycle.Template DEFAULT = new DataStreamLifecycle.Template(
+            ResettableValue.create(true),
+            ResettableValue.undefined(),
+            ResettableValue.undefined()
+        );
+
+        @SuppressWarnings("unchecked")
+        public static final ConstructingObjectParser<DataStreamLifecycle.Template, Void> PARSER = new ConstructingObjectParser<>(
+            "lifecycle_template",
+            false,
+            (args, unused) -> new DataStreamLifecycle.Template(
+                args[0] == null ? ResettableValue.undefined() : (ResettableValue<Boolean>) args[0],
+                args[1] == null ? ResettableValue.undefined() : (ResettableValue<TimeValue>) args[1],
+                args[2] == null ? ResettableValue.undefined() : (ResettableValue<List<DataStreamLifecycle.DownsamplingRound>>) args[2]
+            )
+        );
+
+        static {
+            PARSER.declareField(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL
+                    ? ResettableValue.reset()
+                    : ResettableValue.create(p.booleanValue()),
+                ENABLED_FIELD,
+                ObjectParser.ValueType.BOOLEAN_OR_NULL
+            );
+            PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+                String value = p.textOrNull();
+                return value == null
+                    ? ResettableValue.reset()
+                    : ResettableValue.create(TimeValue.parseTimeValue(value, DATA_RETENTION_FIELD.getPreferredName()));
+            }, DATA_RETENTION_FIELD, ObjectParser.ValueType.STRING_OR_NULL);
+            PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
+                    return ResettableValue.reset();
+                } else {
+                    return ResettableValue.create(AbstractObjectParser.parseArray(p, c, DownsamplingRound::fromXContent));
+                }
+            }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            // The order of the fields is like this for bwc reasons
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                ResettableValue.write(out, dataRetention, StreamOutput::writeTimeValue);
+            }
+            if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
+                ResettableValue.write(out, downsampling, StreamOutput::writeOptionalCollection);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                    ResettableValue.write(out, enabled, StreamOutput::writeBoolean);
+                } else {
+                    out.writeBoolean(enabled.get() == null || enabled.get());
+                }
+            }
+        }
+
+        public static Template read(StreamInput in) throws IOException {
+            ResettableValue<Boolean> enabled = ResettableValue.undefined();
+            ResettableValue<TimeValue> dataRetention = ResettableValue.undefined();
+            ResettableValue<List<DownsamplingRound>> downsampling = ResettableValue.undefined();
+
+            // The order of the fields is like this for bwc reasons
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                dataRetention = ResettableValue.read(in, StreamInput::readTimeValue);
+            }
+            if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
+                downsampling = ResettableValue.read(in, i -> i.readCollectionAsList(DownsamplingRound::read));
+                if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                    enabled = ResettableValue.read(in, StreamInput::readBoolean);
+                } else {
+                    enabled = ResettableValue.create(in.readBoolean());
+                }
+            }
+            return new Template(enabled, dataRetention, downsampling);
+        }
+
+        public static Template fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        /**
+         * Converts the template to XContent, depending on the {@param params} set by {@link ResettableValue#hideResetValues(Params)}
+         * it may or may not display any explicit nulls when the value is to be reset.
+         */
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return toXContent(builder, params, null, null, false);
+        }
+
+        /**
+         * Converts the template to XContent, depending on the {@param params} set by {@link ResettableValue#hideResetValues(Params)}
+         * it may or may not display any explicit nulls when the value is to be reset.
+         */
+        public XContentBuilder toXContent(
+            XContentBuilder builder,
+            Params params,
+            @Nullable RolloverConfiguration rolloverConfiguration,
+            @Nullable DataStreamGlobalRetention globalRetention,
+            boolean isInternalDataStream
+        ) throws IOException {
+            builder.startObject();
+            enabled.toXContent(builder, params, ENABLED_FIELD.getPreferredName());
+            dataRetention.toXContent(builder, params, DATA_RETENTION_FIELD.getPreferredName(), TimeValue::getStringRep);
+            downsampling.toXContent(builder, params, DOWNSAMPLING_FIELD.getPreferredName());
+            if (rolloverConfiguration != null) {
+                builder.field(ROLLOVER_FIELD.getPreferredName());
+                rolloverConfiguration.evaluateAndConvertToXContent(
+                    builder,
+                    params,
+                    toDataStreamLifecycle().getEffectiveDataRetention(globalRetention, isInternalDataStream)
+                );
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        public static Builder builder(DataStreamLifecycle.Template template) {
+            return new Builder(template);
+        }
+
+        public static Builder builder() {
+            return new Builder(null);
+        }
+
+        public static class Builder {
+            private ResettableValue<Boolean> enabled = ResettableValue.undefined();
+            private ResettableValue<TimeValue> dataRetention = ResettableValue.undefined();
+            private ResettableValue<List<DownsamplingRound>> downsampling = ResettableValue.undefined();
+
+            private Builder(Template template) {
+                if (template != null) {
+                    enabled = template.enabled();
+                    dataRetention = template.dataRetention();
+                    downsampling = template.downsampling();
+                }
+            }
+
+            public Builder enabled(ResettableValue<Boolean> enabled) {
+                this.enabled = enabled;
+                return this;
+            }
+
+            public Builder enabled(@Nullable Boolean enabled) {
+                this.enabled = ResettableValue.create(enabled);
+                return this;
+            }
+
+            public Builder dataRetention(ResettableValue<TimeValue> dataRetention) {
+                this.dataRetention = dataRetention;
+                return this;
+            }
+
+            public Builder dataRetention(@Nullable TimeValue dataRetention) {
+                this.dataRetention = ResettableValue.create(dataRetention);
+                return this;
+            }
+
+            public Builder downsampling(ResettableValue<List<DownsamplingRound>> downsampling) {
+                this.downsampling = downsampling;
+                return this;
+            }
+
+            public Builder downsampling(@Nullable List<DownsamplingRound> downsampling) {
+                this.downsampling = ResettableValue.create(downsampling);
+                return this;
+            }
+
+            public Template build() {
+                return new Template(enabled, dataRetention, downsampling);
+            }
+        }
+
+        public DataStreamLifecycle toDataStreamLifecycle() {
+            return new DataStreamLifecycle(
+                dataRetention.mapAndGet(Retention::new),
+                downsampling.mapAndGet(Downsampling::new),
+                enabled.get() == null || enabled.get()
+            );
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
+        }
+    }
 }

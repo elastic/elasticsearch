@@ -169,7 +169,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
             randomAlphaOfLength(10),
             ComposableIndexTemplate.builder()
-                .template(Template.builder().lifecycle(DataStreamLifecycle.DEFAULT))
+                .template(Template.builder().lifecycle(DataStreamLifecycle.Template.DEFAULT))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .indexPatterns(List.of(randomAlphaOfLength(10)))
                 .build(),
@@ -195,7 +195,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
             randomAlphaOfLength(10),
             ComposableIndexTemplate.builder()
-                .template(Template.builder().lifecycle(DataStreamLifecycle.DEFAULT))
+                .template(Template.builder().lifecycle(DataStreamLifecycle.Template.DEFAULT))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .indexPatterns(List.of("." + randomAlphaOfLength(10)))
                 .build(),
@@ -220,11 +220,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
                         new ComponentTemplate(
                             Template.builder()
                                 .lifecycle(
-                                    new DataStreamLifecycle(
-                                        new DataStreamLifecycle.Retention(randomTimeValue(2, 100, TimeUnit.DAYS)),
-                                        null,
-                                        null
-                                    )
+                                    DataStreamLifecycle.Template.builder().dataRetention(randomTimeValue(2, 100, TimeUnit.DAYS)).build()
                                 )
                                 .build(),
                             null,
@@ -235,7 +231,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
                 .build(),
             randomAlphaOfLength(10),
             ComposableIndexTemplate.builder()
-                .template(Template.builder().lifecycle(DataStreamLifecycle.DEFAULT))
+                .template(Template.builder().lifecycle(DataStreamLifecycle.Template.DEFAULT))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .indexPatterns(List.of(randomAlphaOfLength(10)))
                 .componentTemplates(List.of("component-template"))
@@ -288,7 +284,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         Template template = Template.builder()
             .settings(ComponentTemplateTests.randomSettings())
             .aliases(ComponentTemplateTests.randomAliases())
-            .lifecycle(DataStreamLifecycle.DEFAULT)
+            .lifecycle(DataStreamLifecycle.Template.DEFAULT)
             .build();
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
         project = metadataIndexTemplateService.addComponentTemplate(project, false, "foo", componentTemplate);

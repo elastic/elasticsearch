@@ -1256,6 +1256,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             logToProcessStdout("Configuring custom cluster specific distro directory: " + getDistroDir());
             if (Files.exists(getDistroDir()) == false) {
                 try {
+                    LOGGER.warn("Logging disk space and file permissions for distroExtractDir: {}", distroExtractDir);
+                    DebugUtils.logDiskSpaceAndPrivileges(distroExtractDir);
                     syncWithLinks(distroExtractDir, getDistroDir());
                 } catch (LinkCreationException e) {
                     // Note does not work for network drives, e.g. Vagrant
@@ -1263,6 +1265,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     // ensure we get a clean copy
                     FileUtils.deleteDirectory(getDistroDir().toFile());
                     syncWithCopy(distroExtractDir, getDistroDir());
+                } finally {
+                    LOGGER.warn("Logging disk space and file permissions for distroExtractDir after initialization: {}", distroExtractDir);
+                    DebugUtils.logDiskSpaceAndPrivileges(distroExtractDir);
                 }
             }
         }
@@ -1340,12 +1345,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                         if (noFileException.getFile() != null && noFileException.getFile().contains(".attach_pid")) {
                             LOGGER.warn("Ignoring file left behind by JVM: {}", noFileException.getFile());
                             return FileVisitResult.CONTINUE;
-                        } else {
-                            throw exc;
                         }
-                    } else {
-                        throw exc;
                     }
+                    throw exc;
                 }
             });
         } catch (IOException e) {

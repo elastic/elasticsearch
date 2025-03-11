@@ -452,19 +452,20 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         }
 
         return channel -> {
-            logger.info("Calling check action [{}]", checkAction);
+            logger.info("Calling check action [{}]", actionName);
+            RestResponse response;
             try {
                 checkAction.action().run();
+                response = new RestResponse(RestStatus.OK, Strings.format("Succesfully executed action [%s]", actionName));
             } catch (Exception e) {
-                if (checkAction.expectedExceptionIfDenied.isInstance(e) == false) {
-                    throw e;
-                }
-                logger.debug("Check action [{}] denied with expected exception", actionName, e);
-                channel.sendResponse(new RestResponse(channel, RestStatus.FORBIDDEN, e));
-                return;
+                var statusCode = checkAction.expectedExceptionIfDenied.isInstance(e)
+                    ? RestStatus.FORBIDDEN
+                    : RestStatus.INTERNAL_SERVER_ERROR;
+                response = new RestResponse(channel, statusCode, e);
+                response.addHeader("expectedException", checkAction.expectedExceptionIfDenied.getName());
             }
-            logger.debug("Check action [{}] returned", actionName);
-            channel.sendResponse(new RestResponse(RestStatus.OK, Strings.format("Succesfully executed action [%s]", actionName)));
+            logger.debug("Check action [{}] returned status [{}]", actionName, response.status().getStatus());
+            channel.sendResponse(response);
         };
     }
 

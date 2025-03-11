@@ -26,10 +26,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractEntitlementsIT extends ESRestTestCase {
 
-    static final PolicyBuilder ALWAYS_ALLOWED_TEST_ENTITLEMENTS = (builder, tempDir) -> builder.value(
-        Map.of("files", List.of(Map.of("path", tempDir.resolve("read_dir").resolve("always_allowed"), "mode", "read")))
-    );
-
     static final PolicyBuilder ALLOWED_TEST_ENTITLEMENTS = (builder, tempDir) -> {
         builder.value("create_class_loader");
         builder.value("set_https_connection_properties");
@@ -77,27 +73,33 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
             assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
         } else {
             var exception = expectThrows(ResponseException.class, this::executeCheck);
-            assertThat(exception, FORBIDDEN_STATUS_CODE_MATCHER);
+            assertThat(exception, statusCodeMatcher(403));
         }
     }
 
-    private static final Matcher<ResponseException> FORBIDDEN_STATUS_CODE_MATCHER = new TypeSafeMatcher<>() {
-        @Override
-        protected boolean matchesSafely(ResponseException item) {
-            return item.getResponse().getStatusLine().getStatusCode() == 403;
-        }
+    private static Matcher<ResponseException> statusCodeMatcher(int statusCode) {
+        return new TypeSafeMatcher<>() {
+            String expectedException = null;
 
-        @Override
-        public void describeTo(Description description) {
-            description.appendText("403 (FORBIDDEN)");
-        }
+            @Override
+            protected boolean matchesSafely(ResponseException item) {
+                Response resp = item.getResponse();
+                expectedException = resp.getHeader("expectedException");
+                return resp.getStatusLine().getStatusCode() == statusCode && expectedException != null;
+            }
 
-        @Override
-        protected void describeMismatchSafely(ResponseException item, Description description) {
-            description.appendText("was ")
-                .appendValue(item.getResponse().getStatusLine().getStatusCode())
-                .appendText("\n")
-                .appendValue(item.getMessage());
-        }
-    };
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("403 (FORBIDDEN)").appendText(" due to ").appendText(expectedException);
+            }
+
+            @Override
+            protected void describeMismatchSafely(ResponseException item, Description description) {
+                description.appendText("was ")
+                    .appendValue(item.getResponse().getStatusLine().getStatusCode())
+                    .appendText("\n")
+                    .appendValue(item.getMessage());
+            }
+        };
+    }
 }

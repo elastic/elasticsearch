@@ -72,8 +72,8 @@ public class HandlingTimeTracker {
      */
     public long getPercentile(float percentile) {
         assert percentile >= 0 && percentile <= 1;
-        long[] snapshot = getHistogram();
-        long totalCount = Arrays.stream(snapshot).reduce(0L, Long::sum);
+        final long[] snapshot = getHistogram();
+        final long totalCount = Arrays.stream(snapshot).reduce(0L, Long::sum);
         long percentileIndex = (long) Math.ceil(totalCount * percentile);
         for (int i = 0; i < BUCKET_COUNT; i++) {
             percentileIndex -= snapshot[i];

@@ -7,25 +7,51 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.ElasticsearchException;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.kql.KqlPlugin;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class ScoringIT extends AbstractEsqlIntegTestCase {
+
+    private final String matchingClause;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), KqlPlugin.class);
+    }
+
+    @ParametersFactory
+    public static List<Object[]> params() {
+        List<Object[]> params = new ArrayList<>();
+        params.add(new Object[] { "match(content, \"fox\")" });
+        params.add(new Object[] { "content:\"fox\"" });
+        params.add(new Object[] { "qstr(\"content: fox\")" });
+        params.add(new Object[] { "kql(\"content*: fox\")" });
+        params.add(new Object[] { "term(content, \"fox\")" });
+        return params;
+    }
+
+    public ScoringIT(String matchingClause) {
+        this.matchingClause = matchingClause;
+    }
 
     @Before
     public void setupIndex() {
@@ -36,10 +62,10 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             METADATA _score
-            | WHERE match(content, "fox")
+            | WHERE %s
             | KEEP id, _score
             | SORT id ASC
-            """;
+            """.formatted(matchingClause);
 
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
@@ -53,10 +79,11 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             METADATA _score
-            | WHERE match(content, "fox")
+            | WHERE %s
             | KEEP id, _score
             | SORT id DESC
-            """;
+            """.formatted(matchingClause);
+        ;
 
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
@@ -69,10 +96,10 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             METADATA _score
-            | WHERE match(content, "fox")
+            | WHERE %s
             | KEEP id, _score
             | SORT _score DESC
-            """;
+            """.formatted(matchingClause);
 
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
@@ -85,104 +112,15 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             METADATA _score
-            | WHERE match(content, "fox")
+            | WHERE %s
             | KEEP id, _score
-            """;
+            """.formatted(matchingClause);
 
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
             assertValuesInAnyOrder(resp.values(), List.of(List.of(1, 1.156558871269226), List.of(6, 0.9114001989364624)));
         }
-    }
-
-    public void testNonExistingColumn() {
-        var query = """
-            FROM test
-            | WHERE match(something, "fox")
-            """;
-
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("Unknown column [something]"));
-    }
-
-    public void testWhereMatchEvalColumn() {
-        var query = """
-            FROM test
-            | EVAL upper_content = to_upper(content)
-            | WHERE match(upper_content, "FOX")
-            | KEEP id
-            """;
-
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("[MATCH] function cannot operate on [upper_content], which is not a field from an index mapping")
-        );
-    }
-
-    public void testWhereMatchOverWrittenColumn() {
-        var query = """
-            FROM test
-            | DROP content
-            | EVAL content = CONCAT("document with ID ", to_str(id))
-            | WHERE match(content, "document")
-            """;
-
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("[MATCH] function cannot operate on [content], which is not a field from an index mapping")
-        );
-    }
-
-    public void testWhereMatchAfterStats() {
-        var query = """
-            FROM test
-            | STATS count(*)
-            | WHERE match(content, "fox")
-            """;
-
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("Unknown column [content]"));
-    }
-
-    public void testWhereMatchNotPushedDown() {
-        var query = """
-            FROM test
-            | WHERE match(content, "fox") OR length(content) < 20
-            | KEEP id
-            | SORT id
-            """;
-
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id"));
-            assertColumnTypes(resp.columns(), List.of("integer"));
-            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
-        }
-    }
-
-    public void testWhereMatchWithRow() {
-        var query = """
-            ROW content = "a brown fox"
-            | WHERE match(content, "fox")
-            """;
-
-        var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("line 2:15: [MATCH] function cannot operate on [content], which is not a field from an index mapping")
-        );
-    }
-
-    public void testMatchWithinEval() {
-        var query = """
-            FROM test
-            | EVAL matches_query = match(content, "fox")
-            """;
-
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE commands"));
     }
 
     public void testMatchAllScoring() {
@@ -261,33 +199,34 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
         var queryWithoutFilter = """
             FROM test
             METADATA _score
-            | WHERE content:"fox"
+            | WHERE %s
             | KEEP id, _score
             | SORT id ASC
-            """;
+            """.formatted(matchingClause);
+        ;
         var query = """
             FROM test
             METADATA _score
-            | WHERE content:"fox" AND id > 4
+            | WHERE %s AND id > 4
             | KEEP id, _score
             | SORT id ASC
-            """;
+            """.formatted(matchingClause);
         checkSameScores(queryWithoutFilter, query);
 
         query = """
             FROM test
             METADATA _score
-            | WHERE content:"fox" AND (id > 4 or id < 2)
+            | WHERE %s AND (id > 4 or id < 2)
             | KEEP id, _score
             | SORT id ASC
-            """;
+            """.formatted(matchingClause);
         queryWithoutFilter = """
             FROM test
             METADATA _score
-            | WHERE content:"fox"
+            | WHERE %s
             | KEEP id, _score
             | SORT id ASC
-            """;
+            """.formatted(matchingClause);
         checkSameScores(queryWithoutFilter, query);
     }
 

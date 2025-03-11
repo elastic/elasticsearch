@@ -38,7 +38,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     public record Stat(String name, StatsType type, QueryBuilder query) {
         public QueryBuilder filter(QueryBuilder sourceQuery) {
-            return query == null ? sourceQuery : Queries.combine(Queries.Clause.FILTER, asList(sourceQuery, query));
+            return query == null ? sourceQuery : Queries.combine(Queries.Clause.FILTER, asList(sourceQuery, query)).boost(0.0f);
         }
     }
 
@@ -58,7 +58,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
     ) {
         super(source);
         this.indexPattern = indexPattern;
-        this.query = query.boost(0.0f);
+        this.query = query;
         this.limit = limit;
         this.attrs = attributes;
         this.stats = stats;

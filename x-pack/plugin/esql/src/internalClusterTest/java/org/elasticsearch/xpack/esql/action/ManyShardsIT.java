@@ -11,7 +11,6 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -93,11 +92,11 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 .setMapping("user", "type=keyword", "tags", "type=keyword")
                 .get();
             BulkRequestBuilder bulk = client().prepareBulk(index).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            int numDocs = between(5, 10);
+            int numDocs = between(10, 25); // every shard has at least 1 doc
             for (int d = 0; d < numDocs; d++) {
                 String user = randomFrom("u1", "u2", "u3");
                 String tag = randomFrom("java", "elasticsearch", "lucene");
-                bulk.add(new IndexRequest().source(Map.of("user", user, "tags", tag)));
+                bulk.add(client().prepareIndex().setSource(Map.of("user", user, "tags", tag)));
             }
             bulk.get();
         }

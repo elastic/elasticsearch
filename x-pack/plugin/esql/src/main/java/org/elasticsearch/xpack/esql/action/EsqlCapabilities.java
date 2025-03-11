@@ -863,6 +863,16 @@ public class EsqlCapabilities {
         MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,
 
         /**
+         * Support for RRF command
+         */
+        RRF(Build.current().isSnapshot()),
+
+        /**
+         * Full text functions can be scored when being part of a disjunction
+         */
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
+
+        /**
          * Use double parameter markers to represent field or function names.
          */
         DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS(Build.current().isSnapshot());

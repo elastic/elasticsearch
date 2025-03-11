@@ -237,7 +237,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 """);
         } else {
             createUser(BOTH_ACCESS, PASSWORD, DATA_ACCESS, FAILURE_STORE_ACCESS);
-            // TODO
             createAndStoreApiKey(BOTH_ACCESS, randomBoolean() ? null : """
                 {
                   "role": {

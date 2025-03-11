@@ -23,7 +23,6 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class ScoringIT extends AbstractEsqlIntegTestCase {
@@ -275,7 +274,7 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
             """;
         checkSameScores(queryWithoutFilter, query);
 
-        query= """
+        query = """
             FROM test
             METADATA _score
             | WHERE content:"fox" AND (id > 4 or id < 2)
@@ -306,7 +305,7 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp.values());
             for (List<Object> value : values) {
                 Double score = (Double) value.get(1);
-                assertThat(expectedScores.get((Integer)value.get(0)), equalTo(score));
+                assertThat(expectedScores.get((Integer) value.get(0)), equalTo(score));
             }
         }
     }

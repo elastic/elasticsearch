@@ -1261,11 +1261,13 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                     QueryBuilder actualInnerLuceneQuery = actualLuceneQuery.next();
 
                     if (predicate.equals(EQ)) {
-                        QueryBuilder expectedInnerQuery = QueryBuilders.termQuery(testCase.fieldName, Double.parseDouble(value)).boost(0.0f);
+                        QueryBuilder expectedInnerQuery = QueryBuilders.termQuery(testCase.fieldName, Double.parseDouble(value))
+                            .boost(0.0f);
                         assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
                     } else if (predicate.equals(NEQ)) {
                         QueryBuilder expectedInnerQuery = QueryBuilders.boolQuery()
-                            .mustNot(QueryBuilders.termQuery(testCase.fieldName, Double.parseDouble(value))).boost(0.0f);
+                            .mustNot(QueryBuilders.termQuery(testCase.fieldName, Double.parseDouble(value)))
+                            .boost(0.0f);
                         assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
                     } else { // one of LT, LTE, GT, GTE
                         assertTrue(actualInnerLuceneQuery instanceof RangeQueryBuilder);

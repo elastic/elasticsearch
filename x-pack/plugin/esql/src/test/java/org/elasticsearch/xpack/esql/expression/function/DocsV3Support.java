@@ -46,6 +46,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -902,7 +903,7 @@ public abstract class DocsV3Support {
         if (specInputStream == null) {
             throw new IllegalArgumentException("Failed to find examples file [" + csvFile + "]");
         }
-        try (BufferedReader spec = new BufferedReader(new InputStreamReader(specInputStream))) {
+        try (BufferedReader spec = new BufferedReader(new InputStreamReader(specInputStream, StandardCharsets.UTF_8))) {
 
             String line;
             Pattern tagPattern = Pattern.compile("//\\s*(tag|end)::([\\w\\-_]+)\\[]");

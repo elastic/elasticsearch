@@ -510,7 +510,7 @@ class IndicesAndAliasesResolver {
         }
 
         for (String aliasExpression : aliases) {
-            assertOnlyDataSelector(aliasExpression);
+            assertNoUnsupportedSelectors(aliasExpression);
             boolean include = true;
             if (aliasExpression.charAt(0) == '-') {
                 include = false;
@@ -538,7 +538,7 @@ class IndicesAndAliasesResolver {
         return finalAliases;
     }
 
-    private static void assertOnlyDataSelector(String expression) {
+    private static void assertNoUnsupportedSelectors(String expression) {
         if (Assertions.ENABLED) {
             Tuple<String, String> tuple = IndexNameExpressionResolver.splitSelectorExpression(expression);
             assert tuple.v2() == null || IndexComponentSelector.getByKey(tuple.v2()) == IndexComponentSelector.DATA

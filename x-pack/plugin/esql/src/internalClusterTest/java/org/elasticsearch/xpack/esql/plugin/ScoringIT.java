@@ -27,7 +27,10 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 public class ScoringIT extends AbstractEsqlIntegTestCase {
 
@@ -186,8 +189,6 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
 
     private void assertZeroScore(String query) {
         try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "_score"));
-            assertColumnTypes(resp.columns(), List.of("integer", "double"));
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp.values());
             for (List<Object> value : values) {
                 assertThat((Double) value.get(1), equalTo(0.0));
@@ -227,6 +228,112 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
             | SORT id ASC
             """, matchingClause);
         checkSameScores(queryWithoutFilter, query);
+    }
+
+    public void testDisjunctionScoring() {
+        var queryWithoutFilter = String.format(Locale.ROOT, """
+            FROM test
+            METADATA _score
+            | WHERE %s OR length(content) < 20
+            | KEEP id, _score
+            | SORT _score DESC, id ASC
+            """, matchingClause);
+        var query = String.format(Locale.ROOT, """
+            FROM test
+            METADATA _score
+            | WHERE %s
+            | KEEP id, _score
+            | SORT _score DESC, id ASC
+            """, matchingClause);
+
+        checkSameScores(queryWithoutFilter, query);
+
+        try (var resp = run(queryWithoutFilter)) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values.size(), equalTo(3));
+
+            assertThat(values.get(0).get(0), equalTo(1));
+            assertThat(values.get(1).get(0), equalTo(6));
+            assertThat(values.get(2).get(0), equalTo(2));
+
+            // Matches full text query and non pushable query
+            assertThat((Double) values.get(0).get(1), greaterThan(0.0));
+            assertThat((Double) values.get(1).get(1), greaterThan(0.0));
+            // Matches just non pushable query
+            assertThat((Double) values.get(2).get(1), equalTo(0.0));
+        }
+    }
+
+    public void testDisjunctionScoringPushableFunctions() {
+        var query = String.format(Locale.ROOT, """
+            FROM test METADATA _score
+            | WHERE %s OR match(content, "quick")
+            | KEEP id, _score
+            | SORT _score DESC, id ASC
+            """, matchingClause);
+
+        try (var resp = run(query)) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values.size(), equalTo(2));
+
+            assertThat(values.get(0).get(0), equalTo(6));
+            assertThat(values.get(1).get(0), equalTo(1));
+
+            // Matches both conditions
+            assertThat((Double) values.get(0).get(1), greaterThan(2.0));
+            // Matches a single condition
+            assertThat((Double) values.get(1).get(1), greaterThan(1.0));
+        }
+    }
+
+    public void testDisjunctionScoringMultipleNonPushableFunctions() {
+        var query = String.format(Locale.ROOT, """
+            FROM test METADATA _score
+            | WHERE %s
+            | KEEP id, _score
+            | SORT _score DESC
+            """, matchingClause);
+        var queryWithoutFilter = String.format(Locale.ROOT, """
+            FROM test METADATA _score
+            | WHERE %s OR length(content) < 20 AND id > 2
+            | KEEP id, _score
+            | SORT _score DESC
+            """, matchingClause);
+
+        checkSameScores(queryWithoutFilter, query);
+
+        try (var resp = run(queryWithoutFilter)) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values.size(), equalTo(2));
+
+            assertThat(values.get(0).get(0), equalTo(1));
+            assertThat(values.get(1).get(0), equalTo(6));
+
+            // Matches the full text query and the two pushable query
+            assertThat((Double) values.get(0).get(1), greaterThan(0.0));
+            // Matches just the match function
+            assertThat((Double) values.get(1).get(1), lessThan(1.0));
+            assertThat((Double) values.get(1).get(1), greaterThan(0.1));
+        }
+    }
+
+    public void testDisjunctionScoringWithNot() {
+        var query = String.format(Locale.ROOT, """
+            FROM test METADATA _score
+            | WHERE NOT(%s) OR length(content) > 50
+            | KEEP id, _score
+            | SORT _score DESC, id ASC
+            """, matchingClause);
+
+        try (var resp = run(query)) {
+            // Matches NOT gets 0.0
+            assertThat(getValuesList(resp), equalTo(List.of(
+                List.of(2, 0.0),
+                List.of(3, 0.0),
+                List.of(4, 0.0),
+                List.of(5, 0.0)
+            )));
+        }
     }
 
     private void checkSameScores(String queryWithoutFilter, String query) {

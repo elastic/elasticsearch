@@ -85,7 +85,7 @@ interface Injected {
 }
 
 tasks.named("test").configure {
-  if (buildParams.isCi() == false) {
+  if (buildParams.ci == false) {
     systemProperty 'generateDocs', true
     def injected = project.objects.newInstance(Injected)
     doFirst {
@@ -155,7 +155,7 @@ tasks.named("test").configure {
  *  Enable QA/rest integration tests for snapshot builds only   *
  *  TODO: Enable for all builds upon this feature release       *
  ****************************************************************/
-if (buildParams.isSnapshotBuild()) {
+if (buildParams.snapshotBuild) {
   addQaCheckDependencies(project)
 }
 
@@ -207,6 +207,7 @@ tasks.register("regenLexer", JavaExec) {
     '-package', 'org.elasticsearch.xpack.esql.parser',
     '-listener',
     '-visitor',
+    '-lib', "${file(grammarPath)}/lexer",
     '-o', outputPath,
     "${file(grammarPath)}/EsqlBaseLexer.g4"
 }
@@ -224,8 +225,9 @@ tasks.register("regenParser", JavaExec) {
     '-package', 'org.elasticsearch.xpack.esql.parser',
     '-listener',
     '-visitor',
-    '-o', outputPath,
     '-lib', outputPath,
+    '-lib', "${file(grammarPath)}/parser",
+    '-o', outputPath,
     "${file(grammarPath)}/EsqlBaseParser.g4"
 }
 

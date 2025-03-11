@@ -1,0 +1,34 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+def fwcVersions = buildParams.bwcVersions.released.findAll { it.major == VersionProperties.elasticsearchVersion.major &&  it.minor == VersionProperties.elasticsearchVersion.minor }
+def previousMinorSnapshot = buildParams.bwcVersions.unreleased.find { it.major == VersionProperties.elasticsearchVersion.major && it.minor == VersionProperties.elasticsearchVersion.minor - 1 }
+
+fwcVersions.each { fwcVersion ->
+  tasks.register("v${fwcVersion}#fwcTest", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(previousMinorSnapshot)
+    usesBwcDistribution(fwcVersion)
+    systemProperty("tests.old_cluster_version", previousMinorSnapshot)
+    systemProperty("tests.new_cluster_version", fwcVersion)
+    nonInputProperties.systemProperty 'tests.fwc', 'true'
+  }
+}
+
+gradle.taskGraph.whenReady { graph ->
+  if (graph.allTasks.any { it.name.endsWith('#fwcTest') } && Boolean.parseBoolean(System.getProperty("tests.bwc.snapshot", "true"))) {
+    throw new GradleException("Running forward compatibility tests requires passing `-Dtests.bwc.snapshot=false`.")
+  }
+
+  if (graph.allTasks.any { it.name.endsWith('#fwcTest') } && graph.allTasks.any { it.name.endsWith('#bwcTest') }) {
+    throw new GradleException("Backward compatibility and forward compatibility tests cannot be executed in the same build.")
+  }
+}

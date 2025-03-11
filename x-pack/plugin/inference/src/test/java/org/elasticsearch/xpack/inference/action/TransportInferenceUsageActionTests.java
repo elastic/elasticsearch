@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -64,7 +63,6 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
             mock(ClusterService.class),
             mock(ThreadPool.class),
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             client
         );
     }
@@ -94,7 +92,7 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         }).when(client).execute(any(GetInferenceModelAction.class), any(), any());
 
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        action.masterOperation(mock(Task.class), mock(XPackUsageRequest.class), mock(ClusterState.class), future);
+        action.localClusterStateOperation(mock(Task.class), mock(XPackUsageRequest.class), mock(ClusterState.class), future);
 
         BytesStreamOutput out = new BytesStreamOutput();
         future.get().getUsage().writeTo(out);

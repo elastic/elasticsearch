@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -373,8 +372,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
         private static final ParseField HIDDEN = new ParseField("hidden");
         private static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
-        // Remove this after this PR gets backported
-        @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
         private static final ParseField FAILURE_STORE = new ParseField("failure_store");
 
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(

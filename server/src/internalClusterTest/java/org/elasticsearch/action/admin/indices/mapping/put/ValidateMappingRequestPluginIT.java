@@ -32,7 +32,7 @@ public class ValidateMappingRequestPluginIT extends ESSingleNodeTestCase {
     public static class TestPlugin extends Plugin implements ActionPlugin {
         @Override
         public Collection<RequestValidators.RequestValidator<PutMappingRequest>> mappingRequestValidators() {
-            return Collections.singletonList((request, state, indices) -> {
+            return Collections.singletonList((request, projectMetadata, indices) -> {
                 for (Index index : indices) {
                     if (allowedOrigins.getOrDefault(index.getName(), Collections.emptySet()).contains(request.origin()) == false) {
                         return Optional.of(

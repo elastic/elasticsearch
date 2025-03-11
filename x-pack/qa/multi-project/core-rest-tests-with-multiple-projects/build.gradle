@@ -38,7 +38,6 @@ tasks.named("yamlRestTest").configure {
     '^cat.recovery/*/*',
     '^cat.snapshots/*/*',
     '^cluster.desired_balance/10_basic/*',
-    '^data_stream/10_basic/Get data stream and check DSL and ILM information',
     '^data_stream/40_supported_apis/Verify shard stores api', // uses _shard_stores API
     '^health/10_basic/*',
     '^health/40_diagnosis/*',
@@ -51,11 +50,6 @@ tasks.named("yamlRestTest").configure {
     '^test/ingest/70_bulk/Test bulk request with default pipeline', // uses stats API
     '^test/ingest/70_bulk/Test bulk request without default pipeline', // uses stats API
     '^migration/*/*',
-    // The following vector search tests do not work due to usage of cluster stats API
-    '^search.vectors/60_dense_vector_dynamic_mapping/Fields mapped as dense_vector have correct cluster stats min max values',
-    '^search.vectors/60_dense_vector_dynamic_mapping/Fields mapped as dense_vector without dims or docs have correct cluster stats values',
-    '^search.vectors/70_dense_vector_telemetry/Field mapping stats',
-    '^search.vectors/70_dense_vector_telemetry/Field mapping stats with field details',
     '^snapshot.clone/*/*',
     '^snapshot.create/*/*',
     '^snapshot.delete/*/*',
@@ -71,7 +65,6 @@ tasks.named("yamlRestTest").configure {
 
     // The node removal prevalidation is only available for a Stateful deployment.
     '^cluster.prevalidate_node_removal/*/*',
-
 
     // This behaviour doesn't work with security: https://github.com/elastic/elasticsearch/issues/120252
     '^reindex/30_search/Sorting deprecated wait_for_completion false',

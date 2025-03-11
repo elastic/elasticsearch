@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -85,6 +86,9 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
 
     public static AttributeSet computeReferences(List<Alias> fields) {
         AttributeSet generated = new AttributeSet(asAttributes(fields));
+        for (Alias field : fields) {
+            field.forEachDown(Lambda.class, lambda -> { generated.addAll(lambda.getFields()); });
+        }
         return Expressions.references(fields).subtract(generated);
     }
 

@@ -65,13 +65,11 @@ public class DeepSeekChatCompletionRequest implements Request {
 
     @Override
     public Request truncate() {
-        // No truncation for OpenAI chat completions
         return this;
     }
 
     @Override
     public boolean[] getTruncationInfo() {
-        // No truncation for OpenAI chat completions
         return null;
     }
 

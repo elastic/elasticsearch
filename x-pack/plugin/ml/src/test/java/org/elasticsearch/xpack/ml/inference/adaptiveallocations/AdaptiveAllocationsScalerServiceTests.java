@@ -130,7 +130,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
                     Instant.now(),
                     List.of(
                         AssignmentStats.NodeStats.forStartedState(
-                            DiscoveryNodeUtils.create("node_1"),
+                            randomBoolean() ? DiscoveryNodeUtils.create("node_1") : null,
                             inferenceCount,
                             latency,
                             latency,

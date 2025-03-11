@@ -27,41 +27,55 @@ public class PostSecretRequest extends ActionRequest {
     public static final ConstructingObjectParser<PostSecretRequest, Void> PARSER = new ConstructingObjectParser<>(
         "post_secret_request",
         args -> {
-            return new PostSecretRequest((String) args[0]);
+            return new PostSecretRequest(args[0]);
         }
     );
 
     static {
-        PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> p.text(),
-            VALUE_FIELD,
-            ObjectParser.ValueType.STRING
-        );
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return p.text();
+            } else if (p.currentToken() == XContentParser.Token.START_ARRAY) {
+                return p.list().stream().map(s -> (String) s).toArray(String[]::new);
+            } else {
+                throw new IllegalArgumentException("Unexpected token: " + p.currentToken());
+            }
+        }, VALUE_FIELD, ObjectParser.ValueType.STRING_ARRAY);
     }
 
     public static PostSecretRequest fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    private final String value;
+    private final Object value;
 
-    public PostSecretRequest(String value) {
+    public PostSecretRequest(Object value) {
+        if (!(value instanceof String) && !(value instanceof String[])) {
+            throw new IllegalArgumentException("value must be a string or an array of strings");
+        }
         this.value = value;
     }
 
     public PostSecretRequest(StreamInput in) throws IOException {
         super(in);
-        this.value = in.readString();
+        if (in.readByte() == 0) {
+            this.value = in.readString();
+        } else {
+            this.value = in.readStringArray();
+        }
     }
 
-    public String value() {
+    public Object value() {
         return value;
     }
 
     public XContentBuilder toXContent(XContentBuilder builder) throws IOException {
         builder.startObject();
-        builder.field(VALUE_FIELD.getPreferredName(), this.value);
+        if (value instanceof String) {
+            builder.field(VALUE_FIELD.getPreferredName(), (String) value);
+        } else if (value instanceof String[]) {
+            builder.field(VALUE_FIELD.getPreferredName(), (String[]) value);
+        }
         builder.endObject();
         return builder;
     }
@@ -69,7 +83,13 @@ public class PostSecretRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(value);
+        if (value instanceof String) {
+            out.writeBoolean(true);
+            out.writeString((String) value);
+        } else if (value instanceof String[]) {
+            out.writeBoolean(false);
+            out.writeStringArray((String[]) value);
+        }
     }
 
     @Override

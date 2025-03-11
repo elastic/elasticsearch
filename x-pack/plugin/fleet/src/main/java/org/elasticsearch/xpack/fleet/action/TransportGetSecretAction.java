@@ -18,6 +18,8 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
+
 import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
 import static org.elasticsearch.xpack.fleet.Fleet.FLEET_SECRETS_INDEX_NAME;
 
@@ -36,7 +38,19 @@ public class TransportGetSecretAction extends HandledTransportAction<GetSecretRe
                 delegate.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));
                 return;
             }
-            delegate.onResponse(new GetSecretResponse(getResponse.getId(), getResponse.getSource().get("value").toString()));
+            Object value = getResponse.getSource().get("value");
+            if (value instanceof String) {
+                delegate.onResponse(new GetSecretResponse(getResponse.getId(), value.toString()));
+            } else if (value instanceof List) {
+                List<?> valueList = (List<?>) value;
+                if (valueList.stream().allMatch(item -> item instanceof String)) {
+                    delegate.onResponse(new GetSecretResponse(getResponse.getId(), valueList.toArray(new String[0])));
+                } else {
+                    delegate.onFailure(new IllegalArgumentException("Unexpected value type in list for id [" + request.id() + "]"));
+                }
+            } else {
+                delegate.onFailure(new IllegalArgumentException("Unexpected value type for id [" + request.id() + "]"));
+            }
         }));
     }
 }

@@ -37,6 +37,13 @@ public class PostSecretRequestTests extends AbstractWireSerializingTestCase<Post
         assertNull(e);
     }
 
+    public void testValidateRequestWithMultiValue() {
+        String[] secrets = { "secret1", "secret2" };
+        PostSecretRequest req = new PostSecretRequest(secrets);
+        ActionRequestValidationException e = req.validate();
+        assertNull(e);
+    }
+
     public void testValidateRequestWithoutValue() {
         PostSecretRequest req = new PostSecretRequest((String) null);
         ActionRequestValidationException e = req.validate();

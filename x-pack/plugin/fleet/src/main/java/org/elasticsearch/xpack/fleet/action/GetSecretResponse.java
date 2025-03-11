@@ -20,15 +20,19 @@ import java.util.Objects;
 public class GetSecretResponse extends ActionResponse implements ToXContentObject {
 
     private final String id;
-    private final String value;
+    private final Object value;
 
     public GetSecretResponse(StreamInput in) throws IOException {
         super(in);
         id = in.readString();
-        value = in.readString();
+        if (in.readByte() == 0) {
+            value = in.readString();
+        } else {
+            value = in.readStringArray();
+        }
     }
 
-    public GetSecretResponse(String id, String value) {
+    public GetSecretResponse(String id, Object value) {
         this.id = id;
         this.value = value;
     }
@@ -40,15 +44,24 @@ public class GetSecretResponse extends ActionResponse implements ToXContentObjec
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        out.writeString(value);
+        if (value instanceof String) {
+            out.writeString((String) value);
+        } else if (value instanceof String[]) {
+            out.writeStringArray((String[]) value);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field("id", id);
-        builder.field("value", value);
-        return builder.endObject();
+        if (value instanceof String) {
+            builder.field("value", (String) value);
+        } else if (value instanceof String[]) {
+            builder.field("value", (String[]) value);
+        }
+        builder.endObject();
+        return builder;
     }
 
     @Override

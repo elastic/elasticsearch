@@ -316,7 +316,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
             from configurations.fips
           }
           into("resources") {
-            from fipsResourcesTask
+            from tasks.named('fipsResources')
           }
         }
       }

@@ -665,9 +665,18 @@ FROM employees
 
 ## `LOOKUP JOIN` [esql-lookup-join]
 
-`LOOKUP JOIN` is useful for any scenario where you need to pull in information from a lookup index to streamline data enrichment and analysis.
+::::{warning}
+This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
+::::
+
+`LOOKUP JOIN` enables you to add data from another index, AKA a 'lookup' index, to your {esql} query results, simplifying data enrichment and analysis workflows.
 
 **Syntax**
+
+```
+FROM <source_index>
+| LOOKUP JOIN <lookup_index> ON <field_name>
+```
 
 ```esql
 FROM firewall_logs
@@ -677,11 +686,18 @@ FROM firewall_logs
 
 **Parameters**
 
-TBD
+`<lookup_index>`
+: The name of the lookup index. This must be a specific index name - wildcards, aliases, and remote cluster references are not supported.
+`<field_name>`
+: The field to join on. This field must exist in both your current query results and in the lookup index. If the field contains multi-valued entries, those entries will not match anything (the added fields will contain `null` for those rows).
 
 **Description**
 
-TBD
+The `LOOKUP JOIN` command adds new columns to your {esql} query results table by finding documents in a lookup index that share the same join field value as your result rows.
+
+For each row in your results table that matches a document in the lookup index based on the join field, all fields from the matching document are added as new columns to that row.
+
+If multiple documents in the lookup index match a single row in your results, the output will contain one row for each matching combination.
 
 **Examples**
 

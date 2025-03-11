@@ -102,7 +102,7 @@ FROM employees
 
 ::::
 
-## Prerequisites for LOOKUP JOIN
+## Prerequisites [esql-lookup-join-prereqs]
 
 To use `LOOKUP JOIN`, the following requirements must be met:
 

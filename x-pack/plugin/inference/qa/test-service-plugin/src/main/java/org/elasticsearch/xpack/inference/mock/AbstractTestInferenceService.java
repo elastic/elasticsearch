@@ -77,7 +77,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         var secretSettings = TestSecretSettings.fromMap(secretSettingsMap);
 
         var taskSettingsMap = getTaskSettingsMap(config);
-        var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
+        var taskSettings = getTasksSettingsFromMap(taskSettingsMap);
 
         return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings);
     }
@@ -90,9 +90,13 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         var serviceSettings = getServiceSettingsFromMap(serviceSettingsMap);
 
         var taskSettingsMap = getTaskSettingsMap(config);
-        var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
+        var taskSettings = getTasksSettingsFromMap(taskSettingsMap);
 
         return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, null);
+    }
+
+    protected TaskSettings getTasksSettingsFromMap(Map<String, Object> taskSettingsMap) {
+        return TestTaskSettings.fromMap(taskSettingsMap);
     }
 
     protected abstract ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap);

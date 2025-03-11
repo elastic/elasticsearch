@@ -382,7 +382,7 @@ public class CsvTestsDataLoader {
                     "api_key": "abc64"
                 },
                 "task_settings": {
-                    "min_score": 0
+                    "use_text_length": true
                 }
             }
             """);

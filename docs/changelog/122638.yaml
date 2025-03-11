@@ -1,0 +1,7 @@
+pr: 122638
+summary: Expose `input_type` option at root level for `text_embedding` task type in
+  Perform Inference API
+area: Machine Learning
+type: enhancement
+issues:
+ - 117856

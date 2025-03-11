@@ -1113,9 +1113,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         runDataStreamTest(testCases, new String[] { "test_ds_patterns_1" }, (key, value) -> {
             logger.info(key);
-            var exception = expectThrows(ParsingException.class, () -> {
-                run("from " + key + " | stats count(@timestamp)").close();
-            });
+            var exception = expectThrows(ParsingException.class, () -> { run("from " + key + " | stats count(@timestamp)").close(); });
             assertThat(exception.getMessage(), containsString(value));
         });
     }

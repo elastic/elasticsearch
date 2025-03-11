@@ -189,7 +189,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         boolean isInternalDataStream
     ) {
         // If lifecycle is disabled there is no effective retention
-        if (isEffectivelyEnabled()) {
+        if (isEffectivelyEnabled() == false) {
             return INFINITE_RETENTION;
         }
         if (globalRetention == null || isInternalDataStream) {

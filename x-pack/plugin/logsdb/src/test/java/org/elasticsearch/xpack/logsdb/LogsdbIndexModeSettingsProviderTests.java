@@ -1169,7 +1169,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(systemIndex, 0),
             systemIndex,
             IndexMode.LOGSDB,
-            metadata.getProject(),
+            metadata,
             Instant.now(),
             settings,
             List.of(new CompressedXContent(mappings))

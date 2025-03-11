@@ -1333,6 +1333,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     // Throw away the first name as the archives have everything in a single top level folder we are not interested in
                     relativeDestination = relativeDestination.subpath(1, relativeDestination.getNameCount());
                     Path destination = destinationRoot.resolve(relativeDestination);
+                    try {
+                        Files.createDirectories(destination.getParent());
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
+                    }
                     syncMethod.accept(destination, source);
                     return FileVisitResult.CONTINUE;
                 }

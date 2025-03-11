@@ -87,9 +87,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             task.setBreakingChangesFile(projectDirectory.file("docs/release-notes/breaking-changes.md"));
 
             task.setDeprecationsTemplate(projectDirectory.file(RESOURCES + "templates/deprecations.md"));
-            task.setDeprecationsFile(
-                projectDirectory.file("docs/release-notes/deprecations.md")
-            );
+            task.setDeprecationsFile(projectDirectory.file("docs/release-notes/deprecations.md"));
 
             task.dependsOn(validateChangelogsTask);
         };

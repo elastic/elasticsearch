@@ -10,6 +10,7 @@
 package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
@@ -456,6 +457,7 @@ public abstract class TransportWriteAction<
         // read the values back from the engine as it could deadlock.
         private final AtomicLong globalCheckpoint;
         private final AtomicLong localCheckpoint;
+        private final AtomicReference<Exception> checkpointFailure = new AtomicReference<>(null);
 
         AsyncAfterWriteAction(
             final IndexShard indexShard,
@@ -503,7 +505,11 @@ public abstract class TransportWriteAction<
                     if (refreshFailure.get() != null) {
                         respond.onFailure(globalCheckpoint, localCheckpoint, refreshFailure.get());
                     } else {
-                        respond.onSuccess(globalCheckpoint, localCheckpoint, refreshed.get());
+                        if (checkpointFailure.get() != null) {
+                            respond.onFailure(globalCheckpoint, localCheckpoint, checkpointFailure.get());
+                        } else {
+                            respond.onSuccess(globalCheckpoint, localCheckpoint, refreshed.get());
+                        }
                     }
                 }
             }
@@ -512,11 +518,14 @@ public abstract class TransportWriteAction<
 
         private void updateCheckpoints() {
             try {
-                this.globalCheckpoint.accumulateAndGet(indexShard.getLastSyncedGlobalCheckpoint(), Math::max);
-                this.localCheckpoint.accumulateAndGet(indexShard.getLocalCheckpoint(), Math::max);
+                if (checkpointFailure.get() != null) {
+                    this.globalCheckpoint.accumulateAndGet(indexShard.getLastSyncedGlobalCheckpoint(), Math::max);
+                    this.localCheckpoint.accumulateAndGet(indexShard.getLocalCheckpoint(), Math::max);
+                }
+            } catch (AlreadyClosedException e) {
+                // the index was deleted or this shard was never activated after a relocation; fall through and finish normally
             } catch (Exception e) {
-                logger.warn("Failed to retrieve checkpoints", e);
-                assert false : e;
+                checkpointFailure.set(e);
             }
         }
 

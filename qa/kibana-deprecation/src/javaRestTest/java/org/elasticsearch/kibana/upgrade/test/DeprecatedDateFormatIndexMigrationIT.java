@@ -58,10 +58,10 @@ public class DeprecatedDateFormatIndexMigrationIT extends ESRestTestCase {
     }
 
     private static void startKibana() {
-        new GenericContainer<>("docker.elastic.co/kibana/kibana:8.18.0-SNAPSHOT")
-            .withEnv("ELASTICSEARCH_HOSTS", "[\"http://" + cluster.getHttpAddresses() + "\"]")
-            .withNetworkMode("host")
-            .start();
+        new GenericContainer<>("docker.elastic.co/kibana/kibana:8.18.0-SNAPSHOT").withEnv(
+            "ELASTICSEARCH_HOSTS",
+            "[\"http://" + cluster.getHttpAddresses() + "\"]"
+        ).withNetworkMode("host").start();
     }
 
     @Override

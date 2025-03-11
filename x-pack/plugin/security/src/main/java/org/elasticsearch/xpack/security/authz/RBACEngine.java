@@ -914,8 +914,7 @@ public class RBACEngine implements AuthorizationEngine {
             timeChecker.accept(indicesAndAliases);
             return indicesAndAliases;
         }, () -> {
-            // TODO is this right?
-            Consumer<Collection<String>> timeChecker = timerSupplier.get();
+            // TODO handle time checking in a follow-up
             Set<String> indicesAndAliases = new HashSet<>();
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
@@ -929,7 +928,6 @@ public class RBACEngine implements AuthorizationEngine {
                     }
                 }
             }
-            timeChecker.accept(indicesAndAliases);
             return indicesAndAliases;
         }, (name, selectorString) -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);

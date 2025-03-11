@@ -424,8 +424,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 }
             }
         }
-        {
-            var request = new Search("*");
+        for (var request : List.of(new Search("*"), new Search("_all"), new Search(""))) {
             for (var user : users) {
                 switch (user) {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:

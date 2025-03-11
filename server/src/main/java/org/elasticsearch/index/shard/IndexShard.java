@@ -3340,7 +3340,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * closed.
      */
     public Engine getEngineOrNull() {
-        SafeEngineAccessThreadLocal.checkAccess();
+        assert SafeEngineAccessThreadLocal.assertSafeAccess();
         return this.currentEngineReference.get();
     }
 

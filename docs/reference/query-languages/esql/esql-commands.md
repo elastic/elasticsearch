@@ -6,7 +6,6 @@ mapped_pages:
 
 # {{esql}} commands [esql-commands]
 
-
 ## Source commands [esql-source-commands]
 
 An {{esql}} source command produces a table, typically with data from {{es}}. An {{esql}} query must start with a source command.
@@ -39,6 +38,7 @@ An {{esql}} source command produces a table, typically with data from {{es}}. An
 * [`GROK`](#esql-grok)
 * [`KEEP`](#esql-keep)
 * [`LIMIT`](#esql-limit)
+* [preview] [`LOOKUP JOIN`](#esql-lookup-join)
 * [preview] [`MV_EXPAND`](#esql-mv_expand)
 * [`RENAME`](#esql-rename)
 * [`SORT`](#esql-sort)
@@ -663,6 +663,55 @@ FROM employees
 | LIMIT 5
 ```
 
+## `LOOKUP JOIN` [esql-lookup-join]
+
+`LOOKUP JOIN` is useful for any scenario where you need to pull in information from a lookup index to streamline data enrichment and analysis.
+
+**Syntax**
+
+```esql
+FROM firewall_logs
+| LOOKUP JOIN threat_list ON source.IP
+| WHERE threat_level IS NOT NULL
+```
+
+**Parameters**
+
+TBD
+
+**Description**
+
+TBD
+
+**Examples**
+
+**IP Threat correlation**: This query would allow you to see if any source IPs match known malicious addresses.
+
+```esql
+FROM firewall_logs
+| LOOKUP JOIN threat_list ON source.IP
+```
+
+**Host metadata correlation**: This query pulls in environment or ownership details for each host to correlate with your metrics data.
+
+```esql
+FROM system_metrics
+| LOOKUP JOIN host_inventory ON host.name
+| LOOKUP JOIN employees ON host.name
+```
+
+**Service ownership mapping**: This query would show logs with the owning team or escalation information for faster triage and incident response.
+
+```esql
+FROM app_logs
+| LOOKUP JOIN service_owners ON service_id
+```
+
+In case of name collisions, the newly created columns will override existing columns.
+
+```esql
+
+```
 
 ## `MV_EXPAND` [esql-mv_expand]
 

@@ -101,7 +101,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     public static final ConstructingObjectParser<DataStreamLifecycle, Void> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
         false,
-        (args, unused) -> new DataStreamLifecycle((Boolean) args[0], (TimeValue) args[1], (List<DownsamplingRound>) args[2])
+        (args, unused) -> new DataStreamLifecycle((boolean) args[0], (TimeValue) args[1], (List<DownsamplingRound>) args[2])
     );
 
     static {
@@ -126,8 +126,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
     }
 
-    @Nullable
-    private final Boolean enabled;
+    private final boolean enabled;
     @Nullable
     private final TimeValue dataRetention;
     @Nullable
@@ -142,23 +141,16 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         @Nullable TimeValue dataRetention,
         @Nullable List<DownsamplingRound> downsampling
     ) {
-        this.enabled = enabled;
+        this.enabled = enabled == null || enabled;
         this.dataRetention = dataRetention;
         DownsamplingRound.validateRounds(downsampling);
         this.downsampling = downsampling;
     }
 
     /**
-     * Returns true, if this data stream lifecycle configuration is enabled or null, false otherwise
+     * Returns true, if this data stream lifecycle configuration is enabled, false otherwise
      */
-    public boolean isEffectivelyEnabled() {
-        return enabled == null || enabled;
-    }
-
-    /**
-     * Returns the exact value of the configuration
-     */
-    public Boolean enabled() {
+    public boolean enabled() {
         return enabled;
     }
 
@@ -189,7 +181,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         boolean isInternalDataStream
     ) {
         // If lifecycle is disabled there is no effective retention
-        if (isEffectivelyEnabled() == false) {
+        if (enabled() == false) {
             return INFINITE_RETENTION;
         }
         if (globalRetention == null || isInternalDataStream) {
@@ -299,11 +291,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 out.writeBoolean(true);
             }
             out.writeOptionalCollection(downsampling);
-            if (out.getTransportVersion().before(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                out.writeBoolean(isEffectivelyEnabled());
-            } else {
-                out.writeOptionalBoolean(enabled);
-            }
+            out.writeBoolean(enabled());
         }
     }
 
@@ -318,11 +306,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
             boolean isDefined = in.getTransportVersion().before(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE) ? in.readBoolean() : true;
             downsampling = isDefined ? in.readOptionalCollectionAsList(DownsamplingRound::read) : null;
-            if (in.getTransportVersion().before(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                enabled = in.readBoolean();
-            } else {
-                enabled = in.readOptionalBoolean();
-            }
+            enabled = in.readBoolean();
         } else {
             downsampling = null;
             enabled = true;
@@ -415,8 +399,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      * This builder helps during the composition of the data stream lifecycle templates.
      */
     public static class Builder {
-        @Nullable
-        private Boolean enabled = null;
+        private boolean enabled = true;
         @Nullable
         private TimeValue dataRetention = null;
         @Nullable
@@ -430,7 +413,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
         }
 
-        public Builder enabled(@Nullable Boolean value) {
+        public Builder enabled(boolean value) {
             enabled = value;
             return this;
         }

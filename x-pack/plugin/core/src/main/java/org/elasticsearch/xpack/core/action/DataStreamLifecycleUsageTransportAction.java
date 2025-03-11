@@ -80,7 +80,7 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         LongSummaryStatistics effectiveRetentionStats = new LongSummaryStatistics();
 
         for (DataStream dataStream : dataStreams) {
-            if (dataStream.getLifecycle() != null && dataStream.getLifecycle().isEffectivelyEnabled()) {
+            if (dataStream.getLifecycle() != null && dataStream.getLifecycle().enabled()) {
                 dataStreamsWithLifecycles++;
                 // Track data retention
                 if (dataStream.getLifecycle().dataRetention() != null) {

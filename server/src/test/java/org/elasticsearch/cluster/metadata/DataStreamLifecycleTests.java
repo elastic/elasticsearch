@@ -79,15 +79,9 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                         : randomValueOtherThan(downsampling, DataStreamLifecycleTests::randomDownsampling);
                 }
             }
-            default -> {
-                if (enabled == null) {
-                    enabled = randomBoolean();
-                } else {
-                    enabled = randomBoolean() ? null : enabled == false;
-                }
-            }
+            default -> enabled = enabled == false;
         }
-        return DataStreamLifecycle.builder().dataRetention(retention).downsampling(downsampling).enabled(enabled).build();
+        return new DataStreamLifecycle(enabled, retention, downsampling);
     }
 
     @Override
@@ -122,7 +116,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             }
             boolean globalRetentionIsNotNull = globalRetention.defaultRetention() != null || globalRetention.maxRetention() != null;
             boolean configuredLifeCycleIsNotNull = lifecycle.dataRetention() != null;
-            if (lifecycle.isEffectivelyEnabled() && (globalRetentionIsNotNull || configuredLifeCycleIsNotNull)) {
+            if (lifecycle.enabled() && (globalRetentionIsNotNull || configuredLifeCycleIsNotNull)) {
                 assertThat(serialized, containsString("effective_retention"));
             } else {
                 assertThat(serialized, not(containsString("effective_retention")));
@@ -410,7 +404,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         return DataStreamLifecycle.builder()
             .dataRetention(randomBoolean() ? null : randomTimeValue(1, 365, TimeUnit.DAYS))
             .downsampling(randomBoolean() ? null : randomDownsampling())
-            .enabled(randomBoolean() ? null : randomBoolean())
+            .enabled(randomBoolean())
             .build();
     }
 

@@ -117,9 +117,7 @@ In addition, when [querying multiple indexes](docs-content://explore-analyze/que
 
 ## Full-text search [esql-limitations-full-text-search]
 
-[preview] {{esql}}'s support for [full-text search](/reference/query-languages/esql/esql-functions-operators.md#esql-search-functions) is currently in Technical Preview. One limitation of full-text search is that it is necessary to use the search function, like [`MATCH`](/reference/query-languages/esql/esql-functions-operators.md#esql-match), in a [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) command directly after the [`FROM`](/reference/query-languages/esql/esql-commands.md#esql-from) source command, or close enough to it. Otherwise, the query will fail with a validation error. Another limitation is that any [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) command containing a full-text search function cannot use disjunctions (`OR`), unless:
-
-* All functions used in the OR clauses are full-text functions themselves, or scoring is not used
+[preview] {{esql}}'s support for [full-text search](/reference/query-languages/esql/esql-functions-operators.md#esql-search-functions) is currently in Technical Preview. One limitation of full-text search is that it is necessary to use the search function, like [`MATCH`](/reference/query-languages/esql/esql-functions-operators.md#esql-match), in a [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) command directly after the [`FROM`](/reference/query-languages/esql/esql-commands.md#esql-from) source command, or close enough to it. Otherwise, the query will fail with a validation error.
 
 For example, this query is valid:
 
@@ -134,27 +132,6 @@ But this query will fail due to the [STATS](/reference/query-languages/esql/esql
 FROM books
 | STATS AVG(price) BY author
 | WHERE MATCH(author, "Faulkner")
-```
-
-And this query that uses a disjunction will succeed:
-
-```esql
-FROM books
-| WHERE MATCH(author, "Faulkner") OR QSTR("author: Hemingway")
-```
-
-However using scoring will fail because it uses a non full text function as part of the disjunction:
-
-```esql
-FROM books METADATA _score
-| WHERE MATCH(author, "Faulkner") OR author LIKE "Hemingway"
-```
-
-Scoring will work in the following query, as it uses full text functions on both `OR` clauses:
-
-```esql
-FROM books METADATA _score
-| WHERE MATCH(author, "Faulkner") OR QSTR("author: Hemingway")
 ```
 
 Note that, because of [the way {{esql}} treats `text` values](#esql-limitations-text-fields), any queries on `text` fields that do not explicitly use the full-text functions, [`MATCH`](/reference/query-languages/esql/esql-functions-operators.md#esql-match), [`QSTR`](/reference/query-languages/esql/esql-functions-operators.md#esql-qstr) or [`KQL`](/reference/query-languages/esql/esql-functions-operators.md#esql-kql), will behave as if the fields are actually `keyword` fields: they are case-sensitive and need to match the full string.

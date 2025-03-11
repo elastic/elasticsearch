@@ -4,9 +4,11 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-enrich-data.html
 ---
 
-# LOOKUP JOIN [esql-lookup-join]
+# LOOKUP JOIN [esql-lookup-join-reference]
 
-The {{esql}} [`LOOKUP join`](/reference/query-languages/esql/esql-commands.md#esql-lookup-join) processing command combines, at query-time, data from one or more source indexes with correlated information found in an input table. Teams often have data scattered across multiple indices – like logs, IPs, user IDs, hosts, employees etc. Without a direct way to enrich or correlate each event with reference data, root-cause analysis, security checks, and operational insights become time-consuming.
+The {{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/esql-commands.md#esql-lookup-join) processing command combines data from your {esql} query results table with matching records from a specified lookup index. It adds fields from the lookup index as new columns to your results table based on matching values in the join field.
+
+Teams often have data scattered across multiple indices – like logs, IPs, user IDs, hosts, employees etc. Without a direct way to enrich or correlate each event with reference data, root-cause analysis, security checks, and operational insights become time-consuming.
 
 For example, you can use `LOOKUP JOIN` to:
 
@@ -16,11 +18,11 @@ For example, you can use `LOOKUP JOIN` to:
 
 [`LOOKUP join`](/reference/query-languages/esql/esql-commands.md#esql-lookup-join) is similar to [`ENRICH`](/reference/query-languages/esql/esql-commands.md#esql-enrich) in the fact that they both help you join data together. You should use `LOOKUP JOIN` when:
 
-* Enrichment data changes frequently
-* You want to avoid index time processing
-* Working with regular indices
-* Need to preserve distinct matches
-* Need to match on any field in a lookup index
+* Your enrichment data changes frequently
+* You want to avoid index-time processing
+* You're working with regular indices
+* You need to preserve distinct matches
+* You need to match on any field in a lookup index
 * You use document or field level security
 
 ## How the `LOOKUP JOIN` command works [esql-how-lookup-join-works]
@@ -40,7 +42,7 @@ Source index
 
 In the case where there are multiple matches on the index `LOOKUP JOIN` the output rows is the combination of each match from the left with each match on the right. 
 
-Imagine you have the two tables:
+In this example, we have two sample tables:
 
 **Left**
 
@@ -84,7 +86,7 @@ FROM employees
 
 ::::
 
-## Prerequisites [esql-enrich-prereqs]
+## Prerequisites [esql-lookup-join-prereqs]
 
 To use `LOOKUP JOIN`, you must have:
 
@@ -94,10 +96,10 @@ To use `LOOKUP JOIN`, you must have:
 
 The following are the current limitations with `LOOKUP JOIN`
 
-* `LOOKUP JOIN` will be sucessfull if both left and right type of the join are both `KEYWORD` types or if the left type is of `TEXT` and the right type is `KEYWORD`.
+* `LOOKUP JOIN` will be successful if the join field in the lookup index is a `KEYWORD` type. If the main index's join field is `TEXT` type, it must have an exact `.keyword` subfield that can be matched with the lookup index's `KEYWORD` field.
 * Indices in [lookup](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) mode are always single-sharded.
 * Cross cluster search is unsupported. Both source and lookup indices must be local.
-* `LOOKUP JOIN` can only use a single match field, and can only use a single index. Wildcards, aliases, datemath, and datastreams are not supported.
+* `LOOKUP JOIN` can only use a single match field and a single index. Wildcards, aliases, datemath, and datastreams are not supported.
 * The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require renames or evals to achieve.
 * The query will circuit break if many documents from the lookup index have the same key. A large heap is needed to manage results of multiple megabytes per key.
   * This limit is per page of data which is about about 10,000 rows.

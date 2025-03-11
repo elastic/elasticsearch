@@ -87,20 +87,34 @@ public class PlanExecutor {
         metrics.total(clientId);
 
         var begin = System.nanoTime();
-        ActionListener<Result> executeListener = wrap(x -> {
-            planTelemetryManager.publish(planTelemetry, true);
-            slowLog.onQueryPhase(x, request.query());
-            listener.onResponse(x);
-        }, ex -> {
-            // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
-            metrics.failed(clientId);
-            planTelemetryManager.publish(planTelemetry, false);
-            slowLog.onQueryFailure(request.query(), ex, System.nanoTime() - begin);
-            listener.onFailure(ex);
-        });
+        ActionListener<Result> executeListener = wrap(
+            x -> onQuerySuccess(request, listener, x, planTelemetry),
+            ex -> onQueryFailure(request, listener, ex, clientId, planTelemetry, begin)
+        );
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
         // and all the metrics are properly updated
         ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, l));
+    }
+
+    private void onQuerySuccess(EsqlQueryRequest request, ActionListener<Result> listener, Result x, PlanTelemetry planTelemetry) {
+        planTelemetryManager.publish(planTelemetry, true);
+        slowLog.onQueryPhase(x, request.query());
+        listener.onResponse(x);
+    }
+
+    private void onQueryFailure(
+        EsqlQueryRequest request,
+        ActionListener<Result> listener,
+        Exception ex,
+        QueryMetric clientId,
+        PlanTelemetry planTelemetry,
+        long begin
+    ) {
+        // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
+        metrics.failed(clientId);
+        planTelemetryManager.publish(planTelemetry, false);
+        slowLog.onQueryFailure(request.query(), ex, System.nanoTime() - begin);
+        listener.onFailure(ex);
     }
 
     public IndexResolver indexResolver() {

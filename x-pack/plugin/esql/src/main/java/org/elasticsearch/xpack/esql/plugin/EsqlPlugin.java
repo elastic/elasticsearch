@@ -156,7 +156,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
     );
 
     @Override
-    public Collection<?> createComponents(Plugin.PluginServices services) {
+    public Collection<?> createComponents(PluginServices services) {
         CircuitBreaker circuitBreaker = services.indicesService().getBigArrays().breakerService().getBreaker("request");
         Objects.requireNonNull(circuitBreaker, "request circuit breaker wasn't set");
         Settings settings = services.clusterService().getSettings();

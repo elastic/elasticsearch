@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.session.Result;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_INCLUDE_USER_SETTING;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING;
@@ -29,12 +30,19 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_SLOWLOG_THRESH
 
 public final class EsqlSlowLog {
 
-    private final ClusterSettings clusterSettings;
+    public static final String ELASTICSEARCH_SLOWLOG_PREFIX = "elasticsearch.slowlog";
+    public static final String ELASTICSEARCH_SLOWLOG_ERROR_MESSAGE = ELASTICSEARCH_SLOWLOG_PREFIX + ".error.message";
+    public static final String ELASTICSEARCH_SLOWLOG_ERROR_TYPE = ELASTICSEARCH_SLOWLOG_PREFIX + ".error.type";
+    public static final String ELASTICSEARCH_SLOWLOG_TOOK = ELASTICSEARCH_SLOWLOG_PREFIX + ".took";
+    public static final String ELASTICSEARCH_SLOWLOG_TOOK_MILLIS = ELASTICSEARCH_SLOWLOG_PREFIX + ".took_millis";
+    public static final String ELASTICSEARCH_SLOWLOG_PLANNING_TOOK = ELASTICSEARCH_SLOWLOG_PREFIX + ".planning.took";
+    public static final String ELASTICSEARCH_SLOWLOG_PLANNING_TOOK_MILLIS = ELASTICSEARCH_SLOWLOG_PREFIX + ".planning.took_millis";
+    public static final String ELASTICSEARCH_SLOWLOG_SUCCESS = ELASTICSEARCH_SLOWLOG_PREFIX + ".success";
+    public static final String ELASTICSEARCH_SLOWLOG_SEARCH_TYPE = ELASTICSEARCH_SLOWLOG_PREFIX + ".search_type";
+    public static final String ELASTICSEARCH_SLOWLOG_QUERY = ELASTICSEARCH_SLOWLOG_PREFIX + ".query";
 
-    public static final String SLOWLOG_PREFIX = "esql.slowlog";
-
-    private static final Logger queryLogger = LogManager.getLogger(SLOWLOG_PREFIX + ".query");
-    private final SecurityContext security;
+    public static final String LOGGER_NAME = "esql.slowlog.query";
+    private static final Logger queryLogger = LogManager.getLogger(LOGGER_NAME);
 
     private volatile long queryWarnThreshold;
     private volatile long queryInfoThreshold;
@@ -43,13 +51,14 @@ public final class EsqlSlowLog {
 
     private volatile boolean includeUser;
 
+    private final SecurityContext security;
+
     public EsqlSlowLog(ClusterSettings settings, SecurityContext security) {
         settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING, this::setQueryWarnThreshold);
         settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING, this::setQueryInfoThreshold);
         settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING, this::setQueryDebugThreshold);
         settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING, this::setQueryTraceThreshold);
         settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_INCLUDE_USER_SETTING, this::setIncludeUser);
-        this.clusterSettings = settings;
 
         this.security = security;
     }
@@ -63,37 +72,22 @@ public final class EsqlSlowLog {
             return; // TODO review, it happens in some tests, not sure if it's a thing also in prod
         }
         long tookInNanos = esqlResult.executionInfo().overallTook().nanos();
-        if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
-            queryLogger.warn(Message.of(esqlResult, query, user()));
-        } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
-            queryLogger.info(Message.of(esqlResult, query, user()));
-
-        } else if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold) {
-            queryLogger.debug(Message.of(esqlResult, query, user()));
-
-        } else if (queryTraceThreshold >= 0 && tookInNanos > queryTraceThreshold) {
-            queryLogger.trace(Message.of(esqlResult, query, user()));
-
-        }
-    }
-
-    private User user() {
-        User user = null;
-        if (includeUser && security != null) {
-            user = security.getUser();
-        }
-        return user;
+        log(() -> Message.of(esqlResult, query, user()), tookInNanos);
     }
 
     public void onQueryFailure(String query, Exception ex, long tookInNanos) {
+        log(() -> Message.of(query, tookInNanos, ex, user()), tookInNanos);
+    }
+
+    private void log(Supplier<ESLogMessage> logProducer, long tookInNanos) {
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
-            queryLogger.warn(Message.of(query, tookInNanos, ex, user()));
+            queryLogger.warn(logProducer.get());
         } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
-            queryLogger.info(Message.of(query, tookInNanos, ex, user()));
+            queryLogger.info(logProducer.get());
         } else if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold) {
-            queryLogger.debug(Message.of(query, tookInNanos, ex, user()));
+            queryLogger.debug(logProducer.get());
         } else if (queryTraceThreshold >= 0 && tookInNanos > queryTraceThreshold) {
-            queryLogger.trace(Message.of(query, tookInNanos, ex, user()));
+            queryLogger.trace(logProducer.get());
         }
     }
 
@@ -117,6 +111,14 @@ public final class EsqlSlowLog {
         this.includeUser = includeUser;
     }
 
+    private User user() {
+        User user = null;
+        if (includeUser && security != null) {
+            user = security.getUser();
+        }
+        return user;
+    }
+
     static final class Message {
 
         private static String escapeJson(String text) {
@@ -125,36 +127,41 @@ public final class EsqlSlowLog {
         }
 
         public static ESLogMessage of(Result esqlResult, String query, User user) {
-            Map<String, Object> jsonFields = prepareMap(esqlResult, query, true, user);
-
+            Map<String, Object> jsonFields = new HashMap<>();
+            addGenericFields(jsonFields, query, true, user);
+            addResultFields(jsonFields, esqlResult);
             return new ESLogMessage().withFields(jsonFields);
         }
 
         public static ESLogMessage of(String query, long took, Exception exception, User user) {
-            Map<String, Object> jsonFields = prepareMap(null, query, false, user);
-            jsonFields.put("elasticsearch.slowlog.error.message", exception.getMessage() == null ? "" : exception.getMessage());
-            jsonFields.put("elasticsearch.slowlog.error.type", exception.getClass().getName());
-            jsonFields.put("elasticsearch.slowlog.took", took);
-            jsonFields.put("elasticsearch.slowlog.took_millis", took / 1_000_000);
+            Map<String, Object> jsonFields = new HashMap<>();
+            addGenericFields(jsonFields, query, false, user);
+            addErrorFields(jsonFields, took, exception);
             return new ESLogMessage().withFields(jsonFields);
         }
 
-        private static Map<String, Object> prepareMap(Result esqlResult, String query, boolean success, User user) {
-            Map<String, Object> messageFields = new HashMap<>();
+        private static void addGenericFields(Map<String, Object> fieldMap, String query, boolean success, User user) {
             if (user != null) {
-                messageFields.put("user.name", user.principal());
-            }
-            if (esqlResult != null) {
-                messageFields.put("elasticsearch.slowlog.took", esqlResult.executionInfo().overallTook().nanos());
-                messageFields.put("elasticsearch.slowlog.took_millis", esqlResult.executionInfo().overallTook().millis());
-                messageFields.put("elasticsearch.slowlog.planning.took", esqlResult.executionInfo().planningTookTime().nanos());
-                messageFields.put("elasticsearch.slowlog.planning.took_millis", esqlResult.executionInfo().planningTookTime().millis());
+                fieldMap.put("user.name", user.principal());
             }
             String source = escapeJson(query);
-            messageFields.put("elasticsearch.slowlog.success", success);
-            messageFields.put("elasticsearch.slowlog.search_type", "ESQL");
-            messageFields.put("elasticsearch.slowlog.query", source);
-            return messageFields;
+            fieldMap.put(ELASTICSEARCH_SLOWLOG_SUCCESS, success);
+            fieldMap.put(ELASTICSEARCH_SLOWLOG_SEARCH_TYPE, "ESQL");
+            fieldMap.put(ELASTICSEARCH_SLOWLOG_QUERY, source);
+        }
+
+        private static void addResultFields(Map<String, Object> fieldMap, Result esqlResult) {
+            fieldMap.put(ELASTICSEARCH_SLOWLOG_TOOK, esqlResult.executionInfo().overallTook().nanos());
+            fieldMap.put(ELASTICSEARCH_SLOWLOG_TOOK_MILLIS, esqlResult.executionInfo().overallTook().millis());
+            fieldMap.put(ELASTICSEARCH_SLOWLOG_PLANNING_TOOK, esqlResult.executionInfo().planningTookTime().nanos());
+            fieldMap.put(ELASTICSEARCH_SLOWLOG_PLANNING_TOOK_MILLIS, esqlResult.executionInfo().planningTookTime().millis());
+        }
+
+        private static void addErrorFields(Map<String, Object> jsonFields, long took, Exception exception) {
+            jsonFields.put(ELASTICSEARCH_SLOWLOG_TOOK, took);
+            jsonFields.put(ELASTICSEARCH_SLOWLOG_TOOK_MILLIS, took / 1_000_000);
+            jsonFields.put(ELASTICSEARCH_SLOWLOG_ERROR_MESSAGE, exception.getMessage() == null ? "" : exception.getMessage());
+            jsonFields.put(ELASTICSEARCH_SLOWLOG_ERROR_TYPE, exception.getClass().getName());
         }
     }
 }

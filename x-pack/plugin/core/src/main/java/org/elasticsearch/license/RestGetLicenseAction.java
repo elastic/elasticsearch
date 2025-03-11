@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.core.RestApiVersion.V_8;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -62,17 +61,17 @@ public class RestGetLicenseAction extends BaseRestHandler {
         overrideParams.put(License.REST_VIEW_MODE, "true");
         overrideParams.put(License.LICENSE_VERSION_MODE, String.valueOf(License.VERSION_CURRENT));
 
-        // In 7.x, there was an opt-in flag to show "enterprise" licenses. In 8.0 the flag is deprecated and can only be true
-        if (request.getRestApiVersion() == V_8 && request.hasParam("accept_enterprise")) {
+        // In 7.x, there was an opt-in flag to show "enterprise" licenses. In 8.0+ the flag is deprecated and can only be true
+        if (request.hasParam("accept_enterprise")) {
             deprecationLogger.warn(
-                DeprecationCategory.COMPATIBLE_API,
+                DeprecationCategory.API,
                 "get_license_accept_enterprise",
                 "Including [accept_enterprise] in get license requests is deprecated."
                     + " The parameter will be removed in the next major version"
             );
-            if (request.paramAsBoolean("accept_enterprise", true) == false) { // consumes the parameter to avoid error
-                throw new IllegalArgumentException("The [accept_enterprise] parameters may not be false");
-            }
+        }
+        if (request.paramAsBoolean("accept_enterprise", true) == false) { // consumes the parameter to avoid error
+            throw new IllegalArgumentException("The [accept_enterprise] parameters may not be false");
         }
 
         final ToXContent.Params params = new ToXContent.DelegatingMapParams(overrideParams, request);

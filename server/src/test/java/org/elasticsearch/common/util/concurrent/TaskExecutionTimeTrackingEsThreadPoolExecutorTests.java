@@ -9,9 +9,9 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -30,6 +30,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Tests for the automatic queue resizing of the {@code QueueResizingEsThreadPoolExecutorTests}
@@ -179,31 +180,47 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
 
         try {
             final var barrier = new CyclicBarrier(2);
-            executor.execute(() -> {
+            final HandlingTimeTracker handlingTimeTracker = new HandlingTimeTracker();
+            Future<?> runningTask = executor.submit(() -> {
                 safeAwait(barrier);
                 safeAwait(barrier);
             });
-            safeAwait(barrier);
-
-            Future<?> submit = executor.submit(() -> {
-                // Do nothing
-            });
-            final long delayTimeMs = randomLongBetween(1, 30);
-            safeSleep(delayTimeMs);
-            safeAwait(barrier);
-            safeGet(submit);
+            safeAwait(barrier); // wait till first task starts
+            handlingTimeTracker.addHandlingTime(0L); // first task should not be delayed
+            for (int i = 0; i < 10; i++) {
+                Future<?> waitingTask = executor.submit(() -> {
+                    safeAwait(barrier);
+                    safeAwait(barrier);
+                });
+                final long delayTimeMs = randomLongBetween(1, 50);
+                safeSleep(delayTimeMs);
+                safeAwait(barrier); // let running task complete
+                safeAwait(barrier); // wait for next task to start
+                safeGet(runningTask); // ensure previous task is complete
+                handlingTimeTracker.addHandlingTime(delayTimeMs);
+                runningTask = waitingTask;
+            }
+            safeAwait(barrier); // let last task finish
+            safeGet(runningTask);
+            meterRegistry.getRecorder().collect();
 
             List<Measurement> measurements = meterRegistry.getRecorder()
                 .getMeasurements(
-                    InstrumentType.DOUBLE_HISTOGRAM,
+                    InstrumentType.LONG_GAUGE,
                     ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName
                         + TaskExecutionTimeTrackingEsThreadPoolExecutor.THREAD_POOL_METRIC_NAME_QUEUE_TIME
                 );
-            assertEquals(2, measurements.size());
-            assertThat(measurements.get(1).getDouble(), greaterThanOrEqualTo(TimeValue.timeValueMillis(delayTimeMs).secondsFrac()));
+            assertThat(measurements, hasSize(2));
+            // we have to use greater than or equal to because the actual delay might be higher than what we imposed
+            assertThat(getPercentile(measurements, "90"), greaterThanOrEqualTo(handlingTimeTracker.getPercentile(0.9f)));
+            assertThat(getPercentile(measurements, "50"), greaterThanOrEqualTo(handlingTimeTracker.getPercentile(0.5f)));
         } finally {
             ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
         }
+    }
+
+    private long getPercentile(List<Measurement> measurements, String percentile) {
+        return measurements.stream().filter(m -> m.attributes().get("percentile").equals(percentile)).findFirst().orElseThrow().getLong();
     }
 
     /**

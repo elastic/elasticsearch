@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.network;
 
+import java.util.Arrays;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -63,4 +64,33 @@ public class HandlingTimeTracker {
         return histogram;
     }
 
+    /**
+     * Calculate the Nth percentile value
+     *
+     * @param percentile The percentile as a fraction (in [0, 1.0])
+     * @return A value greater than or equal to the specified fraction of values in the histogram
+     */
+    public long getPercentile(float percentile) {
+        assert percentile >= 0 && percentile <= 1;
+        long[] snapshot = getHistogram();
+        long totalCount = Arrays.stream(snapshot).reduce(0L, Long::sum);
+        long percentileIndex = (long) Math.ceil(totalCount * percentile);
+        for (int i = 0; i < BUCKET_COUNT; i++) {
+            percentileIndex -= snapshot[i];
+            if (percentileIndex <= 0) {
+                return getBucketUpperBounds()[i];
+            }
+        }
+        assert false : "We shouldn't ever get here";
+        return Long.MAX_VALUE;
+    }
+
+    /**
+     * Clear all values in the histogram (non-atomic)
+     */
+    public void clear() {
+        for (int i = 0; i < BUCKET_COUNT; i++) {
+            buckets[i].reset();
+        }
+    }
 }

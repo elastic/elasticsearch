@@ -545,7 +545,7 @@ public class PolicyManager {
         // Don't emit a log for muted classes, e.g. classes containing self tests
         if (mutedClasses.contains(callerClass) == false) {
             var moduleName = callerClass.getModule().getName();
-            var loggerSuffix = "." + componentName + "." + ((moduleName == null) ? "ALL_UNNAMED" : moduleName);
+            var loggerSuffix = "." + componentName + "." + ((moduleName == null) ? ALL_UNNAMED : moduleName);
             var notEntitledLogger = LogManager.getLogger(PolicyManager.class.getName() + loggerSuffix);
             String frameInfoSuffix = StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
                 .walk(this::findRequestingFrame)

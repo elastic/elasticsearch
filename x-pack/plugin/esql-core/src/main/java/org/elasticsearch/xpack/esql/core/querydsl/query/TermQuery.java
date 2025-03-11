@@ -75,7 +75,7 @@ public class TermQuery extends Query {
         return Objects.equals(term, other.term)
             && Objects.equals(value, other.value)
             && Objects.equals(caseInsensitive, other.caseInsensitive)
-            && Objects.equals(scorable, other.scorable);
+            && scorable == other.scorable;
     }
 
     @Override

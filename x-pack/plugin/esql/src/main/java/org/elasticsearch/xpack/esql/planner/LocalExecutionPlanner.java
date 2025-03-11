@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
@@ -24,7 +23,6 @@ import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.LimitOperator;
@@ -64,7 +62,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
@@ -78,8 +75,6 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.inference.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -102,6 +97,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RrfScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
@@ -278,9 +274,38 @@ public class LocalExecutionPlanner {
             return planExchangeSink(exchangeSink, context);
         } else if (node instanceof MergeExec mergeExec) {
             return planMerge(mergeExec, context);
+        } else if (node instanceof RrfScoreEvalExec rrf) {
+            return planRrfScoreEvalExec(rrf, context);
         }
 
         throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
+    }
+
+    private PhysicalOperation planRrfScoreEvalExec(RrfScoreEvalExec rrf, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(rrf.child(), context);
+
+        int scorePosition = -1;
+        int forkPosition = -1;
+        int pos = 0;
+        for (Attribute attr : rrf.child().output()) {
+            if (attr.name().equals(Fork.FORK_FIELD)) {
+                forkPosition = pos;
+            }
+            if (attr.name().equals(MetadataAttribute.SCORE)) {
+                scorePosition = pos;
+            }
+
+            pos += 1;
+        }
+
+        if (scorePosition == -1) {
+            throw new IllegalStateException("can't find _score attribute position");
+        }
+        if (forkPosition == -1) {
+            throw new IllegalStateException("can'find _fork attribute position");
+        }
+
+        return source.with(new RrfScoreEvalOperator.Factory(forkPosition, scorePosition), source.layout);
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {

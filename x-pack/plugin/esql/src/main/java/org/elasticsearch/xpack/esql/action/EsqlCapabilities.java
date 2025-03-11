@@ -810,6 +810,11 @@ public class EsqlCapabilities {
         MATCH_FUNCTION_OPTIONS,
 
         /**
+         * Support options in the query string function.
+         */
+        QUERY_STRING_FUNCTION_OPTIONS,
+
+        /**
          * Support for aggregate_metric_double type
          */
         AGGREGATE_METRIC_DOUBLE(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
@@ -860,7 +865,12 @@ public class EsqlCapabilities {
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
-        MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST;
+        MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,
+
+        /**
+         * Support for RRF command
+         */
+        RRF(Build.current().isSnapshot());
 
         private final boolean enabled;
 

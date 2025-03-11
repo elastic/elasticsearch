@@ -62,6 +62,7 @@ processingCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? forkCommand
     | {this.isDevVersion()}? rerankCommand
+    | {this.isDevVersion()}? rrfCommand
     ;
 
 whereCommand
@@ -272,6 +273,10 @@ forkSubQueryProcessingCommand
     | sortCommand
     | limitCommand
     ;
+
+rrfCommand
+   : DEV_RRF
+   ;
 
 rerankCommand
     : DEV_RERANK queryText=stringOrParameter ON fields WITH inferenceId=stringOrParameter

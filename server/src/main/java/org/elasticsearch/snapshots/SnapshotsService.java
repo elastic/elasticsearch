@@ -102,6 +102,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -737,58 +738,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS
             );
         }
-    }
-
-    private static ShardGenerations buildGenerations(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
-        ShardGenerations.Builder builder = ShardGenerations.builder();
-        if (snapshot.isClone()) {
-            snapshot.shardSnapshotStatusByRepoShardId().forEach((key, value) -> builder.put(key.index(), key.shardId(), value));
-        } else {
-            snapshot.shardSnapshotStatusByRepoShardId().forEach((key, value) -> {
-                final Index index = snapshot.indexByName(key.indexName());
-                if (metadata.findIndex(index).isEmpty()) {
-                    assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
-                    return;
-                }
-                builder.put(key.index(), key.shardId(), value);
-            });
-        }
-        return builder.build();
-    }
-
-    private static Metadata metadataForSnapshot(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
-        final Metadata.Builder builder;
-        if (snapshot.includeGlobalState() == false) {
-            // Remove global state from the cluster state
-            builder = Metadata.builder();
-            for (IndexId index : snapshot.indices().values()) {
-                final IndexMetadata indexMetadata = metadata.getProject().index(index.getName());
-                if (indexMetadata == null) {
-                    assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
-                } else {
-                    builder.put(indexMetadata, false);
-                }
-            }
-        } else {
-            builder = Metadata.builder(metadata);
-        }
-        // Only keep those data streams in the metadata that were actually requested by the initial snapshot create operation and that have
-        // all their indices contained in the snapshot
-        final Map<String, DataStream> dataStreams = new HashMap<>();
-        final Set<String> indicesInSnapshot = snapshot.indices().keySet();
-        for (String dataStreamName : snapshot.dataStreams()) {
-            DataStream dataStream = metadata.getProject().dataStreams().get(dataStreamName);
-            if (dataStream == null) {
-                assert snapshot.partial()
-                    : "Data stream [" + dataStreamName + "] was deleted during a snapshot but snapshot was not partial.";
-            } else {
-                final DataStream reconciled = dataStream.snapshot(indicesInSnapshot, builder);
-                if (reconciled != null) {
-                    dataStreams.put(dataStreamName, reconciled);
-                }
-            }
-        }
-        return builder.dataStreams(dataStreams, filterDataStreamAliases(dataStreams, metadata.getProject().dataStreamAliases())).build();
     }
 
     /**
@@ -1428,162 +1377,81 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             assert currentlyFinalizing.contains(snapshot.getRepository());
             assert repositoryOperations.assertNotQueued(snapshot);
 
-            SnapshotsInProgress.Entry entry = SnapshotsInProgress.get(clusterService.state()).snapshot(snapshot);
+            final var entry = SnapshotsInProgress.get(clusterService.state()).snapshot(snapshot);
             final String failure = entry.failure();
             logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
             final ShardGenerations shardGenerations = buildGenerations(entry, metadata);
-            final List<String> finalIndices = shardGenerations.indices().stream().map(IndexId::getName).toList();
-            final Set<String> indexNames = new HashSet<>(finalIndices);
-            ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
-            for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardStatus : entry.shardSnapshotStatusByRepoShardId().entrySet()) {
-                RepositoryShardId shardId = shardStatus.getKey();
-                if (indexNames.contains(shardId.indexName()) == false) {
-                    assert entry.partial() : "only ignoring shard failures for concurrently deleted indices for partial snapshots";
-                    continue;
-                }
-                ShardSnapshotStatus status = shardStatus.getValue();
-                final ShardState state = status.state();
-                if (state.failed()) {
-                    shardFailures.add(new SnapshotShardFailure(status.nodeId(), entry.shardId(shardId), status.reason()));
-                } else if (state.completed() == false) {
-                    shardFailures.add(new SnapshotShardFailure(status.nodeId(), entry.shardId(shardId), "skipped"));
-                } else {
-                    assert state == ShardState.SUCCESS;
-                }
-            }
-            final String repository = snapshot.getRepository();
-            final ListenableFuture<Metadata> metadataListener = new ListenableFuture<>();
-            final Repository repo = repositoriesService.repository(snapshot.getRepository());
-            if (entry.isClone()) {
-                // This listener is kinda unnecessary since we now always complete it synchronously. It's only here to catch exceptions.
-                // TODO simplify this.
-                ActionListener.completeWith(metadataListener, () -> {
-                    final Metadata existing = repo.getSnapshotGlobalMetadata(entry.source());
-                    final Metadata.Builder metaBuilder = Metadata.builder(existing);
-                    final Set<Index> existingIndices = new HashSet<>();
-                    for (IndexId index : entry.indices().values()) {
-                        final IndexMetadata indexMetadata = repo.getSnapshotIndexMetaData(repositoryData, entry.source(), index);
-                        existingIndices.add(indexMetadata.getIndex());
-                        metaBuilder.put(indexMetadata, false);
+            final SubscribableListener<List<ActionListener<SnapshotInfo>>> snapshotListeners = new SubscribableListener<>();
+
+            ActionListener.run(
+
+                new ActionListener<RepositoryData>() {
+                    @Override
+                    public void onResponse(RepositoryData updatedRepositoryData) {
+                        // get a hold of the listeners for this snapshot here and store them in the future so they can be used
+                        // by the snapshot info callback below and won't be failed needlessly if #runNextQueuedOperation runs into
+                        // a fatal like e.g. this node stopped being the master node
+                        snapshotListeners.onResponse(endAndGetListenersToResolve(snapshot));
+                        runNextQueuedOperation(updatedRepositoryData, snapshot.getRepository(), true);
                     }
-                    // remove those data streams from metadata for which we are missing indices
-                    Map<String, DataStream> dataStreamsToCopy = new HashMap<>();
-                    for (Map.Entry<String, DataStream> dataStreamEntry : existing.getProject().dataStreams().entrySet()) {
-                        if (existingIndices.containsAll(dataStreamEntry.getValue().getIndices())) {
-                            dataStreamsToCopy.put(dataStreamEntry.getKey(), dataStreamEntry.getValue());
-                        }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        handleFinalizationFailure(
+                            e,
+                            snapshot,
+                            repositoryData,
+                            // we might have written the new root blob before failing here, so we must use the updated shardGenerations
+                            shardGenerations
+                        );
                     }
-                    Map<String, DataStreamAlias> dataStreamAliasesToCopy = filterDataStreamAliases(
-                        dataStreamsToCopy,
-                        existing.getProject().dataStreamAliases()
+                },
+
+                repositoryDataListener -> {
+                    final List<String> finalIndices = shardGenerations.indices().stream().map(IndexId::getName).toList();
+                    final Set<String> finalIndicesSet = Set.copyOf(finalIndices);
+                    final List<SnapshotShardFailure> shardFailures = getSnapshotShardFailures(entry, finalIndicesSet);
+                    final Repository repository = repositoriesService.repository(snapshot.getRepository());
+                    final Metadata metaForSnapshot = metadataForSnapshot(entry, prepareMetadata(entry, repository));
+                    final SnapshotInfo snapshotInfo = new SnapshotInfo(
+                        snapshot,
+                        finalIndices,
+                        entry.dataStreams().stream().filter(metaForSnapshot.getProject().dataStreams()::containsKey).toList(),
+                        entry.partial() ? onlySuccessfulFeatureStates(entry, finalIndicesSet) : entry.featureStates(),
+                        failure,
+                        threadPool.absoluteTimeInMillis(),
+                        entry.partial() ? shardGenerations.totalShards() : entry.shardSnapshotStatusByRepoShardId().size(),
+                        shardFailures,
+                        entry.includeGlobalState(),
+                        entry.userMetadata(),
+                        entry.startTime(),
+                        getIndexSnapshotDetailsMap(entry, finalIndices)
                     );
-                    metaBuilder.dataStreams(dataStreamsToCopy, dataStreamAliasesToCopy);
-                    return metaBuilder.build();
-                });
-            } else {
-                metadataListener.onResponse(metadata);
-            }
-            metadataListener.addListener(ActionListener.wrap(meta -> {
-                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
-                final Metadata metaForSnapshot = metadataForSnapshot(entry, meta);
+                    repository.finalizeSnapshot(
+                        new FinalizeSnapshotContext(
+                            shardGenerations,
+                            repositoryData.getGenId(),
+                            metaForSnapshot,
+                            snapshotInfo,
+                            entry.version(),
+                            repositoryDataListener,
+                            () -> snapshotListeners.addListener(new ActionListener<>() {
+                                @Override
+                                public void onResponse(List<ActionListener<SnapshotInfo>> actionListeners) {
+                                    completeListenersIgnoringException(actionListeners, snapshotInfo);
+                                    logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
+                                }
 
-                final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = Maps.newMapWithExpectedSize(
-                    finalIndices.size()
-                );
-                for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardEntry : entry.shardSnapshotStatusByRepoShardId().entrySet()) {
-                    indexSnapshotDetails.compute(shardEntry.getKey().indexName(), (indexName, current) -> {
-                        if (current == SnapshotInfo.IndexSnapshotDetails.SKIPPED) {
-                            // already found an unsuccessful shard in this index, skip this shard
-                            return current;
-                        }
-
-                        final ShardSnapshotStatus shardSnapshotStatus = shardEntry.getValue();
-                        if (shardSnapshotStatus.state() != ShardState.SUCCESS) {
-                            // first unsuccessful shard in this index found, record that this index should be skipped
-                            return SnapshotInfo.IndexSnapshotDetails.SKIPPED;
-                        }
-
-                        final ShardSnapshotResult result = shardSnapshotStatus.shardSnapshotResult();
-                        if (result == null) {
-                            // detailed result not recorded, skip this index
-                            return SnapshotInfo.IndexSnapshotDetails.SKIPPED;
-                        }
-
-                        if (current == null) {
-                            return new SnapshotInfo.IndexSnapshotDetails(1, result.getSize(), result.getSegmentCount());
-                        } else {
-                            return new SnapshotInfo.IndexSnapshotDetails(
-                                current.getShardCount() + 1,
-                                ByteSizeValue.ofBytes(current.getSize().getBytes() + result.getSize().getBytes()),
-                                Math.max(current.getMaxSegmentsPerShard(), result.getSegmentCount())
-                            );
-                        }
-                    });
+                                @Override
+                                public void onFailure(Exception e) {
+                                    // never fails
+                                    assert false : e;
+                                }
+                            })
+                        )
+                    );
                 }
-                indexSnapshotDetails.entrySet().removeIf(e -> e.getValue().getShardCount() == 0);
-
-                final SnapshotInfo snapshotInfo = new SnapshotInfo(
-                    snapshot,
-                    finalIndices,
-                    entry.dataStreams().stream().filter(metaForSnapshot.getProject().dataStreams()::containsKey).toList(),
-                    entry.partial() ? onlySuccessfulFeatureStates(entry, finalIndices) : entry.featureStates(),
-                    failure,
-                    threadPool.absoluteTimeInMillis(),
-                    entry.partial() ? shardGenerations.totalShards() : entry.shardSnapshotStatusByRepoShardId().size(),
-                    shardFailures,
-                    entry.includeGlobalState(),
-                    entry.userMetadata(),
-                    entry.startTime(),
-                    indexSnapshotDetails
-                );
-                final ListenableFuture<List<ActionListener<SnapshotInfo>>> snapshotListeners = new ListenableFuture<>();
-                repo.finalizeSnapshot(
-                    new FinalizeSnapshotContext(
-                        shardGenerations,
-                        repositoryData.getGenId(),
-                        metaForSnapshot,
-                        snapshotInfo,
-                        entry.version(),
-                        ActionListener.wrap(updatedRepositoryData -> {
-                            // get a hold of the listeners for this snapshot here and store them in the future so they can be used
-                            // by the snapshot info callback below and won't be failed needlessly if #runNextQueuedOperation runs into
-                            // a fatal like e.g. this node stopped being the master node
-                            snapshotListeners.onResponse(endAndGetListenersToResolve(snapshot));
-                            runNextQueuedOperation(updatedRepositoryData, repository, true);
-                        },
-                            e -> handleFinalizationFailure(
-                                e,
-                                snapshot,
-                                repositoryData,
-                                // we might have written the new root blob before failing here, so we must use the updated shardGenerations
-                                shardGenerations
-                            )
-                        ),
-                        () -> snapshotListeners.addListener(new ActionListener<>() {
-                            @Override
-                            public void onResponse(List<ActionListener<SnapshotInfo>> actionListeners) {
-                                completeListenersIgnoringException(actionListeners, snapshotInfo);
-                                logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                // never fails
-                                assert false : e;
-                            }
-                        })
-                    )
-                );
-            },
-                e -> handleFinalizationFailure(
-                    e,
-                    snapshot,
-                    repositoryData,
-                    // a failure here means the root blob was not updated, but the updated shard generation blobs are all in place so we can
-                    // use the updated shardGenerations for all pending shard snapshots
-                    shardGenerations
-                )
-            ));
+            );
         }
 
         @Override
@@ -1602,32 +1470,212 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             assert false : new AssertionError("unexpected failure finalizing " + snapshot, e);
             handleFinalizationFailure(e, snapshot, repositoryData, ShardGenerations.EMPTY);
         }
-    }
 
-    /**
-     * Removes all feature states which have missing or failed shards, as they are no longer safely restorable.
-     * @param entry The "in progress" entry with a list of feature states and one or more failed shards.
-     * @param finalIndices The final list of indices in the snapshot, after any indices that were concurrently deleted are removed.
-     * @return The list of feature states which were completed successfully in the given entry.
-     */
-    private static List<SnapshotFeatureInfo> onlySuccessfulFeatureStates(SnapshotsInProgress.Entry entry, List<String> finalIndices) {
-        assert entry.partial() : "should not try to filter feature states from a non-partial entry";
-
-        // Figure out which indices have unsuccessful shards
-        Set<String> indicesWithUnsuccessfulShards = new HashSet<>();
-        entry.shardSnapshotStatusByRepoShardId().forEach((key, value) -> {
-            final ShardState shardState = value.state();
-            if (shardState.failed() || shardState.completed() == false) {
-                indicesWithUnsuccessfulShards.add(key.indexName());
+        private static ShardGenerations buildGenerations(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
+            ShardGenerations.Builder builder = ShardGenerations.builder();
+            if (snapshot.isClone()) {
+                snapshot.shardSnapshotStatusByRepoShardId().forEach((key, value) -> builder.put(key.index(), key.shardId(), value));
+            } else {
+                snapshot.shardSnapshotStatusByRepoShardId().forEach((key, value) -> {
+                    final Index index = snapshot.indexByName(key.indexName());
+                    if (metadata.findIndex(index).isEmpty()) {
+                        assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
+                        return;
+                    }
+                    builder.put(key.index(), key.shardId(), value);
+                });
             }
-        });
+            return builder.build();
+        }
 
-        // Now remove any feature states which contain any of those indices, as the feature state is not intact and not safely restorable
-        return entry.featureStates()
-            .stream()
-            .filter(stateInfo -> finalIndices.containsAll(stateInfo.getIndices()))
-            .filter(stateInfo -> stateInfo.getIndices().stream().anyMatch(indicesWithUnsuccessfulShards::contains) == false)
-            .toList();
+        private List<SnapshotShardFailure> getSnapshotShardFailures(SnapshotsInProgress.Entry entry, Set<String> indexNames) {
+            final var shardFailures = new ArrayList<SnapshotShardFailure>();
+            for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardStatus : entry.shardSnapshotStatusByRepoShardId().entrySet()) {
+                RepositoryShardId shardId = shardStatus.getKey();
+                if (indexNames.contains(shardId.indexName()) == false) {
+                    assert entry.partial() : "only ignoring shard failures for concurrently deleted indices for partial snapshots";
+                    continue;
+                }
+                ShardSnapshotStatus status = shardStatus.getValue();
+                final ShardState state = status.state();
+                if (state.failed()) {
+                    shardFailures.add(new SnapshotShardFailure(status.nodeId(), entry.shardId(shardId), status.reason()));
+                } else if (state.completed() == false) {
+                    shardFailures.add(new SnapshotShardFailure(status.nodeId(), entry.shardId(shardId), "skipped"));
+                } else {
+                    assert state == ShardState.SUCCESS;
+                }
+            }
+            return shardFailures;
+        }
+
+        private Metadata prepareMetadata(SnapshotsInProgress.Entry entry, Repository repository) throws IOException {
+            if (entry.isClone()) {
+                // Synthesize a Metadata for the clone by loading all the relevant metadata blobs from the repository.
+                // TODO This shouldn't be necessary: if we're using the old-fashioned metadata-per-snapshot layout then we should be able
+                // to copy these blobs one-by-one rather than loading them all on-heap at once, and if we're using the new deduplicated
+                // index metadata layout then we should just be able to refer to the same metadata UUIDs in the clone without loading
+                // anything at all.
+                final Metadata existing = repository.getSnapshotGlobalMetadata(entry.source());
+                final Metadata.Builder metaBuilder = Metadata.builder(existing);
+                final Set<Index> existingIndices = new HashSet<>();
+                for (IndexId index : entry.indices().values()) {
+                    final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repositoryData, entry.source(), index);
+                    existingIndices.add(indexMetadata.getIndex());
+                    metaBuilder.put(indexMetadata, false);
+                }
+                // remove those data streams from metadata for which we are missing indices
+                Map<String, DataStream> dataStreamsToCopy = new HashMap<>();
+                for (Map.Entry<String, DataStream> dataStreamEntry : existing.getProject().dataStreams().entrySet()) {
+                    if (existingIndices.containsAll(dataStreamEntry.getValue().getIndices())) {
+                        dataStreamsToCopy.put(dataStreamEntry.getKey(), dataStreamEntry.getValue());
+                    }
+                }
+                Map<String, DataStreamAlias> dataStreamAliasesToCopy = filterDataStreamAliases(
+                    dataStreamsToCopy,
+                    existing.getProject().dataStreamAliases()
+                );
+                metaBuilder.dataStreams(dataStreamsToCopy, dataStreamAliasesToCopy);
+                return metaBuilder.build();
+            } else {
+                return metadata;
+            }
+        }
+
+        private static Metadata metadataForSnapshot(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
+            final Metadata.Builder builder;
+            if (snapshot.includeGlobalState() == false) {
+                // Remove global state from the cluster state
+                builder = Metadata.builder();
+                for (IndexId index : snapshot.indices().values()) {
+                    final IndexMetadata indexMetadata = metadata.getProject().index(index.getName());
+                    if (indexMetadata == null) {
+                        assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
+                    } else {
+                        builder.put(indexMetadata, false);
+                    }
+                }
+            } else {
+                builder = Metadata.builder(metadata);
+            }
+            // Only keep those data streams in the metadata that were actually requested by the initial snapshot create operation and that
+            // have all their indices contained in the snapshot
+            final Map<String, DataStream> dataStreams = new HashMap<>();
+            final Set<String> indicesInSnapshot = snapshot.indices().keySet();
+            for (String dataStreamName : snapshot.dataStreams()) {
+                DataStream dataStream = metadata.getProject().dataStreams().get(dataStreamName);
+                if (dataStream == null) {
+                    assert snapshot.partial()
+                        : "Data stream [" + dataStreamName + "] was deleted during a snapshot but snapshot was not partial.";
+                } else {
+                    final DataStream reconciled = dataStream.snapshot(indicesInSnapshot, builder);
+                    if (reconciled != null) {
+                        dataStreams.put(dataStreamName, reconciled);
+                    }
+                }
+            }
+            return builder.dataStreams(dataStreams, filterDataStreamAliases(dataStreams, metadata.getProject().dataStreamAliases()))
+                .build();
+        }
+
+        /**
+         * Removes all feature states which have missing or failed shards, as they are no longer safely restorable.
+         * @param entry The "in progress" entry with a list of feature states and one or more failed shards.
+         * @param finalIndices The final list of indices in the snapshot, after any indices that were concurrently deleted are removed.
+         * @return The list of feature states which were completed successfully in the given entry.
+         */
+        private static List<SnapshotFeatureInfo> onlySuccessfulFeatureStates(SnapshotsInProgress.Entry entry, Set<String> finalIndices) {
+            assert entry.partial() : "should not try to filter feature states from a non-partial entry";
+
+            // Figure out which indices have unsuccessful shards
+            Set<String> indicesWithUnsuccessfulShards = new HashSet<>();
+            entry.shardSnapshotStatusByRepoShardId().forEach((key, value) -> {
+                final ShardState shardState = value.state();
+                if (shardState.failed() || shardState.completed() == false) {
+                    indicesWithUnsuccessfulShards.add(key.indexName());
+                }
+            });
+
+            // Now remove any feature states which contain any of those indices, as the feature state is not intact and not safely
+            // restorable
+            return entry.featureStates()
+                .stream()
+                .filter(stateInfo -> finalIndices.containsAll(stateInfo.getIndices()))
+                .filter(stateInfo -> stateInfo.getIndices().stream().anyMatch(indicesWithUnsuccessfulShards::contains) == false)
+                .toList();
+        }
+
+        private static Map<String, SnapshotInfo.IndexSnapshotDetails> getIndexSnapshotDetailsMap(
+            SnapshotsInProgress.Entry entry,
+            List<String> finalIndices
+        ) {
+            final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = Maps.newMapWithExpectedSize(finalIndices.size());
+            for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardEntry : entry.shardSnapshotStatusByRepoShardId().entrySet()) {
+                indexSnapshotDetails.compute(shardEntry.getKey().indexName(), (indexName, current) -> {
+                    if (current == SnapshotInfo.IndexSnapshotDetails.SKIPPED) {
+                        // already found an unsuccessful shard in this index, skip this shard
+                        return current;
+                    }
+
+                    final ShardSnapshotStatus shardSnapshotStatus = shardEntry.getValue();
+                    if (shardSnapshotStatus.state() != ShardState.SUCCESS) {
+                        // first unsuccessful shard in this index found, record that this index should be skipped
+                        return SnapshotInfo.IndexSnapshotDetails.SKIPPED;
+                    }
+
+                    final ShardSnapshotResult result = shardSnapshotStatus.shardSnapshotResult();
+                    if (result == null) {
+                        // detailed result not recorded, skip this index
+                        return SnapshotInfo.IndexSnapshotDetails.SKIPPED;
+                    }
+
+                    if (current == null) {
+                        return new SnapshotInfo.IndexSnapshotDetails(1, result.getSize(), result.getSegmentCount());
+                    } else {
+                        return new SnapshotInfo.IndexSnapshotDetails(
+                            current.getShardCount() + 1,
+                            ByteSizeValue.ofBytes(current.getSize().getBytes() + result.getSize().getBytes()),
+                            Math.max(current.getMaxSegmentsPerShard(), result.getSegmentCount())
+                        );
+                    }
+                });
+            }
+            indexSnapshotDetails.entrySet().removeIf(e -> e.getValue().getShardCount() == 0);
+            return indexSnapshotDetails;
+        }
+
+        /**
+         * Handles failure to finalize a snapshot. If the exception indicates that this node was unable to publish a cluster state and
+         * stopped being the master node, then fail all snapshot create and delete listeners executing on this node by delegating to
+         * {@link #failAllListenersOnMasterFailOver}. Otherwise, i.e. as a result of failing to write to the snapshot repository for some
+         * reason, remove the snapshot's {@link SnapshotsInProgress.Entry} from the cluster state and move on with other queued snapshot
+         * operations if there are any.
+         *
+         * @param e              exception encountered
+         * @param snapshot       snapshot that failed to finalize
+         * @param repositoryData current repository data for the snapshot's repository
+         */
+        private void handleFinalizationFailure(
+            Exception e,
+            Snapshot snapshot,
+            RepositoryData repositoryData,
+            ShardGenerations shardGenerations
+        ) {
+            if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
+                // Failure due to not being master any more, don't try to remove snapshot from cluster state the next master
+                // will try ending this snapshot again
+                logger.debug(() -> "[" + snapshot + "] failed to update cluster state during snapshot finalization", e);
+                failSnapshotCompletionListeners(
+                    snapshot,
+                    new SnapshotException(snapshot, "Failed to update cluster state during snapshot finalization", e),
+                    Runnable::run
+                );
+                failAllListenersOnMasterFailOver(e);
+            } else {
+                logger.warn(() -> "[" + snapshot + "] failed to finalize snapshot", e);
+                removeFailedSnapshotFromClusterState(snapshot, e, repositoryData, shardGenerations);
+            }
+        }
     }
 
     /**
@@ -1639,39 +1687,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final List<ActionListener<SnapshotInfo>> listenersToComplete = snapshotCompletionListeners.remove(snapshot);
         endingSnapshots.remove(snapshot);
         return listenersToComplete;
-    }
-
-    /**
-     * Handles failure to finalize a snapshot. If the exception indicates that this node was unable to publish a cluster state and stopped
-     * being the master node, then fail all snapshot create and delete listeners executing on this node by delegating to
-     * {@link #failAllListenersOnMasterFailOver}. Otherwise, i.e. as a result of failing to write to the snapshot repository for some
-     * reason, remove the snapshot's {@link SnapshotsInProgress.Entry} from the cluster state and move on with other queued snapshot
-     * operations if there are any.
-     *
-     * @param e              exception encountered
-     * @param snapshot       snapshot that failed to finalize
-     * @param repositoryData current repository data for the snapshot's repository
-     */
-    private void handleFinalizationFailure(
-        Exception e,
-        Snapshot snapshot,
-        RepositoryData repositoryData,
-        ShardGenerations shardGenerations
-    ) {
-        if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
-            // Failure due to not being master any more, don't try to remove snapshot from cluster state the next master
-            // will try ending this snapshot again
-            logger.debug(() -> "[" + snapshot + "] failed to update cluster state during snapshot finalization", e);
-            failSnapshotCompletionListeners(
-                snapshot,
-                new SnapshotException(snapshot, "Failed to update cluster state during snapshot finalization", e),
-                Runnable::run
-            );
-            failAllListenersOnMasterFailOver(e);
-        } else {
-            logger.warn(() -> "[" + snapshot + "] failed to finalize snapshot", e);
-            removeFailedSnapshotFromClusterState(snapshot, e, repositoryData, shardGenerations);
-        }
     }
 
     /**

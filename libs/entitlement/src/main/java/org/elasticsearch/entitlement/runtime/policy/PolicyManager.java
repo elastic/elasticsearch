@@ -250,7 +250,7 @@ public class PolicyManager {
         String componentName = getEntitlements(requestingClass).componentName();
         notEntitled(
             Strings.format(
-                "Not entitled: component [%s], module [%s], class [%s], operation [%s]",
+                "component [%s], module [%s], class [%s], operation [%s]",
                 componentName,
                 requestingClass.getModule().getName(),
                 requestingClass,
@@ -368,7 +368,7 @@ public class PolicyManager {
         if (canRead == false) {
             notEntitled(
                 Strings.format(
-                    "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
+                    "component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
                     entitlements.componentName(),
                     requestingClass.getModule().getName(),
                     requestingClass,
@@ -398,7 +398,7 @@ public class PolicyManager {
         if (entitlements.fileAccess().canWrite(path) == false) {
             notEntitled(
                 Strings.format(
-                    "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [write], path [%s]",
+                    "component [%s], module [%s], class [%s], entitlement [file], operation [write], path [%s]",
                     entitlements.componentName(),
                     requestingClass.getModule().getName(),
                     requestingClass,
@@ -487,7 +487,7 @@ public class PolicyManager {
         if (classEntitlements.hasEntitlement(entitlementClass) == false) {
             notEntitled(
                 Strings.format(
-                    "Not entitled: component [%s], module [%s], class [%s], entitlement [%s]",
+                    "component [%s], module [%s], class [%s], entitlement [%s]",
                     classEntitlements.componentName(),
                     requestingClass.getModule().getName(),
                     requestingClass,
@@ -529,7 +529,7 @@ public class PolicyManager {
         }
         notEntitled(
             Strings.format(
-                "Not entitled: component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
+                "component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
                 entitlements.componentName(),
                 requestingClass.getModule().getName(),
                 requestingClass,
@@ -551,7 +551,7 @@ public class PolicyManager {
                 .walk(this::findRequestingFrame)
                 .map(frame -> "\n\tat " + frame)
                 .orElse("");
-            notEntitledLogger.warn(message + frameInfoSuffix);
+            notEntitledLogger.warn("Not entitled: " + message + frameInfoSuffix);
         }
         throw exception;
     }

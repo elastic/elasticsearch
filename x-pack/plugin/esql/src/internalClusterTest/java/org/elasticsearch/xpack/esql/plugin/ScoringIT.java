@@ -327,12 +327,7 @@ public class ScoringIT extends AbstractEsqlIntegTestCase {
 
         try (var resp = run(query)) {
             // Matches NOT gets 0.0
-            assertThat(getValuesList(resp), equalTo(List.of(
-                List.of(2, 0.0),
-                List.of(3, 0.0),
-                List.of(4, 0.0),
-                List.of(5, 0.0)
-            )));
+            assertThat(getValuesList(resp), equalTo(List.of(List.of(2, 0.0), List.of(3, 0.0), List.of(4, 0.0), List.of(5, 0.0))));
         }
     }
 

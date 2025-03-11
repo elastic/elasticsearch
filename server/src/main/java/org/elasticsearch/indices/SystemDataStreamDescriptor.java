@@ -152,7 +152,7 @@ public class SystemDataStreamDescriptor implements SystemResourceDescriptor {
     }
 
     private static String backingIndexPatternForDataStream(String dataStream) {
-        return DataStream.BACKING_INDEX_PREFIX + dataStream + "-*";
+        return ".(migrated-)?[fd]s-" + dataStream + "-*";
     }
 
     @Override

@@ -1378,8 +1378,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             assert repositoryOperations.assertNotQueued(snapshot);
 
             final var entry = SnapshotsInProgress.get(clusterService.state()).snapshot(snapshot);
-            final String failure = entry.failure();
-            logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
+            logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), entry.failure());
             final ShardGenerations shardGenerations = buildGenerations(entry, metadata);
             final SubscribableListener<List<ActionListener<SnapshotInfo>>> snapshotListeners = new SubscribableListener<>();
 
@@ -1410,7 +1409,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 repositoryDataListener -> {
                     final List<String> finalIndices = shardGenerations.indices().stream().map(IndexId::getName).toList();
                     final Set<String> finalIndicesSet = Set.copyOf(finalIndices);
-                    final List<SnapshotShardFailure> shardFailures = getSnapshotShardFailures(entry, finalIndicesSet);
                     final Repository repository = repositoriesService.repository(snapshot.getRepository());
                     final Metadata metaForSnapshot = metadataForSnapshot(entry, prepareMetadata(entry, repository));
                     final SnapshotInfo snapshotInfo = new SnapshotInfo(
@@ -1418,10 +1416,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         finalIndices,
                         entry.dataStreams().stream().filter(metaForSnapshot.getProject().dataStreams()::containsKey).toList(),
                         entry.partial() ? onlySuccessfulFeatureStates(entry, finalIndicesSet) : entry.featureStates(),
-                        failure,
+                        entry.failure(),
                         threadPool.absoluteTimeInMillis(),
                         entry.partial() ? shardGenerations.totalShards() : entry.shardSnapshotStatusByRepoShardId().size(),
-                        shardFailures,
+                        getSnapshotShardFailures(entry, finalIndicesSet),
                         entry.includeGlobalState(),
                         entry.userMetadata(),
                         entry.startTime(),
@@ -1488,7 +1486,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             return builder.build();
         }
 
-        private List<SnapshotShardFailure> getSnapshotShardFailures(SnapshotsInProgress.Entry entry, Set<String> indexNames) {
+        private static List<SnapshotShardFailure> getSnapshotShardFailures(SnapshotsInProgress.Entry entry, Set<String> indexNames) {
             final var shardFailures = new ArrayList<SnapshotShardFailure>();
             for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardStatus : entry.shardSnapshotStatusByRepoShardId().entrySet()) {
                 RepositoryShardId shardId = shardStatus.getKey();

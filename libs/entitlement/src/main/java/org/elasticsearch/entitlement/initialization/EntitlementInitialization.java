@@ -241,16 +241,19 @@ public class EntitlementInitialization {
             )
         );
 
-        Path trustStorePath = trustStorePath();
-        if (trustStorePath != null) {
+        // conditionally add FIPS entitlements if FIPS only functionality is enforced
+        if ("true".equals(System.getProperty("org.bouncycastle.fips.approved_only"))) {
+            // if custom trust store is set, grant read access to its location, otherwise use the default trust store
+            String trustStore = System.getProperty("javax.net.ssl.trustStore");
+            Path trustStorePath = trustStore != null ? Path.of(trustStore) : bootstrapArgs.libDir().resolve("security/jssecacerts");
             Collections.addAll(
                 serverScopes,
                 new Scope(
                     "org.bouncycastle.fips.tls",
                     List.of(
                         new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ))),
-                        new OutboundNetworkEntitlement(),
-                        new ManageThreadsEntitlement()
+                        new ManageThreadsEntitlement(),
+                        new OutboundNetworkEntitlement()
                     )
                 ),
                 new Scope(
@@ -300,11 +303,6 @@ public class EntitlementInitialization {
             throw new IllegalStateException("user.home system property is required");
         }
         return PathUtils.get(userHome);
-    }
-
-    private static Path trustStorePath() {
-        String trustStore = System.getProperty("javax.net.ssl.trustStore");
-        return trustStore != null ? Path.of(trustStore) : null;
     }
 
     private static Stream<InstrumentationService.InstrumentationInfo> fileSystemProviderChecks() throws ClassNotFoundException,

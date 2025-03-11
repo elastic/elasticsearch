@@ -101,7 +101,7 @@ public class ExponentiallyWeightedMovingRate {
      * <p>Normally, {@code currentTime} should be after {@code oldTime}. If it is not, this method returns zero.
      *
      * <p>Note that this method does <i>not</i> depend on any of the increments made to this {@link ExponentiallyWeightedMovingRate}
-     * instance, or on its {@code startTime}. It is only non-static because it uses this instance's {@code lambda}.
+     * instance. It is only non-static because it uses this instance's {@code lambda} and {@code startTime}.
      */
     public double calculateRateSince(long currentTime, double currentRate, long oldTime, double oldRate) {
         if (currentTime <= oldTime) {

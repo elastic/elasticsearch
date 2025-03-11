@@ -55,9 +55,9 @@ public class RestXPackInfoAction extends BaseRestHandler {
                 "Including [accept_enterprise] in get license requests is deprecated."
                     + " The parameter will be removed in the next major version"
             );
-        }
-        if (request.paramAsBoolean("accept_enterprise", true) == false) { // consumes the parameter to avoid error
-            throw new IllegalArgumentException("The [accept_enterprise] parameters may not be false");
+            if (request.paramAsBoolean("accept_enterprise", true) == false) { // consumes the parameter to avoid error
+                throw new IllegalArgumentException("The [accept_enterprise] parameters may not be false");
+            }
         }
 
         EnumSet<XPackInfoRequest.Category> categories = XPackInfoRequest.Category.toSet(

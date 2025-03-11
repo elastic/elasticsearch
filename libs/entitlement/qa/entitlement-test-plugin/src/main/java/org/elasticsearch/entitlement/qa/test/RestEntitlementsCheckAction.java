@@ -14,8 +14,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -74,7 +74,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     record CheckAction(
         CheckedConsumer<Environment, Exception> action,
         EntitlementTest.ExpectedAccess expectedAccess,
-       Class<? extends Exception> expectedExceptionIfDenied, Integer fromJavaVersion
+        Class<? extends Exception> expectedExceptionIfDenied,
+        Integer fromJavaVersion
     ) {
         /**
          * These cannot be granted to plugins, so our test plugins cannot test the "allowed" case.

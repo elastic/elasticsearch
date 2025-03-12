@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -118,7 +119,7 @@ public class SystemIndicesUpgradeIT extends AbstractUpgradeTestCase {
     private void upgradeSystemIndices() throws Exception {
         String upgradeUser = "upgrade_user";
         String upgradeUserPassword = "x-pack-test-password";
-        createRole("upgrade_role", "irrelevant");
+        createRole("upgrade_role");
         createUser(upgradeUser, upgradeUserPassword, "upgrade_role");
 
         try (RestClient upgradeUserClient = getClient(upgradeUser, upgradeUserPassword)) {
@@ -145,7 +146,7 @@ public class SystemIndicesUpgradeIT extends AbstractUpgradeTestCase {
                             .get("migration_status"),
                         equalTo("NO_MIGRATION_NEEDED")
                     );
-                });
+                }, 30, TimeUnit.SECONDS);
             }
         }
     }
@@ -156,13 +157,10 @@ public class SystemIndicesUpgradeIT extends AbstractUpgradeTestCase {
         assertOK(adminClient().performRequest(request));
     }
 
-    private void createRole(String name, String indexOrDataStream) throws IOException {
+    private void createRole(String name) throws IOException {
         Request request = new Request("PUT", "/_security/role/" + name);
         request.setJsonEntity(
-            "{ \"cluster\": [\"cluster:admin/migration/post_system_feature\", \"cluster:admin/migration/get_system_feature\"],"
-                + " \"indices\": [ { \"names\" : [ \""
-                + indexOrDataStream
-                + "\"], \"privileges\": [ \"manage\" ] } ] }"
+            "{ \"cluster\": [\"cluster:admin/migration/post_system_feature\", \"cluster:admin/migration/get_system_feature\"] }"
         );
         assertOK(adminClient().performRequest(request));
     }

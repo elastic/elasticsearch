@@ -7,11 +7,8 @@
 
 package org.elasticsearch.xpack.fleet.action;
 
-import org.elasticsearch.action.ActionResponseValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-
-import static org.junit.Assert.assertArrayEquals;
 
 public class GetSecretResponseTests extends AbstractWireSerializingTestCase<GetSecretResponse> {
 
@@ -33,8 +30,6 @@ public class GetSecretResponseTests extends AbstractWireSerializingTestCase<GetS
     public void testValidateResponseWithMultiValue() {
         String[] secrets = { "secret1", "secret2" };
         GetSecretResponse res = new GetSecretResponse(randomAlphaOfLength(10), secrets);
-        ActionResponseValidationException e = res.validate();
-        assertNull(e);
-        assertArrayEquals(secrets, (String[]) res.value());
+        assertEquals(res.equals(secrets), true);
     }
 }

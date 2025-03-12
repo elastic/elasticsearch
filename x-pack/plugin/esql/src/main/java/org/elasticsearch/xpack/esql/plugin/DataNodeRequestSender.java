@@ -130,18 +130,19 @@ abstract class DataNodeRequestSender {
     }
 
     private static List<ShardId> order(TargetShards targetShards) {
+        var computedNodeOrder = new HashMap<DiscoveryNode, Integer>();
         var ordered = new ArrayList<>(targetShards.shards.keySet());
-        ordered.sort(Comparator.comparingInt(shardId -> nodesOrder(targetShards.getShard(shardId).remainingNodes)));
+        ordered.sort(Comparator.comparingInt(shardId -> nodesOrder(targetShards.getShard(shardId).remainingNodes, computedNodeOrder)));
         return ordered;
     }
 
-    private static int nodesOrder(List<DiscoveryNode> nodes) {
+    private static int nodesOrder(List<DiscoveryNode> nodes, Map<DiscoveryNode, Integer> computedNodeOrder) {
         if (nodes.isEmpty()) {
             return Integer.MAX_VALUE;
         }
         var order = 0;
         for (var node : nodes) {
-            order = Math.max(order, nodeOrder(node));
+            order = Math.max(order, computedNodeOrder.computeIfAbsent(node, DataNodeRequestSender::nodeOrder));
         }
         return order;
     }

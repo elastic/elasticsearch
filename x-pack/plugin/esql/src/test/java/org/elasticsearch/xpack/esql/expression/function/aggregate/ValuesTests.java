@@ -56,8 +56,8 @@ public class ValuesTests extends AbstractAggregationTestCase {
             // For spatial types, we can have many rows for points, but reduce rows for shapes to avoid circuit breaker
             MultiRowTestCaseSupplier.geoPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
             MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
-            MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 100, MultiRowTestCaseSupplier.IncludingAltitude.NO),
-            MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 100, MultiRowTestCaseSupplier.IncludingAltitude.NO)
+            MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
+            MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO)
         ).flatMap(List::stream).map(ValuesTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, false);

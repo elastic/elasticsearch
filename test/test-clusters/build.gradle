@@ -8,6 +8,10 @@ dependencies {
   shadow "org.apache.logging.log4j:log4j-api:${versions.log4j}"
 
   implementation files("$rootDir/build-tools/reaper/build/libs/reaper.jar")
+
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 }
 
 // We use updated APIs here and since this project is only used for REST testing it's ok to run with > Java 8

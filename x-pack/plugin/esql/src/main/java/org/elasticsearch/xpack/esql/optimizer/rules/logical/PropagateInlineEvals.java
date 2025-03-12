@@ -39,6 +39,7 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
 
         // grouping references
         List<Alias> groupingAlias = new ArrayList<>();
+        // TODO: replace this with AttributeSet
         Map<String, ReferenceAttribute> groupingRefs = new LinkedHashMap<>();
 
         // perform only one iteration that does two things
@@ -59,22 +60,20 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
             }
 
             // find their declaration and remove it
-            // TODO: this doesn't take into account aliasing
             if (p instanceof Eval eval) {
-                if (groupingRefs.size() > 0) {
-                    List<Alias> fields = eval.fields();
-                    List<Alias> remainingEvals = new ArrayList<>(fields.size());
-                    for (Alias f : fields) {
-                        if (groupingRefs.remove(f.name()) != null) {
-                            groupingAlias.add(f);
-                        } else {
-                            remainingEvals.add(f);
-                        }
+                List<Alias> fields = eval.fields();
+                List<Alias> remainingEvals = new ArrayList<>(fields.size());
+                for (Alias f : fields) {
+                    // TODO: look into identifying refs by their NameIds instead
+                    if (groupingRefs.remove(f.name()) != null) {
+                        groupingAlias.add(f);
+                    } else {
+                        remainingEvals.add(f);
                     }
-                    if (remainingEvals.size() != fields.size()) {
-                        // if all fields are moved, replace the eval
-                        p = remainingEvals.size() == 0 ? eval.child() : new Eval(eval.source(), eval.child(), remainingEvals);
-                    }
+                }
+                if (remainingEvals.size() != fields.size()) {
+                    // if all fields are moved, replace the eval
+                    p = remainingEvals.size() == 0 ? eval.child() : new Eval(eval.source(), eval.child(), remainingEvals);
                 }
             }
             return p;

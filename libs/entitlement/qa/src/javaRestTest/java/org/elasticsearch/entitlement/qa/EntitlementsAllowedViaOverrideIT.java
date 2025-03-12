@@ -16,32 +16,34 @@ import org.elasticsearch.core.Strings;
 import org.junit.ClassRule;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.Base64;
-import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Stream;
-
-import static org.elasticsearch.entitlement.qa.EntitlementsTestRule.ENTITLEMENT_QA_TEST_MODULE_NAME;
-import static org.elasticsearch.entitlement.qa.EntitlementsTestRule.ENTITLEMENT_TEST_PLUGIN_NAME;
 
 public class EntitlementsAllowedViaOverrideIT extends AbstractEntitlementsIT {
 
-    private static final String POLICY_OVERRIDE = Strings.format("""
-            policy:
-              %s:
-                - load_native_libraries
-                - files:
-                    - relative_to: config
-                      relative_path: test.txt
-                      mode: read_write
-            """, ENTITLEMENT_QA_TEST_MODULE_NAME);
-
-    private static Map<String, String> createOverrideSystemProperties() {
-        var base64EncodedPolicy = new String(Base64.getEncoder().encode(POLICY_OVERRIDE.getBytes(StandardCharsets.UTF_8)));
-        return Map.of("es.entitlements.policy." + ENTITLEMENT_TEST_PLUGIN_NAME, base64EncodedPolicy);
+    private static void addPolicyOverrideSystemProperties(BiConsumer<String, Function<Path, String>> adder) {
+        adder.accept("es.entitlements.policy.entitlement-test-plugin", tempDir -> {
+            String policyOverride = Strings.format("""
+                policy:
+                  org.elasticsearch.entitlement.qa.test:
+                    - load_native_libraries
+                    - files:
+                        - path: %s
+                          mode: read
+                """, tempDir.resolve("read_dir"));
+            return new String(Base64.getEncoder().encode(policyOverride.getBytes(StandardCharsets.UTF_8)));
+        });
     }
 
     @ClassRule
-    public static EntitlementsTestRule testRule = new EntitlementsTestRule(true, null, createOverrideSystemProperties());
+    public static EntitlementsTestRule testRule = new EntitlementsTestRule(
+        true,
+        null,
+        EntitlementsAllowedViaOverrideIT::addPolicyOverrideSystemProperties
+    );
 
     public EntitlementsAllowedViaOverrideIT(@Name("actionName") String actionName) {
         super(actionName, true);
@@ -49,7 +51,7 @@ public class EntitlementsAllowedViaOverrideIT extends AbstractEntitlementsIT {
 
     @ParametersFactory
     public static Iterable<Object[]> data() {
-        return Stream.of("runtime_load_library").map(action -> new Object[] { action }).toList();
+        return Stream.of("runtime_load_library", "fileList").map(action -> new Object[] { action }).toList();
     }
 
     @Override

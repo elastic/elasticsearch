@@ -28,6 +28,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 class EntitlementsTestRule implements TestRule {
 
@@ -55,16 +57,20 @@ class EntitlementsTestRule implements TestRule {
         void build(XContentBuilder builder, Path tempDir) throws IOException;
     }
 
+    interface SystemPropertyBuilder {
+        void build(BiConsumer<String, Function<Path, String>> adder);
+    }
+
     final TemporaryFolder testDir;
     final ElasticsearchCluster cluster;
     final TestRule ruleChain;
 
     EntitlementsTestRule(boolean modular, PolicyBuilder policyBuilder) {
-        this(modular, policyBuilder, Map.of());
+        this(modular, policyBuilder, (adder) -> {});
     }
 
     @SuppressWarnings("this-escape")
-    EntitlementsTestRule(boolean modular, PolicyBuilder policyBuilder, Map<String, String> additionalSystemProperties) {
+    EntitlementsTestRule(boolean modular, PolicyBuilder policyBuilder, SystemPropertyBuilder systemPropertyBuilder) {
         testDir = new TemporaryFolder();
         var tempDirSetup = new ExternalResource() {
             @Override
@@ -82,9 +88,9 @@ class EntitlementsTestRule implements TestRule {
             .systemProperty("es.entitlements.enabled", "true")
             .systemProperty("es.entitlements.testdir", () -> testDir.getRoot().getAbsolutePath())
             .setting("xpack.security.enabled", "false");
-            // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsXXX.xml
-            // .setting("logger.org.elasticsearch.entitlement", "DEBUG")
-        additionalSystemProperties.forEach((k, v) -> clusterBuilder.systemProperty(k, v));
+        // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsXXX.xml
+        // .setting("logger.org.elasticsearch.entitlement", "DEBUG")
+        systemPropertyBuilder.build((k, v) -> clusterBuilder.systemProperty(k, () -> v.apply(testDir.getRoot().toPath())));
         cluster = clusterBuilder.build();
         ruleChain = RuleChain.outerRule(testDir).around(tempDirSetup).around(cluster);
     }

@@ -486,8 +486,6 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("memory.total", "sibling:pri;alias:tm,memoryTotal;default:false;text-align:right;desc:total used memory");
         table.addCell("pri.memory.total", "default:false;text-align:right;desc:total user memory");
 
-        table.addCell("search.throttled", "alias:sth;default:false;desc:indicates if the index is search throttled");
-
         table.addCell(
             "bulk.total_operations",
             "sibling:pri;alias:bto,bulkTotalOperation;default:false;text-align:right;desc:number of bulk shard ops"

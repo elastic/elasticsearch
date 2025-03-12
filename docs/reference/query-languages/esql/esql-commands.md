@@ -728,7 +728,9 @@ FROM app_logs
 | LOOKUP JOIN service_owners ON service_id
 ```
 
-`LOOKUP JOIN` is generally faster when there are fewer rows to join with. ES|QL will try and perform any `WHERE` clause before the `LOOKUP JOIN` where possible. The first example below has the `WHERE` clause before the `LOOKUP JOIN`. This is not needed, the optimizer will move the filter before the lookup. Both examples will have the same results.
+`LOOKUP JOIN` is generally faster when there are fewer rows to join with. {{esql}} will try and perform any `WHERE` clause before the `LOOKUP JOIN` where possible.
+
+The two following examples will have the same results. The two examples have the `WHERE` clause before and after the `LOOKUP JOIN`. It does not matter how you write your query, our optimizer will move the filter before the lookup when ran.
 
 ```esql
 FROM Left

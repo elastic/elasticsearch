@@ -158,7 +158,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
 
         final OperationPurpose purpose = randomPurpose();
         final String blobName = randomIdentifier();
-        final int parts = between(1, 10);
+        final int parts = between(2, 10);
         final int maxPartSize = GoogleCloudStorageBlobStore.SDK_DEFAULT_CHUNK_SIZE;
         final int size = (parts - 1) * maxPartSize + between(1, maxPartSize);
         assert size >= store.getLargeBlobThresholdInBytes();

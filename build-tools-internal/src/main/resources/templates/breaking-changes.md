@@ -7,7 +7,7 @@ mapped_pages:
 # Elasticsearch breaking changes [elasticsearch-breaking-changes]
 Before you upgrade, carefully review the Elasticsearch breaking changes and take the necessary steps to mitigate any issues.
 
-To learn how to upgrade, check out <uprade docs>.
+To learn how to upgrade, check out <upgrade docs>.
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 % **Release date:** Month day, year

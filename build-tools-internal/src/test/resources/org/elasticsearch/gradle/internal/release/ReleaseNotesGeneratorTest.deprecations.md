@@ -16,13 +16,11 @@ To give you insight into what deprecated features you’re using, {{es}}:
 % ## Next version [elasticsearch-nextversion-deprecations]
 % **Release date:** Month day, year
 
-## 9.1.0 [elasticsearch-910-deprecations]
+## 8.2.0 [elasticsearch-820-deprecations]
 **Release date:** April 01, 2025
 
-Machine Learning:
-* Add deprecation warning for flush API [#121667](https://github.com/elastic/elasticsearch/pull/121667) (issue: {es-issue}121506[#121506])
-
 Search:
-* Deprecate Behavioral Analytics CRUD apis [#122960](https://github.com/elastic/elasticsearch/pull/122960)
+* Test changelog entry 4_0 [#4000](https://github.com/elastic/elasticsearch/pull/4000) (issue: {es-issue}4001[#4001])
+* Test changelog entry 4_1 [#4002](https://github.com/elastic/elasticsearch/pull/4002) (issues: {es-issue}4003[#4003], {es-issue}4004[#4004])
 
 

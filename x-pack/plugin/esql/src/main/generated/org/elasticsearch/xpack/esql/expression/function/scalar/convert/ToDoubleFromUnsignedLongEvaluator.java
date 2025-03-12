@@ -30,11 +30,6 @@ public final class ToDoubleFromUnsignedLongEvaluator extends AbstractConvertFunc
   }
 
   @Override
-  public String name() {
-    return "ToDoubleFromUnsignedLong";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return l;
   }

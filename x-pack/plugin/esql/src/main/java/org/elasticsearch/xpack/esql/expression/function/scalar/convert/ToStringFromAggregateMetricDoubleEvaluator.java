@@ -28,11 +28,6 @@ public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertF
     }
 
     @Override
-    protected String name() {
-        return "ToStringFromAggregateMetricDouble";
-    }
-
-    @Override
     protected EvalOperator.ExpressionEvaluator next() {
         return field;
     }
@@ -60,6 +55,11 @@ public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertF
             }
             return builder.build();
         }
+    }
+
+    @Override
+    public String toString() {
+        return "ToStringFromAggregateMetricDoubleEvaluator[field=" + field + ']';
     }
 
     @Override

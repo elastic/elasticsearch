@@ -33,11 +33,6 @@ public final class StYMinFromWKBGeoEvaluator extends AbstractConvertFunction.Abs
   }
 
   @Override
-  public String name() {
-    return "StYMinFromWKBGeo";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return wkb;
   }

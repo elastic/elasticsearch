@@ -31,11 +31,6 @@ public final class ToStringFromBooleanEvaluator extends AbstractConvertFunction.
   }
 
   @Override
-  public String name() {
-    return "ToStringFromBoolean";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return bool;
   }

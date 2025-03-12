@@ -38,11 +38,6 @@ public final class ChangeCaseEvaluator extends AbstractConvertFunction.AbstractE
   }
 
   @Override
-  public String name() {
-    return "ChangeCase";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return val;
   }

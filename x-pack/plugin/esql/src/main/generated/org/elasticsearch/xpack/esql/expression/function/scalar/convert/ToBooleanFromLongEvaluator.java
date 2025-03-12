@@ -30,11 +30,6 @@ public final class ToBooleanFromLongEvaluator extends AbstractConvertFunction.Ab
   }
 
   @Override
-  public String name() {
-    return "ToBooleanFromLong";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return l;
   }

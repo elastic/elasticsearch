@@ -33,11 +33,6 @@ public final class StYMinFromWKBEvaluator extends AbstractConvertFunction.Abstra
   }
 
   @Override
-  public String name() {
-    return "StYMinFromWKB";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return wkb;
   }

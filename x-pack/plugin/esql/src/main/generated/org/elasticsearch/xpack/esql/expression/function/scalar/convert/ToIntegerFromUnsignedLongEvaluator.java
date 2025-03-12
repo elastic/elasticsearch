@@ -31,11 +31,6 @@ public final class ToIntegerFromUnsignedLongEvaluator extends AbstractConvertFun
   }
 
   @Override
-  public String name() {
-    return "ToIntegerFromUnsignedLong";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return ul;
   }

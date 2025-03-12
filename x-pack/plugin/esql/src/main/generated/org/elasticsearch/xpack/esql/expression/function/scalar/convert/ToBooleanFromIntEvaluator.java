@@ -30,11 +30,6 @@ public final class ToBooleanFromIntEvaluator extends AbstractConvertFunction.Abs
   }
 
   @Override
-  public String name() {
-    return "ToBooleanFromInt";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return i;
   }

@@ -30,11 +30,6 @@ public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction
   }
 
   @Override
-  public String name() {
-    return "ToIntegerFromBoolean";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return bool;
   }

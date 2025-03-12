@@ -32,11 +32,6 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
   }
 
   @Override
-  public String name() {
-    return "ToDatetimeFromString";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return in;
   }

@@ -33,11 +33,6 @@ public final class StXMaxFromWKBGeoEvaluator extends AbstractConvertFunction.Abs
   }
 
   @Override
-  public String name() {
-    return "StXMaxFromWKBGeo";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return wkb;
   }

@@ -33,11 +33,6 @@ public final class StXFromWKBEvaluator extends AbstractConvertFunction.AbstractE
   }
 
   @Override
-  public String name() {
-    return "StXFromWKB";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return in;
   }

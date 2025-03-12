@@ -32,11 +32,6 @@ public final class StEnvelopeFromWKBEvaluator extends AbstractConvertFunction.Ab
   }
 
   @Override
-  public String name() {
-    return "StEnvelopeFromWKB";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return wkb;
   }

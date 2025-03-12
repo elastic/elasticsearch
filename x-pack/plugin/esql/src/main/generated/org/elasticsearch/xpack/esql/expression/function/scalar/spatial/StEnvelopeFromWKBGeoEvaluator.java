@@ -32,11 +32,6 @@ public final class StEnvelopeFromWKBGeoEvaluator extends AbstractConvertFunction
   }
 
   @Override
-  public String name() {
-    return "StEnvelopeFromWKBGeo";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return wkb;
   }

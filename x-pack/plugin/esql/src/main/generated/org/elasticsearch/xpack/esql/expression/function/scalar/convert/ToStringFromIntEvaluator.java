@@ -31,11 +31,6 @@ public final class ToStringFromIntEvaluator extends AbstractConvertFunction.Abst
   }
 
   @Override
-  public String name() {
-    return "ToStringFromInt";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return integer;
   }

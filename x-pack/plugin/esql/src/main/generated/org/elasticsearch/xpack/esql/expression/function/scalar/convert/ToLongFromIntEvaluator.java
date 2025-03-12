@@ -30,11 +30,6 @@ public final class ToLongFromIntEvaluator extends AbstractConvertFunction.Abstra
   }
 
   @Override
-  public String name() {
-    return "ToLongFromInt";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return i;
   }

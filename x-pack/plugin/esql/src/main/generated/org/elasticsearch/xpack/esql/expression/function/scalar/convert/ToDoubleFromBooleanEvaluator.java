@@ -30,11 +30,6 @@ public final class ToDoubleFromBooleanEvaluator extends AbstractConvertFunction.
   }
 
   @Override
-  public String name() {
-    return "ToDoubleFromBoolean";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return bool;
   }

@@ -97,7 +97,6 @@ public class ConvertEvaluatorImplementer {
             a.declareField(builder);
         }
         builder.addMethod(ctor());
-        builder.addMethod(name());
         builder.addMethod(next());
         builder.addMethod(evalVector());
         builder.addMethod(evalValue(true));
@@ -117,13 +116,6 @@ public class ConvertEvaluatorImplementer {
             a.implementCtor(builder);
         }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
-        return builder.build();
-    }
-
-    private MethodSpec name() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("name").addModifiers(Modifier.PUBLIC);
-        builder.addAnnotation(Override.class).returns(String.class);
-        builder.addStatement("return $S", declarationType.getSimpleName() + extraName);
         return builder.build();
     }
 

@@ -31,11 +31,6 @@ public final class ToCartesianShapeFromStringEvaluator extends AbstractConvertFu
   }
 
   @Override
-  public String name() {
-    return "ToCartesianShapeFromString";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return in;
   }

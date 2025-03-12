@@ -29,11 +29,6 @@ public final class ToRadiansEvaluator extends AbstractConvertFunction.AbstractEv
   }
 
   @Override
-  public String name() {
-    return "ToRadians";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return deg;
   }

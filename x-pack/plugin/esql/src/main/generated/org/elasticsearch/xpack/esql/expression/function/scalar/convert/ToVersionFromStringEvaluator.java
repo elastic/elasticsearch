@@ -30,11 +30,6 @@ public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.
   }
 
   @Override
-  public String name() {
-    return "ToVersionFromString";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return asString;
   }

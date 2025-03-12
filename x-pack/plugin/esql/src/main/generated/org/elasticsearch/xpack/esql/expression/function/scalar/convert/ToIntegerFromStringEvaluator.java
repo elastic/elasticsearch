@@ -32,11 +32,6 @@ public final class ToIntegerFromStringEvaluator extends AbstractConvertFunction.
   }
 
   @Override
-  public String name() {
-    return "ToIntegerFromString";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return in;
   }

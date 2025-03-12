@@ -33,11 +33,6 @@ public final class StXMinFromWKBEvaluator extends AbstractConvertFunction.Abstra
   }
 
   @Override
-  public String name() {
-    return "StXMinFromWKB";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return wkb;
   }

@@ -30,11 +30,6 @@ public final class ToDateNanosFromDatetimeEvaluator extends AbstractConvertFunct
   }
 
   @Override
-  public String name() {
-    return "ToDateNanosFromDatetime";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return in;
   }

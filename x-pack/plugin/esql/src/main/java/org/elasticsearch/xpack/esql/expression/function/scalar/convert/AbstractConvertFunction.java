@@ -142,8 +142,6 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
             );
         }
 
-        protected abstract String name();
-
         protected abstract ExpressionEvaluator next();
 
         /**

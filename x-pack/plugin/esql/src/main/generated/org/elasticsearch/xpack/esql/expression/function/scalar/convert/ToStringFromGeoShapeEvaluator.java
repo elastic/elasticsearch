@@ -30,11 +30,6 @@ public final class ToStringFromGeoShapeEvaluator extends AbstractConvertFunction
   }
 
   @Override
-  public String name() {
-    return "ToStringFromGeoShape";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return wkb;
   }

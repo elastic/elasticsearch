@@ -30,11 +30,6 @@ public final class ToUnsignedLongFromBooleanEvaluator extends AbstractConvertFun
   }
 
   @Override
-  public String name() {
-    return "ToUnsignedLongFromBoolean";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return bool;
   }

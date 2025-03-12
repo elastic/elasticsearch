@@ -30,11 +30,6 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
   }
 
   @Override
-  public String name() {
-    return "ToDegrees";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return deg;
   }

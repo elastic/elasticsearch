@@ -32,11 +32,6 @@ public final class ToLongFromStringEvaluator extends AbstractConvertFunction.Abs
   }
 
   @Override
-  public String name() {
-    return "ToLongFromString";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return in;
   }

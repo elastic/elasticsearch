@@ -31,11 +31,6 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
   }
 
   @Override
-  public String name() {
-    return "ToStringFromDouble";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return dbl;
   }

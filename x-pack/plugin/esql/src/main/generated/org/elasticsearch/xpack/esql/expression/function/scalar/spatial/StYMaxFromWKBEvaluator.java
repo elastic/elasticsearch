@@ -33,11 +33,6 @@ public final class StYMaxFromWKBEvaluator extends AbstractConvertFunction.Abstra
   }
 
   @Override
-  public String name() {
-    return "StYMaxFromWKB";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return wkb;
   }

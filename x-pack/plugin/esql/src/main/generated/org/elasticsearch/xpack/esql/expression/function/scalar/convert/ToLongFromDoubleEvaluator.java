@@ -31,11 +31,6 @@ public final class ToLongFromDoubleEvaluator extends AbstractConvertFunction.Abs
   }
 
   @Override
-  public String name() {
-    return "ToLongFromDouble";
-  }
-
-  @Override
   public EvalOperator.ExpressionEvaluator next() {
     return dbl;
   }

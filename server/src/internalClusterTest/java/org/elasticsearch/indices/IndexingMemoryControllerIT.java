@@ -59,6 +59,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
             return new EngineConfig(
                 config.getShardId(),
                 config.getThreadPool(),
+                config.getThreadPoolMergeExecutor(),
                 indexSettings,
                 config.getWarmer(),
                 config.getStore(),

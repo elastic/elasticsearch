@@ -82,9 +82,9 @@ public class CrudDataStreamLifecycleIT extends ESIntegTestCase {
             ).get();
             assertThat(response.getDataStreamLifecycles().size(), equalTo(3));
             assertThat(response.getDataStreamLifecycles().get(0).dataStreamName(), equalTo("with-lifecycle-1"));
-            assertThat(response.getDataStreamLifecycles().get(0).lifecycle(), equalTo(lifecycle));
+            assertThat(response.getDataStreamLifecycles().get(0).lifecycle(), equalTo(lifecycle.toDataStreamLifecycle()));
             assertThat(response.getDataStreamLifecycles().get(1).dataStreamName(), equalTo("with-lifecycle-2"));
-            assertThat(response.getDataStreamLifecycles().get(1).lifecycle(), equalTo(lifecycle));
+            assertThat(response.getDataStreamLifecycles().get(1).lifecycle(), equalTo(lifecycle.toDataStreamLifecycle()));
             assertThat(response.getDataStreamLifecycles().get(2).dataStreamName(), equalTo("without-lifecycle"));
             assertThat(response.getDataStreamLifecycles().get(2).lifecycle(), is(nullValue()));
             assertThat(response.getRolloverConfiguration(), nullValue());
@@ -102,9 +102,9 @@ public class CrudDataStreamLifecycleIT extends ESIntegTestCase {
             ).get();
             assertThat(response.getDataStreamLifecycles().size(), equalTo(2));
             assertThat(response.getDataStreamLifecycles().get(0).dataStreamName(), equalTo("with-lifecycle-1"));
-            assertThat(response.getDataStreamLifecycles().get(0).lifecycle(), equalTo(lifecycle));
+            assertThat(response.getDataStreamLifecycles().get(0).lifecycle(), equalTo(lifecycle.toDataStreamLifecycle()));
             assertThat(response.getDataStreamLifecycles().get(1).dataStreamName(), equalTo("with-lifecycle-2"));
-            assertThat(response.getDataStreamLifecycles().get(1).lifecycle(), is(lifecycle));
+            assertThat(response.getDataStreamLifecycles().get(1).lifecycle(), is(lifecycle.toDataStreamLifecycle()));
             assertThat(response.getRolloverConfiguration(), nullValue());
         }
 
@@ -120,7 +120,7 @@ public class CrudDataStreamLifecycleIT extends ESIntegTestCase {
             ).get();
             assertThat(response.getDataStreamLifecycles().size(), equalTo(2));
             assertThat(response.getDataStreamLifecycles().get(0).dataStreamName(), equalTo("with-lifecycle-1"));
-            assertThat(response.getDataStreamLifecycles().get(0).lifecycle(), equalTo(lifecycle));
+            assertThat(response.getDataStreamLifecycles().get(0).lifecycle(), equalTo(lifecycle.toDataStreamLifecycle()));
             assertThat(response.getRolloverConfiguration(), nullValue());
         }
 
@@ -135,9 +135,9 @@ public class CrudDataStreamLifecycleIT extends ESIntegTestCase {
         ).get();
         assertThat(responseWithRollover.getDataStreamLifecycles().size(), equalTo(3));
         assertThat(responseWithRollover.getDataStreamLifecycles().get(0).dataStreamName(), equalTo("with-lifecycle-1"));
-        assertThat(responseWithRollover.getDataStreamLifecycles().get(0).lifecycle(), equalTo(lifecycle));
+        assertThat(responseWithRollover.getDataStreamLifecycles().get(0).lifecycle(), equalTo(lifecycle.toDataStreamLifecycle()));
         assertThat(responseWithRollover.getDataStreamLifecycles().get(1).dataStreamName(), equalTo("with-lifecycle-2"));
-        assertThat(responseWithRollover.getDataStreamLifecycles().get(1).lifecycle(), equalTo(lifecycle));
+        assertThat(responseWithRollover.getDataStreamLifecycles().get(1).lifecycle(), equalTo(lifecycle.toDataStreamLifecycle()));
         assertThat(responseWithRollover.getDataStreamLifecycles().get(2).dataStreamName(), equalTo("without-lifecycle"));
         assertThat(responseWithRollover.getDataStreamLifecycles().get(2).lifecycle(), is(nullValue()));
         assertThat(responseWithRollover.getRolloverConfiguration(), notNullValue());

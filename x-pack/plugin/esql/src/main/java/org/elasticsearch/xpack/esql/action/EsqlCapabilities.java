@@ -113,6 +113,11 @@ public class EsqlCapabilities {
         CASTING_OPERATOR,
 
         /**
+         * Support for the ::date casting operator
+         */
+        CASTING_OPERATOR_FOR_DATE,
+
+        /**
          * Blocks can be labelled with {@link org.elasticsearch.compute.data.Block.MvOrdering#SORTED_ASCENDING} for optimizations.
          */
         MV_ORDERING_SORTED_ASCENDING,
@@ -865,7 +870,12 @@ public class EsqlCapabilities {
         /**
          * Support for RRF command
          */
-        RRF(Build.current().isSnapshot());
+        RRF(Build.current().isSnapshot()),
+
+        /**
+         * Full text functions can be scored when being part of a disjunction
+         */
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE;
 
         private final boolean enabled;
 

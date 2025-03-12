@@ -17,7 +17,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
-import java.util.Arrays;
 import java.util.Map;
 
 public class FailureStoreRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
@@ -32,24 +31,32 @@ public class FailureStoreRequestInterceptor extends FieldAndDocumentLevelSecurit
         Map<String, IndicesAccessControl.IndexAccessControl> indicesAccessControlByIndex,
         ActionListener<Void> listener
     ) {
-        if (indicesAccessControlByIndex.entrySet()
-            .stream()
-            .anyMatch(iac -> hasFailureStoreSelectorSuffix(iac.getKey()) && hasDlsFlsPermissions(iac.getValue()))) {
-            listener.onFailure(
-                new ElasticsearchSecurityException(
-                    "Failure store access is not allowed for users who have field or document level security enabled on one of the indices",
-                    RestStatus.BAD_REQUEST
-                )
-            );
-        } else {
-            listener.onResponse(null);
+        for (var indexAccessControl : indicesAccessControlByIndex.entrySet()) {
+            if (hasFailureStoreSelectorSuffix(indexAccessControl.getKey()) && hasDlsFlsPermissions(indexAccessControl.getValue())) {
+                listener.onFailure(
+                    new ElasticsearchSecurityException(
+                        "Failure store access is not allowed for users who have "
+                            + "field or document level security enabled on one of the indices",
+                        RestStatus.BAD_REQUEST
+                    )
+                );
+                return;
+            }
         }
+        listener.onResponse(null);
     }
 
     @Override
     boolean supports(IndicesRequest request) {
         // TODO: check if this is the right approach or should we only intercept search requests
-        return request.indicesOptions().allowSelectors() && Arrays.stream(request.indices()).anyMatch(this::hasFailureStoreSelectorSuffix);
+        if (request.indicesOptions().allowSelectors()) {
+            for (String index : request.indices()) {
+                if (hasFailureStoreSelectorSuffix(index)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private boolean hasFailureStoreSelectorSuffix(String name) {

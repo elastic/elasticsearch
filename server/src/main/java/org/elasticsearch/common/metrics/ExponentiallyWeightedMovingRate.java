@@ -104,8 +104,8 @@ public class ExponentiallyWeightedMovingRate {
      * instance. It is only non-static because it uses this instance's {@code lambda} and {@code startTime}.
      */
     public double calculateRateSince(long currentTime, double currentRate, long oldTime, double oldRate) {
-        if (oldRate == 0.0) {
-            return currentRate;
+        if (oldTime < startTime) {
+            oldTime = startTime;
         }
         if (currentTime <= oldTime) {
             return 0.0;

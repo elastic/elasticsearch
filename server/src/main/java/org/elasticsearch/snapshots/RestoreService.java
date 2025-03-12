@@ -770,14 +770,21 @@ public final class RestoreService implements ClusterStateApplier {
      * This method determines what system data streams to delete prior to restoring the snapshot. If a datastream in the
      * snapshot is not present in the current cluster state, it will be ignored.
      */
-    private Set<DataStream> resolveSystemDataStreamsToDelete(ClusterState currentState, Collection<DataStream> dataStreamsToRestore) {
-        if (dataStreamsToRestore == null) {
+    private Set<DataStream> resolveSystemDataStreamsToDelete(ClusterState currentState, Set<String> featureStatesToRestore) {
+        if (featureStatesToRestore == null) {
             return Collections.emptySet();
         }
 
-        return dataStreamsToRestore.stream()
+        return featureStatesToRestore.stream()
+            .map(systemIndices::getFeature)
             .filter(Objects::nonNull) // Features that aren't present on this node will be warned about in `getFeatureStatesToRestore`
-            .filter(dataStream -> currentState.metadata().getProject().dataStreams().get(dataStream.getName()) != null)
+            .flatMap(feature -> feature.getDataStreamDescriptors().stream())
+            .map(SystemDataStreamDescriptor::getDataStreamName)
+            .map(dataStreamName -> {
+                assert currentState.metadata().getProject().dataStreams().get(dataStreamName) != null
+                    : "data stream [" + dataStreamName + "] not found in metadata but must be present";
+                return currentState.metadata().getProject().dataStreams().get(dataStreamName);
+            })
             .collect(Collectors.toUnmodifiableSet());
     }
 
@@ -1355,7 +1362,7 @@ public final class RestoreService implements ClusterStateApplier {
             // Clear out all existing system data streams
             currentState = MetadataDeleteDataStreamService.deleteDataStreams(
                 currentState,
-                resolveSystemDataStreamsToDelete(currentState, dataStreamsToRestore),
+                resolveSystemDataStreamsToDelete(currentState, featureStatesToRestore),
                 settings
             );
 

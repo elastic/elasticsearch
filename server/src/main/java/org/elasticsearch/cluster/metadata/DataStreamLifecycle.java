@@ -185,17 +185,17 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             return INFINITE_RETENTION;
         }
         if (globalRetention == null || isInternalDataStream) {
-            return Tuple.tuple(dataRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
+            return Tuple.tuple(dataRetention(), RetentionSource.DATA_STREAM_CONFIGURATION);
         }
-        if (dataRetention == null) {
+        if (dataRetention() == null) {
             return globalRetention.defaultRetention() != null
                 ? Tuple.tuple(globalRetention.defaultRetention(), RetentionSource.DEFAULT_GLOBAL_RETENTION)
                 : Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
         }
-        if (globalRetention.maxRetention() != null && globalRetention.maxRetention().getMillis() < dataRetention.getMillis()) {
+        if (globalRetention.maxRetention() != null && globalRetention.maxRetention().getMillis() < dataRetention().getMillis()) {
             return Tuple.tuple(globalRetention.maxRetention(), RetentionSource.MAX_GLOBAL_RETENTION);
         } else {
-            return Tuple.tuple(dataRetention, RetentionSource.DATA_STREAM_CONFIGURATION);
+            return Tuple.tuple(dataRetention(), RetentionSource.DATA_STREAM_CONFIGURATION);
         }
     }
 

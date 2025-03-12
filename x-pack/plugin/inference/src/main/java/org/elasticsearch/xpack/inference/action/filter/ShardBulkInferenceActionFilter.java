@@ -521,7 +521,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         inputLength += v.length();
                         if (v.isBlank()) {
                             slot.addOrUpdateResponse(
-                                    new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
+                                new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
                             );
                         } else {
                             requests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment));

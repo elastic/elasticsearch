@@ -155,6 +155,22 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(results, equalTo(expectedResults));
     }
 
+    public void testRenderingExampleEmojis() throws IOException {
+        String expectedResults = "ROW bending_arts = \"💧🪨🔥💨\" | EVAL bending_arts_reversed = REVERSE(bending_arts);";
+        String results = docs.loadExample("string", "reverseEmoji");
+        assertThat(results, equalTo(expectedResults));
+    }
+
+    public void testRenderingExampleResultEmojis() throws IOException {
+        String expectedResults = """
+            | bending_arts:keyword | bending_arts_reversed:keyword |
+            | --- | --- |
+            | 💧🪨🔥💨 | 💨🔥🪨💧 |
+            """;
+        String results = docs.loadExample("string", "reverseEmoji-result");
+        assertThat(results, equalTo(expectedResults));
+    }
+
     public void testRenderingExampleFromClass() throws IOException {
         String expected = """
 

@@ -104,7 +104,7 @@ public class DocsV3SupportTests extends ESTestCase {
         String expected = """
             ```esql
             ROW message = "foo ( bar"
-            | WHERE message RLIKE "foo \\( bar"
+            | WHERE message RLIKE "foo \\\\( bar"
             ```
             """;
         assertThat(docs.replaceLinks(text), equalTo(expected));

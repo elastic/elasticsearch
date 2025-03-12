@@ -81,7 +81,7 @@ You can use a variety of official plugins that are compatible with your version 
 
 Some restrictions apply when adding plugins. To learn more, check [Restrictions for {{es}} and {{kib}} plugins](cloud://release-notes/cloud-hosted/known-issues.md#ec-restrictions-plugins).
 
-Only Gold, Platinum, Enterprise and Private subscriptions, running version 2.4.6 or later, have access to uploading custom plugins. All subscription levels, including Standard, can upload scripts and dictionaries.
+Only Gold, Platinum, Enterprise and Private subscriptions have access to uploading custom plugins. All subscription levels, including Standard, can upload scripts and dictionaries.
 
 ### Enabling plugins for a deployment
 

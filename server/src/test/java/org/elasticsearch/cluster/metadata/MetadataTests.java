@@ -80,6 +80,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -2643,24 +2644,44 @@ public class MetadataTests extends ESTestCase {
         );
 
         final BytesReference bytes = toXContentBytes(originalMeta, p);
-        final List<NamedXContentRegistry.Entry> registry = new ArrayList<>();
-        registry.addAll(ClusterModule.getNamedXWriteables());
-        registry.addAll(SystemIndexMigrationExecutor.getNamedXContentParsers());
-        registry.addAll(HealthNodeTaskExecutor.getNamedXContentParsers());
-        final var config = XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(registry));
 
-        try (XContentParser parser = createParser(config, JsonXContent.jsonXContent, bytes)) {
-            Metadata fromXContentMeta = Metadata.fromXContent(parser);
-            assertThat(fromXContentMeta.projects().keySet(), equalTo(originalMeta.projects().keySet()));
-            for (var project : fromXContentMeta.projects().values()) {
-                final var projectTasks = PersistentTasksCustomMetadata.get(project);
-                assertThat(projectTasks.getLastAllocationId(), equalTo(lastAllocationId));
-                assertThat(projectTasks.taskMap().keySet(), equalTo(Set.of(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME)));
+        // XContent with multi-project=true has separate cluster and project tasks
+        final var objectPath = ObjectPath.createFromXContent(JsonXContent.jsonXContent, bytes);
+        assertThat(objectPath.evaluate("meta-data.cluster_persistent_tasks"), notNullValue());
+        assertThat(objectPath.evaluate("meta-data.cluster_persistent_tasks.last_allocation_id"), equalTo(lastAllocationId + 1));
+        assertThat(objectPath.evaluate("meta-data.cluster_persistent_tasks.tasks"), hasSize(1));
+        assertThat(objectPath.evaluate("meta-data.cluster_persistent_tasks.tasks.0.id"), equalTo(HealthNode.TASK_NAME));
+        assertThat(objectPath.evaluate("meta-data.projects"), hasSize(projects.size()));
+        assertThat(IntStream.range(0, projects.size()).mapToObj(i -> {
+            try {
+                return (String) objectPath.evaluate("meta-data.projects." + i + ".id");
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
-            final var clusterTasks = ClusterPersistentTasksCustomMetadata.get(fromXContentMeta);
-            assertThat(clusterTasks.getLastAllocationId(), equalTo(lastAllocationId + 1));
-            assertThat(clusterTasks.taskMap().keySet(), equalTo(Set.of(HealthNode.TASK_NAME)));
+        }).collect(Collectors.toUnmodifiableSet()),
+            equalTo(projects.stream().map(pp -> pp.id().id()).collect(Collectors.toUnmodifiableSet()))
+        );
+
+        for (int i = 0; i < projects.size(); i++) {
+            assertThat(objectPath.evaluate("meta-data.projects." + i + ".persistent_tasks"), notNullValue());
+            assertThat(objectPath.evaluate("meta-data.projects." + i + ".persistent_tasks.last_allocation_id"), equalTo(lastAllocationId));
+            assertThat(objectPath.evaluate("meta-data.projects." + i + ".persistent_tasks.tasks"), hasSize(1));
+            assertThat(
+                objectPath.evaluate("meta-data.projects." + i + ".persistent_tasks.tasks.0.id"),
+                equalTo(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME)
+            );
         }
+
+        Metadata fromXContentMeta = fromJsonXContentStringWithPersistentTasks(bytes.utf8ToString());
+        assertThat(fromXContentMeta.projects().keySet(), equalTo(originalMeta.projects().keySet()));
+        for (var project : fromXContentMeta.projects().values()) {
+            final var projectTasks = PersistentTasksCustomMetadata.get(project);
+            assertThat(projectTasks.getLastAllocationId(), equalTo(lastAllocationId));
+            assertThat(projectTasks.taskMap().keySet(), equalTo(Set.of(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME)));
+        }
+        final var clusterTasks = ClusterPersistentTasksCustomMetadata.get(fromXContentMeta);
+        assertThat(clusterTasks.getLastAllocationId(), equalTo(lastAllocationId + 1));
+        assertThat(clusterTasks.taskMap().keySet(), equalTo(Set.of(HealthNode.TASK_NAME)));
     }
 
     public void testDefaultProjectXContentWithPersistentTasks() throws IOException {

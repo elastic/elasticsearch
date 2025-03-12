@@ -48,7 +48,7 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
@@ -58,7 +58,7 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
 
         int numberOfFollowerIndices = 0;
         long lastFollowerIndexCreationDate = 0L;
-        for (IndexMetadata imd : metadata) {
+        for (IndexMetadata imd : metadata.getProject()) {
             if (imd.getCustomData("ccr") != null) {
                 numberOfFollowerIndices++;
                 if (lastFollowerIndexCreationDate < imd.getCreationDate()) {
@@ -66,7 +66,7 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
                 }
             }
         }
-        AutoFollowMetadata autoFollowMetadata = metadata.custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = metadata.getProject().custom(AutoFollowMetadata.TYPE);
         int numberOfAutoFollowPatterns = autoFollowMetadata != null ? autoFollowMetadata.getPatterns().size() : 0;
 
         Long lastFollowTimeInMillis;

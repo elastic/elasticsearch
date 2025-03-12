@@ -78,8 +78,10 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
             truncatedInput,
             model,
             traceContext,
+            requestMetadata(),
             inputType
         );
+
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 }

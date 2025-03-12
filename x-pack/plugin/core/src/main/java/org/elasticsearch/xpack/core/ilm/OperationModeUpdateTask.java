@@ -91,7 +91,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             return currentState;
         }
 
-        final OperationMode currentMode = currentILMMode(currentState);
+        final OperationMode currentMode = currentILMMode(currentState.metadata().getProject());
         if (currentMode.equals(ilmMode)) {
             // No need for a new state
             return currentState;
@@ -137,7 +137,10 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         return ClusterState.builder(currentState)
             .metadata(
                 Metadata.builder(currentState.metadata())
-                    .putCustom(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(currentILMMode(currentState), newMode))
+                    .putCustom(
+                        LifecycleOperationMetadata.TYPE,
+                        new LifecycleOperationMetadata(currentILMMode(currentState.metadata().getProject()), newMode)
+                    )
             )
             .build();
     }

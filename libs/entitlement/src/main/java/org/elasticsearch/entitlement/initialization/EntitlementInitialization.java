@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.initialization;
 
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
@@ -33,6 +34,8 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibra
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
@@ -63,11 +66,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.entitlement.runtime.policy.Platform.LINUX;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.DATA;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Platform.LINUX;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -143,8 +146,7 @@ public class EntitlementInitialization {
             bootstrapArgs.dataDirs(),
             bootstrapArgs.sharedRepoDirs(),
             bootstrapArgs.tempDir(),
-            bootstrapArgs.settingResolver(),
-            bootstrapArgs.settingGlobResolver()
+            bootstrapArgs.settingResolver()
         );
 
         List<Scope> serverScopes = new ArrayList<>();
@@ -153,8 +155,10 @@ public class EntitlementInitialization {
             serverModuleFileDatas,
             // Base ES directories
             FileData.ofPath(bootstrapArgs.pluginsDir(), READ),
+            FileData.ofPath(bootstrapArgs.modulesDir(), READ),
             FileData.ofPath(bootstrapArgs.configDir(), READ),
             FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+            FileData.ofPath(bootstrapArgs.libDir(), READ),
             FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
             FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
 
@@ -238,11 +242,24 @@ public class EntitlementInitialization {
             )
         );
 
-        Path trustStorePath = trustStorePath();
-        if (trustStorePath != null) {
+        // conditionally add FIPS entitlements if FIPS only functionality is enforced
+        if (Booleans.parseBoolean(System.getProperty("org.bouncycastle.fips.approved_only"), false)) {
+            // if custom trust store is set, grant read access to its location, otherwise use the default JDK trust store
+            String trustStore = System.getProperty("javax.net.ssl.trustStore");
+            Path trustStorePath = trustStore != null
+                ? Path.of(trustStore)
+                : Path.of(System.getProperty("java.home")).resolve("lib/security/jssecacerts");
+
             Collections.addAll(
                 serverScopes,
-                new Scope("org.bouncycastle.fips.tls", List.of(new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ))))),
+                new Scope(
+                    "org.bouncycastle.fips.tls",
+                    List.of(
+                        new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ))),
+                        new ManageThreadsEntitlement(),
+                        new OutboundNetworkEntitlement()
+                    )
+                ),
                 new Scope(
                     "org.bouncycastle.fips.core",
                     // read to lib dir is required for checksum validation
@@ -255,24 +272,28 @@ public class EntitlementInitialization {
         var serverPolicy = new Policy("server", serverScopes);
         // agents run without a module, so this is a special hack for the apm agent
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
+        // See also modules/apm/src/main/plugin-metadata/entitlement-policy.yaml
         List<Entitlement> agentEntitlements = List.of(
             new CreateClassLoaderEntitlement(),
             new ManageThreadsEntitlement(),
+            new SetHttpsConnectionPropertiesEntitlement(),
+            new OutboundNetworkEntitlement(),
+            new WriteSystemPropertiesEntitlement(Set.of("AsyncProfiler.safemode")),
+            new LoadNativeLibrariesEntitlement(),
             new FilesEntitlement(
                 List.of(
-                    FileData.ofPath(Path.of("/co/elastic/apm/agent/"), READ),
-                    FileData.ofPath(Path.of("/agent/co/elastic/apm/agent/"), READ),
+                    FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
                     FileData.ofPath(Path.of("/proc/meminfo"), READ),
                     FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ)
                 )
             )
         );
-        var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
         return new PolicyManager(
             serverPolicy,
             agentEntitlements,
             pluginPolicies,
-            resolver,
+            EntitlementBootstrap.bootstrapArgs().pluginResolver(),
+            EntitlementBootstrap.bootstrapArgs().sourcePaths(),
             AGENTS_PACKAGE_NAME,
             ENTITLEMENTS_MODULE,
             pathLookup,
@@ -286,11 +307,6 @@ public class EntitlementInitialization {
             throw new IllegalStateException("user.home system property is required");
         }
         return PathUtils.get(userHome);
-    }
-
-    private static Path trustStorePath() {
-        String trustStore = System.getProperty("javax.net.ssl.trustStore");
-        return trustStore != null ? Path.of(trustStore) : null;
     }
 
     private static Stream<InstrumentationService.InstrumentationInfo> fileSystemProviderChecks() throws ClassNotFoundException,

@@ -267,6 +267,13 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     /**
+     * @return return {@code true} if and only if this listener is done and has been completed successfully
+     */
+    public final boolean isSuccess() {
+        return state instanceof SuccessResult;
+    }
+
+    /**
      * @return the result with which this listener completed successfully, or throw the exception with which it failed.
      *
      * @throws AssertionError if this listener is not complete yet and assertions are enabled.
@@ -578,5 +585,16 @@ public class SubscribableListener<T> implements ActionListener<T> {
 
     private Object compareAndExchangeState(Object expectedValue, Object newValue) {
         return VH_STATE_FIELD.compareAndExchange(this, expectedValue, newValue);
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static final SubscribableListener NULL_SUCCESS = newSucceeded(null);
+
+    /**
+     * Same as {@link #newSucceeded(Object)} but always returns the same instance with result value {@code null}.
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> SubscribableListener<T> nullSuccess() {
+        return NULL_SUCCESS;
     }
 }

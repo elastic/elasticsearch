@@ -14,6 +14,7 @@ import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.util.SecurityUtils;
+import com.google.api.gax.retrying.ResultRetryAlgorithm;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ServiceOptions;
@@ -43,7 +44,6 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.security.KeyStore;
 import java.util.Map;
-import java.util.concurrent.CancellationException;
 import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -258,17 +258,14 @@ public class GoogleCloudStorageService {
     }
 
     protected StorageRetryStrategy getRetryStrategy() {
-        return new DelegatingStorageRetryStrategy<>(
+        return ShouldRetryDecorator.decorate(
             StorageRetryStrategy.getLegacyStorageRetryStrategy(),
-            d -> new DelegatingStorageRetryStrategy.DelegatingResultRetryAlgorithm<>(d) {
-                @Override
-                public boolean shouldRetry(Throwable prevThrowable, Object prevResponse) throws CancellationException {
-                    // Retry in the event of an unknown host exception
-                    if (ExceptionsHelper.unwrap(prevThrowable, UnknownHostException.class) != null) {
-                        return true;
-                    }
-                    return delegate.shouldRetry(prevThrowable, prevResponse);
+            (Throwable prevThrowable, Object prevResponse, ResultRetryAlgorithm<Object> delegate) -> {
+                // Retry in the event of an unknown host exception
+                if (ExceptionsHelper.unwrap(prevThrowable, UnknownHostException.class) != null) {
+                    return true;
                 }
+                return delegate.shouldRetry(prevThrowable, prevResponse);
             }
         );
     }

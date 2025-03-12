@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
@@ -109,7 +110,7 @@ public final class EnterpriseSearchModuleTestUtils {
         QueryRuleCriteriaType criteriaType = randomFrom(QueryRuleCriteriaType.values());
 
         String metadata;
-        List<String> values;
+        List<Object> values;
         if (criteriaType == QueryRuleCriteriaType.ALWAYS) {
             metadata = null;
             values = null;

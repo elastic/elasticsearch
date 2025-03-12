@@ -58,13 +58,18 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 abstract class DataNodeRequestSender {
 
-    private static final String[] NODE_QUERY_ORDER = new String[] {
+    /**
+     * Query order according to the
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/node-roles-overview.html">node roles</a>.
+     */
+    private static final List<String> NODE_QUERY_ORDER = List.of(
         DiscoveryNodeRole.SEARCH_ROLE.roleName(),
         DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE.roleName(),
         DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName(),
         DiscoveryNodeRole.DATA_WARM_NODE_ROLE.roleName(),
         DiscoveryNodeRole.DATA_COLD_NODE_ROLE.roleName(),
-        DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName() };
+        DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName()
+    );
 
     private final TransportService transportService;
     private final Executor esqlExecutor;
@@ -142,12 +147,12 @@ abstract class DataNodeRequestSender {
     }
 
     private static int nodeOrder(DiscoveryNode node) {
-        for (int i = 0; i < NODE_QUERY_ORDER.length; i++) {
-            if (node.hasRole(NODE_QUERY_ORDER[i])) {
+        for (int i = 0; i < NODE_QUERY_ORDER.size(); i++) {
+            if (node.hasRole(NODE_QUERY_ORDER.get(i))) {
                 return i;
             }
         }
-        return NODE_QUERY_ORDER.length;
+        return Integer.MAX_VALUE;
     }
 
     private void trySendingRequestsForPendingShards(TargetShards targetShards, ComputeListener computeListener) {

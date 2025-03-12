@@ -766,6 +766,10 @@ public final class RestoreService implements ClusterStateApplier {
             .collect(Collectors.toUnmodifiableSet());
     }
 
+    /**
+     * This method determines what system data streams to delete prior to restoring the snapshot. If a datastream in the
+     * snapshot is not present in the current cluster state, it will be ignored.
+     */
     private Set<DataStream> resolveSystemDataStreamsToDelete(ClusterState currentState, Collection<DataStream> dataStreamsToRestore) {
         if (dataStreamsToRestore == null) {
             return Collections.emptySet();
@@ -1348,7 +1352,7 @@ public final class RestoreService implements ClusterStateApplier {
                 settings
             );
 
-            // Clear out all existing data streams which fall within a data stream being restored
+            // Clear out all existing system data streams
             currentState = MetadataDeleteDataStreamService.deleteDataStreams(
                 currentState,
                 resolveSystemDataStreamsToDelete(currentState, dataStreamsToRestore),

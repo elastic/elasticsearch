@@ -549,14 +549,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return indexCount;
     }
 
-    public int getTotalNumberOfDataStreams() {
-        int dataStreamCount = 0;
-        for (ProjectMetadata project : projects().values()) {
-            dataStreamCount += project.dataStreams().size();
-        }
-        return dataStreamCount;
-    }
-
     /**
      * @return {code true} if there are any indices in any project in this cluster
      */
@@ -1902,8 +1894,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      */
     public ProjectMetadata projectFor(DataStream dataStream) {
         return lookupProject(dataStream).orElseThrow(
-            () -> new IndexNotFoundException("dataStream [" + dataStream + "] does not exist in any project")  // TODO check if ds
-                                                                                                               // equivalent
+            () -> new IndexNotFoundException("dataStream [" + dataStream + "] does not exist in any project")
         );
     }
 

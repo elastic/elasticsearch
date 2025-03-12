@@ -43,7 +43,6 @@ public class MetadataDeleteDataStreamService {
         }
 
         for (final Map.Entry<ProjectId, Set<DataStream>> entry : byProject.entrySet()) {
-            // TODO Avoid creating the state multiple times if there are batched updates for multiple projects
             clusterState = deleteDataStream(clusterState.projectState(entry.getKey()), entry.getValue(), settings);
         }
         return clusterState;

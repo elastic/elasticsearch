@@ -610,6 +610,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      *
      * However, other feature states should be unaffected.
      */
+    // TODO: determine if we can create a datastream test for this
     public void testAllSystemIndicesAreRemovedWhenThatFeatureStateIsRestored() {
         createRepository(REPO_NAME, "fs");
         // Create a system index we'll snapshot and restore
@@ -710,7 +711,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     }
 
-    // This test is failing because the assertion assertTrue(indexExists(systemDataStreamAlias)); is trips.
+    // TODO: This test is failing because the assertion `assertTrue(indexExists(systemDataStreamAlias));` trips.
     @AwaitsFix(bugUrl = "assertTrue(indexExists(systemDataStreamAlias)); is broken")
     public void testSystemDataStreamAliasesAreAlwaysRestored() {
         createRepository(REPO_NAME, "fs");

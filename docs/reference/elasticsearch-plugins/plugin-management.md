@@ -62,7 +62,7 @@ There is no downtime when adding plugins to highly available deployments. The de
     ess: ga
 ```
 
-There are two ways to add plugins to Elastic Cloud Hosted deployments:
+There are two ways to add plugins to {{ech}} deployments:
 
 * Enable one of the official plugins already available in ECH
 * [Upload a custom plugin and then enable it per deployment](./cloud/ec-custom-bundles.md).

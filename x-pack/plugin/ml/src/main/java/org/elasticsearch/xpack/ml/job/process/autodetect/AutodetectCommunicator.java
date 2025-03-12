@@ -348,7 +348,14 @@ public class AutodetectCommunicator implements Closeable {
     }
 
     public ModelSizeStats getModelSizeStats() {
-        return autodetectResultProcessor.modelSizeStats();
+        ModelSizeStats modelSizeStats = autodetectResultProcessor.modelSizeStats();
+        if (modelSizeStats.getModelBytesMemoryLimit() == null) {
+            // Results processor did not receive the model size stats from the process yet
+            return new ModelSizeStats.Builder(job.getId()).setModelBytesMemoryLimit(job.getAnalysisLimits().getModelMemoryLimit())
+                .setAssignmentMemoryBasis(ModelSizeStats.AssignmentMemoryBasis.MODEL_MEMORY_LIMIT)
+                .build();
+        }
+        return modelSizeStats;
     }
 
     public TimingStats getTimingStats() {

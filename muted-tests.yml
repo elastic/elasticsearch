@@ -369,6 +369,15 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=data_stream/150_tsdb/created the data stream}
   issue: https://github.com/elastic/elasticsearch/issues/124575
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  method: testDeploymentSurvivesRestart {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/124160
+- class: org.elasticsearch.lucene.spatial.CartesianCentroidCalculatorTests
+  method: testAddDifferentDimensionalType
+  issue: https://github.com/elastic/elasticsearch/issues/124609
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerStatsTests
+  method: testResumableWrite
+  issue: https://github.com/elastic/elasticsearch/issues/124648
 
 # Examples:
 #

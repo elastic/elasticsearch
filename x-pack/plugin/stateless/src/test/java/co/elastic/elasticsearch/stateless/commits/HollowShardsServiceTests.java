@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.IndexShardCacheWarmer;
+import co.elastic.elasticsearch.stateless.engine.HollowShardsMetrics;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.elasticsearch.Version;
@@ -277,6 +278,7 @@ public class HollowShardsServiceTests extends ESTestCase {
                     mock(IndicesService.class),
                     mock(IndexShardCacheWarmer.class),
                     mock(ThreadPool.class),
+                    HollowShardsMetrics.NOOP,
                     relativeTimeSupplierInMillis
                 ),
                 indexShard

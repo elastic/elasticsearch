@@ -924,13 +924,13 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         private void runCheck() {
             while (true) {
                 final var taskCount = queuedTaskCount.get();
+                final var clusterStateSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
                 final var shardsBySnapshot = new HashMap<Snapshot, Set<ShardId>>();
                 for (int i = 0; i < taskCount; i++) {
                     final var task = queue.poll();
                     assert task != null;
                     shardsBySnapshot.computeIfAbsent(task.snapshot(), ignored -> new HashSet<>()).add(task.shardId());
                 }
-                final var clusterStateSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
                 for (final var snapshotShards : shardsBySnapshot.entrySet()) {
                     final var snapshot = snapshotShards.getKey();
                     final var clusterStateSnapshotEntry = clusterStateSnapshotsInProgress.snapshot(snapshot);

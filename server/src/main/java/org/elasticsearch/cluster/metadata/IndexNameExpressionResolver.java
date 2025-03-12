@@ -1002,6 +1002,13 @@ public class IndexNameExpressionResolver {
         return expression.contains(SelectorResolver.SELECTOR_SEPARATOR);
     }
 
+    public static boolean hasSelector(String expression, IndexComponentSelector selector) {
+        if (expression == null) {
+            return false;
+        }
+        return expression.endsWith(SelectorResolver.SELECTOR_SEPARATOR + selector.getKey());
+    }
+
     /**
      * @return If the specified string is a selector expression then this method returns the base expression and its selector part.
      */

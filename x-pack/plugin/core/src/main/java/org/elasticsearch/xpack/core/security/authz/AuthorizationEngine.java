@@ -11,8 +11,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -368,6 +370,15 @@ public interface AuthorizationEngine {
             }
             if (index != null) {
                 for (RoleDescriptor.IndicesPrivileges indexPrivilege : index) {
+                    if (indexPrivilege.getIndices() != null
+                        && Arrays.stream(indexPrivilege.getIndices())
+                            // best effort prevent users from attempting to check failure selectors
+                            .anyMatch(idx -> IndexNameExpressionResolver.hasSelector(idx, IndexComponentSelector.FAILURES))) {
+                        validationException = addValidationError(
+                            "non-data selectors are not supported in index patterns",
+                            validationException
+                        );
+                    }
                     if (indexPrivilege.getPrivileges() != null
                         && Arrays.stream(indexPrivilege.getPrivileges())
                             .anyMatch(p -> "read_failure_store".equals(p) || "manage_failure_store".equals(p))) {

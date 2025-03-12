@@ -55,7 +55,10 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<TimeValue> STATUS_INTERVAL = Setting.timeSetting("status_interval", Driver.DEFAULT_STATUS_INTERVAL);
 
-    public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
+    public static final Setting<Integer> MAX_CONCURRENT_NODES_PER_CLUSTER = //
+        Setting.intSetting("max_concurrent_nodes_per_cluster", -1, -1, 100);
+    public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = //
+        Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
 
@@ -120,6 +123,13 @@ public final class QueryPragmas implements Writeable {
      */
     public int enrichMaxWorkers() {
         return ENRICH_MAX_WORKERS.get(settings);
+    }
+
+    /**
+     * The maximum number of nodes to be queried at once by this query. This is safeguard to avoid overloading the cluster.
+     */
+    public int maxConcurrentNodesPerCluster() {
+        return MAX_CONCURRENT_NODES_PER_CLUSTER.get(settings);
     }
 
     /**

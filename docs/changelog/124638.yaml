@@ -1,0 +1,6 @@
+pr: 124638
+summary: Provide `model_size_stats` as soon as anomaly job is opened
+area: Machine Learning
+type: bug
+issues:
+ - 121168

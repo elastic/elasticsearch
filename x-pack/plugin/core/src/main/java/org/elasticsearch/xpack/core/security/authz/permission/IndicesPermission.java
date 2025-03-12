@@ -374,9 +374,14 @@ public final class IndicesPermission {
     }
 
     public Automaton allowedActionsMatcher(String index) {
+        Tuple<String, String> tuple = IndexNameExpressionResolver.splitSelectorExpression(index);
+        String indexName = tuple.v1();
+        IndexComponentSelector selector = IndexComponentSelector.getByKey(tuple.v2());
+        // TODO is this correct?
+        assert selector == null || IndexComponentSelector.DATA.equals(selector) : "unexpected selector [" + selector + "]";
         List<Automaton> automatonList = new ArrayList<>();
         for (Group group : groups) {
-            if (group.indexNameMatcher.test(index)) {
+            if (group.checkSelector(selector) && group.indexNameMatcher.test(indexName)) {
                 automatonList.add(group.privilege.getAutomaton());
             }
         }

@@ -1890,11 +1890,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
     /**
      * Attempt to find a project for the supplied {@link DataStream}.
-     * @throws org.elasticsearch.index.IndexNotFoundException if the data stream does not exist in any project
+     * @throws java.lang.IllegalArgumentException if the data stream does not exist in any project
      */
     public ProjectMetadata projectFor(DataStream dataStream) {
         return lookupProject(dataStream).orElseThrow(
-            () -> new IndexNotFoundException("dataStream [" + dataStream + "] does not exist in any project")
+            () -> new IllegalArgumentException("dataStream [" + dataStream.getName() + "] does not exist in any project")
         );
     }
 

@@ -1371,6 +1371,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             return new Builder();
         }
 
+        public static Builder builder(IndicesPrivileges copyFrom) {
+            return new Builder(copyFrom);
+        }
+
         public String[] getIndices() {
             return this.indices;
         }
@@ -1552,6 +1556,15 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             private IndicesPrivileges indicesPrivileges = new IndicesPrivileges();
 
             private Builder() {}
+
+            private Builder(IndicesPrivileges copyFrom) {
+                indicesPrivileges.indices = copyFrom.indices;
+                indicesPrivileges.privileges = copyFrom.privileges;
+                indicesPrivileges.grantedFields = copyFrom.grantedFields;
+                indicesPrivileges.deniedFields = copyFrom.deniedFields;
+                indicesPrivileges.query = copyFrom.query;
+                indicesPrivileges.allowRestrictedIndices = copyFrom.allowRestrictedIndices;
+            }
 
             public Builder indices(String... indices) {
                 indicesPrivileges.indices = indices;

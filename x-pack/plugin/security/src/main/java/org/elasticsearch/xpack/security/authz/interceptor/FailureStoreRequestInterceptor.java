@@ -32,7 +32,6 @@ public class FailureStoreRequestInterceptor extends FieldAndDocumentLevelSecurit
         Map<String, IndicesAccessControl.IndexAccessControl> indicesAccessControlByIndex,
         ActionListener<Void> listener
     ) {
-        System.out.println("FailureStoreRequestInterceptor: " + indicesAccessControlByIndex);
         if (indicesAccessControlByIndex.entrySet()
             .stream()
             .anyMatch(iac -> hasFailureStoreSelectorSuffix(iac.getKey()) && hasDlsFlsPermissions(iac.getValue()))) {

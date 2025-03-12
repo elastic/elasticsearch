@@ -17,12 +17,15 @@ import java.util.Objects;
 
 public class ElasticInferenceServiceUnifiedChatCompletionRequestEntity implements ToXContentObject {
     private static final String MODEL_FIELD = "model";
+    private static final String MAX_COMPLETION_TOKENS_FIELD = "max_completion_tokens";
 
+    private final UnifiedChatInput unifiedChatInput;
     private final UnifiedChatCompletionRequestEntity unifiedRequestEntity;
     private final String modelId;
 
     public ElasticInferenceServiceUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, String modelId) {
-        this.unifiedRequestEntity = new UnifiedChatCompletionRequestEntity(Objects.requireNonNull(unifiedChatInput));
+        this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
+        this.unifiedRequestEntity = new UnifiedChatCompletionRequestEntity(unifiedChatInput);
         this.modelId = Objects.requireNonNull(modelId);
     }
 
@@ -31,6 +34,11 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestEntity implement
         builder.startObject();
         unifiedRequestEntity.toXContent(builder, params);
         builder.field(MODEL_FIELD, modelId);
+
+        if (unifiedChatInput.getRequest().maxCompletionTokens() != null) {
+            builder.field(MAX_COMPLETION_TOKENS_FIELD, unifiedChatInput.getRequest().maxCompletionTokens());
+        }
+
         builder.endObject();
 
         return builder;

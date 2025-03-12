@@ -22,10 +22,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class QueryStringQueryTests extends ESTestCase {
 
     public void testQueryBuilding() {
-        QueryStringQueryBuilder qb = getBuilder(Map.of("lenient", "true"));
+        QueryStringQueryBuilder qb = getBuilder(Map.of("lenient", true));
         assertThat(qb.lenient(), equalTo(true));
 
-        qb = getBuilder(Map.of("lenient", "true", "default_operator", "AND"));
+        qb = getBuilder(Map.of("lenient", true, "default_operator", "AND"));
         assertThat(qb.lenient(), equalTo(true));
         assertThat(qb.defaultOperator(), equalTo(Operator.AND));
 
@@ -36,7 +36,7 @@ public class QueryStringQueryTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("failed to parse [multi_match] query type [aoeu]. unknown type."));
     }
 
-    private static QueryStringQueryBuilder getBuilder(Map<String, String> options) {
+    private static QueryStringQueryBuilder getBuilder(Map<String, Object> options) {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
         final QueryStringQuery query = new QueryStringQuery(source, "eggplant", Collections.singletonMap("foo", 1.0f), options);
         return (QueryStringQueryBuilder) query.asBuilder();

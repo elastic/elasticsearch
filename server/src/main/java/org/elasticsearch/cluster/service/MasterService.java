@@ -1702,7 +1702,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 Strings.collectionToDelimitedStringWithLimit((Iterable<String>) () -> tasksBySource.entrySet().stream().map(entry -> {
                     var tasksDescription = executor.describeTasks(entry.getValue());
                     return tasksDescription.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasksDescription + "]";
-                }).filter(s -> s.isEmpty() == false).iterator(), ", ", "", "", MAX_TASK_DESCRIPTION_CHARS, output);
+                }).filter(s -> s.isEmpty() == false).iterator(), ", ", MAX_TASK_DESCRIPTION_CHARS, output);
                 if (output.length() > MAX_TASK_DESCRIPTION_CHARS) {
                     output.append(" (").append(tasks.size()).append(" tasks in total)");
                 }

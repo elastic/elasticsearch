@@ -26,11 +26,6 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     }
 
     @Override
-    public String getWriteableName() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         throw new UnsupportedOperationException();
     }

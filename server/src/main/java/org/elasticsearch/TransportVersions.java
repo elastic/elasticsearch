@@ -60,11 +60,6 @@ public class TransportVersions {
     public static final TransportVersion V_7_8_1 = def(7_08_01_99);
     public static final TransportVersion V_7_9_0 = def(7_09_00_99);
     public static final TransportVersion V_7_10_0 = def(7_10_00_99);
-    public static final TransportVersion V_7_15_0 = def(7_15_00_99);
-    public static final TransportVersion V_7_15_1 = def(7_15_01_99);
-    public static final TransportVersion V_7_17_0 = def(7_17_00_99);
-    public static final TransportVersion V_7_17_1 = def(7_17_01_99);
-    public static final TransportVersion V_7_17_8 = def(7_17_08_99);
     public static final TransportVersion V_8_0_0 = def(8_00_00_99);
     public static final TransportVersion V_8_1_0 = def(8_01_00_99);
     public static final TransportVersion V_8_2_0 = def(8_02_00_99);
@@ -151,6 +146,7 @@ public class TransportVersions {
     public static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X = def(8_841_0_05);
     public static final TransportVersion JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_19 = def(8_841_0_06);
     public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_19 = def(8_841_0_07);
+    public static final TransportVersion INFERENCE_CONTEXT_8_X = def(8_841_0_08);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0 = def(9_000_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES_90 = def(9_000_0_01);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90 = def(9_000_0_02);
@@ -184,6 +180,9 @@ public class TransportVersions {
     public static final TransportVersion INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM = def(9_023_0_00);
     public static final TransportVersion MAX_OPERATION_SIZE_REJECTIONS_ADDED = def(9_024_0_00);
     public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR = def(9_025_0_00);
+    public static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = def(9_026_0_00);
+    public static final TransportVersion ESQL_THREAD_NAME_IN_DRIVER_PROFILE = def(9_027_0_00);
+    public static final TransportVersion INFERENCE_CONTEXT = def(9_028_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

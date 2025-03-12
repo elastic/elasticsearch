@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
@@ -22,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
@@ -68,6 +70,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(newInstance.originalValues(), equalTo(expectedInstance.originalValues()));
         assertThat(newInstance.inference().modelSettings(), equalTo(expectedInstance.inference().modelSettings()));
         assertThat(newInstance.inference().chunks().size(), equalTo(expectedInstance.inference().chunks().size()));
+
         MinimalServiceSettings modelSettings = newInstance.inference().modelSettings();
         for (var entry : newInstance.inference().chunks().entrySet()) {
             var expectedChunks = expectedInstance.inference().chunks().get(entry.getKey());
@@ -80,16 +83,17 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 assertThat(actualChunk.endOffset(), equalTo(expectedChunks.get(i).endOffset()));
                 switch (modelSettings.taskType()) {
                     case TEXT_EMBEDDING -> {
+                        int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(
+                            modelSettings.elementType(),
+                            modelSettings.dimensions()
+                        );
+
                         double[] expectedVector = parseDenseVector(
                             expectedChunks.get(i).rawEmbeddings(),
-                            modelSettings.dimensions(),
+                            embeddingLength,
                             expectedInstance.contentType()
                         );
-                        double[] newVector = parseDenseVector(
-                            actualChunk.rawEmbeddings(),
-                            modelSettings.dimensions(),
-                            newInstance.contentType()
-                        );
+                        double[] newVector = parseDenseVector(actualChunk.rawEmbeddings(), embeddingLength, newInstance.contentType());
                         assertArrayEquals(expectedVector, newVector, 0.0000001f);
                     }
                     case SPARSE_EMBEDDING -> {
@@ -171,9 +175,13 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     }
 
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingByte(Model model, List<String> inputs) {
+        DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
+        int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
+        assert elementType == DenseVectorFieldMapper.ElementType.BYTE || elementType == DenseVectorFieldMapper.ElementType.BIT;
+
         List<TextEmbeddingByteResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
-            byte[] values = new byte[model.getServiceSettings().dimensions()];
+            byte[] values = new byte[embeddingLength];
             for (int j = 0; j < values.length; j++) {
                 values[j] = randomByte();
             }
@@ -183,9 +191,13 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     }
 
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingFloat(Model model, List<String> inputs) {
+        DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
+        int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
+        assert elementType == DenseVectorFieldMapper.ElementType.FLOAT;
+
         List<TextEmbeddingFloatResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
-            float[] values = new float[model.getServiceSettings().dimensions()];
+            float[] values = new float[embeddingLength];
             for (int j = 0; j < values.length; j++) {
                 values[j] = randomFloat();
             }
@@ -314,22 +326,28 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 return new ChunkedInferenceEmbedding(chunks);
             }
             case TEXT_EMBEDDING -> {
-                List<TextEmbeddingFloatResults.Chunk> chunks = new ArrayList<>();
+                var elementType = field.inference().modelSettings().elementType();
+                int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(
+                    elementType,
+                    field.inference().modelSettings().dimensions()
+                );
+
+                List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
                 for (var entry : field.inference().chunks().entrySet()) {
                     String entryField = entry.getKey();
                     List<SemanticTextField.Chunk> entryChunks = entry.getValue();
                     List<String> entryFieldMatchedText = validateAndGetMatchedTextForField(matchedTextMap, entryField, entryChunks.size());
 
                     ListIterator<String> matchedTextIt = entryFieldMatchedText.listIterator();
-                    for (var chunk : entryChunks) {
+                    for (var entryChunk : entryChunks) {
                         String matchedText = matchedTextIt.next();
-                        ChunkedInference.TextOffset offset = createOffset(useLegacyFormat, chunk, matchedText);
-                        double[] values = parseDenseVector(
-                            chunk.rawEmbeddings(),
-                            field.inference().modelSettings().dimensions(),
-                            field.contentType()
-                        );
-                        chunks.add(new TextEmbeddingFloatResults.Chunk(FloatConversionUtils.floatArrayOf(values), offset));
+                        ChunkedInference.TextOffset offset = createOffset(useLegacyFormat, entryChunk, matchedText);
+                        double[] values = parseDenseVector(entryChunk.rawEmbeddings(), embeddingLength, field.contentType());
+                        EmbeddingResults.Chunk chunk = switch (elementType) {
+                            case FLOAT -> new TextEmbeddingFloatResults.Chunk(FloatConversionUtils.floatArrayOf(values), offset);
+                            case BYTE, BIT -> new TextEmbeddingByteResults.Chunk(byteArrayOf(values), offset);
+                        };
+                        chunks.add(chunk);
                     }
                 }
                 return new ChunkedInferenceEmbedding(chunks);
@@ -397,5 +415,15 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static byte[] byteArrayOf(double[] doublesArray) {
+        // It's fine to not check if the double values are out of range here because if any are, equality assertions on the expected vs.
+        // actual chunks will fail downstream
+        byte[] byteArray = new byte[doublesArray.length];
+        for (int i = 0; i < doublesArray.length; i++) {
+            byteArray[i] = (byte) doublesArray[i];
+        }
+        return byteArray;
     }
 }

@@ -50,7 +50,7 @@ public class PostSecretRequest extends ActionRequest {
     private final Object value;
 
     public PostSecretRequest(Object value) {
-        if (!(value instanceof String) && !(value instanceof String[])) {
+        if ((value instanceof String == false) && (value instanceof String[] == false)) {
             throw new IllegalArgumentException("value must be a string or an array of strings");
         }
         this.value = value;

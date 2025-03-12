@@ -443,7 +443,7 @@ public class MetadataDataStreamsService {
     }
 
     /**
-     * Removes the given data streams from the Cluster State.
+     * Removes the given data streams and their backing indices from the Cluster State.
      *
      * @param clusterState The cluster state
      * @param dataStreams  The data streams to remove
@@ -465,7 +465,7 @@ public class MetadataDataStreamsService {
     }
 
     /**
-     * Removes the given data streams from the Project State.
+     * Removes the given data stream and their backing indices from the Project State.
      *
      * @param projectState The project state
      * @param dataStreams  The data streams to remove

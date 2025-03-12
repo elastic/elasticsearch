@@ -26,10 +26,6 @@ public class MetadataDeleteDataStreamService {
 
     private static final Logger LOGGER = LogManager.getLogger(MetadataDeleteDataStreamService.class);
 
-
-    private record DeleteDataStreamInfo(ProjectState projectState, Set<DataStream> dataStreams) {
-    }
-
     /**
      * Removes the given data streams from the Cluster State.
      *
@@ -40,24 +36,15 @@ public class MetadataDeleteDataStreamService {
      */
     @FixForMultiProject // Once callers have Project State we can update/remove this method.
     public static ClusterState deleteDataStreams(ClusterState clusterState, Set<DataStream> dataStreams, Settings settings) {
-        final Map<ProjectId, DeleteDataStreamInfo> DeletionInfobyProject = new HashMap<>();
+        final Map<ProjectId, Set<DataStream>> byProject = new HashMap<>();
         for (DataStream dataStream : dataStreams) {
-            final var projectId = clusterState.metadata().projectFor(dataStream).id();
-            final var projectState = clusterState.projectState(projectId);
-
-            DeletionInfobyProject.computeIfAbsent(projectId, ignore -> {
-                var deleteDataStreamInfo = new DeleteDataStreamInfo(projectState, new HashSet<>());
-                deleteDataStreamInfo.dataStreams().add(dataStream);
-                return deleteDataStreamInfo;
-            });
+            final ProjectMetadata project = clusterState.metadata().projectFor(dataStream);
+            byProject.computeIfAbsent(project.id(), ignore -> new HashSet<>()).add(dataStream);
         }
 
-        for (DeleteDataStreamInfo deleteDataStreamInfo : DeletionInfobyProject.values()) {
-            clusterState = deleteDataStream(
-                deleteDataStreamInfo.projectState(),
-                deleteDataStreamInfo.dataStreams(),
-                settings
-            );
+        for (final Map.Entry<ProjectId, Set<DataStream>> entry : byProject.entrySet()) {
+            // TODO Avoid creating the state multiple times if there are batched updates for multiple projects
+            clusterState = deleteDataStream(clusterState.projectState(entry.getKey()), entry.getValue(), settings);
         }
         return clusterState;
     }

@@ -1350,17 +1350,6 @@ public final class RestoreService implements ClusterStateApplier {
                 settings
             );
 
-            /* TODO - this is not working as expected, doesn't delete .another-system-data-stream from org.elasticsearch.snapshots.SystemIndicesSnapshotIT.testSnapshotByFeature
-                [2025-03-12T02:34:09,528][WARN ][o.e.s.RestoreService     ] [node_t1] [test-repo:test-snap/J3XEyGIqSQGXdqxSuAl0FA] failed to restore snapshot
-                    org.elasticsearch.snapshots.SnapshotRestoreException: [test-repo:test-snap/J3XEyGIqSQGXdqxSuAl0FA] cannot restore index [.ds-.another-test-system-data-stream-2025.03.11-000001] because an open index with same name already exists in the cluster. Either close or delete the existing index or restore the index under a different name by providing a rename pattern and replacement name
-                    at org.elasticsearch.snapshots.RestoreService$RestoreSnapshotStateTask.validateExistingClosedIndex(RestoreService.java:1655) ~[main/:?]
-                    at org.elasticsearch.snapshots.RestoreService$RestoreSnapshotStateTask.execute(RestoreService.java:1446) ~[main/:?]
-                    at org.elasticsearch.cluster.service.MasterService$UnbatchedExecutor.execute(MasterService.java:580) ~[main/:?]
-
-                - resolveSystemDataStreamsToDelete(currentState, dataStreamsToRestore) correctly identifies the 2 DSs
-                - deleteDataStreams only deletes the first one, it leasve .another-system-data-stream intact
-             */
-
             // Clear out all existing data streams which fall within a data stream being restored
             currentState = MetadataDeleteDataStreamService.deleteDataStreams(
                 currentState,

@@ -1272,8 +1272,8 @@ from hosts
 | keep description
 | sort description;
 
-warning:Line 2:9: evaluation of [ends_with(description, \"host\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: evaluation of \[ends_with\(description, \\\"host\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 description:text
 ;

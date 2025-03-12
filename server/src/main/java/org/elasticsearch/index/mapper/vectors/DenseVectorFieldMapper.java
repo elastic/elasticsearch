@@ -2242,9 +2242,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int adjustedK = k;
             // By default utilize the quantized oversample is configured
             // allow the user provided at query time overwrite
-            Float oversample = indexOptions instanceof QuantizedIndexOptions quantizedIndexOptions
-                ? quantizedIndexOptions.rescoreVector != null ? quantizedIndexOptions.rescoreVector.oversample() : null
-                : null;
+            Float oversample = null;
+            if (indexOptions instanceof QuantizedIndexOptions quantizedIndexOptions && quantizedIndexOptions.rescoreVector != null) {
+                oversample = quantizedIndexOptions.rescoreVector.oversample;
+            }
             if (queryOversample != null) {
                 oversample = queryOversample;
             }

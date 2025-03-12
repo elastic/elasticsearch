@@ -50,11 +50,13 @@ ES|QL:
 * Allow skip shards with `_tier` and `_index` in ES|QL [#123728](https://github.com/elastic/elasticsearch/pull/123728)
 * Avoid `NamedWritable` in block serialization [#124394](https://github.com/elastic/elasticsearch/pull/124394)
 * ES|QL - Add scoring for full text functions disjunctions [#121793](https://github.com/elastic/elasticsearch/pull/121793)
+* ES|QL: Support `::date` in inline cast [#123460](https://github.com/elastic/elasticsearch/pull/123460) (issue: {es-issue}116746[#116746])
 * Fix Driver status iterations and `cpuTime` [#123290](https://github.com/elastic/elasticsearch/pull/123290) (issue: {es-issue}122967[#122967])
 * Implement runtime skip_unavailable=true [#121240](https://github.com/elastic/elasticsearch/pull/121240)
 * Initial support for unmapped fields [#119886](https://github.com/elastic/elasticsearch/pull/119886)
 * Introduce `allow_partial_results` setting in ES|QL [#122890](https://github.com/elastic/elasticsearch/pull/122890)
 * Introduce a pre-mapping logical plan processing step [#121260](https://github.com/elastic/elasticsearch/pull/121260)
+* Pragma to load from stored fields [#122891](https://github.com/elastic/elasticsearch/pull/122891)
 * Push down `StartsWith` and `EndsWith` functions to Lucene [#123381](https://github.com/elastic/elasticsearch/pull/123381) (issue: {es-issue}123067[#123067])
 * Render `aggregate_metric_double` [#122660](https://github.com/elastic/elasticsearch/pull/122660)
 * Retry ES|QL node requests on shard level failures [#120774](https://github.com/elastic/elasticsearch/pull/120774)
@@ -86,6 +88,8 @@ Machine Learning:
 * Adding support for binary embedding type to Cohere service embedding type [#120751](https://github.com/elastic/elasticsearch/pull/120751)
 * Adding support for specifying embedding type to Jina AI service settings [#121548](https://github.com/elastic/elasticsearch/pull/121548)
 * ES|QL `change_point` processing command [#120998](https://github.com/elastic/elasticsearch/pull/120998)
+* Integrate with `DeepSeek` API [#122218](https://github.com/elastic/elasticsearch/pull/122218)
+* [Inference API] Propagate product use case http header to EIS [#124025](https://github.com/elastic/elasticsearch/pull/124025)
 
 Mapping:
 * Enable synthetic recovery source by default when synthetic source is enabled. Using synthetic recovery source significantly improves indexing performance compared to regular recovery source. [#122615](https://github.com/elastic/elasticsearch/pull/122615) (issue: {es-issue}116726[#116726])
@@ -110,6 +114,7 @@ Security:
 * Bump nimbus-jose-jwt to 10.0.2 [#124544](https://github.com/elastic/elasticsearch/pull/124544)
 
 Snapshot/Restore:
+* GCS blob store: add `OperationPurpose/Operation` stats counters [#122991](https://github.com/elastic/elasticsearch/pull/122991)
 * Upgrade AWS SDK to v1.12.746 [#122431](https://github.com/elastic/elasticsearch/pull/122431)
 
 Stats:
@@ -170,6 +175,7 @@ Infra/Core:
 
 Ingest Node:
 * Fix geoip databases index access after system feature migration (again) [#122938](https://github.com/elastic/elasticsearch/pull/122938)
+* Fix geoip databases index access after system feature migration (take 3) [#124604](https://github.com/elastic/elasticsearch/pull/124604)
 * apm-data: Use representative count as event.success_count if available [#119995](https://github.com/elastic/elasticsearch/pull/119995)
 
 Machine Learning:
@@ -177,6 +183,7 @@ Machine Learning:
 * Add enterprise license check to inference action for semantic text fields [#122293](https://github.com/elastic/elasticsearch/pull/122293)
 * Avoid potentially throwing calls to Task#getDescription in model download [#124527](https://github.com/elastic/elasticsearch/pull/124527)
 * Fix serialising the inference update request [#122278](https://github.com/elastic/elasticsearch/pull/122278)
+* Provide model size statistics as soon as an anomaly detection job is opened [#124638](https://github.com/elastic/elasticsearch/pull/124638) (issue: {es-issue}121168[#121168])
 * Retry on streaming errors [#123076](https://github.com/elastic/elasticsearch/pull/123076)
 * Set Connect Timeout to 5s [#123272](https://github.com/elastic/elasticsearch/pull/123272)
 * Updates to allow using Cohere binary embedding response in semantic search queries [#121827](https://github.com/elastic/elasticsearch/pull/121827)
@@ -188,11 +195,15 @@ Mapping:
 Ranking:
 * Restore `TextSimilarityRankBuilder` XContent output [#124564](https://github.com/elastic/elasticsearch/pull/124564)
 
+Relevance:
+* Prevent Query Rule Creation with Invalid Numeric Match Criteria [#122823](https://github.com/elastic/elasticsearch/pull/122823)
+
 Search:
 * Do not let `ShardBulkInferenceActionFilter` unwrap / rewrap ESExceptions [#123890](https://github.com/elastic/elasticsearch/pull/123890)
 * Fix concurrency issue in `ScriptSortBuilder` [#123757](https://github.com/elastic/elasticsearch/pull/123757)
 * Fix handling of auto expand replicas for stateless indices [#122365](https://github.com/elastic/elasticsearch/pull/122365)
 * Handle search timeout in `SuggestPhase` [#122357](https://github.com/elastic/elasticsearch/pull/122357) (issue: {es-issue}122186[#122186])
+* Let MLTQuery throw IAE when no analyzer is set [#124662](https://github.com/elastic/elasticsearch/pull/124662) (issue: {es-issue}124562[#124562])
 
 Snapshot/Restore:
 * Fork post-snapshot-delete cleanup off master thread [#122731](https://github.com/elastic/elasticsearch/pull/122731)

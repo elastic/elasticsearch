@@ -284,6 +284,6 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
         }
 
         Exception error = expectThrows(Exception.class, requestFuture::actionGet);
-        assertThat(error, instanceOf(TaskCancelledException.class));
+        assertThat(error.getCause(), instanceOf(TaskCancelledException.class));
     }
 }

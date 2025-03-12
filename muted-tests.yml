@@ -375,9 +375,6 @@ tests:
 - class: org.elasticsearch.lucene.spatial.CartesianCentroidCalculatorTests
   method: testAddDifferentDimensionalType
   issue: https://github.com/elastic/elasticsearch/issues/124609
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerStatsTests
-  method: testResumableWrite
-  issue: https://github.com/elastic/elasticsearch/issues/124648
 
 # Examples:
 #

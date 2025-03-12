@@ -73,7 +73,7 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
 
     @Override
     protected InferenceAction.Request createRequest() {
-        return mock();
+        return mock(InferenceAction.Request.class);
     }
 
     public void testNoRerouting_WhenTaskTypeNotSupported() {

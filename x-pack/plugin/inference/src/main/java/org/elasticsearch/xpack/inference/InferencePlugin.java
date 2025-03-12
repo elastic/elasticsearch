@@ -44,6 +44,7 @@ import org.elasticsearch.plugins.internal.InternalSearchPlugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -135,6 +136,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -172,6 +174,8 @@ public class InferencePlugin extends Plugin
         "api",
         License.OperationMode.ENTERPRISE
     );
+
+    public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
@@ -515,6 +519,16 @@ public class InferencePlugin extends Plugin
         if (registry != null) {
             registry.onNodeStarted();
         }
+    }
+
+    @Override
+    public Collection<RestHeaderDefinition> getRestHeaders() {
+        return Set.of(new RestHeaderDefinition(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, false));
+    }
+
+    @Override
+    public Collection<String> getTaskHeaders() {
+        return Set.of(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
     }
 
     protected SSLService getSslService() {

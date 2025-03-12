@@ -309,7 +309,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             .put(indexTemplateAndCreateRequestSettings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), false);  // Avoid warnings for non-system indexes.
 
         if (templateIndexMode == IndexMode.TIME_SERIES) {
             finalResolvedSettings.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);

@@ -34,9 +34,9 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest extends Elastic
         UnifiedChatInput unifiedChatInput,
         ElasticInferenceServiceCompletionModel model,
         TraceContext traceContext,
-        String productOrigin
+        ElasticInferenceServiceRequestMetadata requestMetadata
     ) {
-        super(productOrigin);
+        super(requestMetadata);
         this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
         this.model = Objects.requireNonNull(model);
         this.traceContextHandler = new TraceContextHandler(traceContext);

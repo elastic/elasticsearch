@@ -51,4 +51,17 @@ public record InferenceContext(String productUseCase) implements Writeable, ToXC
 
         return builder;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        InferenceContext that = (InferenceContext) o;
+        return Objects.equals(productUseCase, that.productUseCase);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(productUseCase);
+    }
 }

@@ -847,7 +847,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 );
                 logger.trace("[{}][{}] updated snapshot state to [{}]", shardId, snapshot, status);
                 if (status.state().completed()) {
-                    consistencyChecker.ensureShardComplete(snapshot, shardId);
+                    shardStatusConsistencyChecker.ensureShardComplete(snapshot, shardId);
                 }
             }
 
@@ -877,7 +877,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         );
     }
 
-    private final ConsistencyChecker consistencyChecker = new ConsistencyChecker();
+    private final ShardStatusConsistencyChecker shardStatusConsistencyChecker = new ShardStatusConsistencyChecker();
 
     /**
      * After receiving an ack from the master confirming that it marked a shard snapshot as complete, checks the local cluster state to
@@ -886,10 +886,10 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
      * be visible in the logs.
      */
     // visible for testing
-    class ConsistencyChecker {
+    class ShardStatusConsistencyChecker {
 
         // dedicated logger so we can separate these logs from other SnapshotShardsService DEBUG logs
-        private static final Logger CONSISTENCY_CHECKER_LOGGER = LogManager.getLogger(ConsistencyChecker.class);
+        private static final Logger CONSISTENCY_CHECKER_LOGGER = LogManager.getLogger(ShardStatusConsistencyChecker.class);
 
         private record CheckTask(Snapshot snapshot, ShardId shardId) {}
 
@@ -898,7 +898,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
         /**
          * Adds a {@link CheckTask} with the snapshot info to the queue. If the queue was previously empty, then {@link #runCheck()} will be
-         * started on a GENERIC thread. 
+         * started on a GENERIC thread.
          */
         void ensureShardComplete(Snapshot snapshot, ShardId shardId) {
             if (CONSISTENCY_CHECKER_LOGGER.isDebugEnabled() == false) {
@@ -932,11 +932,11 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 }
                 final var snapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
                 for (final var snapshotShards : shardsBySnapshot.entrySet()) {
-                    final var snapshot = shardsBySnapshotEntry.getKey();
-                    final var snapshotEntryClusterState = snapshotsInProgress.snapshot(snapshot);
-                    if (entry != null) {
-                        for (final var shardId : shardsBySnapshotEntry.getValue()) {
-                            final var shardStatus = entry.shards().get(shardId);
+                    final var snapshot = snapshotShards.getKey();
+                    final var clusterStateSnapshotEntry = snapshotsInProgress.snapshot(snapshot);
+                    if (clusterStateSnapshotEntry != null) {
+                        for (final var shardId : snapshotShards.getValue()) {
+                            final var shardStatus = clusterStateSnapshotEntry.shards().get(shardId);
                             if (shardStatus == null) {
                                 CONSISTENCY_CHECKER_LOGGER.debug("shard [{}] in snapshot [{}] unexpectedly not found", shardId, snapshot);
                             } else if (shardStatus.state().completed() == false) {

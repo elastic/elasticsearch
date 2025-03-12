@@ -102,7 +102,10 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
         }, 30L, TimeUnit.SECONDS);
     }
 
-    @TestLogging(reason = "verifying debug logging", value = "org.elasticsearch.snapshots.SnapshotShardsService.ConsistencyChecker:DEBUG")
+    @TestLogging(
+        reason = "verifying debug logging",
+        value = "org.elasticsearch.snapshots.SnapshotShardsService.ShardStatusConsistencyChecker:DEBUG"
+    )
     public void testConsistencyCheckerLogging() {
         final var masterNode = internalCluster().startMasterOnlyNode();
         final var dataNode = internalCluster().startDataOnlyNode();
@@ -122,7 +125,8 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
                 handler.messageReceived(request, channel, task);
             });
 
-        // then, after the shard snapshot update, delay cluster state update commits on the data node until we see the ConsistencyChecker log an inconsistency.
+        // then, after the shard snapshot update, delay cluster state update commits on the data node until we see the
+        // ShardStatusConsistencyChecker log an inconsistency.
         final var logMessageSeenListener = new SubscribableListener<Void>();
         MockTransportService.getInstance(dataNode)
             .addRequestHandlingBehavior(Coordinator.COMMIT_STATE_ACTION_NAME, (handler, request, channel, task) -> {
@@ -145,10 +149,10 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
 
         MockLog.awaitLogger(
             () -> createSnapshot(repoName, randomIdentifier(), List.of(indexName)),
-            SnapshotShardsService.ConsistencyChecker.class,
+            SnapshotShardsService.ShardStatusConsistencyChecker.class,
             new MockLog.SeenEventExpectation(
                 "debug log",
-                SnapshotShardsService.ConsistencyChecker.class.getCanonicalName(),
+                SnapshotShardsService.ShardStatusConsistencyChecker.class.getCanonicalName(),
                 Level.DEBUG,
                 "*unexpectedly still in state [*INIT*] after notifying master"
             ) {

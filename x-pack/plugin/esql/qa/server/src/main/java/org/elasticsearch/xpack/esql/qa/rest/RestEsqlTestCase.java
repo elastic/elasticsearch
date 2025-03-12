@@ -967,7 +967,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
-    public void testWideIndexWithFieldsTrimmed() throws IOException {
+    public void testWideIndexWithFieldsPruned() throws IOException {
         createLoadIndexWithFieldAndDocumentCounts(10000, 1); // create an index with 10k fields and 1 document
         var query = requestObjectBuilder().query(format(null, "from {}", testIndexName()));
         Map<String, Object> result = runEsql(query);
@@ -975,6 +975,25 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         var values = as(result.get("values"), List.class);
         assertEquals(WIDE_INDEX_DEFAULT_FIELD_NUMBER, columns.size());
         assertEquals(1, values.size());
+        var column = as(columns.get(randomIntBetween(0, 99)), Map.class);
+        assertTrue(column.get("name").toString().startsWith("f1"));
+
+        // keep the limit 0 return all fields, kibana uses this trick to retrieve metadata
+        query = requestObjectBuilder().query(format(null, "from {} | limit 0", testIndexName()));
+        result = runEsql(query);
+        columns = as(result.get("columns"), List.class);
+        values = as(result.get("values"), List.class);
+        assertEquals(10000, columns.size());
+        assertEquals(0, values.size());
+
+        query = requestObjectBuilder().query(format(null, "from {} | limit 1", testIndexName()));
+        result = runEsql(query);
+        columns = as(result.get("columns"), List.class);
+        values = as(result.get("values"), List.class);
+        assertEquals(100, columns.size());
+        assertEquals(1, values.size());
+        column = as(columns.get(randomIntBetween(0, 99)), Map.class);
+        assertTrue(column.get("name").toString().startsWith("f1"));
 
         query = requestObjectBuilder().query(format(null, "from {} | keep f1, f2", testIndexName()));
         result = runEsql(query);
@@ -1584,7 +1603,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         for (int i = 2; i <= fieldCount; i++) {
             schema.append(String.format(Locale.ROOT, ",\"f%d\":{\"type\":\"integer\"}", i));
         }
-        schema.append(String.format(Locale.ROOT, "}}}"));
+        schema.append("}}}");
         Request request = new Request("PUT", "/" + testIndexName());
         request.setJsonEntity(schema.toString());
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
@@ -1595,16 +1614,16 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
             StringBuilder bulk = new StringBuilder();
             for (int i = 1; i <= documentCount; i++) {
-                bulk.append(String.format(Locale.ROOT, """
+                bulk.append("""
                     {"index":{}}
-                    """));
+                    """);
                 bulk.append(String.format(Locale.ROOT, "{\"f%d\":%d", 1, 1));
                 for (int j = 2; j <= fieldCount; j++) {
                     bulk.append(String.format(Locale.ROOT, ",\"f%d\":%d", j, j));
                 }
-                bulk.append(String.format(Locale.ROOT, """
+                bulk.append("""
                     }
-                    """));
+                    """);
             }
             request.setJsonEntity(bulk.toString());
             assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -182,17 +183,22 @@ public class IndexResolver {
             if (seenHashes.add(response.getIndexMappingHash()) == false) {
                 continue;
             }
-            int counter = 0;
-            for (IndexFieldCapabilities fc : response.get().values()) {
+            Collection<IndexFieldCapabilities> fcs = response.get().values();
+            if (noRequiredField && fcs.size() > WIDE_INDEX_DEFAULT_FIELD_NUMBER) {
+                // make the 100 field names deterministic, extra overhead to sort wide indices' field-caps, is it worth it?
+                fcs = fcs.stream().sorted((fc1, fc2) -> fc1.name().compareToIgnoreCase(fc2.name())).toList();
+            }
+            int count = 0;
+            for (IndexFieldCapabilities fc : fcs) {
                 if (fc.isMetadatafield()) {
                     // ESQL builds the metadata fields if they are asked for without using the resolution.
                     continue;
                 }
                 List<IndexFieldCapabilities> all = fieldsCaps.computeIfAbsent(fc.name(), (_key) -> new ArrayList<>());
                 all.add(fc);
-                counter++;
-                if (noRequiredField && counter >= WIDE_INDEX_DEFAULT_FIELD_NUMBER) { // retrieve up to 100 fields of each wide index if
-                                                                                     // there is no required field
+                count++;
+                if (noRequiredField && count >= WIDE_INDEX_DEFAULT_FIELD_NUMBER) {
+                    // retrieve up to 100 fields if there is no required field
                     break;
                 }
             }

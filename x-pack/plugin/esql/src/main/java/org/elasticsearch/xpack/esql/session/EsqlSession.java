@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
@@ -371,7 +372,10 @@ public class EsqlSession {
         for (TableInfo lookupIndex : preAnalysis.lookupIndices) {
             listener = listener.andThen((l, preAnalysisResult) -> { preAnalyzeLookupIndex(lookupIndex, preAnalysisResult, l); });
         }
-        boolean noRequiredField = parsed.anyMatch(p -> (p instanceof UnresolvedRelation || p instanceof Limit) == false) == false;
+        boolean noRequiredField = parsed.anyMatch(
+            p -> (p instanceof UnresolvedRelation
+                || (p instanceof Limit lim && lim.limit() instanceof Literal lit && Integer.parseInt(lit.value().toString()) > 0)) == false
+        ) == false;
         listener.<PreAnalysisResult>andThen((l, result) -> {
             // resolve the main indices
             preAnalyzeIndices(preAnalysis.indices, executionInfo, result, requestFilter, l, noRequiredField);

@@ -99,6 +99,17 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
+    public void testExampleLoadMacro() {
+        String text = "<<load-esql-example, file=string tag=rlikeEscapingSingleQuotes>>";
+        String expected = """
+            ```esql
+            ROW message = "foo ( bar"
+            | WHERE message RLIKE "foo \\( bar"
+            ```
+            """;
+        assertThat(docs.replaceLinks(text), equalTo(expected));
+    }
+
     public void testKnownRootEsqlFiles() {
         String text = """
             The order that <<esql-multivalued-fields, multivalued fields>>

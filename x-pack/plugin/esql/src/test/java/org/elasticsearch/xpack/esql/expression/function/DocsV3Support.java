@@ -50,6 +50,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -259,8 +260,20 @@ public abstract class DocsV3Support {
      * Rather than make a large number of messy changes to the java files, we simply re-write the existing links to the new syntax.
      */
     private String getLink(String key) {
-        // Known root query-languages markdown files
         String[] parts = key.split(",\\s*");
+        // Inject esql examples
+        if (parts[0].equals("load-esql-example")) {
+            try {
+                Map<String, String> example = Arrays.stream(parts[1].trim().split("\\s+"))
+                    .map(s -> s.split("\\s*=\\s*", 2))
+                    .map(p -> entry(p[0], p[1]))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                return "```esql\n" + loadExample(example.get("file"), example.get("tag")) + "\n```\n";
+            } catch (IOException e) {
+                return e.getMessage();
+            }
+        }
+        // Known root query-languages markdown files
         if (knownFiles.containsKey(parts[0])) {
             return makeLink(key, "", "/reference/query-languages/" + knownFiles.get(parts[0]));
         }
@@ -567,8 +580,8 @@ public abstract class DocsV3Support {
             renderDocsForOperators("not_" + baseName, ctor, functionInfo, op.variadic());
         }
 
-        void renderDocsForOperators(String name, Constructor<?> ctor, FunctionInfo functionInfo, boolean variadic) throws IOException {
-            renderKibanaInlineDocs(name, functionInfo);
+        void renderDocsForOperators(String name, Constructor<?> ctor, FunctionInfo info, boolean variadic) throws IOException {
+            renderKibanaInlineDocs(name, info);
 
             var params = ctor.getParameters();
 
@@ -584,9 +597,28 @@ public abstract class DocsV3Support {
                     }
                 }
             }
-            renderKibanaFunctionDefinition(name, functionInfo, args, variadic);
+            renderKibanaFunctionDefinition(name, info, args, variadic);
+            renderDetailedDescription(info.detailedDescription(), info.note());
             renderTypes(name, args);
-            renderExamples(functionInfo);
+            renderExamples(info);
+            // TODO: Consider rendering more for operators, like layout, which is currently static
+        }
+
+        void renderDetailedDescription(String detailedDescription, String note) throws IOException {
+            StringBuilder rendered = new StringBuilder();
+            detailedDescription = replaceLinks(detailedDescription.trim());
+            if (Strings.isNullOrEmpty(detailedDescription) == false) {
+                rendered.append("\n").append(detailedDescription).append("\n");
+            }
+
+            if (Strings.isNullOrEmpty(note) == false) {
+                rendered.append("\n::::{note}\n").append(note).append("\n::::\n\n");
+            }
+            if (rendered.isEmpty() == false) {
+                rendered.append("\n");
+                logger.info("Writing detailed description for [{}]:\n{}", name, rendered);
+                writeToTempSnippetsDir("detailedDescription", rendered.toString());
+            }
         }
     }
 
@@ -660,13 +692,13 @@ public abstract class DocsV3Support {
 
     void renderDescription(String description, String detailedDescription, String note) throws IOException {
         description = replaceLinks(description.trim());
-        detailedDescription = replaceLinks(detailedDescription.trim());
         note = replaceLinks(note);
         String rendered = DOCS_WARNING + """
             **Description**
 
             """ + description + "\n";
 
+        detailedDescription = replaceLinks(detailedDescription.trim());
         if (Strings.isNullOrEmpty(detailedDescription) == false) {
             rendered += "\n" + detailedDescription + "\n";
         }
@@ -934,7 +966,7 @@ public abstract class DocsV3Support {
             }
             return sb.toString();
         } else {
-            return lines.stream().map(String::stripTrailing).collect(Collectors.joining("\n"));
+            return lines.stream().map(l -> l.stripTrailing().replaceAll("\\\\", "\\\\\\\\")).collect(Collectors.joining("\n"));
         }
     }
 

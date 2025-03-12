@@ -930,21 +930,21 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                     assert task != null;
                     shardsBySnapshot.computeIfAbsent(task.snapshot(), ignored -> new HashSet<>()).add(task.shardId());
                 }
-                final var snapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
+                final var clusterStateSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
                 for (final var snapshotShards : shardsBySnapshot.entrySet()) {
                     final var snapshot = snapshotShards.getKey();
-                    final var clusterStateSnapshotEntry = snapshotsInProgress.snapshot(snapshot);
+                    final var clusterStateSnapshotEntry = clusterStateSnapshotsInProgress.snapshot(snapshot);
                     if (clusterStateSnapshotEntry != null) {
                         for (final var shardId : snapshotShards.getValue()) {
-                            final var shardStatus = clusterStateSnapshotEntry.shards().get(shardId);
-                            if (shardStatus == null) {
+                            final var clusterStateShardStatus = clusterStateSnapshotEntry.shards().get(shardId);
+                            if (clusterStateShardStatus == null) {
                                 CONSISTENCY_CHECKER_LOGGER.debug("shard [{}] in snapshot [{}] unexpectedly not found", shardId, snapshot);
-                            } else if (shardStatus.state().completed() == false) {
+                            } else if (clusterStateShardStatus.state().completed() == false) {
                                 CONSISTENCY_CHECKER_LOGGER.debug(
                                     "shard [{}] in snapshot [{}] unexpectedly still in state [{}] after notifying master",
                                     shardId,
                                     snapshot,
-                                    shardStatus
+                                    clusterStateShardStatus
                                 );
                             } // else shard is marked complete as expected
                         }

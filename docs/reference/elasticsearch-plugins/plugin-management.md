@@ -86,7 +86,7 @@ Only Gold, Platinum, Enterprise and Private subscriptions have access to uploadi
 ### Enabling plugins for a deployment
 
 1. Log in to the [{{ecloud}} Console](https://cloud.elastic.co?page=docs&placement=docs-body).
-2. Find your deployment On the home page and select **Manage** next to it, or go to **Hosted deployments** to view all deployments.
+2. Find your deployment On the home page and select **Manage** next to it, or go to the **Deployments** page to view all deployments.
 
     On the deployments page you can narrow your deployments by name, ID, or choose from several other filters. To customize your view, use a combination of filters, or change the format from a grid to a list.
 

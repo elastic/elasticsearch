@@ -35,8 +35,8 @@ import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.EX
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.LTE;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.PREFIX;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.SUFFIX;
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class QueryRuleTests extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;

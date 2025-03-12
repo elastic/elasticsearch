@@ -24,12 +24,8 @@ public class GetSecretResponse extends ActionResponse implements ToXContentObjec
 
     public GetSecretResponse(StreamInput in) throws IOException {
         super(in);
-        id = in.readString();
-        if (in.readByte() == 0) {
-            value = in.readString();
-        } else {
-            value = in.readStringArray();
-        }
+        this.id = in.readString();
+        this.value = in.readString();
     }
 
     public GetSecretResponse(String id, Object value) {

@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -33,12 +34,13 @@ public class PostSecretRequest extends ActionRequest {
 
     static {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+            Token token = p.currentToken();
+            if (token == XContentParser.Token.VALUE_STRING) {
                 return p.text();
-            } else if (p.currentToken() == XContentParser.Token.START_ARRAY) {
+            } else if (token == XContentParser.Token.START_ARRAY) {
                 return p.list().stream().map(s -> (String) s).toArray(String[]::new);
             } else {
-                throw new IllegalArgumentException("Unexpected token: " + p.currentToken());
+                throw new IllegalArgumentException("Unexpected token: " + token);
             }
         }, VALUE_FIELD, ObjectParser.ValueType.STRING_ARRAY);
     }
@@ -50,19 +52,12 @@ public class PostSecretRequest extends ActionRequest {
     private final Object value;
 
     public PostSecretRequest(Object value) {
-        if ((value instanceof String == false) && (value instanceof String[] == false)) {
-            throw new IllegalArgumentException("value must be a string or an array of strings");
-        }
         this.value = value;
     }
 
     public PostSecretRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.readByte() == 0) {
-            this.value = in.readString();
-        } else {
-            this.value = in.readStringArray();
-        }
+        this.value = in.readString();
     }
 
     public Object value() {
@@ -84,10 +79,8 @@ public class PostSecretRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (value instanceof String) {
-            out.writeBoolean(true);
             out.writeString((String) value);
         } else if (value instanceof String[]) {
-            out.writeBoolean(false);
             out.writeStringArray((String[]) value);
         }
     }
@@ -97,6 +90,12 @@ public class PostSecretRequest extends ActionRequest {
         if (this.value == null) {
             ActionRequestValidationException exception = new ActionRequestValidationException();
             exception.addValidationError("value is missing");
+            return exception;
+        }
+
+        if ((this.value instanceof String == false) && (this.value instanceof String[] == false)) {
+            ActionRequestValidationException exception = new ActionRequestValidationException();
+            exception.addValidationError("value must be a string or an array of strings");
             return exception;
         }
 

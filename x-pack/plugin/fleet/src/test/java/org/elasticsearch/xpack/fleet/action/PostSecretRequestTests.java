@@ -51,4 +51,12 @@ public class PostSecretRequestTests extends AbstractWireSerializingTestCase<Post
         assertThat(e.validationErrors().size(), equalTo(1));
         assertThat(e.validationErrors().get(0), containsString("value is missing"));
     }
+
+    public void testValidateRequestWithInvalidValue() {
+        PostSecretRequest req = new PostSecretRequest(123);
+        ActionRequestValidationException e = req.validate();
+        assertNotNull(e);
+        assertThat(e.validationErrors().size(), equalTo(1));
+        assertThat(e.validationErrors().get(0), containsString("value must be a string or an array of strings"));
+    }
 }

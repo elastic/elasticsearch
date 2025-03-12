@@ -26,10 +26,4 @@ public class GetSecretResponseTests extends AbstractWireSerializingTestCase<GetS
     protected GetSecretResponse mutateInstance(GetSecretResponse instance) {
         return new GetSecretResponse(instance.id(), randomAlphaOfLength(10));
     }
-
-    public void testValidateResponseWithMultiValue() {
-        String[] secrets = { "secret1", "secret2" };
-        GetSecretResponse res = new GetSecretResponse(randomAlphaOfLength(10), secrets);
-        assertEquals(res.equals(secrets), true);
-    }
 }

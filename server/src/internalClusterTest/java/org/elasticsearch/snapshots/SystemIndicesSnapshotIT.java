@@ -15,7 +15,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -341,8 +340,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertSnapshotSuccess(createSnapshotResponse);
 
         // verify the correctness of the snapshot
-        var snapshotsResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO_NAME)
-            .get();
+        var snapshotsResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO_NAME).get();
         Set<String> snapshottedIndices = snapshotsResponse.getSnapshots()
             .stream()
             .map(SnapshotInfo::indices)
@@ -369,10 +367,12 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(getDocCount(AssociatedIndicesSystemDSTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(2L));
 
         // And delete the associated index so we can restore it
-        assertAcked(indicesAdmin().prepareDelete(
-            AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME,
-            AssociatedIndicesSystemDSTestPlugin.ASSOCIATED_INDEX_NAME
-        ).get());
+        assertAcked(
+            indicesAdmin().prepareDelete(
+                AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME,
+                AssociatedIndicesSystemDSTestPlugin.ASSOCIATED_INDEX_NAME
+            ).get()
+        );
 
         // restore the feature state and its associated index
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
@@ -451,7 +451,6 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertSnapshotSuccess(createSnapshotResponse);
     }
-
 
     /**
      * Check that directly requesting a system index in a restore request throws an Exception.
@@ -677,14 +676,14 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         // And make sure they both have aliases
         final String systemIndexAlias = SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "-alias";
         final String systemDataStreamAlias = SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME + "-alias";
-        assertAcked(indicesAdmin().prepareAliases()
-            .addAlias(systemIndexName, systemIndexAlias)
-            .addAlias(regularIndex, regularAlias)
-            .addAlias(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, systemDataStreamAlias, true)
-            .get()
+        assertAcked(
+            indicesAdmin().prepareAliases()
+                .addAlias(systemIndexName, systemIndexAlias)
+                .addAlias(regularIndex, regularAlias)
+                .addAlias(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, systemDataStreamAlias, true)
+                .get()
         );
         indexDataStream(systemDataStreamAlias, "2", "purpose", "post-alias doc");
-
 
         // run a snapshot including global state
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
@@ -728,10 +727,11 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // And make sure they both have aliases
         final String systemDataStreamAlias = SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME + "-alias";
-        assertAcked(indicesAdmin().prepareAliases()
-            .addAlias(regularIndex, regularAlias)
-            .addAlias(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, systemDataStreamAlias, true)
-            .get()
+        assertAcked(
+            indicesAdmin().prepareAliases()
+                .addAlias(regularIndex, regularAlias)
+                .addAlias(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, systemDataStreamAlias, true)
+                .get()
         );
 
         // And add a doc to ensure the alias works
@@ -746,17 +746,24 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // And delete the regular index and system data stream
         assertAcked(cluster().client().admin().indices().prepareDelete(regularIndex));
-        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME)).actionGet());
+        assertAcked(
+            client().execute(
+                DeleteDataStreamAction.INSTANCE,
+                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME)
+            ).actionGet()
+        );
 
         // Now restore the snapshot with no aliases
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
-                TEST_REQUEST_TIMEOUT,
-                REPO_NAME,
-                "test-snap"
-            ).setFeatureStates("SystemDataStreamTestPlugin")
+            TEST_REQUEST_TIMEOUT,
+            REPO_NAME,
+            "test-snap"
+        )
+            .setFeatureStates("SystemDataStreamTestPlugin")
             .setWaitForCompletion(true)
             .setRestoreGlobalState(false)
-            .setIncludeAliases(false).get();
+            .setIncludeAliases(false)
+            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         // The regular index should exist
@@ -768,7 +775,6 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertTrue(indexExists(systemDataStreamAlias));
         assertThat(getDocCount(systemDataStreamAlias), equalTo(2L));
     }
-
 
     /**
      * Tests that the special "none" feature state name cannot be combined with other

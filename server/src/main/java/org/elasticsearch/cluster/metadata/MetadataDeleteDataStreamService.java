@@ -26,9 +26,7 @@ public class MetadataDeleteDataStreamService {
 
     private static final Logger LOGGER = LogManager.getLogger(MetadataDeleteDataStreamService.class);
 
-
-    private record DeleteDataStreamInfo(ProjectState projectState, Set<DataStream> dataStreams) {
-    }
+    private record DeleteDataStreamInfo(ProjectState projectState, Set<DataStream> dataStreams) {}
 
     /**
      * Removes the given data streams from the Cluster State.
@@ -53,11 +51,7 @@ public class MetadataDeleteDataStreamService {
         }
 
         for (DeleteDataStreamInfo deleteDataStreamInfo : DeletionInfobyProject.values()) {
-            clusterState = deleteDataStream(
-                deleteDataStreamInfo.projectState(),
-                deleteDataStreamInfo.dataStreams(),
-                settings
-            );
+            clusterState = deleteDataStream(deleteDataStreamInfo.projectState(), deleteDataStreamInfo.dataStreams(), settings);
         }
         return clusterState;
     }
@@ -70,11 +64,7 @@ public class MetadataDeleteDataStreamService {
      * @param settings     The settings
      * @return The updated Project State
      */
-    public static ClusterState deleteDataStream(
-        ProjectState projectState,
-        Set<DataStream> dataStreams,
-        Settings settings
-    ) {
+    public static ClusterState deleteDataStream(ProjectState projectState, Set<DataStream> dataStreams, Settings settings) {
         if (dataStreams.isEmpty()) {
             return projectState.cluster();
         }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -118,18 +119,15 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
-    public void testRenderingExample() throws IOException {
+    public void testRenderingExampleRaw() throws IOException {
         String expectedExample = """
-            ```esql
             ROW wkt = "POINT(42.97109630194 14.7552534413725)"
-            | EVAL pt = TO_GEOPOINT(wkt)
-            ```
-            """;
+            | EVAL pt = TO_GEOPOINT(wkt)""";
         String example = docs.loadExample("spatial.csv-spec", "to_geopoint-str");
         assertThat(example, equalTo(expectedExample));
     }
 
-    public void testRenderingExampleResult() throws IOException {
+    public void testRenderingExampleResultRaw() throws IOException {
         String expectedResults = """
             | wkt:keyword | pt:geo_point |
             | --- | --- |
@@ -139,18 +137,15 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(results, equalTo(expectedResults));
     }
 
-    public void testRenderingExample2() throws IOException {
+    public void testRenderingExampleRaw2() throws IOException {
         String expectedExample = """
-            ```esql
             ROW n=1
-            | STATS COUNT(n > 0 OR NULL), COUNT(n < 0 OR NULL)
-            ```
-            """;
+            | STATS COUNT(n > 0 OR NULL), COUNT(n < 0 OR NULL)""";
         String example = docs.loadExample("stats", "count-or-null");
         assertThat(example, equalTo(expectedExample));
     }
 
-    public void testRenderingExampleResult2() throws IOException {
+    public void testRenderingExampleResultRaw2() throws IOException {
         String expectedResults = """
             | COUNT(n > 0 OR NULL):long | COUNT(n < 0 OR NULL):long |
             | --- | --- |
@@ -158,5 +153,144 @@ public class DocsV3SupportTests extends ESTestCase {
             """;
         String results = docs.loadExample("stats", "count-or-null-result");
         assertThat(results, equalTo(expectedResults));
+    }
+
+    public void testRenderingExampleFromClass() throws IOException {
+        String expected = """
+
+            ```esql
+            FROM employees
+            | STATS COUNT(height)
+            ```
+
+            | COUNT(height):long |
+            | --- |
+            | 100 |
+
+            To count the number of rows, use `COUNT()` or `COUNT(*)`
+
+            ```esql
+            FROM employees
+            | STATS count = COUNT(*) BY languages
+            | SORT languages DESC
+            ```
+
+            | count:long | languages:integer |
+            | --- | --- |
+            | 10 | null |
+            | 21 | 5 |
+            | 18 | 4 |
+            | 17 | 3 |
+            | 19 | 2 |
+            | 15 | 1 |
+
+            The expression can use inline functions. This example splits a string into multiple values
+            using the `SPLIT` function and counts the values
+
+            ```esql
+            ROW words="foo;bar;baz;qux;quux;foo"
+            | STATS word_count = COUNT(SPLIT(words, ";"))
+            ```
+
+            | word_count:long |
+            | --- |
+            | 6 |
+
+            To count the number of times an expression returns `TRUE` use a
+            [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) command
+            to remove rows that shouldn’t be included
+
+            ```esql
+            ROW n=1
+            | WHERE n < 0
+            | STATS COUNT(n)
+            ```
+
+            | COUNT(n):long |
+            | --- |
+            | 0 |
+
+            To count the same stream of data based on two different expressions use the pattern
+            `COUNT(<expression> OR NULL)`. This builds on the three-valued logic
+            ([3VL](https://en.wikipedia.org/wiki/Three-valued_logic)) of the language:
+            `TRUE OR NULL` is `TRUE`, but `FALSE OR NULL` is `NULL`, plus the way COUNT handles
+            `NULL`s: `COUNT(TRUE)` and `COUNT(FALSE)` are both 1, but `COUNT(NULL)` is 0.
+
+            ```esql
+            ROW n=1
+            | STATS COUNT(n > 0 OR NULL), COUNT(n < 0 OR NULL)
+            ```
+
+            | COUNT(n > 0 OR NULL):long | COUNT(n < 0 OR NULL):long |
+            | --- | --- |
+            | 1 | 0 |
+            """;
+        FunctionInfo info = functionInfo(TestClass.class);
+        assert info != null;
+        DocsV3Support docs = DocsV3Support.forFunctions("count", TestClass.class);
+        StringBuilder results = new StringBuilder();
+        for (Example example : info.examples()) {
+            if (example.description().isEmpty() == false) {
+                results.append("\n");
+                results.append(docs.replaceLinks(example.description().trim()));
+                results.append("\n");
+            }
+            String query = docs.loadExampleQuery(example);
+            String result = docs.loadExampleResult(example);
+            results.append("\n").append(query).append("\n").append(result);
+        }
+        assertThat(results.toString(), equalTo(expected));
+    }
+
+    private static FunctionInfo functionInfo(Class<?> clazz) {
+        Constructor<?> constructor = constructorFor(clazz);
+        if (constructor == null) {
+            return null;
+        }
+        return constructor.getAnnotation(FunctionInfo.class);
+    }
+
+    private static Constructor<?> constructorFor(Class<?> clazz) {
+        Constructor<?>[] constructors = clazz.getConstructors();
+        if (constructors.length == 0) {
+            return null;
+        }
+        if (constructors.length > 1) {
+            for (Constructor<?> constructor : constructors) {
+                if (constructor.getAnnotation(FunctionInfo.class) != null) {
+                    return constructor;
+                }
+            }
+        }
+        return constructors[0];
+    }
+
+    public static class TestClass {
+        @FunctionInfo(
+            returnType = "long",
+            description = "Returns the total number (count) of input values.",
+            type = FunctionType.AGGREGATE,
+            examples = {
+                @Example(file = "stats", tag = "count"),
+                @Example(description = "To count the number of rows, use `COUNT()` or `COUNT(*)`", file = "docs", tag = "countAll"),
+                @Example(description = """
+                    The expression can use inline functions. This example splits a string into multiple values
+                    using the `SPLIT` function and counts the values""", file = "stats", tag = "docsCountWithExpression"),
+                @Example(description = """
+                    To count the number of times an expression returns `TRUE` use a
+                    <<esql-where>> command
+                    to remove rows that shouldn’t be included""", file = "stats", tag = "count-where"),
+                @Example(
+                    description = """
+                        To count the same stream of data based on two different expressions use the pattern
+                        `COUNT(<expression> OR NULL)`. This builds on the three-valued logic
+                        ({wikipedia}/Three-valued_logic[3VL]) of the language:
+                        `TRUE OR NULL` is `TRUE`, but `FALSE OR NULL` is `NULL`, plus the way COUNT handles
+                        `NULL`s: `COUNT(TRUE)` and `COUNT(FALSE)` are both 1, but `COUNT(NULL)` is 0.""",
+                    file = "stats",
+                    tag = "count-or-null"
+                ) }
+        )
+        public TestClass() {}
     }
 }

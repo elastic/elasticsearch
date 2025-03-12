@@ -2,26 +2,20 @@
 
 **Supported types**
 
-| lhs | rhs | result |
+| field | inlist | result |
 | --- | --- | --- |
-| date | date | boolean |
-| date | date_nanos | boolean |
-| date_nanos | date | boolean |
-| date_nanos | date_nanos | boolean |
+| boolean | boolean | boolean |
+| cartesian_point | cartesian_point | boolean |
+| cartesian_shape | cartesian_shape | boolean |
 | double | double | boolean |
-| double | integer | boolean |
-| double | long | boolean |
-| integer | double | boolean |
+| geo_point | geo_point | boolean |
+| geo_shape | geo_shape | boolean |
 | integer | integer | boolean |
-| integer | long | boolean |
 | ip | ip | boolean |
 | keyword | keyword | boolean |
 | keyword | text | boolean |
-| long | double | boolean |
-| long | integer | boolean |
 | long | long | boolean |
 | text | keyword | boolean |
 | text | text | boolean |
-| unsigned_long | unsigned_long | boolean |
 | version | version | boolean |
 

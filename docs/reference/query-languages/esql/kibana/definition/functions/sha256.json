@@ -30,7 +30,7 @@
     }
   ],
   "examples" : [
-    "FROM sample_data \n| WHERE message != \"Connection error\"\n| EVAL sha256 = sha256(message)\n| KEEP message, sha256"
+    "FROM sample_data\n| WHERE message != \"Connection error\"\n| EVAL sha256 = sha256(message)\n| KEEP message, sha256"
   ],
   "preview" : false,
   "snapshot_only" : false

@@ -424,8 +424,8 @@ public abstract class DocsV3Support {
                     builder.append(replaceLinks(example.description().trim()));
                     builder.append("\n\n");
                 }
-                String exampleQuery = loadExample(example.file(), example.tag());
-                String exampleResult = loadExample(example.file(), example.tag() + "-result");
+                String exampleQuery = loadExampleQuery(example);
+                String exampleResult = loadExampleResult(example);
                 builder.append(exampleQuery).append("\n").append(exampleResult).append("\n");
                 if (example.explanation().length() > 0) {
                     builder.append("\n");
@@ -724,8 +724,8 @@ public abstract class DocsV3Support {
         if (info.examples().length > 0) {
             Example example = info.examples()[0];
             builder.append("```\n");
-            builder.append("read-example::").append(example.file()).append(".csv-spec[tag=").append(example.tag()).append("]\n");
-            builder.append("```\n");
+            builder.append(loadExample(example.file(), example.tag()));
+            builder.append("\n```\n");
         }
         if (Strings.isNullOrEmpty(info.note()) == false) {
             builder.append("Note: ").append(removeAsciidocLinks(info.note())).append("\n");
@@ -817,7 +817,7 @@ public abstract class DocsV3Support {
         if (info.examples().length > 0) {
             builder.startArray("examples");
             for (Example example : info.examples()) {
-                builder.value("read-example::" + example.file() + ".csv-spec[tag=" + example.tag() + ", json]");
+                builder.value(loadExample(example.file(), example.tag()));
             }
             builder.endArray();
         }
@@ -867,6 +867,14 @@ public abstract class DocsV3Support {
     }
 
     private HashMap<String, Map<String, String>> examples = new HashMap<>();
+
+    protected String loadExampleQuery(Example example) throws IOException {
+        return "```esql\n" + loadExample(example.file(), example.tag()) + "\n```\n";
+    }
+
+    protected String loadExampleResult(Example example) throws IOException {
+        return loadExample(example.file(), example.tag() + "-result");
+    }
 
     protected String loadExample(String csvSpec, String tag) throws IOException {
         if (examples.containsKey(csvSpec) == false) {
@@ -924,7 +932,7 @@ public abstract class DocsV3Support {
             }
             return sb.toString();
         } else {
-            return "```esql\n" + lines.stream().map(String::stripTrailing).collect(Collectors.joining("\n")) + "\n```\n";
+            return lines.stream().map(String::stripTrailing).collect(Collectors.joining("\n"));
         }
     }
 

@@ -99,7 +99,6 @@ tasks.named("test").configure {
     def imagesDocFolder = file("${rootDir}/docs/reference/query-languages/esql/images")
     def snippetsDocFolder = file("${rootDir}/docs/reference/query-languages/esql/_snippets")
     def kibanaDocFolder = file("${rootDir}/docs/reference/query-languages/esql/kibana")
-    def effectiveProjectDir = projectDir
 
     doLast {
       List snippets = fileTree(snippetsFolder).matching {
@@ -114,10 +113,9 @@ tasks.named("test").configure {
           from snippetsFolder
           into snippetsDocFolder
           include '**/*.md'
-          if (countSnippets == 1) {
-            preserve {
-              include '**/*.md'
-            }
+          preserve {
+            // The snippets directory contains generated and static content, so we must preserve all MD files.
+            include '**/*.md'
           }
         }
       }
@@ -141,10 +139,9 @@ tasks.named("test").configure {
           from imagesFolder
           into imagesDocFolder
           include '**/*.svg'
-          if (countImages == 1) {
-            preserve {
-              include '**/*.svg'
-            }
+          preserve {
+            // Some operator files are currently static, so we must preserve them all
+            include '**/*.svg'
           }
           filter replaceFont
         }
@@ -154,31 +151,6 @@ tasks.named("test").configure {
         include "**/*.md"  // Recursively include all MD files
       }.files.collect { it.name }
       int countKibana = kibana.size()
-      Closure readExample = line -> {
-        // TODO: This can be deleted because DocsV3Support has built-in support for reading examples into the MD files
-        line.replaceAll(
-          /read-example::([^\[]+)\[tag=([^,\]]+)(, ?json)?\]/, {
-          String file = it[1]
-          String tag = it[2]
-          boolean isJson = it[3]
-          String allExamples = new File("${effectiveProjectDir}/qa/testFixtures/src/main/resources/${file}").text
-            .replaceAll(System.lineSeparator(), "\n")
-          int start = allExamples.indexOf("tag::${tag}[]")
-          int end = allExamples.indexOf("end::${tag}[]", start)
-          if (start < 0 || end < 0) {
-            throw new IllegalAccessException("can't find example ${file}::${tag}")
-          }
-          // Slice out the newlines
-          start = allExamples.indexOf('\n', start) + 1
-          end = allExamples.lastIndexOf('\n', end)
-          String example = allExamples.substring(start, end)
-          if (isJson) {
-            example = example.replace("\"", "\\\"").replace("\n", "\\n")
-          }
-          return example;
-        }
-        )
-      }
       if (countKibana == 0) {
         logger.quiet("ESQL Docs: No function/operator kibana docs created. Skipping sync.")
       } else {
@@ -192,7 +164,6 @@ tasks.named("test").configure {
               include '**/*.md', '**/*.json'
             }
           }
-          filter readExample
         }
       }
     }

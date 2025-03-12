@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.objectstore;
 
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryStats;
 
@@ -41,7 +42,7 @@ public class FsObjectStoreTests extends AbstractObjectStoreIntegTestCase {
     }
 
     @Override
-    protected void assertRepositoryStats(RepositoryStats repositoryStats) {
+    protected void assertRepositoryStats(RepositoryStats repositoryStats, boolean withRandomCrud, OperationPurpose purpose) {
         assertThat(repositoryStats.actionStats, anEmptyMap());
     }
 

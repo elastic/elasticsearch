@@ -22,6 +22,7 @@ import fixture.azure.MockAzureBlobStore;
 
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -113,7 +114,7 @@ public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase 
     }
 
     @Override
-    protected void assertRepositoryStats(RepositoryStats repositoryStats) {
+    protected void assertRepositoryStats(RepositoryStats repositoryStats, boolean withRandomCrud, OperationPurpose purpose) {
         assertThat(
             repositoryStats.actionStats.keySet().stream().sorted().toList(),
             hasItems(EXPECTED_MAIN_STORE_REQUEST_NAMES.toArray(new String[] {}))

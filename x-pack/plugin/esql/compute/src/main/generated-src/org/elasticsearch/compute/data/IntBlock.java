@@ -8,8 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -48,17 +46,6 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
 
     @Override
     IntBlock expand();
-
-    @Override
-    default String getWriteableName() {
-        return "IntBlock";
-    }
-
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "IntBlock", IntBlock::readFrom);
-
-    private static IntBlock readFrom(StreamInput in) throws IOException {
-        return readFrom((BlockStreamInput) in);
-    }
 
     static IntBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();

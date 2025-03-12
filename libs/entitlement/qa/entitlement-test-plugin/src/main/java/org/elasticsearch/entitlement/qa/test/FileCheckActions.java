@@ -35,6 +35,8 @@ import java.util.logging.FileHandler;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
+import javax.imageio.stream.FileImageInputStream;
+
 import static java.nio.charset.Charset.defaultCharset;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.WRITE;
@@ -559,6 +561,14 @@ class FileCheckActions {
         // an overload distinct from ofFile with no OpenOptions, and so it needs its
         // own instrumentation and its own test.
         HttpResponse.BodySubscribers.ofFile(readFile(), CREATE, WRITE);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void javaDesktopFileAccess() throws Exception {
+        // Test file access from a java.desktop class. We explicitly exclude that module from the "system modules", so we expect
+        // any sensitive operation from java.desktop to fail.
+        var file = EntitledActions.createTempFileForRead();
+        new FileImageInputStream(file.toFile()).close();
     }
 
     private FileCheckActions() {}

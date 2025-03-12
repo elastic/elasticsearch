@@ -5,6 +5,9 @@ dependencies {
   implementation project(':libs:logging')
   // Required for log4j, there's probably a more direct way to depend on it.
   implementation project(':test:framework')
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
 /**

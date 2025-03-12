@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.tools;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,24 +41,52 @@ public class ProfileParser {
         Path inputFileName = Path.of(args[0].replaceFirst("^~", System.getProperty("user.home"))).toAbsolutePath();
         Path outputFileName = Path.of(args[1].replaceFirst("^~", System.getProperty("user.home"))).toAbsolutePath();
 
-        Map<String, Object> map;
+        ObjectMapper jsonMapper = new ObjectMapper();
+        jsonMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        Profile profile;
         try (InputStream input = Files.newInputStream(inputFileName)) {
             logger.info("Starting to parse {}", inputFileName);
-            map = XContentHelper.convertToMap(JsonXContent.jsonXContent, input, true);
+            profile = readProfileFromResponse(input);
             logger.info("Finished parsing", inputFileName);
         }
 
-        logger.info("Starting transformation into Chromium/Perfetto-compatible output format", args[0]);
         try (
             OutputStream output = Files.newOutputStream(outputFileName);
             XContentBuilder builder = new XContentBuilder(JsonXContent.jsonXContent, output)
         ) {
-            logger.info("Starting to write {}", outputFileName);
-            parseProfile(map, builder);
+            logger.info("Starting transformation into Chromium/Perfetto-compatible output format and writing to {}", outputFileName);
+            parseProfile(profile, builder);
             logger.info("Finished writing to", outputFileName);
         }
 
         logger.info("Exiting", args[0]);
+    }
+
+    public record Response(Profile profile, @JsonProperty("is_partial") boolean isPartial, @JsonProperty("took") long took) {}
+
+    public record Profile(List<Driver> drivers) {}
+
+    public record Driver(
+        @JsonProperty("description") String description,
+        @JsonProperty("cluster_name") String clusterName,
+        @JsonProperty("node_name") String nodeName,
+        @JsonProperty("start_millis") long startMillis,
+        @JsonProperty("stop_millis") long stopMillis,
+        @JsonProperty("took_nanos") long tookNanos,
+        @JsonProperty("cpu_nanos") long cpuNanos,
+        @JsonProperty("iterations") int iterations,
+        @JsonProperty("operators") List<Operator> operators,
+        @JsonProperty("sleeps") Sleeps sleeps
+    ) {}
+
+    public record Operator(@JsonProperty("operator") String operator) {}
+
+    public record Sleeps(@JsonProperty("counts") Map<String, Integer> counts) {}
+
+    public static Profile readProfileFromResponse(InputStream input) throws IOException {
+        ObjectMapper jsonMapper = new ObjectMapper();
+        jsonMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        return jsonMapper.readValue(input, Response.class).profile();
     }
 
     /**
@@ -65,10 +96,7 @@ public class ProfileParser {
      * out to be tricky to use.
      */
     @SuppressWarnings("unchecked")
-    public static void parseProfile(Map<String, Object> parsedQueryResponseWithProfile, XContentBuilder outputBuilder) throws IOException {
-        Map<String, Object> profile = (Map<String, Object>) parsedQueryResponseWithProfile.get("profile");
-        List<Map<String, Object>> drivers = (List<Map<String, Object>>) profile.get("drivers");
-
+    public static void parseProfile(Profile profile, XContentBuilder outputBuilder) throws IOException {
         outputBuilder.startObject();
         outputBuilder.field("displayTimeUnit", "ns");
 
@@ -78,8 +106,8 @@ public class ProfileParser {
         // Let's keep track of them in maps.
         Map<String, Integer> nodeIndices = new HashMap<>();
         int driverIndex = 0;
-        for (Map<String, Object> driver : drivers) {
-            String nodeName = readString(driver, "cluster_name") + ":" + readString(driver, "node_name");
+        for (Driver driver : profile.drivers()) {
+            String nodeName = driver.clusterName() + ":" + driver.nodeName();
 
             Integer nodeIndex = nodeIndices.get(nodeName);
             if (nodeIndex == null) {
@@ -122,8 +150,8 @@ public class ProfileParser {
      * Associates the driver with a given process and thread id to separate them visually.
      */
     @SuppressWarnings("unchecked")
-    private static void parseDriverProfile(Map<String, Object> driver, int pid, int tid, XContentBuilder builder) throws IOException {
-        String driverDescription = (String) driver.get("description");
+    private static void parseDriverProfile(Driver driver, int pid, int tid, XContentBuilder builder) throws IOException {
+        String driverDescription = driver.description();
         String name = driverDescription + " " + pid + ":" + tid;
 
         emitMetadataForDriver(driverDescription, pid, tid, builder);
@@ -135,25 +163,25 @@ public class ProfileParser {
         builder.field("cat", driverDescription);
         builder.field("pid", pid);
         builder.field("tid", tid);
-        long startMicros = readIntOrLong(driver, "start_millis") * 1000;
+        long startMicros = driver.startMillis() * 1000;
         builder.field("ts", startMicros);
-        double durationMicros = ((double) readIntOrLong(driver, "took_nanos")) / 1000.0;
+        double durationMicros = ((double) driver.tookNanos()) / 1000.0;
         builder.field("dur", durationMicros);
-        double cpuDurationMicros = ((double) readIntOrLong(driver, "cpu_nanos")) / 1000.0;
+        double cpuDurationMicros = ((double) driver.cpuNanos()) / 1000.0;
         builder.field("tdur", cpuDurationMicros);
 
         builder.field("args");
         builder.startObject();
-        builder.field("cpu_nanos", readIntOrLong(driver, "cpu_nanos"));
-        builder.field("took_nanos", readIntOrLong(driver, "took_nanos"));
-        builder.field("iterations", readIntOrLong(driver, "iterations"));
+        builder.field("cpu_nanos", driver.cpuNanos());
+        builder.field("took_nanos", driver.tookNanos());
+        builder.field("iterations", driver.iterations());
         // TODO: Sleeps have more details that could be added here
-        int sleeps = ((Map<?, ?>) driver.get("sleeps")).size();
-        builder.field("sleeps", sleeps);
+        int totalSleeps = driver.sleeps().counts().values().stream().reduce(0, Integer::sum);
+        builder.field("sleeps", totalSleeps);
         builder.field("operators");
         builder.startArray();
-        for (Map<String, Object> operator : (List<Map<String, Object>>) driver.get("operators")) {
-            builder.value((String) operator.get("operator"));
+        for (Operator operator : driver.operators()) {
+            builder.value(operator.operator());
             // TODO: Add status; needs standardizing the operatur statuses, maybe.
         }
         builder.endArray();
@@ -178,15 +206,5 @@ public class ProfileParser {
         builder.endObject();
 
         builder.endObject();
-    }
-
-    private static String readString(Map<String, Object> json, String name) {
-        return (String) json.get(name);
-    }
-
-    private static Long readIntOrLong(Map<String, Object> json, String name) {
-        Object number = json.get(name);
-
-        return number instanceof Long l ? l : ((Integer) number).longValue();
     }
 }

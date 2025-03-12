@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.http.HttpEntity;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.Build;
@@ -27,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.elasticsearch.xpack.esql.tools.ProfileParser;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.ClassRule;
@@ -45,7 +47,9 @@ import java.util.Map;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
+import static org.elasticsearch.xpack.esql.tools.ProfileParser.readProfileFromResponse;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -343,13 +347,18 @@ public class RestEsqlIT extends RestEsqlTestCase {
     public void testProfileParsing() throws IOException {
         indexTimestampData(1);
 
-        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | stats avg(value)");
-        builder.profile(true);
-        Map<String, Object> result = runEsql(builder);
+        RequestObjectBuilder builder = new RequestObjectBuilder(XContentType.JSON).query(fromIndex() + " | stats avg(value)").profile(true);
+        Request request = prepareRequestWithOptions(builder, SYNC);
+        HttpEntity response = performRequest(request).getEntity();
+
+        ProfileParser.Profile profile;
+        try (InputStream responseContent = response.getContent()) {
+            profile = readProfileFromResponse(responseContent);
+        }
 
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         try (XContentBuilder jsonOutputBuilder = new XContentBuilder(JsonXContent.jsonXContent, os)) {
-            parseProfile(result, jsonOutputBuilder);
+            parseProfile(profile, jsonOutputBuilder);
         }
 
         // Read the written JSON again into a map, so we can make assertions on it

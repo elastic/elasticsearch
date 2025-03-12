@@ -767,8 +767,12 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * This method determines what system data streams to delete prior to restoring the snapshot. If a datastream in the
-     * snapshot is not present in the current cluster state, it will be ignored.
+     * Resolves a set of datastream names that currently exist in the cluster that are part of a feature state which is
+     * about to be restored, and should therefore be removed prior to restoring those feature states from the snapshot.
+     *
+     * @param currentState           The current cluster state
+     * @param featureStatesToRestore A set of feature state names that are about to be restored
+     * @return A set of datastream names that should be removed based on the feature states being restored
      */
     private Set<DataStream> resolveSystemDataStreamsToDelete(ClusterState currentState, Set<String> featureStatesToRestore) {
         if (featureStatesToRestore == null) {
@@ -780,11 +784,8 @@ public final class RestoreService implements ClusterStateApplier {
             .filter(Objects::nonNull) // Features that aren't present on this node will be warned about in `getFeatureStatesToRestore`
             .flatMap(feature -> feature.getDataStreamDescriptors().stream())
             .map(SystemDataStreamDescriptor::getDataStreamName)
-            .map(dataStreamName -> {
-                assert currentState.metadata().getProject().dataStreams().get(dataStreamName) != null
-                    : "data stream [" + dataStreamName + "] not found in metadata but must be present";
-                return currentState.metadata().getProject().dataStreams().get(dataStreamName);
-            })
+            .filter(datastreamName -> currentState.metadata().getProject().dataStreams().containsKey(datastreamName))
+            .map(dataStreamName -> currentState.metadata().getProject().dataStreams().get(dataStreamName))
             .collect(Collectors.toUnmodifiableSet());
     }
 

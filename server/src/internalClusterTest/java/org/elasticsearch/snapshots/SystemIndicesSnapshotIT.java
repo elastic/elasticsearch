@@ -774,6 +774,48 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(getDocCount(systemDataStreamAlias), equalTo(2L));
     }
 
+    public void testDeletedDatastreamIsRestorable() {
+        createRepository(REPO_NAME, "fs");
+        // Create a system data stream
+        indexDataStream(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "1", "purpose", "pre-snapshot doc");
+
+        // And a regular index so we can avoid matching all indices on the restore
+        final String regularIndex = "regular-index";
+        indexDoc(regularIndex, "1", "purpose", "pre-snapshot doc");
+
+        // Run a snapshot including global state
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
+            .setWaitForCompletion(true)
+            .setIncludeGlobalState(true)
+            .get();
+        assertSnapshotSuccess(createSnapshotResponse);
+
+        // And delete the regular index and system data stream
+        assertAcked(cluster().client().admin().indices().prepareDelete(regularIndex));
+        assertAcked(
+            client().execute(
+                DeleteDataStreamAction.INSTANCE,
+                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME)
+            ).actionGet()
+        );
+
+        // Now restore the snapshot with no aliases
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            REPO_NAME,
+            "test-snap"
+        )
+            .setFeatureStates("SystemDataStreamTestPlugin")
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(false)
+            .setIncludeAliases(false)
+            .get();
+
+        // And the system data stream, queried by alias, should have 2 docs
+        assertTrue(indexExists(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME));
+        assertThat(getDocCount(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(1L));
+    }
+
     /**
      * Tests that the special "none" feature state name cannot be combined with other
      * feature state names, and an error occurs if it's tried.

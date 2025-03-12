@@ -85,14 +85,14 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
     }
 
     @Override
-    public void collect(FormattedDocValues docValues, IntArrayList buffer) throws IOException {
+    public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
         if (dimension.isEmpty == false) {
-            assert dimension.validate(docValues, buffer);
+            assert dimension.validate(docValues, docIdBuffer);
             return;
         }
 
-        for (int i = 0; i < buffer.size(); i++) {
-            int docId = buffer.get(i);
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            int docId = docIdBuffer.get(i);
             if (docValues.advanceExact(docId) == false) {
                 continue;
             }

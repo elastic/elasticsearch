@@ -54,9 +54,9 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
     }
 
     @Override
-    public void collect(FormattedDocValues docValues, IntArrayList buffer) throws IOException {
-        for (int i = 0; i < buffer.size(); i++) {
-            int docId = buffer.get(i);
+    public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            int docId = docIdBuffer.get(i);
             if (docValues.advanceExact(docId) == false) {
                 continue;
             }
@@ -240,13 +240,13 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
         }
 
         @Override
-        public void collect(FormattedDocValues docValues, IntArrayList buffer) throws IOException {
+        public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
             // Counter producers only collect the last_value. Since documents are
             // collected by descending timestamp order, the producer should only
             // process the first value for every tsid. So, it will only collect the
             // field if no value has been set before.
             if (isEmpty()) {
-                super.collect(docValues, buffer);
+                super.collect(docValues, docIdBuffer);
             }
         }
 

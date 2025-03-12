@@ -374,7 +374,7 @@ class DownsampleShardIndexer {
         }
 
         void bulkCollection() throws IOException {
-            // The leaf bucked collectors newer timestamp go first, other we capture the incorrect last value for counters and labels.
+            // The leaf bucket collectors with newer timestamp go first, to correctly capture the last value for counters and labels.
             leafBucketCollectors.sort((o1, o2) -> -Long.compare(o1.firstTimeStampForBulkCollection, o2.firstTimeStampForBulkCollection));
             for (LeafDownsampleCollector leafBucketCollector : leafBucketCollectors) {
                 leafBucketCollector.leafBulkCollection();
@@ -390,7 +390,7 @@ class DownsampleShardIndexer {
 
             // Capture the first timestamp in order to determine which leaf collector's leafBulkCollection() is invoked first.
             long firstTimeStampForBulkCollection;
-            final IntArrayList buffer = new IntArrayList(DOCID_BUFFER_SIZE);
+            final IntArrayList docIdBuffer = new IntArrayList(DOCID_BUFFER_SIZE);
             final long timestampBoundStartTime = searchExecutionContext.getIndexSettings().getTimestampBounds().startTime();
 
             LeafDownsampleCollector(
@@ -467,38 +467,38 @@ class DownsampleShardIndexer {
                     bucketsCreated++;
                 }
 
-                if (buffer.isEmpty()) {
+                if (docIdBuffer.isEmpty()) {
                     firstTimeStampForBulkCollection = aggCtx.getTimestamp();
                 }
                 // buffer.add() always delegates to system.arraycopy() and checks buffer size for resizing purposes:
-                buffer.buffer[buffer.elementsCount++] = docId;
-                if (buffer.size() == DOCID_BUFFER_SIZE) {
+                docIdBuffer.buffer[docIdBuffer.elementsCount++] = docId;
+                if (docIdBuffer.size() == DOCID_BUFFER_SIZE) {
                     bulkCollection();
                 }
             }
 
             void leafBulkCollection() throws IOException {
-                if (buffer.isEmpty()) {
+                if (docIdBuffer.isEmpty()) {
                     return;
                 }
 
                 if (logger.isDebugEnabled()) {
-                    logger.debug("buffered {} docids", buffer.size());
+                    logger.debug("buffered {} docids", docIdBuffer.size());
                 }
 
-                downsampleBucketBuilder.collectDocCount(buffer, docCountProvider);
+                downsampleBucketBuilder.collectDocCount(docIdBuffer, docCountProvider);
                 // Iterate over all field values and collect the doc_values for this docId
                 for (int i = 0; i < fieldProducers.length; i++) {
                     AbstractDownsampleFieldProducer fieldProducer = fieldProducers[i];
                     FormattedDocValues docValues = formattedDocValues[i];
-                    fieldProducer.collect(docValues, buffer);
+                    fieldProducer.collect(docValues, docIdBuffer);
                 }
 
-                docsProcessed += buffer.size();
+                docsProcessed += docIdBuffer.size();
                 task.setDocsProcessed(docsProcessed);
 
                 // buffer.clean() also overwrites all slots with zeros
-                buffer.elementsCount = 0;
+                docIdBuffer.elementsCount = 0;
             }
         }
 

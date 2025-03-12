@@ -44,5 +44,5 @@ abstract class AbstractDownsampleFieldProducer implements DownsampleFieldSeriali
         return isEmpty;
     }
 
-    public abstract void collect(FormattedDocValues docValues, IntArrayList buffer) throws IOException;
+    public abstract void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException;
 }

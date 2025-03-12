@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.RemoteComputeException;
 
 import static org.hamcrest.Matchers.is;
 
-public class CrossClusterRemoteErrorClusterAliasWrapIT extends AbstractCrossClusterTestCase {
+public class EsqlRemoteErrorWrapIT extends AbstractCrossClusterTestCase {
 
     public void testThatRemoteErrorsAreWrapped() throws Exception {
         setupClusters(2);

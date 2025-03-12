@@ -2174,7 +2174,7 @@ public class NumberFieldMapper extends FieldMapper {
         } else {
             value = fieldType().nullValue;
         }
-        if (offsetsFieldName != null && context.canAddIgnoredField()) {
+        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (value != null) {
                 final long sortableLongValue = type.sortableLongValue(value);
                 context.getOffSetContext().recordOffset(offsetsFieldName, sortableLongValue);

@@ -460,9 +460,7 @@ public final class DocumentParser {
                 if (context.canAddIgnoredField()
                     && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
                         || sourceKeepMode == Mapper.SourceKeepMode.ALL
-                        || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS
-                            && context.inArrayScope()
-                            && fieldMapper.supportStoringArrayOffsets() == false)
+                        || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope())
                         || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(mapper.fullPath())))) {
                     context = context.addIgnoredFieldFromContext(
                         IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null)

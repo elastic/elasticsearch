@@ -111,40 +111,19 @@ class SortedNumericWithOffsetsDocValuesSyntheticFieldLoader extends SourceLoader
             return hasOffset || (hasValue && valueDocValues.docValueCount() > 0);
         }
 
-        private int count() {
-            if (offsetToOrd != null) {
-                return offsetToOrd.length;
-            } else if (hasValue) {
-                return valueDocValues.docValueCount();
-            } else {
-                return 0;
-            }
-        }
-
         public void write(String fieldName, XContentBuilder b) throws IOException {
             if (hasValue == false && hasOffset == false) {
                 return;
             }
 
-            int count = count();
-            if (count == 0) {
-                if (hasOffset) {
-                    b.array(fieldName);
-                }
-                return;
-            } else if (count == 1) {
-                b.field(fieldName);
-            } else {
-                b.startArray(fieldName);
-            }
-
             if (offsetToOrd != null && hasValue) {
-                int docValueCount = valueDocValues.docValueCount();
-                long[] values = new long[docValueCount];
-                for (int i = 0; i < docValueCount; i++) {
+                int count = valueDocValues.docValueCount();
+                long[] values = new long[count];
+                for (int i = 0; i < count; i++) {
                     values[i] = valueDocValues.nextValue();
                 }
 
+                b.startArray(fieldName);
                 for (int offset : offsetToOrd) {
                     if (offset == -1) {
                         b.nullValue();
@@ -152,20 +131,31 @@ class SortedNumericWithOffsetsDocValuesSyntheticFieldLoader extends SourceLoader
                         writer.writeLongValue(b, values[offset]);
                     }
                 }
+                b.endArray();
             } else if (offsetToOrd != null) {
                 // in cased all values are NULLs
+                b.startArray(fieldName);
                 for (int offset : offsetToOrd) {
                     assert offset == -1;
                     b.nullValue();
                 }
+                b.endArray();
             } else {
-                for (int i = 0; i < valueDocValues.docValueCount(); i++) {
+                int count = valueDocValues.docValueCount();
+                if (count == 0) {
+                    return;
+                }
+                if (count == 1) {
+                    b.field(fieldName);
+                } else {
+                    b.startArray(fieldName);
+                }
+                for (int i = 0; i < count; i++) {
                     writer.writeLongValue(b, valueDocValues.nextValue());
                 }
-            }
-
-            if (count > 1) {
-                b.endArray();
+                if (count > 1) {
+                    b.endArray();
+                }
             }
         }
 

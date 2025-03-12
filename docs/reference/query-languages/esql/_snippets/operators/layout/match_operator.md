@@ -4,7 +4,7 @@ The only search operator is match (`:`).
 
 **Syntax**
 
-:::{image} ../../../images/operators/match.svg
+:::{image} ../../../images/operators/match_operator.svg
 :alt: Embedded
 :class: text-center
 :::
@@ -22,8 +22,8 @@ The match operator is equivalent to the [match function](../../../esql-functions
 For using the function syntax, or adding [match query parameters](/reference/query-languages/query-dsl-match-query.md#match-field-params), you can use the [match function](../../../esql-functions-operators.md#esql-match).
 
 
-:::{include} ../types/match.md
+:::{include} ../types/match_operator.md
 :::
 
-:::{include} ../examples/match.md
+:::{include} ../examples/match_operator.md
 :::

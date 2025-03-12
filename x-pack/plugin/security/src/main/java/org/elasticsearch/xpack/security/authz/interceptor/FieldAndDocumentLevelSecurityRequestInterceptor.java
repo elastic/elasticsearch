@@ -77,7 +77,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                 return listener;
             }
         }
-        return SubscribableListener.newSucceeded(null);
+        return SubscribableListener.nullSuccess();
     }
 
     abstract void disableFeatures(

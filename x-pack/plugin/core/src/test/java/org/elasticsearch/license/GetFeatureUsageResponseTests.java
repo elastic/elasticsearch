@@ -8,12 +8,10 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.license.GetFeatureUsageResponse.FeatureUsageInfo;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -44,10 +42,6 @@ public class GetFeatureUsageResponseTests extends ESTestCase {
         assertThat(fui2.getLastUsedTime(), equalTo(zdt.withZoneSameInstant(ZoneOffset.UTC).withNano(0)));
         assertThat(fui2.getContext(), equalTo(context));
         assertThat(fui2.getLicenseLevel(), equalTo("gold"));
-    }
-
-    public void testPre715StreamFormat() throws IOException {
-        assertStreamInputOutput(TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_15_0), null, null);
     }
 
     public void testStreamFormat() throws IOException {

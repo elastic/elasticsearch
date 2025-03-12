@@ -204,7 +204,11 @@ abstract class DataNodeRequestSender {
             @Override
             public void onSkip() {
                 skippedShards.incrementAndGet();
-                onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                if (rootTask.isCancelled()) {
+                    onFailure(new TaskCancelledException("null"), true);
+                } else {
+                    onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                }
             }
         });
     }

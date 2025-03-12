@@ -1294,6 +1294,7 @@ beta         | Kubernetes cluster
 ;
 
 lucenePushdownMultipleIndices
+required_capability: casting_operator, index_metadata_field
 
 from airports* metadata _index
 | where starts_with(name::keyword, "Sahn") and ends_with(abbrev, "UH")
@@ -1310,6 +1311,7 @@ LUH            | Sahnewal  | airports_web
 ;
 
 lucenePushdownOr
+required_capability: casting_operator
 
 from airports
 | where starts_with(name::keyword, "Sahn") or ends_with(abbrev, "UH")
@@ -1323,6 +1325,7 @@ RUH            | King Khalid Int'l
 ;
 
 lucenePushdownMultipleOr
+required_capability: casting_operator
 
 from airports
 | where starts_with(name::keyword, "Sahn") or ends_with(abbrev, "UH") or starts_with(abbrev, "OOL")
@@ -1337,6 +1340,7 @@ RUH            | King Khalid Int'l
 ;
 
 lucenePushdownMultipleAnd
+required_capability: casting_operator, index_metadata_field
 
 from airports metadata _index
 | where starts_with(name::keyword, "Sahn") and ends_with(abbrev, "UH")
@@ -1349,6 +1353,7 @@ LUH            | Sahnewal  | airports
 ;
 
 lucenePushdownMixAndOr
+required_capability: casting_operator
 
 from airports
 | where starts_with(name::keyword, "Sahn") and (starts_with(name::keyword, "Abc") or ends_with(abbrev, "UH"))
@@ -1360,6 +1365,7 @@ LUH            | Sahnewal  | 9
 ;
 
 lucenePushdownMixOrAnd
+required_capability: casting_operator, index_metadata_field
 
 from airports* metadata _index
 | where starts_with(name::keyword, "Sahn") or (starts_with(abbrev, "G") and ends_with(name::keyword, "Falls Int'l"))

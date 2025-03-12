@@ -701,15 +701,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final DeprecationWarning... warnings) {
         assertWarnings(true, Stream.concat(Arrays.stream(settings).map(setting -> {
-            String warningMessage = String.format(
-                Locale.ROOT,
-                "[%s] setting was deprecated in Elasticsearch and will be removed in a future release.",
-                setting.getKey()
+            Level level = setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.CRITICAL : Level.WARN;
+            String warningMessage = Strings.format(
+                "[%s] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the %s documentation for the next major version.",
+                setting.getKey(),
+                (level == Level.WARN) ? "deprecation" : "breaking changes"
             );
-            return new DeprecationWarning(
-                setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.CRITICAL : Level.WARN,
-                warningMessage
-            );
+            return new DeprecationWarning(level, warningMessage);
         }), Arrays.stream(warnings)).toArray(DeprecationWarning[]::new));
     }
 
@@ -2430,6 +2429,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Await on the given {@link CountDownLatch} with a supplied timeout, preserving the thread's interrupt status
      * flag and asserting that the latch is indeed completed before the timeout.
+     * <p>
+     * Prefer {@link #safeAwait(CountDownLatch)} (with the default 10s timeout) wherever possible. It's very unusual to need to block a
+     * test for more than 10s, and such slow tests are a big problem for overall test suite performance. In almost all cases it's possible
+     * to find a different way to write the test which doesn't need such a long wait.
      */
     public static void safeAwait(CountDownLatch countDownLatch, TimeValue timeout) {
         try {

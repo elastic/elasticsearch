@@ -1,0 +1,5 @@
+pr: 124527
+summary: Avoid potentially throwing calls to Task#getDescription in model download
+area: Machine Learning
+type: bug
+issues: []

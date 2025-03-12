@@ -51,7 +51,7 @@ $$$serial-diff-params$$$
 | `buckets_path` | Path to the metric of interest (see [`buckets_path` Syntax](/reference/data-analysis/aggregations/pipeline.md#buckets-path-syntax) for more details | Required |  |
 | `lag` | The historical bucket to subtract from the current value. E.g. a lag of 7 will subtract the current value from the value 7 buckets ago. Must be a positive, non-zero integer | Optional | `1` |
 | `gap_policy` | Determines what should happen when a gap in the data is encountered. | Optional | `insert_zeros` |
-| `format` | [DecimalFormat pattern](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/text/DecimalFormat.md) for theoutput value. If specified, the formatted value is returned in the aggregation’s`value_as_string` property | Optional | `null` |
+| `format` | [DecimalFormat pattern](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/text/DecimalFormat.html) for theoutput value. If specified, the formatted value is returned in the aggregation’s`value_as_string` property | Optional | `null` |
 
 `serial_diff` aggregations must be embedded inside of a `histogram` or `date_histogram` aggregation:
 

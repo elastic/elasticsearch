@@ -1117,7 +1117,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectUsingApiKey(apiKey, new Search(failureIndexName), failuresDocId);
         expectUsingApiKey(apiKey, new Search(dataIndexName), 403);
         expectUsingApiKey(apiKey, new Search("test1"), 403);
-
     }
 
     private static void expectThrows404(ThrowingRunnable runnable) {

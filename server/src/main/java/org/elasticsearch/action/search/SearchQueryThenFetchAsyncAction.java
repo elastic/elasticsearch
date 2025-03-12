@@ -146,7 +146,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         final Transport.Connection connection,
         final SearchActionListener<SearchPhaseResult> listener
     ) {
-        ShardSearchRequest request = rewriteShardSearchRequest(
+        ShardSearchRequest request = tryRewriteWithUpdatedSortValue(
             bottomSortCollector,
             trackTotalHitsUpTo,
             super.buildShardSearchRequest(shardIt, listener.requestIndex)
@@ -367,7 +367,14 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
     }
 
-    private static ShardSearchRequest rewriteShardSearchRequest(
+    /**
+     * Check if a shard search can be updated with a lower search threshold than as a based on already collected results.
+     * When the query executed via batched execution, data nodes this takes into account the results of queries run against shards local
+     * to the datanode. On the coordinating node results received from all data nodes are taken into account.
+     *
+     * See {@link BottomSortValuesCollector} for details.
+     */
+    private static ShardSearchRequest tryRewriteWithUpdatedSortValue(
         BottomSortValuesCollector bottomSortCollector,
         int trackTotalHitsUpTo,
         ShardSearchRequest request
@@ -650,7 +657,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 var shardToQuery = nodeQueryRequest.shards.get(dataNodeLocalIdx);
                 final var shardId = shardToQuery.shardId;
                 state.dependencies.searchService.executeQueryPhase(
-                    rewriteShardSearchRequest(
+                    tryRewriteWithUpdatedSortValue(
                         state.bottomSortCollector,
                         state.trackTotalHitsUpTo,
                         buildShardSearchRequest(

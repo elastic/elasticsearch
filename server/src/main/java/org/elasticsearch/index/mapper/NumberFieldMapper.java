@@ -424,11 +424,6 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public long sortableLongValue(Number value) {
-                return HalfFloatPoint.halfFloatToSortableShort(value.floatValue());
-            }
-
-            @Override
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final float f = value.floatValue();
                 if (indexed) {
@@ -612,11 +607,6 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public long sortableLongValue(Number value) {
-                return NumericUtils.floatToSortableInt(value.floatValue());
-            }
-
-            @Override
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final float f = value.floatValue();
                 if (indexed && docValued) {
@@ -767,11 +757,6 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public long sortableLongValue(Number value) {
-                return NumericUtils.doubleToSortableLong(value.doubleValue());
-            }
-
-            @Override
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final double d = value.doubleValue();
                 if (indexed && docValued) {
@@ -901,11 +886,6 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public long sortableLongValue(Number value) {
-                return INTEGER.sortableLongValue(value);
-            }
-
-            @Override
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 INTEGER.addFields(document, name, value, indexed, docValued, stored);
             }
@@ -1021,11 +1001,6 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean isIndexed
             ) {
                 return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues, context, isIndexed);
-            }
-
-            @Override
-            public long sortableLongValue(Number value) {
-                return INTEGER.sortableLongValue(value);
             }
 
             @Override
@@ -1216,11 +1191,6 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public long sortableLongValue(Number value) {
-                return value.intValue();
-            }
-
-            @Override
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final int i = value.intValue();
                 if (indexed && docValued) {
@@ -1373,11 +1343,6 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public long sortableLongValue(Number value) {
-                return value.longValue();
-            }
-
-            @Override
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final long l = value.longValue();
                 if (indexed && docValued) {
@@ -1519,8 +1484,6 @@ public class NumberFieldMapper extends FieldMapper {
         public abstract Number parse(Object value, boolean coerce);
 
         public abstract Number parsePoint(byte[] value);
-
-        public abstract long sortableLongValue(Number value);
 
         /**
          * Maps the given {@code value} to one or more Lucene field values ands them to the given {@code document} under the given
@@ -2176,8 +2139,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (value != null) {
-                final long sortableLongValue = type.sortableLongValue(value);
-                context.getOffSetContext().recordOffset(offsetsFieldName, sortableLongValue);
+                context.getOffSetContext().recordOffset(offsetsFieldName, (Comparable<?>) value);
             } else {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }

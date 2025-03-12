@@ -259,17 +259,17 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx == null) {
             return null;
         }
-        List<Object> items = visitList(this, ctx.identifierOrParameter(), Object.class);
-        List<String> strings = new ArrayList<>(items.size());
-        for (Object item : items) {
+        List<Object> nameItems = visitList(this, ctx.name.identifierOrParameter(), Object.class);
+        List<String> nameStrings = new ArrayList<>(nameItems.size());
+        for (Object item : nameItems) {
             if (item instanceof String s) {
-                strings.add(s);
+                nameStrings.add(s);
             } else if (item instanceof Expression e) {
-                strings.add(unresolvedAttributeNameInParam(ctx, e));
+                nameStrings.add(unresolvedAttributeNameInParam(ctx, e));
             }
         }
         // TODO: here
-        return new UnresolvedAttribute(source(ctx), null, Strings.collectionToDelimitedString(strings, "."));
+        return new UnresolvedAttribute(source(ctx), null, Strings.collectionToDelimitedString(nameStrings, "."));
     }
 
     @Override
@@ -312,7 +312,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         var src = source(ctx);
         StringBuilder patternString = new StringBuilder();
         StringBuilder nameString = new StringBuilder();
-        var patterns = ctx.identifierPattern();
+        var patterns = ctx.name.identifierPattern();
 
         // check special wildcard case
         if (patterns.size() == 1) {

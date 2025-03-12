@@ -303,11 +303,23 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#unqualifiedName}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitUnqualifiedName(EsqlBaseParser.UnqualifiedNameContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNamePattern}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#unqualifiedNamePattern}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitUnqualifiedNamePattern(EsqlBaseParser.UnqualifiedNamePatternContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNamePatterns}.
    * @param ctx the parse tree

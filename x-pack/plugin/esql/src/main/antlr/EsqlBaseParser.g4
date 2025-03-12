@@ -182,11 +182,20 @@ aggField
 
 qualifiedName
     // TODO: Test all kind of valid/invalid qualifier strings and make sure they make sense. Same for patterns below.
-    : qualifier=identifier? identifierOrParameter (DOT identifierOrParameter)*
+    // TODO: Account for qualifiers in parameters.
+    : qualifier=identifier? name=unqualifiedName
+    ;
+
+unqualifiedName
+    : identifierOrParameter (DOT identifierOrParameter)*
     ;
 
 qualifiedNamePattern
-    : qualifier=identifierPattern? identifierPattern (DOT identifierPattern)*
+    : qualifier=identifierPattern? name=unqualifiedNamePattern
+    ;
+
+unqualifiedNamePattern
+    : (identifierPattern (DOT identifierPattern)*)
     ;
 
 qualifiedNamePatterns

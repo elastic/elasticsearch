@@ -1002,7 +1002,8 @@ public class IndexNameExpressionResolver {
         return expression.contains(SelectorResolver.SELECTOR_SEPARATOR);
     }
 
-    public static boolean hasSelector(String expression, IndexComponentSelector selector) {
+    public static boolean hasSelector(@Nullable String expression, IndexComponentSelector selector) {
+        Objects.requireNonNull(selector, "null selectors not supported");
         if (expression == null) {
             return false;
         }

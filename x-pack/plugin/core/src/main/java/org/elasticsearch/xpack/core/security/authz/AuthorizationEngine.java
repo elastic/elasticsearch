@@ -375,8 +375,8 @@ public interface AuthorizationEngine {
                             // best effort prevent users from attempting to check failure selectors
                             .anyMatch(idx -> IndexNameExpressionResolver.hasSelector(idx, IndexComponentSelector.FAILURES))) {
                         validationException = addValidationError(
-                            // TODO adjust message once HasPrivileges check support checking failure store privileges
-                            "failures selectors are not supported in index patterns",
+                            // TODO adjust message once HasPrivileges check supports checking failure store privileges
+                            "failures selector is not supported in index patterns",
                             validationException
                         );
                     }

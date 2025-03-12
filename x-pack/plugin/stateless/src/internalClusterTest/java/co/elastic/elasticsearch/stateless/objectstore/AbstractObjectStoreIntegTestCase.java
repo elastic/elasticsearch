@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodes
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesResponse;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryStats;
@@ -74,7 +75,8 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
         BlobStoreRepository repository = objectStoreService.getObjectStore();
 
         // randomly read, write and delete some data
-        if (randomBoolean()) {
+        var withRandomCrud = randomBoolean();
+        if (withRandomCrud) {
             BlobContainer blobContainer = repository.blobStore().blobContainer(repository.basePath().add("subpath"));
             BytesArray whatToWrite = new BytesArray(randomByteArrayOfLength(randomIntBetween(100, 1000)));
             blobContainer.writeBlob(operationPurpose, "test.txt", whatToWrite, true);
@@ -104,19 +106,11 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
         final List<GetBlobStoreStatsNodeResponse> nodeResponses = getBlobStoreStatsNodesResponse.getNodes();
 
         assertEquals(1, nodeResponses.size());
-        assertRepositoryStats(nodeResponses.get(0).getRepositoryStats());
+        assertRepositoryStats(nodeResponses.get(0).getRepositoryStats(), withRandomCrud, operationPurpose);
         assertObsRepositoryStatsSnapshots(nodeResponses.get(0).getObsRepositoryStats());
-
-        // Test result from talking to a specific node
-        final GetBlobStoreStatsNodeResponse nodeResponse = client().execute(
-            Stateless.GET_BLOB_STORE_STATS_ACTION,
-            new GetBlobStoreStatsNodesRequest()
-        ).actionGet().getNodes().get(0);
-        assertRepositoryStats(nodeResponse.getRepositoryStats());
-        assertObsRepositoryStatsSnapshots(nodeResponse.getObsRepositoryStats());
     }
 
-    protected abstract void assertRepositoryStats(RepositoryStats repositoryStats);
+    protected abstract void assertRepositoryStats(RepositoryStats repositoryStats, boolean withRandomCrud, OperationPurpose randomPurpose);
 
     protected abstract void assertObsRepositoryStatsSnapshots(RepositoryStats repositoryStats);
 

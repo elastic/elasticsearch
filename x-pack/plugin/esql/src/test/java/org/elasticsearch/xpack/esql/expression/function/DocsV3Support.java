@@ -408,38 +408,6 @@ public abstract class DocsV3Support {
             renderKibanaFunctionDefinition(name, info, description.args(), description.variadic());
         }
 
-        private boolean renderExamples(FunctionInfo info) throws IOException {
-            if (info == null || info.examples().length == 0) {
-                return false;
-            }
-            StringBuilder builder = new StringBuilder();
-            builder.append(DOCS_WARNING);
-            if (info.examples().length == 1) {
-                builder.append("**Example**\n\n");
-            } else {
-                builder.append("**Examples**\n\n");
-            }
-            for (Example example : info.examples()) {
-                if (example.description().length() > 0) {
-                    builder.append(replaceLinks(example.description().trim()));
-                    builder.append("\n\n");
-                }
-                String exampleQuery = loadExampleQuery(example);
-                String exampleResult = loadExampleResult(example);
-                builder.append(exampleQuery).append("\n").append(exampleResult).append("\n");
-                if (example.explanation().length() > 0) {
-                    builder.append("\n");
-                    builder.append(replaceLinks(example.explanation().trim()));
-                    builder.append("\n\n");
-                }
-            }
-            builder.append('\n');
-            String rendered = builder.toString();
-            logger.info("Writing examples for [{}]:\n{}", name, rendered);
-            writeToTempSnippetsDir("examples", rendered);
-            return true;
-        }
-
         private void renderFunctionNamedParams(EsqlFunctionRegistry.MapArgSignature mapArgSignature) throws IOException {
             String header = "| name | types | description |\n| --- | --- | --- |";
 
@@ -618,6 +586,7 @@ public abstract class DocsV3Support {
             }
             renderKibanaFunctionDefinition(name, functionInfo, args, variadic);
             renderTypes(name, args);
+            renderExamples(functionInfo);
         }
     }
 
@@ -708,6 +677,38 @@ public abstract class DocsV3Support {
         rendered += "\n";
         logger.info("Writing description for [{}]:\n{}", name, rendered);
         writeToTempSnippetsDir("description", rendered);
+    }
+
+    protected boolean renderExamples(FunctionInfo info) throws IOException {
+        if (info == null || info.examples().length == 0) {
+            return false;
+        }
+        StringBuilder builder = new StringBuilder();
+        builder.append(DOCS_WARNING);
+        if (info.examples().length == 1) {
+            builder.append("**Example**\n\n");
+        } else {
+            builder.append("**Examples**\n\n");
+        }
+        for (Example example : info.examples()) {
+            if (example.description().length() > 0) {
+                builder.append(replaceLinks(example.description().trim()));
+                builder.append("\n\n");
+            }
+            String exampleQuery = loadExampleQuery(example);
+            String exampleResult = loadExampleResult(example);
+            builder.append(exampleQuery).append("\n").append(exampleResult).append("\n");
+            if (example.explanation().length() > 0) {
+                builder.append("\n");
+                builder.append(replaceLinks(example.explanation().trim()));
+                builder.append("\n\n");
+            }
+        }
+        builder.append('\n');
+        String rendered = builder.toString();
+        logger.info("Writing examples for [{}]:\n{}", name, rendered);
+        writeToTempSnippetsDir("examples", rendered);
+        return true;
     }
 
     void renderKibanaInlineDocs(String name, FunctionInfo info) throws IOException {

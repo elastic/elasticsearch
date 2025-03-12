@@ -939,14 +939,20 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                     if (clusterStateSnapshotEntry != null) {
                         for (final var shardId : snapshotShards.getValue()) {
                             final var clusterStateShardStatus = clusterStateSnapshotEntry.shards().get(shardId);
-                            if (clusterStateShardStatus != null && clusterStateShardStatus.state().completed() == false) {
+                            if (clusterStateShardStatus == null) {
+                                CONSISTENCY_CHECKER_LOGGER.debug(
+                                    "shard [{}] in snapshot [{}] unexpectedly not found (should be impossible)",
+                                    shardId,
+                                    snapshot
+                                );
+                            } else if (clusterStateShardStatus.state().completed() == false) {
                                 CONSISTENCY_CHECKER_LOGGER.debug(
                                     "shard [{}] in snapshot [{}] unexpectedly still in state [{}] after notifying master",
                                     shardId,
                                     snapshot,
                                     clusterStateShardStatus
                                 );
-                            } // else shard is marked complete as expected (the null case should be impossible)
+                            } // else shard is marked complete as expected
                         }
                     } // else snapshot already completed & removed from cluster state
                 }

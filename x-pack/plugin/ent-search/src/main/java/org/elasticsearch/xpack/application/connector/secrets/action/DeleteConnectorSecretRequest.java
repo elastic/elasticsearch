@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsConstants;
 
@@ -27,19 +27,13 @@ public class DeleteConnectorSecretRequest extends ActionRequest {
         this.id = id;
     }
 
-    public DeleteConnectorSecretRequest(StreamInput in) throws IOException {
-        super(in);
-        this.id = in.readString();
-    }
-
     public String id() {
         return id;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(id);
+        TransportAction.localOnly();
     }
 
     @Override

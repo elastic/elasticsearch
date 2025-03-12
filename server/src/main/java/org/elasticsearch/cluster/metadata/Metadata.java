@@ -550,6 +550,14 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return indexCount;
     }
 
+    public int getTotalNumberOfDataStreams() {
+        int dataStreamCount = 0;
+        for (ProjectMetadata project : projects().values()) {
+            dataStreamCount += project.dataStreams().size();
+        }
+        return dataStreamCount;
+    }
+
     /**
      * @return {code true} if there are any indices in any project in this cluster
      */
@@ -1852,12 +1860,35 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     }
 
     /**
+     * Attempt to find a project for the supplied {@link DataStream}.
+     */
+    @FixForMultiProject
+    public Optional<ProjectMetadata> lookupProject(DataStream dataStream) {
+        // Assumes single project for now.
+        if (getProject().dataStreams().containsKey(dataStream.getName())) {
+            return Optional.of(getProject());
+        } else {
+            return Optional.empty();
+        }
+    }
+
+    /**
      * Attempt to find a project for the supplied {@link Index}.
      * @throws org.elasticsearch.index.IndexNotFoundException if the index does not exist in any project
      */
     public ProjectMetadata projectFor(Index index) {
         return lookupProject(index).orElseThrow(
             () -> new IndexNotFoundException("index [" + index + "] does not exist in any project", index)
+        );
+    }
+
+    /**
+     * Attempt to find a project for the supplied {@link DataStream}.
+     * @throws org.elasticsearch.index.IndexNotFoundException if the data stream does not exist in any project
+     */
+    public ProjectMetadata projectFor(DataStream dataStream) {
+        return lookupProject(dataStream).orElseThrow(
+            () -> new IndexNotFoundException("dataStream [" + dataStream + "] does not exist in any project")  //TODO check if ds equivalent
         );
     }
 

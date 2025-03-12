@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDeleteDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -765,6 +766,19 @@ public final class RestoreService implements ClusterStateApplier {
             .collect(Collectors.toUnmodifiableSet());
     }
 
+    private Set<DataStream> resolveSystemDataStreamsToDelete(ClusterState currentState, Collection<DataStream> dataStreamsToRestore) {
+        if (dataStreamsToRestore == null) {
+            return Collections.emptySet();
+        }
+
+        return dataStreamsToRestore.stream()
+            .filter(Objects::nonNull) // Features that aren't present on this node will be warned about in `getFeatureStatesToRestore`
+            .filter(dataStream ->
+                currentState.metadata().getProject().dataStreams().get(dataStream.getName()) != null
+            )
+            .collect(Collectors.toUnmodifiableSet());
+    }
+
     // visible for testing
     static DataStream updateDataStream(DataStream dataStream, Metadata.Builder metadata, RestoreSnapshotRequest request) {
         String dataStreamName = dataStream.getName();
@@ -1333,6 +1347,24 @@ public final class RestoreService implements ClusterStateApplier {
             currentState = MetadataDeleteIndexService.deleteIndices(
                 currentState,
                 resolveSystemIndicesToDelete(currentState, featureStatesToRestore),
+                settings
+            );
+
+            /* TODO - this is not working as expected, doesn't delete .another-system-data-stream from org.elasticsearch.snapshots.SystemIndicesSnapshotIT.testSnapshotByFeature
+                [2025-03-12T02:34:09,528][WARN ][o.e.s.RestoreService     ] [node_t1] [test-repo:test-snap/J3XEyGIqSQGXdqxSuAl0FA] failed to restore snapshot
+                    org.elasticsearch.snapshots.SnapshotRestoreException: [test-repo:test-snap/J3XEyGIqSQGXdqxSuAl0FA] cannot restore index [.ds-.another-test-system-data-stream-2025.03.11-000001] because an open index with same name already exists in the cluster. Either close or delete the existing index or restore the index under a different name by providing a rename pattern and replacement name
+                    at org.elasticsearch.snapshots.RestoreService$RestoreSnapshotStateTask.validateExistingClosedIndex(RestoreService.java:1655) ~[main/:?]
+                    at org.elasticsearch.snapshots.RestoreService$RestoreSnapshotStateTask.execute(RestoreService.java:1446) ~[main/:?]
+                    at org.elasticsearch.cluster.service.MasterService$UnbatchedExecutor.execute(MasterService.java:580) ~[main/:?]
+
+                - resolveSystemDataStreamsToDelete(currentState, dataStreamsToRestore) correctly identifies the 2 DSs
+                - deleteDataStreams only deletes the first one, it leasve .another-system-data-stream intact
+             */
+
+            // Clear out all existing data streams which fall within a data stream being restored
+            currentState = MetadataDeleteDataStreamService.deleteDataStreams(
+                currentState,
+                resolveSystemDataStreamsToDelete(currentState, dataStreamsToRestore),
                 settings
             );
 

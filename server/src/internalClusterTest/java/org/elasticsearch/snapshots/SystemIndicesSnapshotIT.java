@@ -10,12 +10,22 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
+import org.elasticsearch.indices.ExecutorNames;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.Plugin;
@@ -24,10 +34,12 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -55,6 +67,10 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         plugins.add(SystemIndexTestPlugin.class);
         plugins.add(AnotherSystemIndexTestPlugin.class);
         plugins.add(AssociatedIndicesTestPlugin.class);
+        plugins.add(DataStreamsPlugin.class);
+        plugins.add(AnotherSystemDataStreamTestPlugin.class);
+        plugins.add(SystemDataStreamTestPlugin.class);
+        plugins.add(AssociatedIndicesSystemDSTestPlugin.class);
         return plugins;
     }
 
@@ -70,16 +86,18 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      */
     public void testRestoreSystemIndicesAsGlobalState() {
         createRepository(REPO_NAME, "fs");
-        // put a document in a system index
+        // put a document in a system index and data stream
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
-        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+        indexDataStream(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "1", "purpose", "pre-snapshot doc");
+        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME);
 
         // run a snapshot including global state
         createFullSnapshot(REPO_NAME, "test-snap");
 
-        // add another document
+        // add another document to each system resource
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "2", "purpose", "post-snapshot doc");
-        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+        indexDataStream(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "2", "purpose", "post-snapshot doc");
+        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME);
 
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
 
@@ -91,8 +109,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         ).setWaitForCompletion(true).setRestoreGlobalState(true).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
-        // verify only the original document is restored
+        // verify only the original documents are restored
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(1L));
+        assertThat(getDocCount(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(1L));
     }
 
     /**
@@ -101,6 +120,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testSnapshotWithoutGlobalState() {
         createRepository(REPO_NAME, "fs");
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "system index doc");
+        indexDataStream(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "1", "purpose", "pre-snapshot doc");
         indexDoc("not-a-system-index", "1", "purpose", "non system index doc");
 
         // run a snapshot without global state
@@ -122,6 +142,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         assertThat("not-a-system-index", in(snapshottedIndices));
         assertThat(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, not(in(snapshottedIndices)));
+        assertThat(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, not(in(snapshottedIndices)));
     }
 
     /**
@@ -131,23 +152,44 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository(REPO_NAME, "fs");
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
         indexDoc(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
-        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+        indexDataStream(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "1", "purpose", "pre-snapshot doc");
+        indexDataStream(AnotherSystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "1", "purpose", "pre-snapshot doc");
+        refresh(
+            SystemIndexTestPlugin.SYSTEM_INDEX_NAME,
+            AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME,
+            SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME,
+            AnotherSystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME
+        );
 
         // snapshot by feature
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
             .setIncludeGlobalState(true)
             .setWaitForCompletion(true)
-            .setFeatureStates(SystemIndexTestPlugin.class.getSimpleName(), AnotherSystemIndexTestPlugin.class.getSimpleName())
+            .setFeatureStates(
+                SystemIndexTestPlugin.class.getSimpleName(),
+                AnotherSystemIndexTestPlugin.class.getSimpleName(),
+                SystemDataStreamTestPlugin.class.getSimpleName(),
+                AnotherSystemDataStreamTestPlugin.class.getSimpleName()
+            )
             .get();
         assertSnapshotSuccess(createSnapshotResponse);
 
         // add some other documents
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "2", "purpose", "post-snapshot doc");
         indexDoc(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME, "2", "purpose", "post-snapshot doc");
-        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+        indexDataStream(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "2", "purpose", "post-snapshot doc");
+        indexDataStream(AnotherSystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "2", "purpose", "post-snapshot doc");
+        refresh(
+            SystemIndexTestPlugin.SYSTEM_INDEX_NAME,
+            AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME,
+            SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME,
+            AnotherSystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME
+        );
 
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
         assertThat(getDocCount(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
+        assertThat(getDocCount(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(2L));
+        assertThat(getDocCount(AnotherSystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(2L));
 
         // restore indices as global state without closing the index
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
@@ -160,6 +202,8 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         // verify only the original document is restored
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(1L));
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(1L));
+        assertThat(getDocCount(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(1L));
+        assertThat(getDocCount(AnotherSystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(1L));
     }
 
     /**
@@ -175,7 +219,8 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         indexDoc(regularIndex, "1", "purpose", "create an index that can be restored");
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
-        refresh(regularIndex, SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+        indexDataStream(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "1", "purpose", "pre-snapshot doc");
+        refresh(regularIndex, SystemIndexTestPlugin.SYSTEM_INDEX_NAME, SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME);
 
         // snapshot including global state
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
@@ -193,7 +238,11 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(restoreResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertThat(
             restoreResponse.getRestoreInfo().indices(),
-            allOf(hasItem(regularIndex), not(hasItem(SystemIndexTestPlugin.SYSTEM_INDEX_NAME)))
+            allOf(
+                hasItem(regularIndex),
+                not(hasItem(SystemIndexTestPlugin.SYSTEM_INDEX_NAME)),
+                not(hasItem(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME))
+            )
         );
     }
 
@@ -207,7 +256,15 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDoc(regularIndex, "1", "purpose", "create an index that can be restored");
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
         indexDoc(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
-        refresh(regularIndex, SystemIndexTestPlugin.SYSTEM_INDEX_NAME, AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+        indexDataStream(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "1", "purpose", "pre-snapshot doc");
+        indexDataStream(AnotherSystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "1", "purpose", "pre-snapshot doc");
+        refresh(
+            regularIndex,
+            SystemIndexTestPlugin.SYSTEM_INDEX_NAME,
+            AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME,
+            SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME,
+            AnotherSystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME
+        );
 
         // snapshot including global state
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
@@ -219,10 +276,19 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         // add some other documents
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "2", "purpose", "post-snapshot doc");
         indexDoc(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME, "2", "purpose", "post-snapshot doc");
-        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
-
+        indexDataStream(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "2", "purpose", "post-snapshot doc");
+        indexDataStream(AnotherSystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "2", "purpose", "post-snapshot doc");
+        refresh(
+            regularIndex,
+            SystemIndexTestPlugin.SYSTEM_INDEX_NAME,
+            AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME,
+            SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME,
+            AnotherSystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME
+        );
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
         assertThat(getDocCount(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
+        assertThat(getDocCount(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(2L));
+        assertThat(getDocCount(AnotherSystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(2L));
 
         // Delete the regular index so we can restore it
         assertAcked(cluster().client().admin().indices().prepareDelete(regularIndex));
@@ -232,14 +298,16 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             TEST_REQUEST_TIMEOUT,
             REPO_NAME,
             "test-snap"
-        ).setWaitForCompletion(true).setFeatureStates("SystemIndexTestPlugin").get();
+        ).setWaitForCompletion(true).setFeatureStates("SystemIndexTestPlugin", "SystemDataStreamTestPlugin").get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
-        // verify that the restored system index has only one document
+        // verify that the restored system index and data stream each only have one document
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(1L));
+        assertThat(getDocCount(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(1L));
 
-        // but the non-requested feature should still have its new document
+        // but the non-requested features should still have their new documents
         assertThat(getDocCount(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
+        assertThat(getDocCount(AnotherSystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(2L));
     }
 
     /**
@@ -254,36 +322,57 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDoc(regularIndex, "1", "purpose", "pre-snapshot doc");
         indexDoc(AssociatedIndicesTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
         indexDoc(AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
-        refresh(regularIndex, AssociatedIndicesTestPlugin.SYSTEM_INDEX_NAME, AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME);
+        indexDataStream(AssociatedIndicesSystemDSTestPlugin.SYSTEM_DATASTREAM_NAME, "1", "purpose", "pre-snapshot doc");
+        indexDoc(AssociatedIndicesSystemDSTestPlugin.ASSOCIATED_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
+
+        refresh(
+            regularIndex,
+            AssociatedIndicesTestPlugin.SYSTEM_INDEX_NAME,
+            AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME,
+            AssociatedIndicesSystemDSTestPlugin.SYSTEM_DATASTREAM_NAME,
+            AssociatedIndicesSystemDSTestPlugin.ASSOCIATED_INDEX_NAME
+        );
 
         // snapshot
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
-            .setFeatureStates(AssociatedIndicesTestPlugin.class.getSimpleName())
+            .setFeatureStates(AssociatedIndicesTestPlugin.class.getSimpleName(), AssociatedIndicesSystemDSTestPlugin.class.getSimpleName())
             .setWaitForCompletion(true)
             .get();
         assertSnapshotSuccess(createSnapshotResponse);
 
         // verify the correctness of the snapshot
-        Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO_NAME)
-            .get()
-            .getSnapshots()
+        var snapshotsResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO_NAME)
+            .get();
+        Set<String> snapshottedIndices = snapshotsResponse.getSnapshots()
             .stream()
             .map(SnapshotInfo::indices)
             .flatMap(Collection::stream)
             .collect(Collectors.toSet());
+        Set<String> snapshottedDataStreams = snapshotsResponse.getSnapshots()
+            .stream()
+            .map(SnapshotInfo::dataStreams)
+            .flatMap(Collection::stream)
+            .collect(Collectors.toSet());
         assertThat(snapshottedIndices, hasItem(AssociatedIndicesTestPlugin.SYSTEM_INDEX_NAME));
         assertThat(snapshottedIndices, hasItem(AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME));
+        assertThat(snapshottedDataStreams, hasItem(AssociatedIndicesSystemDSTestPlugin.SYSTEM_DATASTREAM_NAME));
+        assertThat(snapshottedIndices, hasItem(AssociatedIndicesSystemDSTestPlugin.ASSOCIATED_INDEX_NAME));
 
         // add some other documents
         indexDoc(regularIndex, "2", "purpose", "post-snapshot doc");
         indexDoc(AssociatedIndicesTestPlugin.SYSTEM_INDEX_NAME, "2", "purpose", "post-snapshot doc");
-        refresh(regularIndex, AssociatedIndicesTestPlugin.SYSTEM_INDEX_NAME);
+        indexDataStream(AssociatedIndicesSystemDSTestPlugin.SYSTEM_DATASTREAM_NAME, "2", "purpose", "post-snapshot doc");
+        refresh(regularIndex, AssociatedIndicesTestPlugin.SYSTEM_INDEX_NAME, AssociatedIndicesSystemDSTestPlugin.SYSTEM_DATASTREAM_NAME);
 
         assertThat(getDocCount(regularIndex), equalTo(2L));
         assertThat(getDocCount(AssociatedIndicesTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
+        assertThat(getDocCount(AssociatedIndicesSystemDSTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(2L));
 
         // And delete the associated index so we can restore it
-        assertAcked(indicesAdmin().prepareDelete(AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME).get());
+        assertAcked(indicesAdmin().prepareDelete(
+            AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME,
+            AssociatedIndicesSystemDSTestPlugin.ASSOCIATED_INDEX_NAME
+        ).get());
 
         // restore the feature state and its associated index
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
@@ -291,15 +380,17 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             REPO_NAME,
             "test-snap"
         )
-            .setIndices(AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME)
+            .setIndices(AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME, AssociatedIndicesSystemDSTestPlugin.ASSOCIATED_INDEX_NAME)
             .setWaitForCompletion(true)
-            .setFeatureStates(AssociatedIndicesTestPlugin.class.getSimpleName())
+            .setFeatureStates(AssociatedIndicesTestPlugin.class.getSimpleName(), AssociatedIndicesSystemDSTestPlugin.class.getSimpleName())
             .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         // verify only the original document is restored
         assertThat(getDocCount(AssociatedIndicesTestPlugin.SYSTEM_INDEX_NAME), equalTo(1L));
         assertThat(getDocCount(AssociatedIndicesTestPlugin.ASSOCIATED_INDEX_NAME), equalTo(1L));
+        assertThat(getDocCount(AssociatedIndicesSystemDSTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(1L));
+        assertThat(getDocCount(AssociatedIndicesSystemDSTestPlugin.ASSOCIATED_INDEX_NAME), equalTo(1L));
     }
 
     /**
@@ -308,7 +399,8 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testRestoreFeatureNotInSnapshot() {
         createRepository(REPO_NAME, "fs");
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
-        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+        indexDataStream(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "1", "purpose", "pre-snapshot doc");
+        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME);
 
         // snapshot including global state
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
@@ -322,7 +414,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             SnapshotRestoreException.class,
             clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
-                .setFeatureStates("SystemIndexTestPlugin", fakeFeatureStateName)
+                .setFeatureStates("SystemIndexTestPlugin", "SystemDataStreamTestPlugin", fakeFeatureStateName)
         );
 
         assertThat(
@@ -359,6 +451,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertSnapshotSuccess(createSnapshotResponse);
     }
+
 
     /**
      * Check that directly requesting a system index in a restore request throws an Exception.
@@ -438,7 +531,8 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
     public void testRestoreSystemIndicesAsGlobalStateWithDefaultFeatureStateList() {
         createRepository(REPO_NAME, "fs");
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
-        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+        indexDataStream(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "1", "purpose", "pre-snapshot doc");
+        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME);
 
         // run a snapshot including global state
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
@@ -449,9 +543,11 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // add another document
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "2", "purpose", "post-snapshot doc");
-        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+        indexDataStream(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "2", "purpose", "post-snapshot doc");
+        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME);
 
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
+        assertThat(getDocCount(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(2L));
 
         // restore indices as global state a null list of feature states
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
@@ -463,6 +559,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // verify that the system index is destroyed
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(1L));
+        assertThat(getDocCount(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(1L));
     }
 
     /**
@@ -473,8 +570,9 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository(REPO_NAME, "fs");
         String regularIndex = "my-index";
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
+        indexDataStream(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "1", "purpose", "pre-snapshot doc");
         indexDoc(regularIndex, "1", "purpose", "pre-snapshot doc");
-        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, regularIndex);
+        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, regularIndex);
 
         // run a snapshot including global state
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
@@ -485,10 +583,12 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // add another document
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "2", "purpose", "post-snapshot doc");
-        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+        indexDataStream(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "2", "purpose", "post-snapshot doc");
+        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME);
 
         assertAcked(indicesAdmin().prepareDelete(regularIndex).get());
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
+        assertThat(getDocCount(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(2L));
 
         // restore with global state and all indices but explicitly no feature states.
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
@@ -500,6 +600,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // verify that the system index still has the updated document, i.e. has not been restored
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
+        assertThat(getDocCount(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME), equalTo(2L));
         // And the regular index has been restored
         assertThat(getDocCount(regularIndex), equalTo(1L));
     }
@@ -564,6 +665,8 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         // Create a system index
         final String systemIndexName = SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "-1";
         indexDoc(systemIndexName, "1", "purpose", "pre-snapshot doc");
+        // Create a system data stream
+        indexDataStream(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "1", "purpose", "pre-snapshot doc");
 
         // And a regular index
         // And a regular index so we can avoid matching all indices on the restore
@@ -573,7 +676,15 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // And make sure they both have aliases
         final String systemIndexAlias = SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "-alias";
-        assertAcked(indicesAdmin().prepareAliases().addAlias(systemIndexName, systemIndexAlias).addAlias(regularIndex, regularAlias).get());
+        final String systemDataStreamAlias = SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME + "-alias";
+        assertAcked(indicesAdmin().prepareAliases()
+            .addAlias(systemIndexName, systemIndexAlias)
+            .addAlias(regularIndex, regularAlias)
+            .addAlias(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, systemDataStreamAlias, true)
+            .get()
+        );
+        indexDataStream(systemDataStreamAlias, "2", "purpose", "post-alias doc");
+
 
         // run a snapshot including global state
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
@@ -602,6 +713,62 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(getDocCount(systemIndexAlias), equalTo(1L));
 
     }
+
+    // This test is failing because the assertion assertTrue(indexExists(systemDataStreamAlias)); is trips.
+    @AwaitsFix(bugUrl = "assertTrue(indexExists(systemDataStreamAlias)); is broken")
+    public void testSystemDataStreamAliasesAreAlwaysRestored() {
+        createRepository(REPO_NAME, "fs");
+        // Create a system data stream
+        indexDataStream(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, "1", "purpose", "pre-snapshot doc");
+
+        // And a regular index so we can avoid matching all indices on the restore
+        final String regularIndex = "regular-index";
+        final String regularAlias = "regular-alias";
+        indexDoc(regularIndex, "1", "purpose", "pre-snapshot doc");
+
+        // And make sure they both have aliases
+        final String systemDataStreamAlias = SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME + "-alias";
+        assertAcked(indicesAdmin().prepareAliases()
+            .addAlias(regularIndex, regularAlias)
+            .addAlias(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, systemDataStreamAlias, true)
+            .get()
+        );
+
+        // And add a doc to ensure the alias works
+        indexDataStream(systemDataStreamAlias, "2", "purpose", "post-alias doc");
+
+        // Run a snapshot including global state
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO_NAME, "test-snap")
+            .setWaitForCompletion(true)
+            .setIncludeGlobalState(true)
+            .get();
+        assertSnapshotSuccess(createSnapshotResponse);
+
+        // And delete the regular index and system data stream
+        assertAcked(cluster().client().admin().indices().prepareDelete(regularIndex));
+        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME)).actionGet());
+
+        // Now restore the snapshot with no aliases
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(
+                TEST_REQUEST_TIMEOUT,
+                REPO_NAME,
+                "test-snap"
+            ).setFeatureStates("SystemDataStreamTestPlugin")
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(false)
+            .setIncludeAliases(false).get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        // The regular index should exist
+        assertTrue(indexExists(regularIndex));
+        assertFalse(indexExists(regularAlias));
+
+        // And the system data stream, queried by alias, should have 2 docs
+        assertTrue(indexExists(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME));
+        assertTrue(indexExists(systemDataStreamAlias));
+        assertThat(getDocCount(systemDataStreamAlias), equalTo(2L));
+    }
+
 
     /**
      * Tests that the special "none" feature state name cannot be combined with other
@@ -686,6 +853,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshottedIndices, allOf(hasItem(regularIndex), not(hasItem(SystemIndexTestPlugin.SYSTEM_INDEX_NAME))));
     }
 
+    // TODO, Do we need to test this for Datastreams?
     /**
      * Ensures that if we can only capture a partial snapshot of a system index, then the feature state associated with that index is
      * not included in the snapshot, because it would not be safe to restore that feature state.
@@ -814,6 +982,14 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         return indicesAdmin().prepareStats(indexName).get().getPrimaries().getDocs().getCount();
     }
 
+    private DocWriteResponse indexDataStream(String index, String id, String... source) {
+        var sourceWithTimestamp = new String[source.length + 2];
+        sourceWithTimestamp[0] = "@timestamp";
+        sourceWithTimestamp[1] = Long.toString(System.currentTimeMillis());
+        System.arraycopy(source, 0, sourceWithTimestamp, 2, source.length);
+        return prepareIndex(index).setId(id).setSource((Object[]) sourceWithTimestamp).setOpType(DocWriteRequest.OpType.CREATE).get();
+    }
+
     public static class SystemIndexTestPlugin extends Plugin implements SystemIndexPlugin {
 
         public static final String SYSTEM_INDEX_NAME = ".test-system-idx";
@@ -858,6 +1034,84 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    public static class SystemDataStreamTestPlugin extends Plugin implements SystemIndexPlugin {
+
+        public static final String SYSTEM_DATASTREAM_NAME = ".test-system-data-stream";
+
+        @Override
+        public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
+            try {
+                CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"name\":{\"type\":\"keyword\"}}}");
+                return Collections.singletonList(
+                    new SystemDataStreamDescriptor(
+                        SYSTEM_DATASTREAM_NAME,
+                        "system data stream test",
+                        SystemDataStreamDescriptor.Type.EXTERNAL,
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(SYSTEM_DATASTREAM_NAME)) // TODO is this correct?
+                            .template(new Template(Settings.EMPTY, mappings, null))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build(),
+                        Map.of(),
+                        List.of("product"),
+                        ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+                    )
+                );
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public String getFeatureName() {
+            return SystemDataStreamTestPlugin.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "A simple test plugin for data streams";
+        }
+    }
+
+    public static class AnotherSystemDataStreamTestPlugin extends Plugin implements SystemIndexPlugin {
+
+        public static final String SYSTEM_DATASTREAM_NAME = ".another-test-system-data-stream";
+
+        @Override
+        public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
+            try {
+                CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"name\":{\"type\":\"keyword\"}}}");
+                return Collections.singletonList(
+                    new SystemDataStreamDescriptor(
+                        SYSTEM_DATASTREAM_NAME,
+                        "another system data stream test",
+                        SystemDataStreamDescriptor.Type.EXTERNAL,
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(SYSTEM_DATASTREAM_NAME)) // TODO is this correct?
+                            .template(new Template(Settings.EMPTY, mappings, null))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build(),
+                        Map.of(),
+                        List.of("product"),
+                        ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+                    )
+                );
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public String getFeatureName() {
+            return AnotherSystemDataStreamTestPlugin.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "Another simple test plugin for data streams";
+        }
+    }
+
     public static class AssociatedIndicesTestPlugin extends Plugin implements SystemIndexPlugin {
 
         public static final String SYSTEM_INDEX_NAME = ".third-test-system-idx";
@@ -878,6 +1132,51 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         @Override
         public String getFeatureName() {
             return AssociatedIndicesTestPlugin.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "Another simple test plugin";
+        }
+    }
+
+    public static class AssociatedIndicesSystemDSTestPlugin extends Plugin implements SystemIndexPlugin {
+
+        public static final String SYSTEM_DATASTREAM_NAME = ".test-system-data-stream-two";
+        public static final String ASSOCIATED_INDEX_NAME = ".associated-idx2";
+
+        @Override
+        public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
+            try {
+                CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"name\":{\"type\":\"keyword\"}}}");
+                return Collections.singletonList(
+                    new SystemDataStreamDescriptor(
+                        SYSTEM_DATASTREAM_NAME,
+                        "system data stream test",
+                        SystemDataStreamDescriptor.Type.EXTERNAL,
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(SYSTEM_DATASTREAM_NAME)) // TODO is this correct?
+                            .template(new Template(Settings.EMPTY, mappings, null))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build(),
+                        Map.of(),
+                        List.of("product"),
+                        ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+                    )
+                );
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+            return Collections.singletonList(new AssociatedIndexDescriptor(ASSOCIATED_INDEX_NAME, "Associated indices"));
+        }
+
+        @Override
+        public String getFeatureName() {
+            return AssociatedIndicesSystemDSTestPlugin.class.getSimpleName();
         }
 
         @Override

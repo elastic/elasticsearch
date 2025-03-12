@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.RemoteComputeException;
 
 import static org.hamcrest.Matchers.is;
 
@@ -34,10 +34,10 @@ public class CrossClusterRemoteErrorClusterAliasWrapIT extends AbstractCrossClus
             );
         }
 
-        ElasticsearchException wrappedError = expectThrows(
-            ElasticsearchException.class,
+        RemoteComputeException wrappedError = expectThrows(
+            RemoteComputeException.class,
             () -> runQuery("FROM " + REMOTE_CLUSTER_1 + ":*," + REMOTE_CLUSTER_2 + ":* | LIMIT 100", false)
         );
-        assertThat(wrappedError.getMessage(), is("cluster-a encountered an error"));
+        assertThat(wrappedError.getMessage(), is("Remote [cluster-a] encountered an error"));
     }
 }

@@ -99,8 +99,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
-        final boolean allowPartialResults = configuration.allowPartialResults();
-        DataNodeRequestSender sender = new DataNodeRequestSender(transportService, esqlExecutor, parentTask, allowPartialResults) {
+        new DataNodeRequestSender(
+            transportService,
+            esqlExecutor,
+            parentTask,
+            configuration.allowPartialResults(),
+            configuration.pragmas().maxConcurrentNodesPerCluster()
+        ) {
             @Override
             protected void sendRequest(
                 DiscoveryNode node,
@@ -108,6 +113,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 Map<Index, AliasFilter> aliasFilters,
                 NodeListener nodeListener
             ) {
+                if (exchangeSource.isFinished()) {
+                    nodeListener.onSkip();
+                    return;
+                }
+
                 final AtomicLong pagesFetched = new AtomicLong();
                 var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
                 final Transport.Connection connection;
@@ -130,7 +140,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     listener.delegateFailureAndWrap((l, unused) -> {
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
-                        if (allowPartialResults) {
+                        if (configuration.allowPartialResults()) {
                             try {
                                 groupTask = computeService.createGroupTask(
                                     parentTask,
@@ -153,7 +163,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                             exchangeSource.addRemoteSink(
                                 remoteSink,
-                                allowPartialResults == false,
+                                configuration.allowPartialResults() == false,
                                 pagesFetched::incrementAndGet,
                                 queryPragmas.concurrentExchangeClients(),
                                 computeListener.acquireAvoid()
@@ -185,8 +195,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     })
                 );
             }
-        };
-        sender.startComputeOnDataNodes(
+        }.startComputeOnDataNodes(
             clusterAlias,
             concreteIndices,
             originalIndices,

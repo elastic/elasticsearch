@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -79,7 +80,7 @@ public class QueryStringTests extends NoneFieldFullTextFunctionTestCase {
         // We need to add the QueryBuilder to the match expression, as it is used to implement equals() and hashCode() and
         // thus test the serialization methods. But we can only do this if the parameters make sense .
         if (args.get(0).foldable()) {
-            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(qstr).asBuilder();
+            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(qstr, FoldContext.small()).asBuilder();
             qstr.replaceQueryBuilder(queryBuilder);
         }
         return qstr;

@@ -109,7 +109,12 @@ public class CacheBlobReaderService {
                 rangeSize,
                 objectStoreFetchExecutor
             ),
-            createReadCompleteCallback(totalBytesReadFromObjectStore, CachePopulationSource.BlobStore, cachePopulationReason)
+            createReadCompleteCallback(
+                location.blobName(),
+                totalBytesReadFromObjectStore,
+                CachePopulationSource.BlobStore,
+                cachePopulationReason
+            )
         );
         var latestUploadInfo = tracker.getLatestUploadInfo(locationPrimaryTermAndGeneration);
         if (latestUploadInfo.isUploaded()) {
@@ -124,7 +129,12 @@ public class CacheBlobReaderService {
                     indexingShardCacheBlobReaderChunkSize,
                     threadPool
                 ),
-                createReadCompleteCallback(totalBytesReadFromIndexing, CachePopulationSource.Peer, cachePopulationReason)
+                createReadCompleteCallback(
+                    location.blobName(),
+                    totalBytesReadFromIndexing,
+                    CachePopulationSource.Peer,
+                    cachePopulationReason
+                )
             );
             return new SwitchingCacheBlobReader(
                 tracker,
@@ -136,6 +146,7 @@ public class CacheBlobReaderService {
     }
 
     private MeteringCacheBlobReader.ReadCompleteCallback createReadCompleteCallback(
+        String blobFile,
         LongConsumer bytesReadCounter,
         CachePopulationSource cachePopulationSource,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason
@@ -143,7 +154,7 @@ public class CacheBlobReaderService {
         return (bytesRead, readTimeNanos) -> {
             bytesReadCounter.accept(bytesRead);
             cacheService.getBlobCacheMetrics()
-                .recordCachePopulationMetrics(bytesRead, readTimeNanos, cachePopulationReason, cachePopulationSource);
+                .recordCachePopulationMetrics(blobFile, bytesRead, readTimeNanos, cachePopulationReason, cachePopulationSource);
         };
     }
 }

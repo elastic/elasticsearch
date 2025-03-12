@@ -646,6 +646,101 @@ public class LimitedRoleTests extends ESTestCase {
         assertThat(rolePredicate.test(TransportBulkAction.NAME), is(false));
     }
 
+    public void testAllowedActionsMatcherWithSelectors() {
+        Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "fromRole")
+            .add(IndexPrivilege.READ_FAILURE_STORE, "ind*")
+            .add(IndexPrivilege.READ, "ind*")
+            .add(IndexPrivilege.READ_FAILURE_STORE, "metric")
+            .add(IndexPrivilege.READ, "logs")
+            .build();
+        Automaton fromRoleAutomaton = fromRole.allowedActionsMatcher("index1");
+        Predicate<String> fromRolePredicate = Automatons.predicate(fromRoleAutomaton);
+        assertThat(fromRolePredicate.test(TransportSearchAction.TYPE.name()), is(true));
+
+        fromRoleAutomaton = fromRole.allowedActionsMatcher("index1::failures");
+        fromRolePredicate = Automatons.predicate(fromRoleAutomaton);
+        assertThat(fromRolePredicate.test(TransportSearchAction.TYPE.name()), is(true));
+
+        fromRoleAutomaton = fromRole.allowedActionsMatcher("metric");
+        fromRolePredicate = Automatons.predicate(fromRoleAutomaton);
+        assertThat(fromRolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
+
+        fromRoleAutomaton = fromRole.allowedActionsMatcher("metric::failures");
+        fromRolePredicate = Automatons.predicate(fromRoleAutomaton);
+        assertThat(fromRolePredicate.test(TransportSearchAction.TYPE.name()), is(true));
+
+        fromRoleAutomaton = fromRole.allowedActionsMatcher("logs");
+        fromRolePredicate = Automatons.predicate(fromRoleAutomaton);
+        assertThat(fromRolePredicate.test(TransportSearchAction.TYPE.name()), is(true));
+
+        fromRoleAutomaton = fromRole.allowedActionsMatcher("logs::failures");
+        fromRolePredicate = Automatons.predicate(fromRoleAutomaton);
+        assertThat(fromRolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
+
+        Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limitedRole")
+            .add(IndexPrivilege.READ, "index1", "index2")
+            .add(IndexPrivilege.READ_FAILURE_STORE, "index3")
+            .build();
+        Automaton limitedByRoleAutomaton = limitedByRole.allowedActionsMatcher("index1");
+        Predicate<String> limitedByRolePredicated = Automatons.predicate(limitedByRoleAutomaton);
+        assertThat(limitedByRolePredicated.test(TransportSearchAction.TYPE.name()), is(true));
+
+        limitedByRoleAutomaton = limitedByRole.allowedActionsMatcher("index1");
+        limitedByRolePredicated = Automatons.predicate(limitedByRoleAutomaton);
+        assertThat(limitedByRolePredicated.test(TransportSearchAction.TYPE.name()), is(true));
+
+        limitedByRoleAutomaton = limitedByRole.allowedActionsMatcher("index1::failures");
+        limitedByRolePredicated = Automatons.predicate(limitedByRoleAutomaton);
+        assertThat(limitedByRolePredicated.test(TransportSearchAction.TYPE.name()), is(false));
+
+        limitedByRoleAutomaton = limitedByRole.allowedActionsMatcher("index3");
+        limitedByRolePredicated = Automatons.predicate(limitedByRoleAutomaton);
+        assertThat(limitedByRolePredicated.test(TransportSearchAction.TYPE.name()), is(false));
+
+        limitedByRoleAutomaton = limitedByRole.allowedActionsMatcher("index3::failures");
+        limitedByRolePredicated = Automatons.predicate(limitedByRoleAutomaton);
+        assertThat(limitedByRolePredicated.test(TransportSearchAction.TYPE.name()), is(true));
+
+        Role role;
+        if (randomBoolean()) {
+            role = limitedByRole.limitedBy(fromRole);
+        } else {
+            role = fromRole.limitedBy(limitedByRole);
+        }
+
+        Automaton roleAutomaton = role.allowedActionsMatcher("index1");
+        Predicate<String> rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(true));
+
+        roleAutomaton = role.allowedActionsMatcher("index1::failures");
+        rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
+
+        roleAutomaton = role.allowedActionsMatcher("index3");
+        rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
+
+        roleAutomaton = role.allowedActionsMatcher("index3::failures");
+        rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(true));
+
+        roleAutomaton = role.allowedActionsMatcher("metric");
+        rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
+
+        roleAutomaton = role.allowedActionsMatcher("metric::failures");
+        rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
+
+        roleAutomaton = role.allowedActionsMatcher("logs");
+        rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
+
+        roleAutomaton = role.allowedActionsMatcher("logs::failures");
+        rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(TransportSearchAction.TYPE.name()), is(false));
+    }
+
     public void testCheckClusterPrivilege() {
         Role fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role")
             .cluster(Collections.singleton("manage_security"), Collections.emptyList())

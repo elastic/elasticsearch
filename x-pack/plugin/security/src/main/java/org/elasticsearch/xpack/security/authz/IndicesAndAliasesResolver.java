@@ -509,7 +509,7 @@ class IndicesAndAliasesResolver {
         }
 
         for (String aliasExpression : aliases) {
-            IndexNameExpressionResolver.assertDefaultOrDataSelector(aliasExpression);
+            IndexNameExpressionResolver.assertExpressionHasDefaultOrDataSelector(aliasExpression);
             boolean include = true;
             if (aliasExpression.charAt(0) == '-') {
                 include = false;

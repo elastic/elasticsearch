@@ -1023,7 +1023,7 @@ public class IndexNameExpressionResolver {
             : (baseExpression + SelectorResolver.SELECTOR_SEPARATOR + selectorExpression);
     }
 
-    public static void assertDefaultOrDataSelector(String expression) {
+    public static void assertExpressionHasDefaultOrDataSelector(String expression) {
         if (Assertions.ENABLED) {
             var tuple = splitSelectorExpression(expression);
             assert tuple.v2() == null || IndexComponentSelector.DATA.getKey().equals(tuple.v2())

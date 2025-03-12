@@ -479,3 +479,12 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/nodes/line_361}
   issue: https://github.com/elastic/elasticsearch/issues/124103
+- class: org.elasticsearch.index.shard.StoreRecoveryTests
+  method: testAddIndices
+  issue: https://github.com/elastic/elasticsearch/issues/124104
+- class: org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests
+  method: testFilesEntitlementsWithExclusive
+  issue: https://github.com/elastic/elasticsearch/issues/124420
+- class: org.elasticsearch.xpack.core.common.notifications.AbstractAuditorTests
+  method: testRecreateTemplateWhenDeleted
+  issue: https://github.com/elastic/elasticsearch/issues/123232

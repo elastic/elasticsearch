@@ -96,18 +96,19 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         assert expectedThreadPoolNames.length == 0 || ThreadPool.assertCurrentThreadPool(expectedThreadPoolNames);
         return new MeteringCacheBlobReader(
             new ObjectStoreCacheBlobReader(blobContainer, blobName, getCacheService().getRangeSize(), fetchExecutor),
-            createReadCompleteCallback(bytesReadAdder, cachePopulationReason)
+            createReadCompleteCallback(blobName, bytesReadAdder, cachePopulationReason)
         );
     }
 
     private MeteringCacheBlobReader.ReadCompleteCallback createReadCompleteCallback(
+        String blobName,
         LongAdder bytesReadAdder,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason
     ) {
         return (bytesRead, readTimeNanos) -> {
             bytesReadAdder.add(bytesRead);
             cacheService.getBlobCacheMetrics()
-                .recordCachePopulationMetrics(bytesRead, readTimeNanos, cachePopulationReason, CachePopulationSource.BlobStore);
+                .recordCachePopulationMetrics(blobName, bytesRead, readTimeNanos, cachePopulationReason, CachePopulationSource.BlobStore);
         };
     }
 

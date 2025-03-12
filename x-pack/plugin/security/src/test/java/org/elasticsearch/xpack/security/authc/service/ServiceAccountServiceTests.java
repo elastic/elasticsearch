@@ -96,7 +96,6 @@ public class ServiceAccountServiceTests extends ESTestCase {
             ServiceAccountService.getServiceAccountPrincipals(),
             containsInAnyOrder(
                 "elastic/auto-ops",
-                "elastic/enterprise-search-server",
                 "elastic/fleet-server",
                 "elastic/fleet-server-remote",
                 "elastic/kibana"

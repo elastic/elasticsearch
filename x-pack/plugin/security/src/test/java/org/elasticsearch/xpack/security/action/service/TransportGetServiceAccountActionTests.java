@@ -51,7 +51,6 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
             Arrays.stream(getServiceAccountResponse1.getServiceAccountInfos()).map(ServiceAccountInfo::getPrincipal).toList(),
             containsInAnyOrder(
                 "elastic/auto-ops",
-                "elastic/enterprise-search-server",
                 "elastic/fleet-server",
                 "elastic/fleet-server-remote",
                 "elastic/kibana"

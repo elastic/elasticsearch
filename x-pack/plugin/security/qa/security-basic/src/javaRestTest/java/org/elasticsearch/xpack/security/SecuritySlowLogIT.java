@@ -224,7 +224,7 @@ public class SecuritySlowLogIT extends ESRestTestCase {
 
         Map<String, Object> expectedUser = Map.of(
             "user.name",
-            "elastic/enterprise-search-server",
+            "elastic/fleet-server",
             "user.realm",
             "_service_account",
             "auth.type",
@@ -382,7 +382,7 @@ public class SecuritySlowLogIT extends ESRestTestCase {
     private static Map<String, Object> createServiceAccountToken() throws IOException {
         final Request createServiceTokenRequest = new Request(
             "POST",
-            "/_security/service/elastic/enterprise-search-server/credential/token"
+            "/_security/service/elastic/fleet-server/credential/token"
         );
         final Response createServiceTokenResponse = adminClient().performRequest(createServiceTokenRequest);
         assertOK(createServiceTokenResponse);

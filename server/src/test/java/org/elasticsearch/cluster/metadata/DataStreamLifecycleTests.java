@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -399,7 +398,6 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         }
     }
 
-    @Nullable
     public static DataStreamLifecycle randomLifecycle() {
         return DataStreamLifecycle.builder()
             .dataRetention(randomBoolean() ? null : randomTimeValue(1, 365, TimeUnit.DAYS))
@@ -408,7 +406,6 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             .build();
     }
 
-    @Nullable
     static List<DataStreamLifecycle.DownsamplingRound> randomDownsampling() {
         var count = randomIntBetween(0, 9);
         List<DataStreamLifecycle.DownsamplingRound> rounds = new ArrayList<>();

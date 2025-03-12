@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
@@ -166,7 +165,6 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
         }
     }
 
-    @Nullable
     public static DataStreamLifecycle.Template randomLifecycleTemplate() {
         return DataStreamLifecycle.Template.builder()
             .enabled(randomBoolean())

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.rank.linear.ScoreNormalizer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -168,10 +169,12 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
         String rerankInferenceId,
         int rankWindowSize
     ) {
+        FieldsAndsWeights fieldsAndsWeights = generateFieldsAndWeights(fields);
+
         LinearRetrieverBuilder linearRetrieverBuilder = new LinearRetrieverBuilder(
-            generateInnerRetrievers(fields, query),
+            generateInnerRetrievers(fieldsAndsWeights.fields(), query),
             rankWindowSize,
-            generateWeights(fields),
+            fieldsAndsWeights.weights(),
             generateScoreNormalizers(fields)
         );
 
@@ -208,15 +211,29 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
         return innerRetrievers;
     }
 
-    private static float[] generateWeights(List<String> fields) {
+    private static FieldsAndsWeights generateFieldsAndWeights(List<String> fields) {
         if (fields == null) {
-            return new float[0];
+            return new FieldsAndsWeights(List.of(), new float[0]);
         }
 
-        // TODO: Parse field strings for weights
-        float[] weights = new float[fields.size()];
-        Arrays.fill(weights, 1.0f);
-        return weights;
+        int fieldCount = fields.size();
+        List<String> parsedFields = new ArrayList<>(fieldCount);
+        float[] parsedWeights = new float[fieldCount];
+        for (int i = 0; i < fieldCount; i++) {
+            String[] fieldSplit = fields.get(i).split("\\^");
+
+            float weight = 1.0f;
+            if (fieldSplit.length > 2) {
+                throw new IllegalArgumentException("Invalid field name [" + fields.get(i) + "]");
+            } else if (fieldSplit.length == 2) {
+                weight = Float.parseFloat(fieldSplit[1]);
+            }
+
+            parsedFields.add(fieldSplit[0]);
+            parsedWeights[i] = weight;
+        }
+
+        return new FieldsAndsWeights(Collections.unmodifiableList(parsedFields), parsedWeights);
     }
 
     private static ScoreNormalizer[] generateScoreNormalizers(List<String> fields) {
@@ -228,4 +245,6 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
         Arrays.fill(scoreNormalizers, new MinMaxScoreNormalizer(0));
         return scoreNormalizers;
     }
+
+    private record FieldsAndsWeights(List<String> fields, float[] weights) {}
 }

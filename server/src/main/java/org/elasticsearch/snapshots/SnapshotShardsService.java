@@ -848,6 +848,8 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 logger.trace("[{}][{}] updated snapshot state to [{}]", shardId, snapshot, status);
                 if (status.state().completed()) {
                     shardStatusConsistencyChecker.ensureShardComplete(snapshot, shardId);
+                } else {
+                    assert status.state() == ShardState.PAUSED_FOR_NODE_REMOVAL : status;
                 }
             }
 

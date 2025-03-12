@@ -885,7 +885,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
      * After receiving an ack from the master confirming that it marked a shard snapshot as complete, checks the local cluster state to
      * confirm that it was updated to reflect this and logs a message if not. Not 100% watertight because this node might be lagging behind
      * and hasn't received the cluster state yet, or else it might have been removed from the cluster, but both of these things will also
-     * be visible in the logs.
+     * be visible in the logs. See e.g. o.e.c.c.Publication#logIncompleteNodes and o.e.c.c.NodeLeftExecutor.
      */
     // visible for testing
     class ShardStatusConsistencyChecker {

@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.IndexClosedException;
 
 import java.util.Arrays;
 import java.util.Locale;
@@ -57,18 +58,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, indexSettings(1, 1).build());
         ensureGreen(indexName);
 
-        assertThat(
-            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
-                client().admin()
-                    .indices()
-                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
-                    .execute()
-                    .actionGet()
-                    .getIndexToSettings()
-                    .get(indexName)
-            ),
-            equalTo(1)
-        );
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
 
         indexDocs(indexName, 100);
 
@@ -112,6 +102,9 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         ensureStableCluster(3);
 
+        /* This allocation rule is used to prevent the new reshard index shard from getting allocated.
+         * This will also prevent the search shard from getting allocated, hence we have two search nodes above.
+         */
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
@@ -119,18 +112,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         );
         ensureGreen(indexName);
 
-        assertThat(
-            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
-                client().admin()
-                    .indices()
-                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
-                    .execute()
-                    .actionGet()
-                    .getIndexToSettings()
-                    .get(indexName)
-            ),
-            equalTo(1)
-        );
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
 
         ReshardIndexRequest request = new ReshardIndexRequest(indexName, ActiveShardCount.NONE);
         client(indexNode).execute(TransportReshardAction.TYPE, request).actionGet();
@@ -180,7 +162,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             .get();
     }
 
-    @AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-11036")
     public void testReshardWithIndexClose() throws Exception {
         String indexNode = startMasterAndIndexNode();
         String searchNode = startSearchNode();
@@ -191,18 +172,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, indexSettings(1, 1).build());
         ensureGreen(indexName);
 
-        assertThat(
-            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
-                client().admin()
-                    .indices()
-                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
-                    .execute()
-                    .actionGet()
-                    .getIndexToSettings()
-                    .get(indexName)
-            ),
-            equalTo(1)
-        );
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
 
         indexDocs(indexName, 100);
 
@@ -210,7 +180,10 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         // assertAcked(indicesAdmin().prepareClose(indexName));
         assertBusy(() -> closeIndices(indexName));
-        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        expectThrows(
+            IndexClosedException.class,
+            () -> client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet()
+        );
 
         GetSettingsResponse postReshardSettingsResponse = client().admin()
             .indices()
@@ -219,7 +192,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         assertThat(
             IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
-            equalTo(2)
+            equalTo(1)
         );
     }
 
@@ -262,5 +235,20 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         } else {
             assertThat(response.getIndices().size(), equalTo(0));
         }
+    }
+
+    private static void checkNumberOfShardsSetting(String indexNode, String indexName, int expected_shards) {
+        assertThat(
+            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
+                client(indexNode).admin()
+                    .indices()
+                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+                    .execute()
+                    .actionGet()
+                    .getIndexToSettings()
+                    .get(indexName)
+            ),
+            equalTo(expected_shards)
+        );
     }
 }

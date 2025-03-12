@@ -186,7 +186,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
     }
 
-    public void testAuthorizeWithFailuresSelector() {
+    public void testAuthorizeDataStreamAccessWithFailuresSelector() {
         Metadata.Builder builder = Metadata.builder();
         String dataStreamName = randomAlphaOfLength(6);
         int numBackingIndices = randomIntBetween(1, 3);
@@ -217,7 +217,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 .build();
             IndicesAccessControl permissions = role.authorize(
                 TransportSearchAction.TYPE.name(),
-                Sets.newHashSet(dataStreamName),
+                Sets.newHashSet(randomFrom(dataStreamName, dataStreamName + "::data")),
                 metadata,
                 fieldPermissionsCache
             );
@@ -288,7 +288,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 .build();
             IndicesAccessControl permissions = role.authorize(
                 TransportSearchAction.TYPE.name(),
-                Sets.newHashSet(dataStreamName, dataStreamName + "::failures"),
+                Sets.newHashSet(randomFrom(dataStreamName, dataStreamName + "::data"), dataStreamName + "::failures"),
                 metadata,
                 fieldPermissionsCache
             );
@@ -297,7 +297,102 @@ public class IndicesPermissionTests extends ESTestCase {
             assertThat(permissions.hasIndexPermissions(dataStreamName), is(true));
         }
 
-        for (var privilege : List.of(IndexPrivilege.ALL)) {
+        {
+            Role role = Role.builder(RESTRICTED_INDICES, "_role")
+                .add(
+                    new FieldPermissions(fieldPermissionDef(null, null)),
+                    null,
+                    IndexPrivilege.ALL,
+                    randomBoolean(),
+                    randomFrom(dataStreamName, dataStreamName + "*")
+                )
+                .build();
+            IndicesAccessControl permissions = role.authorize(
+                TransportSearchAction.TYPE.name(),
+                Sets.newHashSet(randomFrom(dataStreamName, dataStreamName + "::data"), dataStreamName + "::failures"),
+                metadata,
+                fieldPermissionsCache
+            );
+            assertThat("for privilege " + IndexPrivilege.ALL, permissions.isGranted(), is(true));
+            assertThat("for privilege " + IndexPrivilege.ALL, permissions.hasIndexPermissions(dataStreamName + "::failures"), is(true));
+            assertThat("for privilege " + IndexPrivilege.ALL, permissions.hasIndexPermissions(dataStreamName), is(true));
+        }
+        {
+            Role role = Role.builder(RESTRICTED_INDICES, "_role")
+                .add(
+                    new FieldPermissions(fieldPermissionDef(null, null)),
+                    null,
+                    IndexPrivilege.READ_FAILURE_STORE,
+                    randomBoolean(),
+                    randomFrom(dataStreamName, dataStreamName + "*")
+                )
+                .build();
+            IndicesAccessControl permissions = role.authorize(
+                TransportSearchAction.TYPE.name(),
+                Sets.newHashSet(randomFrom(dataStreamName, dataStreamName + "::data"), dataStreamName + "::failures"),
+                metadata,
+                fieldPermissionsCache
+            );
+            assertThat("for privilege " + IndexPrivilege.READ_FAILURE_STORE, permissions.isGranted(), is(false));
+            assertThat(
+                "for privilege " + IndexPrivilege.READ_FAILURE_STORE,
+                permissions.hasIndexPermissions(dataStreamName + "::failures"),
+                is(true)
+            );
+            assertThat("for privilege " + IndexPrivilege.READ_FAILURE_STORE, permissions.hasIndexPermissions(dataStreamName), is(false));
+        }
+
+        {
+            Role role = Role.builder(RESTRICTED_INDICES, "_role")
+                .add(
+                    new FieldPermissions(fieldPermissionDef(null, null)),
+                    null,
+                    IndexPrivilege.READ,
+                    randomBoolean(),
+                    randomFrom(dataStreamName, dataStreamName + "*")
+                )
+                .build();
+            IndicesAccessControl permissions = role.authorize(
+                TransportSearchAction.TYPE.name(),
+                Sets.newHashSet(randomFrom(dataStreamName, dataStreamName + "::data"), dataStreamName + "::failures"),
+                metadata,
+                fieldPermissionsCache
+            );
+            assertThat("for privilege " + IndexPrivilege.READ, permissions.isGranted(), is(false));
+            assertThat("for privilege " + IndexPrivilege.READ, permissions.hasIndexPermissions(dataStreamName + "::failures"), is(false));
+            assertThat("for privilege " + IndexPrivilege.READ, permissions.hasIndexPermissions(dataStreamName), is(true));
+        }
+    }
+
+    public void testAuthorizeDataStreamFailureIndices() {
+        Metadata.Builder builder = Metadata.builder();
+        String dataStreamName = randomAlphaOfLength(6);
+        int numBackingIndices = randomIntBetween(1, 3);
+        List<IndexMetadata> backingIndices = new ArrayList<>();
+        for (int backingIndexNumber = 1; backingIndexNumber <= numBackingIndices; backingIndexNumber++) {
+            backingIndices.add(createBackingIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNumber)));
+        }
+        List<IndexMetadata> failureIndices = new ArrayList<>();
+        int numFailureIndices = randomIntBetween(1, 3);
+        for (int failureIndexNumber = 1; failureIndexNumber <= numFailureIndices; failureIndexNumber++) {
+            failureIndices.add(createBackingIndexMetadata(DataStream.getDefaultFailureStoreName(dataStreamName, failureIndexNumber, 1L)));
+        }
+        DataStream ds = DataStreamTestHelper.newInstance(
+            dataStreamName,
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
+            failureIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+        );
+        builder.put(ds);
+        for (IndexMetadata index : backingIndices) {
+            builder.put(index, false);
+        }
+        for (IndexMetadata index : failureIndices) {
+            builder.put(index, false);
+        }
+        var metadata = builder.build().getProject();
+        FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+
+        for (var privilege : List.of(IndexPrivilege.READ)) {
             Role role = Role.builder(RESTRICTED_INDICES, "_role")
                 .add(
                     new FieldPermissions(fieldPermissionDef(null, null)),
@@ -307,15 +402,21 @@ public class IndicesPermissionTests extends ESTestCase {
                     randomFrom(dataStreamName, dataStreamName + "*")
                 )
                 .build();
+            String failureIndex = randomFrom(failureIndices).getIndex().getName();
             IndicesAccessControl permissions = role.authorize(
                 TransportSearchAction.TYPE.name(),
-                Sets.newHashSet(dataStreamName, dataStreamName + "::failures"),
+                Sets.newHashSet(failureIndex),
                 metadata,
                 fieldPermissionsCache
             );
+            assertThat("for privilege " + privilege, permissions.isGranted(), is(false));
+            assertThat("for privilege " + privilege, permissions.hasIndexPermissions(failureIndex), is(false));
+
+            String dataIndex = randomFrom(backingIndices).getIndex().getName();
+            permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet(dataIndex), metadata, fieldPermissionsCache);
+
             assertThat("for privilege " + privilege, permissions.isGranted(), is(true));
-            assertThat("for privilege " + privilege, permissions.hasIndexPermissions(dataStreamName + "::failures"), is(true));
-            assertThat("for privilege " + privilege, permissions.hasIndexPermissions(dataStreamName), is(true));
+            assertThat("for privilege " + privilege, permissions.hasIndexPermissions(dataIndex), is(true));
         }
 
         for (var privilege : List.of(IndexPrivilege.READ_FAILURE_STORE)) {
@@ -328,38 +429,24 @@ public class IndicesPermissionTests extends ESTestCase {
                     randomFrom(dataStreamName, dataStreamName + "*")
                 )
                 .build();
+
+            String failureIndex = randomFrom(failureIndices).getIndex().getName();
             IndicesAccessControl permissions = role.authorize(
                 TransportSearchAction.TYPE.name(),
-                Sets.newHashSet(dataStreamName, dataStreamName + "::failures"),
+                Sets.newHashSet(failureIndex),
                 metadata,
                 fieldPermissionsCache
             );
-            assertThat("for privilege " + privilege, permissions.isGranted(), is(false));
-            assertThat("for privilege " + privilege, permissions.hasIndexPermissions(dataStreamName + "::failures"), is(true));
-            assertThat("for privilege " + privilege, permissions.hasIndexPermissions(dataStreamName), is(false));
-        }
 
-        for (var privilege : List.of(IndexPrivilege.READ)) {
-            Role role = Role.builder(RESTRICTED_INDICES, "_role")
-                .add(
-                    new FieldPermissions(fieldPermissionDef(null, null)),
-                    null,
-                    privilege,
-                    randomBoolean(),
-                    randomFrom(dataStreamName, dataStreamName + "*")
-                )
-                .build();
-            IndicesAccessControl permissions = role.authorize(
-                TransportSearchAction.TYPE.name(),
-                Sets.newHashSet(dataStreamName, dataStreamName + "::failures"),
-                metadata,
-                fieldPermissionsCache
-            );
-            assertThat("for privilege " + privilege, permissions.isGranted(), is(false));
-            assertThat("for privilege " + privilege, permissions.hasIndexPermissions(dataStreamName + "::failures"), is(false));
-            assertThat("for privilege " + privilege, permissions.hasIndexPermissions(dataStreamName), is(true));
-        }
+            assertThat("for privilege " + privilege, permissions.isGranted(), is(true));
+            assertThat("for privilege " + privilege, permissions.hasIndexPermissions(failureIndex), is(true));
 
+            String dataIndex = randomFrom(backingIndices).getIndex().getName();
+            permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet(dataIndex), metadata, fieldPermissionsCache);
+
+            assertThat("for privilege " + privilege, permissions.isGranted(), is(false));
+            assertThat("for privilege " + privilege, permissions.hasIndexPermissions(dataIndex), is(false));
+        }
     }
 
     public void testAuthorizeMultipleGroupsMixedDls() {

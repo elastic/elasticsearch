@@ -147,11 +147,10 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         } else {
             this.aliases = null;
         }
-        boolean isExplicitNull = false;
-        if (in.getTransportVersion().between(TransportVersions.V_8_9_X, DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
-            isExplicitNull = in.readBoolean();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+        if (in.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
+            this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle.Template::read);
+        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            boolean isExplicitNull = in.readBoolean();
             if (isExplicitNull) {
                 this.lifecycle = DataStreamLifecycle.Template.builder().enabled(false).build();
             } else {
@@ -217,12 +216,11 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             out.writeBoolean(true);
             out.writeMap(this.aliases, StreamOutput::writeWriteable);
         }
-        // We temporarily used the explicit null to disable a lifecycle.
-        boolean isExplicitNull = false;
-        if (out.getTransportVersion().between(TransportVersions.V_8_9_X, DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
-            isExplicitNull = lifecycle != null && lifecycle.enabled() == false;
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+        if (out.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
+            out.writeOptionalWriteable(lifecycle);
+        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            boolean isExplicitNull = lifecycle != null && lifecycle.enabled() == false;
+            out.writeBoolean(isExplicitNull);
             if (isExplicitNull == false) {
                 out.writeOptionalWriteable(lifecycle);
             }

@@ -165,7 +165,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build();
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle, DataStreamLifecycle.Template.DEFAULT);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles).toDataStreamLifecycle();
-            assertThat(result.enabled(), equalTo(false));
+            assertThat(result.enabled(), equalTo(true));
             assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));
             assertThat(result.downsampling(), equalTo(lifecycle.downsampling().get()));
         }

@@ -118,7 +118,6 @@ public class ResettableValue<T> {
      *
      * @throws IOException
      */
-    @Nullable
     static <T> ResettableValue<T> read(StreamInput in, Writeable.Reader<T> reader) throws IOException {
         boolean isDefined = in.readBoolean();
         if (isDefined == false) {

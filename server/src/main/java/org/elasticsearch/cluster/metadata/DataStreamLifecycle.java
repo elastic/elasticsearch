@@ -358,7 +358,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         }
 
         if (downsampling != null) {
-            builder.array(DOWNSAMPLING_FIELD.getPreferredName(), downsampling);
+            builder.field(DOWNSAMPLING_FIELD.getPreferredName(), downsampling);
         }
         if (rolloverConfiguration != null) {
             builder.field(ROLLOVER_FIELD.getPreferredName());
@@ -604,12 +604,54 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         public void writeTo(StreamOutput out) throws IOException {
             // The order of the fields is like this for bwc reasons
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                ResettableValue.write(out, dataRetention, StreamOutput::writeTimeValue);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                    ResettableValue.write(out, dataRetention, StreamOutput::writeTimeValue);
+                } else {
+                    writeLegacyValue(out, dataRetention, StreamOutput::writeTimeValue);
+                }
             }
             if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-                ResettableValue.write(out, downsampling, StreamOutput::writeOptionalCollection);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                    ResettableValue.write(out, downsampling, StreamOutput::writeCollection);
+                } else {
+                    writeLegacyValue(out, downsampling, StreamOutput::writeCollection);
+                }
                 out.writeBoolean(enabled);
             }
+        }
+
+        /**
+         * Before the introduction of the ResettableValues we used to serialise the explicit nulls differently. Legacy codes defines the
+         * two boolean flags as "isDefined" and "hasValue" while the ResettableValue, "isDefined" and "shouldReset". This inverts the
+         * semantics of the second flag and that's why we use this method.
+         */
+        private static <T> void writeLegacyValue(StreamOutput out, ResettableValue<T> value, Writeable.Writer<T> writer)
+            throws IOException {
+            out.writeBoolean(value.isDefined());
+            if (value.isDefined()) {
+                out.writeBoolean(value.shouldReset() == false);
+                if (value.shouldReset() == false) {
+                    writer.write(out, value.get());
+                }
+            }
+        }
+
+        /**
+         * Before the introduction of the ResettableValues we used to serialise the explicit nulls differently. Legacy codes defines the
+         * two boolean flags as "isDefined" and "hasValue" while the ResettableValue, "isDefined" and "shouldReset". This inverts the
+         * semantics of the second flag and that's why we use this method.
+         */
+        static <T> ResettableValue<T> readLegacyValues(StreamInput in, Writeable.Reader<T> reader) throws IOException {
+            boolean isDefined = in.readBoolean();
+            if (isDefined == false) {
+                return ResettableValue.undefined();
+            }
+            boolean hasNonNullValue = in.readBoolean();
+            if (hasNonNullValue == false) {
+                return ResettableValue.reset();
+            }
+            T value = reader.read(in);
+            return ResettableValue.create(value);
         }
 
         public static Template read(StreamInput in) throws IOException {
@@ -619,10 +661,18 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
             // The order of the fields is like this for bwc reasons
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                dataRetention = ResettableValue.read(in, StreamInput::readTimeValue);
+                if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                    dataRetention = ResettableValue.read(in, StreamInput::readTimeValue);
+                } else {
+                    dataRetention = readLegacyValues(in, StreamInput::readTimeValue);
+                }
             }
             if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-                downsampling = ResettableValue.read(in, i -> i.readCollectionAsList(DownsamplingRound::read));
+                if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                    downsampling = ResettableValue.read(in, i -> i.readCollectionAsList(DownsamplingRound::read));
+                } else {
+                    downsampling = readLegacyValues(in, i -> i.readCollectionAsList(DownsamplingRound::read));
+                }
                 enabled = in.readBoolean();
             }
             return new Template(enabled, dataRetention, downsampling);

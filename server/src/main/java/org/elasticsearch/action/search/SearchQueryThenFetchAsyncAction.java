@@ -200,7 +200,11 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         return nextPhase(client, this, results, null);
     }
 
-    public static class NodeQueryResponse extends TransportResponse {
+    /**
+     * Response to a query phase request, holding per-shard results that have been partially reduced as well as
+     * the partial reduce result.
+     */
+    public static final class NodeQueryResponse extends TransportResponse {
 
         private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
@@ -282,7 +286,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
     }
 
-    public static class NodeQueryRequest extends TransportRequest implements IndicesRequest {
+    /**
+     * Request for starting the query phase for multiple shards.
+     */
+    public static final class NodeQueryRequest extends TransportRequest implements IndicesRequest {
         private final List<ShardToQuery> shards;
         private final SearchRequest searchRequest;
         private final Map<String, AliasFilter> aliasFilters;
@@ -411,7 +418,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             } else {
                 final String nodeId = routing.getNodeId();
                 // local requests don't need batching as there's no network latency
-                if (localNodeId.equals(nodeId) == false) {
+                if (localNodeId.equals(nodeId)) {
+                    performPhaseOnShard(shardIndex, shardRoutings, routing);
+                } else {
                     var perNodeRequest = perNodeQueries.computeIfAbsent(
                         new CanMatchPreFilterSearchPhase.SendingTarget(routing.getClusterAlias(), nodeId),
                         t -> new NodeQueryRequest(request, numberOfShardsTotal, timeProvider.absoluteStartMillis(), t.clusterAlias())
@@ -430,8 +439,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     if (filterForAlias != AliasFilter.EMPTY) {
                         perNodeRequest.aliasFilters.putIfAbsent(indexUUID, filterForAlias);
                     }
-                } else {
-                    performPhaseOnShard(shardIndex, shardRoutings, routing);
                 }
             }
         }
@@ -637,10 +644,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             final int dataNodeLocalIdx = idx;
             final ListenableFuture<Void> doneFuture = new ListenableFuture<>();
             try {
-                var request = state.searchRequest;
-                var searchRequest = request.searchRequest;
+                final NodeQueryRequest nodeQueryRequest = state.searchRequest;
+                final SearchRequest searchRequest = nodeQueryRequest.searchRequest;
                 var pitBuilder = searchRequest.pointInTimeBuilder();
-                var shardToQuery = request.shards.get(dataNodeLocalIdx);
+                var shardToQuery = nodeQueryRequest.shards.get(dataNodeLocalIdx);
                 final var shardId = shardToQuery.shardId;
                 state.dependencies.searchService.executeQueryPhase(
                     rewriteShardSearchRequest(
@@ -648,28 +655,27 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                         state.trackTotalHitsUpTo,
                         buildShardSearchRequest(
                             shardId,
-                            request.localClusterAlias,
+                            nodeQueryRequest.localClusterAlias,
                             shardToQuery.shardIndex,
                             shardToQuery.contextId,
-                            new OriginalIndices(shardToQuery.originalIndices, request.indicesOptions()),
-                            request.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
+                            new OriginalIndices(shardToQuery.originalIndices, nodeQueryRequest.indicesOptions()),
+                            nodeQueryRequest.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
                             pitBuilder == null ? null : pitBuilder.getKeepAlive(),
                             shardToQuery.boost,
                             searchRequest,
-                            request.totalShards,
-                            request.absoluteStartMillis,
+                            nodeQueryRequest.totalShards,
+                            nodeQueryRequest.absoluteStartMillis,
                             state.hasResponse.getAcquire()
                         )
                     ),
                     state.task,
-                    new ActionListener<>() {
+                    new SearchActionListener<>(
+                        new SearchShardTarget(null, shardToQuery.shardId, nodeQueryRequest.localClusterAlias),
+                        dataNodeLocalIdx
+                    ) {
                         @Override
-                        public void onResponse(SearchPhaseResult searchPhaseResult) {
+                        protected void innerOnResponse(SearchPhaseResult searchPhaseResult) {
                             try {
-                                searchPhaseResult.setShardIndex(dataNodeLocalIdx);
-                                searchPhaseResult.setSearchShardTarget(
-                                    new SearchShardTarget(null, shardToQuery.shardId, request.localClusterAlias)
-                                );
                                 state.consumeResult(searchPhaseResult.queryResult());
                             } catch (Exception e) {
                                 setFailure(state, dataNodeLocalIdx, e);
@@ -680,7 +686,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
                         private void setFailure(QueryPerNodeState state, int dataNodeLocalIdx, Exception e) {
                             state.failures.put(dataNodeLocalIdx, e);
-                            state.onDone();
+                            state.onShardDone();
                         }
 
                         @Override
@@ -696,21 +702,11 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 // TODO this could be done better now, we probably should only make sure to have a single loop running at
                 // minimum and ignore + requeue rejections in that case
                 state.failures.put(dataNodeLocalIdx, e);
-                state.onDone();
+                state.onShardDone();
                 continue;
             }
-            if (doneFuture.isDone() == false && state.currentShardIndex.get() < totalShardCount) {
-                doneFuture.addListener(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        executeShardTasks(state);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        throw new AssertionError("impossible");
-                    }
-                });
+            if (doneFuture.isDone() == false) {
+                doneFuture.addListener(ActionListener.running(() -> executeShardTasks(state)));
                 break;
             }
         }
@@ -757,7 +753,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             this.dependencies = dependencies;
         }
 
-        void onDone() {
+        void onShardDone() {
             if (countDown.countDown() == false) {
                 return;
             }
@@ -843,7 +839,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
                 bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
             }
-            queryPhaseResultConsumer.consumeResult(queryResult, this::onDone);
+            queryPhaseResultConsumer.consumeResult(queryResult, this::onShardDone);
         }
     }
 }

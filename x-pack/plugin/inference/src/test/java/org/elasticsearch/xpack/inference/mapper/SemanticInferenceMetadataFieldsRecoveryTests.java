@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.Model;
@@ -44,6 +43,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingByte;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingFloat;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingSparse;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.semanticTextFieldFromChunkedInferenceResults;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,8 +55,8 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
     private final boolean useIncludesExcludes;
 
     public SemanticInferenceMetadataFieldsRecoveryTests(boolean useSynthetic, boolean useIncludesExcludes) {
-        this.model1 = randomModel(TaskType.TEXT_EMBEDDING);
-        this.model2 = randomModel(TaskType.SPARSE_EMBEDDING);
+        this.model1 = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING, List.of(SimilarityMeasure.DOT_PRODUCT));
+        this.model2 = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         this.useSynthetic = useSynthetic;
         this.useIncludesExcludes = useIncludesExcludes;
     }
@@ -218,22 +218,6 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
         }
     }
 
-    private static Model randomModel(TaskType taskType) {
-        var dimensions = taskType == TaskType.TEXT_EMBEDDING ? randomIntBetween(2, 64) : null;
-        var similarity = taskType == TaskType.TEXT_EMBEDDING
-            ? randomValueOtherThan(SimilarityMeasure.COSINE, () -> randomFrom(SimilarityMeasure.values()))
-            : null;
-        var elementType = taskType == TaskType.TEXT_EMBEDDING ? DenseVectorFieldMapper.ElementType.BYTE : null;
-        return new TestModel(
-            randomAlphaOfLength(4),
-            taskType,
-            randomAlphaOfLength(10),
-            new TestModel.TestServiceSettings(randomAlphaOfLength(4), dimensions, similarity, elementType),
-            new TestModel.TestTaskSettings(randomInt(3)),
-            new TestModel.TestSecretSettings(randomAlphaOfLength(4))
-        );
-    }
-
     private BytesReference randomSource() throws IOException {
         var builder = JsonXContent.contentBuilder().startObject();
         builder.field("field", randomAlphaOfLengthBetween(10, 30));
@@ -261,8 +245,8 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
     ) throws IOException {
         ChunkedInference results = switch (model.getTaskType()) {
             case TEXT_EMBEDDING -> switch (model.getServiceSettings().elementType()) {
-                case BYTE -> randomChunkedInferenceEmbeddingByte(model, inputs);
-                default -> throw new AssertionError("invalid element type: " + model.getServiceSettings().elementType().name());
+                case FLOAT -> randomChunkedInferenceEmbeddingFloat(model, inputs);
+                case BYTE, BIT -> randomChunkedInferenceEmbeddingByte(model, inputs);
             };
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs, false);
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());

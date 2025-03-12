@@ -377,37 +377,44 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                             InferenceAction.Request.DEFAULT_TIMEOUT,
                             false
                         );
-                    } else if (version.before(TransportVersions.INFERENCE_CONTEXT)) {
-                        return new InferenceAction.Request(
-                            instance.getTaskType(),
-                            instance.getInferenceEntityId(),
-                            instance.getQuery(),
-                            instance.getInput(),
-                            instance.getTaskSettings(),
-                            instance.getInputType(),
-                            instance.getInferenceTimeout(),
-                            false,
-                            InferenceContext.EMPTY_INSTANCE
-                        );
-                    }
+                    } else if (version.before(TransportVersions.INFERENCE_CONTEXT)
+                        && version.isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X) == false) {
+                            return new InferenceAction.Request(
+                                instance.getTaskType(),
+                                instance.getInferenceEntityId(),
+                                instance.getQuery(),
+                                instance.getInput(),
+                                instance.getTaskSettings(),
+                                instance.getInputType(),
+                                instance.getInferenceTimeout(),
+                                false,
+                                InferenceContext.EMPTY_INSTANCE
+                            );
+                        }
 
         return instance;
     }
 
     public void testWriteTo_WhenVersionIsOnAfterUnspecifiedAdded() throws IOException {
-        assertBwcSerialization(
-            new InferenceAction.Request(
-                TaskType.TEXT_EMBEDDING,
-                "model",
-                null,
-                List.of(),
-                Map.of(),
-                InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                false
-            ),
+        InferenceAction.Request instance = new InferenceAction.Request(
+            TaskType.TEXT_EMBEDDING,
+            "model",
+            null,
+            List.of(),
+            Map.of(),
+            InputType.UNSPECIFIED,
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            false
+        );
+
+        InferenceAction.Request deserializedInstance = copyWriteable(
+            instance,
+            getNamedWriteableRegistry(),
+            instanceReader(),
             TransportVersions.V_8_13_0
         );
+
+        assertThat(deserializedInstance.getInputType(), is(InputType.UNSPECIFIED));
     }
 
     public void testWriteTo_WhenVersionIsBeforeInputTypeAdded_ShouldSetInputTypeToUnspecified() throws IOException {

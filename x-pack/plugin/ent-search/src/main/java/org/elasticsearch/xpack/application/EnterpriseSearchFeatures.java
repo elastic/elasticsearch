@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.rules.action.ListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.rules.retriever.QueryRuleRetrieverBuilder;
+import org.elasticsearch.xpack.application.rules.QueryRule;
 
 import java.util.Map;
 import java.util.Set;
@@ -39,5 +40,10 @@ public class EnterpriseSearchFeatures implements FeatureSpecification {
             AnalyticsTemplateRegistry.ANALYTICS_TEMPLATE_FEATURE,
             Version.V_8_12_0
         );
+    }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(QueryRule.NUMERIC_VALIDATION);
     }
 }

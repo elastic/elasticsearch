@@ -45,7 +45,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
@@ -973,6 +972,114 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrows404(() -> adminClient().performRequest(new Request("GET", "/" + failureIndexName + "/_search")));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testFailureStoreAccessWithApiKeys() throws Exception {
+        apiKeys = new HashMap<>();
+
+        createUser(WRITE_ACCESS, PASSWORD, WRITE_ACCESS);
+        upsertRole(Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [{"names": ["test*"], "privileges": ["write", "auto_configure"]}]
+            }"""), WRITE_ACCESS);
+
+        createTemplates();
+
+        List<String> docIds = populateDataStream();
+        assertThat(docIds.size(), equalTo(2));
+        assertThat(docIds, hasItem("1"));
+        String dataDocId = "1";
+        String failuresDocId = docIds.stream().filter(id -> false == id.equals(dataDocId)).findFirst().get();
+
+        Request dataStream = new Request("GET", "/_data_stream/test1");
+        Response response = adminClient().performRequest(dataStream);
+        Map<String, Object> dataStreams = entityAsMap(response);
+        assertEquals(Collections.singletonList("test1"), XContentMapValues.extractValue("data_streams.name", dataStreams));
+        List<String> dataIndexNames = (List<String>) XContentMapValues.extractValue("data_streams.indices.index_name", dataStreams);
+        assertThat(dataIndexNames.size(), equalTo(1));
+        List<String> failureIndexNames = (List<String>) XContentMapValues.extractValue(
+            "data_streams.failure_store.indices.index_name",
+            dataStreams
+        );
+        assertThat(failureIndexNames.size(), equalTo(1));
+
+        String dataIndexName = dataIndexNames.get(0);
+        String failureIndexName = failureIndexNames.get(0);
+
+        var user = "user";
+        var role = "role";
+        createUser(user, PASSWORD, role);
+        upsertRole("""
+            {
+                "cluster": ["all"],
+                "indices": [
+                    {
+                        "names": ["*"],
+                        "privileges": ["read_failure_store"]
+                    }
+                ]
+            }
+            """, role);
+
+        String apiKey = createApiKey(user, """
+            {
+                "role": {
+                    "cluster": ["all"],
+                    "indices": [{"names": ["test1"], "privileges": ["read_failure_store"]}]
+                }
+            }""");
+
+        expectUsingApiKey(apiKey, new Search("test1::failures"), failuresDocId);
+        expectUsingApiKey(apiKey, new Search(failureIndexName), failuresDocId);
+        expectUsingApiKey(apiKey, new Search(dataIndexName), 403);
+        expectUsingApiKey(apiKey, new Search("test1"), 403);
+
+        apiKey = createApiKey(user, """
+            {
+                "role": {
+                    "cluster": ["all"],
+                    "indices": [{"names": ["test1"], "privileges": ["read_failure_store", "read"]}]
+                }
+            }""");
+
+        expectUsingApiKey(apiKey, new Search("test1::failures"), failuresDocId);
+        expectUsingApiKey(apiKey, new Search(failureIndexName), failuresDocId);
+        expectUsingApiKey(apiKey, new Search(dataIndexName), 403);
+        expectUsingApiKey(apiKey, new Search("test1"), 403);
+
+        apiKey = createApiKey(user, """
+            {
+                "role": {
+                    "cluster": ["all"],
+                    "indices": [
+                        {"names": ["test1"], "privileges": ["read_failure_store"]},
+                        {"names": ["*"], "privileges": ["read"]}
+                    ]
+                }
+            }""");
+
+        expectUsingApiKey(apiKey, new Search("test1::failures"), failuresDocId);
+        expectUsingApiKey(apiKey, new Search(failureIndexName), failuresDocId);
+        expectUsingApiKey(apiKey, new Search(dataIndexName), 403);
+        expectUsingApiKey(apiKey, new Search("test1"), 403);
+
+        apiKey = createApiKey(user, """
+            {
+                "role": {
+                    "cluster": ["all"],
+                    "indices": [
+                        {"names": ["*"], "privileges": ["read"]}
+                    ]
+                }
+            }""");
+
+        expectUsingApiKey(apiKey, new Search("test1::failures"), 403);
+        // funky but correct: assigned role descriptors grant direct access to failure index, limited-by to failure store
+        expectUsingApiKey(apiKey, new Search(failureIndexName), failuresDocId);
+        expectUsingApiKey(apiKey, new Search(dataIndexName), 403);
+        expectUsingApiKey(apiKey, new Search("test1"), 403);
+    }
+
     private static void expectThrows404(ThrowingRunnable runnable) {
         expectThrows(runnable, 404);
     }
@@ -992,13 +1099,22 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     }
 
     private void expect(String user, Search search, String... docIds) throws Exception {
-        expectSearch(user, search.toSearchRequest(), docIds);
-        expectAsyncSearch(user, search.toAsyncSearchRequest(), docIds);
+        expectSearch(performRequestMaybeUsingApiKey(user, search.toSearchRequest()), docIds);
+        expectAsyncSearch(performRequestMaybeUsingApiKey(user, search.toAsyncSearchRequest()), docIds);
+    }
+
+    private void expectUsingApiKey(String apiKey, Search search, String... docIds) throws Exception {
+        expectSearch(performRequestWithApiKey(apiKey, search.toSearchRequest()), docIds);
+        expectAsyncSearch(performRequestWithApiKey(apiKey, search.toAsyncSearchRequest()), docIds);
+    }
+
+    private void expectUsingApiKey(String apiKey, Search search, int statusCode) {
+        expectThrows(() -> performRequestWithApiKey(apiKey, search.toSearchRequest()), statusCode);
+        expectThrows(() -> performRequestWithApiKey(apiKey, search.toAsyncSearchRequest()), statusCode);
     }
 
     @SuppressWarnings("unchecked")
-    private void expectAsyncSearch(String user, Request request, String... docIds) throws IOException {
-        Response response = performRequestMaybeUsingApiKey(user, request);
+    private static void expectAsyncSearch(Response response, String... docIds) throws IOException {
         assertOK(response);
         ObjectPath resp = ObjectPath.createFromResponse(response);
         Boolean isRunning = resp.evaluate("is_running");
@@ -1012,8 +1128,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         assertThat(actual, containsInAnyOrder(docIds));
     }
 
-    private void expectSearch(String user, Request request, String... docIds) throws Exception {
-        Response response = performRequestMaybeUsingApiKey(user, request);
+    private static void expectSearch(Response response, String... docIds) throws IOException {
         assertOK(response);
         final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
         try {
@@ -1163,14 +1278,16 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     }
 
     private Response performRequestMaybeUsingApiKey(String user, Request request) throws IOException {
-        if (randomBoolean()) {
-            return performRequest(user, request);
+        if (randomBoolean() && apiKeys.containsKey(user)) {
+            return performRequestWithApiKey(apiKeys.get(user), request);
         } else {
-            String apiKey = apiKeys.get(user);
-            assertThat("expected to have an API key stored for user: " + user, apiKey, is(notNullValue()));
-            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + apiKey).build());
-            return client().performRequest(request);
+            return performRequest(user, request);
         }
+    }
+
+    private static Response performRequestWithApiKey(String apiKey, Request request) throws IOException {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + apiKey).build());
+        return client().performRequest(request);
     }
 
     private static void expectUserPrivilegesResponse(String userPrivilegesResponse) throws IOException {
@@ -1200,8 +1317,13 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         getSecurityClient().putUser(new User(username, roles), password);
     }
 
-    protected void createAndStoreApiKey(String username, @Nullable String roleDescriptors) throws IOException {
+    protected String createAndStoreApiKey(String username, @Nullable String roleDescriptors) throws IOException {
         assertThat("API key already registered for user: " + username, apiKeys.containsKey(username), is(false));
+        apiKeys.put(username, createApiKey(username, roleDescriptors));
+        return createApiKey(username, roleDescriptors);
+    }
+
+    private String createApiKey(String username, String roleDescriptors) throws IOException {
         var request = new Request("POST", "/_security/api_key");
         if (roleDescriptors == null) {
             request.setJsonEntity("""
@@ -1220,8 +1342,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         Response response = performRequest(username, request);
         assertOK(response);
         Map<String, Object> responseAsMap = responseAsMap(response);
-        String encoded = (String) responseAsMap.get("encoded");
-        apiKeys.put(username, encoded);
+        return (String) responseAsMap.get("encoded");
     }
 
     protected void upsertRole(String roleDescriptor, String roleName) throws IOException {

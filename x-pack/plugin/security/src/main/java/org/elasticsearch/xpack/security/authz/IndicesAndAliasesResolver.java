@@ -26,7 +26,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -510,7 +509,7 @@ class IndicesAndAliasesResolver {
         }
 
         for (String aliasExpression : aliases) {
-            assertNoUnsupportedSelectors(aliasExpression);
+            IndexNameExpressionResolver.assertDefaultOrDataSelector(aliasExpression);
             boolean include = true;
             if (aliasExpression.charAt(0) == '-') {
                 include = false;
@@ -536,14 +535,6 @@ class IndicesAndAliasesResolver {
         }
 
         return finalAliases;
-    }
-
-    private static void assertNoUnsupportedSelectors(String expression) {
-        if (Assertions.ENABLED) {
-            Tuple<String, String> tuple = IndexNameExpressionResolver.splitSelectorExpression(expression);
-            assert tuple.v2() == null || IndexComponentSelector.getByKey(tuple.v2()) == IndexComponentSelector.DATA
-                : "Selector [" + tuple.v2() + "] is not allowed in expression [" + expression + "]";
-        }
     }
 
     private static List<String> indicesList(String[] list) {

@@ -887,32 +887,34 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
      */
     // visible for testing
     class ConsistencyChecker {
-        private static final Logger logger = LogManager.getLogger(ConsistencyChecker.class);
+
+        // dedicated logger so we can separate these logs from other SnapshotShardsService DEBUG logs
+        private static final Logger CONSISTENCY_CHECKER_LOGGER = LogManager.getLogger(ConsistencyChecker.class);
 
         private record CheckTask(Snapshot snapshot, ShardId shardId) {}
 
-        private final AtomicInteger queuedTasks = new AtomicInteger(0); // atomic so we can ensure max one thread processing the queue
+        private final AtomicInteger queuedTaskCount = new AtomicInteger(0); // atomic to ensure max one thread processing the queue
         private final Queue<CheckTask> queue = new ConcurrentLinkedQueue<>();
 
         void ensureShardComplete(Snapshot snapshot, ShardId shardId) {
-            if (logger.isDebugEnabled() == false) {
+            if (CONSISTENCY_CHECKER_LOGGER.isDebugEnabled() == false) {
                 return;
             }
 
-            if (queuedTasks.get() > 1000) {
+            if (queuedTaskCount.get() > 1000) {
                 // racy check, we only need an approximate limit
                 return;
             }
 
             queue.add(new CheckTask(snapshot, shardId));
-            if (queuedTasks.getAndIncrement() == 0) {
+            if (queuedTaskCount.getAndIncrement() == 0) {
                 threadPool.generic().execute(this::runCheck);
             } // else a runCheck is already running somewhere and will pick up the task we just added
         }
 
         private void runCheck() {
             while (true) {
-                final var taskCount = queuedTasks.get();
+                final var taskCount = queuedTaskCount.get();
                 final var shardsBySnapshot = new HashMap<Snapshot, Set<ShardId>>();
                 for (int i = 0; i < taskCount; i++) {
                     final var task = queue.poll();
@@ -927,9 +929,9 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                         for (final var shardId : shardsBySnapshotEntry.getValue()) {
                             final var shardStatus = entry.shards().get(shardId);
                             if (shardStatus == null) {
-                                logger.debug("shard [{}] in snapshot [{}] unexpectedly not found", shardId, snapshot);
+                                CONSISTENCY_CHECKER_LOGGER.debug("shard [{}] in snapshot [{}] unexpectedly not found", shardId, snapshot);
                             } else if (shardStatus.state().completed() == false) {
-                                logger.debug(
+                                CONSISTENCY_CHECKER_LOGGER.debug(
                                     "shard [{}] in snapshot [{}] unexpectedly still in state [{}] after notifying master",
                                     shardId,
                                     snapshot,
@@ -940,7 +942,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                     } // else snapshot already completed & removed from cluster state
                 }
 
-                if (queuedTasks.addAndGet(-taskCount) == 0) {
+                if (queuedTaskCount.addAndGet(-taskCount) == 0) {
                     return;
                 } // else someone added some more tasks, so keep trying
             }

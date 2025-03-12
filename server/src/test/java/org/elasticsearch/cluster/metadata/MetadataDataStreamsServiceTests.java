@@ -9,7 +9,11 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -20,11 +24,19 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
+import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -466,6 +478,51 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertThat(updatedDataStream.getDataStreamOptions(), equalTo(DataStreamOptions.EMPTY));
     }
 
+    public void testDeleteMissing() {
+        DataStream dataStream = DataStreamTestHelper.randomInstance();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDataStreamsService.deleteDataStreams(state, Set.of(dataStream), Settings.EMPTY)
+        );
+        assertThat(e.getMessage(), containsString(dataStream.getName()));
+    }
+
+    public void testDeleteSnapshotting() {
+        String dataStreamName = randomAlphaOfLength(5);
+        Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
+        SnapshotsInProgress snaps = SnapshotsInProgress.EMPTY.withAddedEntry(
+            SnapshotsInProgress.Entry.snapshot(
+                snapshot,
+                true,
+                false,
+                SnapshotsInProgress.State.INIT,
+                Collections.emptyMap(),
+                List.of(dataStreamName),
+                Collections.emptyList(),
+                System.currentTimeMillis(),
+                (long) randomIntBetween(0, 1000),
+                Map.of(),
+                null,
+                SnapshotInfoTestUtils.randomUserMetadata(),
+                IndexVersionUtils.randomVersion()
+            )
+        );
+        final DataStream dataStream = DataStreamTestHelper.randomInstance(dataStreamName);
+        ClusterState state = ClusterState.builder(clusterState(dataStream)).putCustom(SnapshotsInProgress.TYPE, snaps).build();
+        Exception e = expectThrows(
+            SnapshotInProgressException.class,
+            () -> MetadataDataStreamsService.deleteDataStreams(state, Set.of(dataStream), Settings.EMPTY)
+        );
+        assertEquals(
+            "Cannot delete data streams that are being snapshotted: ["
+                + dataStreamName
+                + "]. Try again after snapshot finishes "
+                + "or cancel the currently running snapshot.",
+            e.getMessage()
+        );
+    }
+
     private MapperService getMapperService(IndexMetadata im) {
         try {
             String mapping = im.mapping().source().toString();
@@ -473,5 +530,17 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private ClusterState clusterState(DataStream dataStream) {
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final Metadata.Builder metadataBuilder = Metadata.builder().put(ProjectMetadata.builder(projectId).put(dataStream));
+
+        // TODO, add second project
+        final var metadata = metadataBuilder.build();
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .build();
     }
 }
